@@ -61,6 +61,13 @@ Stream flow: `system (init)` → `stream_event (content_block_delta)` × N → `
 
 Key flags: `--resume`, `--model`, `--agent`, `--worktree`, `--permission-mode`, `--add-dir`, `--max-turns`, `--max-budget-usd`, `--mcp-config`
 
+## Environment setup
+
+- Node.js 22+, pnpm 9+
+- Rust stable (rustup)
+- Linux: `webkit2gtk-4.1`, `libayatana-appindicator3-dev` (for tray icon)
+- `pnpm install` then `pnpm tauri dev`
+
 ## Paths (XDG from day one)
 
 - Config: `~/.config/aither-flow/`
@@ -69,6 +76,8 @@ Key flags: `--resume`, `--model`, `--agent`, `--worktree`, `--permission-mode`, 
 - Use the `dirs` crate for platform-specific paths
 
 ## Conventions (Rust)
+
+Note: some utilities below are planned but not yet implemented. Create them following these patterns when needed.
 
 - `platform.rs` — cross-platform module with `#[cfg(target_os)]` blocks. All other code is OS-agnostic
 - `atomic_write()` for ALL file writes (write to temp + rename)
@@ -84,7 +93,7 @@ Key flags: `--resume`, `--model`, `--agent`, `--worktree`, `--permission-mode`, 
 
 - Named exports for components
 - `memo()` on heavy components (chat, message list, cards)
-- All colors via Gruvbox CSS custom properties, no hardcoded values
+- All colors via CSS custom properties (see Design System), no hardcoded values
 - Single Modal component for all overlays
 - Keyboard shortcuts via `e.code` (layout-independent). Only Alt+* and Ctrl+*, NOT Super — Hyprland intercepts it
 - Never swallow errors: use `.catch(console.error)`, not `.catch(() => {})`
