@@ -28,3 +28,6 @@ pnpm-debug.log*
 ARCHITECTURE.md
 ROADMAP.md
 devlog/
+
+# Agent skills (personal, not part of the project)
+.claude/skills/

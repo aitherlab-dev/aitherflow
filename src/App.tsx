@@ -30,8 +30,8 @@ export function App() {
         onClick={toggleTheme}
         className="flex items-center gap-2 rounded-lg px-4 py-2 transition-colors"
         style={{
-          background: "var(--bg-card)",
-          color: "var(--fg-muted)",
+          background: "var(--bg-hover)",
+          color: "var(--fg)",
           border: "1px solid var(--border)",
         }}
       >

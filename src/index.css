@@ -1,22 +1,22 @@
 @import "tailwindcss";
 
-/* ── Gruvbox Dark (default) ── */
+/* ── Dark — warm coffee tone ── */
 :root {
-  --bg: #282828;
-  --bg-hard: #1d2021;
-  --bg-soft: #32302f;
-  --bg-card: #3c3836;
-  --bg-hover: #504945;
+  --bg: #1e1c19;
+  --bg-hard: #15130f;
+  --bg-soft: #282521;
+  --bg-card: #302c27;
+  --bg-hover: #3d3830;
 
-  --fg: #ebdbb2;
+  --fg: #d6cdbf;
   --fg-muted: #a89984;
   --fg-dim: #665c54;
 
-  --accent: #fe8019;
-  --accent-dim: #d65d0e;
+  --accent: #d65d0e;
+  --accent-dim: #af3a03;
 
-  --border: #504945;
-  --input-bg: #3c3836;
+  --border: #3d3830;
+  --input-bg: #302c27;
 
   --red: #fb4934;
   --green: #b8bb26;
@@ -26,9 +26,9 @@
   --aqua: #8ec07c;
   --gray: #928374;
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 8px 32px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.25);
 
   /* Brand */
   --brand-dark: #2a2a2a;
@@ -38,23 +38,23 @@
   color-scheme: dark;
 }
 
-/* ── Gruvbox Light ── */
+/* ── Light — aitherlab.org palette ── */
 [data-theme="light"] {
-  --bg: #fbf1c7;
-  --bg-hard: #f9f5d7;
-  --bg-soft: #f2e5bc;
-  --bg-card: #ebdbb2;
-  --bg-hover: #d5c4a1;
+  --bg: #c4b49a;
+  --bg-hard: #f0e8db;
+  --bg-soft: #c9bead;
+  --bg-card: #d6cdbf;
+  --bg-hover: #ccc2b3;
 
-  --fg: #3c3836;
-  --fg-muted: #665c54;
-  --fg-dim: #a89984;
+  --fg: #2a2a2a;
+  --fg-muted: #5a5248;
+  --fg-dim: #8a7e72;
 
   --accent: #d65d0e;
   --accent-dim: #af3a03;
 
-  --border: #d5c4a1;
-  --input-bg: #fbf1c7;
+  --border: #dfd7c8;
+  --input-bg: #e5ddd0;
 
   --red: #cc241d;
   --green: #98971a;
@@ -64,9 +64,9 @@
   --aqua: #689d6a;
   --gray: #7c6f64;
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.1);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.15);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.18), 0 4px 12px rgba(0, 0, 0, 0.1);
 
   color-scheme: light;
 }

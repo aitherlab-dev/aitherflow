@@ -12,7 +12,7 @@ Full architecture: `ARCHITECTURE.md`. Roadmap: `ROADMAP.md`.
 
 - **Backend:** Rust / Tauri 2 (Cargo workspace: main app + `aither-flow-perms`)
 - **Frontend:** React 19 + TypeScript + Vite + Tailwind CSS v4
-- **Theme:** Gruvbox (dark/light), CSS custom properties
+- **Theme:** Custom warm palette (dark: coffee tone, light: aitherlab.org), CSS custom properties
 - **Data:** SQLite + FTS5 (memory), JSON (chats, settings)
 - **Scaffold note:** `pnpm create tauri-app` requires an empty directory; create in /tmp then copy
 - **Platforms:** Linux (primary), macOS (secondary). Windows is not supported
@@ -90,11 +90,12 @@ Key flags: `--resume`, `--model`, `--agent`, `--worktree`, `--permission-mode`, 
 - Never swallow errors: use `.catch(console.error)`, not `.catch(() => {})`
 - React hooks BEFORE any early `return null`
 
-## Gruvbox Design System
+## Design System
 
-CSS custom properties on `:root` (dark by default) and `[data-theme="light"]`:
-- `--bg`, `--bg-hard`, `--bg-card`, `--accent` (orange), `--fg`, `--fg-muted`, `--border`
-- Colors: `--red`, `--green`, `--blue`, `--yellow`, `--purple`, `--aqua`, `--gray`
+CSS custom properties on `:root` (dark by default) and `[data-theme="light"]`.
+Layer hierarchy (deep → surface): `--bg` (floor, gaps between panels) → `--bg-soft`/`--bg-hard` (panels) → `--bg-card` (floating elements) → `--bg-hover` (interactive) → `--input-bg` (fields).
+Accent: `--accent` (#d65d0e orange, same in both themes).
+Full palette reference: `memory/palette.md` (agent auto-memory).
 
 ## Development rules (from ROADMAP.md)
 
