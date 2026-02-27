@@ -1,0 +1,13 @@
+[package]
+name = "aither-flow-perms"
+version = "0.1.0"
+description = "Lightweight permission prompt MCP tool for aitherflow"
+edition = "2021"
+
+[[bin]]
+name = "aither-flow-perms"
+path = "src/main.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

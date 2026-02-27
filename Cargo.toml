@@ -1,0 +1,3 @@
+[workspace]
+members = ["src-tauri", "src-tauri/crates/aither-flow-perms"]
+resolver = "2"

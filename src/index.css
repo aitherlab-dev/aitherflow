@@ -1,0 +1,110 @@
+@import "tailwindcss";
+
+/* ── Gruvbox Dark (default) ── */
+:root {
+  --bg: #282828;
+  --bg-hard: #1d2021;
+  --bg-soft: #32302f;
+  --bg-card: #3c3836;
+  --bg-hover: #504945;
+
+  --fg: #ebdbb2;
+  --fg-muted: #a89984;
+  --fg-dim: #665c54;
+
+  --accent: #fe8019;
+  --accent-dim: #d65d0e;
+
+  --border: #504945;
+  --input-bg: #3c3836;
+
+  --red: #fb4934;
+  --green: #b8bb26;
+  --blue: #83a598;
+  --yellow: #fabd2f;
+  --purple: #d3869b;
+  --aqua: #8ec07c;
+  --gray: #928374;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.4);
+
+  /* Brand */
+  --brand-dark: #2a2a2a;
+  --brand-orange: #d65d0e;
+  --brand-bg: #d6cdbf;
+
+  color-scheme: dark;
+}
+
+/* ── Gruvbox Light ── */
+[data-theme="light"] {
+  --bg: #fbf1c7;
+  --bg-hard: #f9f5d7;
+  --bg-soft: #f2e5bc;
+  --bg-card: #ebdbb2;
+  --bg-hover: #d5c4a1;
+
+  --fg: #3c3836;
+  --fg-muted: #665c54;
+  --fg-dim: #a89984;
+
+  --accent: #d65d0e;
+  --accent-dim: #af3a03;
+
+  --border: #d5c4a1;
+  --input-bg: #fbf1c7;
+
+  --red: #cc241d;
+  --green: #98971a;
+  --blue: #458588;
+  --yellow: #d79921;
+  --purple: #b16286;
+  --aqua: #689d6a;
+  --gray: #7c6f64;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.15);
+
+  color-scheme: light;
+}
+
+/* ── Base ── */
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Prevent text selection on drag */
+.select-none {
+  user-select: none;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--fg-dim);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--fg-muted);
+}
