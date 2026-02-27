@@ -14,6 +14,7 @@ Full architecture: `ARCHITECTURE.md`. Roadmap: `ROADMAP.md`.
 - **Frontend:** React 19 + TypeScript + Vite + Tailwind CSS v4
 - **Theme:** Gruvbox (dark/light), CSS custom properties
 - **Data:** SQLite + FTS5 (memory), JSON (chats, settings)
+- **Scaffold note:** `pnpm create tauri-app` requires an empty directory; create in /tmp then copy
 - **Platforms:** Linux (primary), macOS (secondary). Windows is not supported
 
 ## Commands
@@ -104,6 +105,8 @@ CSS custom properties on `:root` (dark by default) and `[data-theme="light"]`:
 5. ESLint + Prettier + `cargo clippy` after each block of changes
 6. Do not reinvent — where CLI has a format, use it
 7. Application UI is in English. Communication with the user is in Russian
+8. All public-facing content (README, CLAUDE.md, commit messages, PR descriptions) must be in English
+9. Internal docs (ARCHITECTURE.md, ROADMAP.md, devlog/) are in Russian and excluded from git
 
 ## Working with the user
 

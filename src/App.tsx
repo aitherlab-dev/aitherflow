@@ -36,9 +36,7 @@ export function App() {
         }}
       >
         {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
-        <span className="text-sm">
-          {theme === "dark" ? "Light" : "Dark"}
-        </span>
+        <span className="text-sm">{theme === "dark" ? "Light" : "Dark"}</span>
       </button>
 
       <p className="text-[var(--fg-dim)] text-xs">v0.1.0 — Stage 1</p>
