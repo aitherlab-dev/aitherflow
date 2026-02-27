@@ -1,11 +1,21 @@
+mod conductor;
 mod config;
 mod platform;
+
+use conductor::session::SessionManager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
+        .manage(SessionManager::new())
+        .invoke_handler(tauri::generate_handler![
+            conductor::start_session,
+            conductor::send_message,
+            conductor::stop_session,
+            conductor::has_active_session,
+        ])
         .setup(|_app| {
             let config_dir = config::config_dir();
             let data_dir = config::data_dir();

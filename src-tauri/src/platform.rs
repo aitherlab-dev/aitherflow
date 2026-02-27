@@ -1,8 +1,8 @@
-/// Platform-specific abstractions.
-/// All OS-dependent code lives here — the rest of the app doesn't know about the OS.
-/// See ARCHITECTURE.md section "platform.rs"
+//! Platform-specific abstractions.
+//! All OS-dependent code lives here — the rest of the app doesn't know about the OS.
+//! See ARCHITECTURE.md section "platform.rs"
 
-/// Send a desktop notification
+/// Send a desktop notification.
 pub fn notify(title: &str, body: &str) {
     #[cfg(target_os = "linux")]
     {
