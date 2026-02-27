@@ -23,3 +23,8 @@ pnpm-debug.log*
 .env
 .env.*
 *.local
+
+# Internal docs (not public)
+ARCHITECTURE.md
+ROADMAP.md
+devlog/

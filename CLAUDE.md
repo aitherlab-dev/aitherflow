@@ -2,129 +2,125 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Проект
+## Project
 
-Aither Flow — desktop GUI-обёртка для Claude Code CLI. Не замена CLI, а визуальный интерфейс поверх него. CLI — единственный движок, GUI только управляет процессами и показывает результаты.
+Aither Flow — a desktop GUI wrapper for Claude Code CLI. Not a replacement for CLI, but a visual interface on top of it. CLI is the sole engine; the GUI only manages processes and displays results.
 
-Полная архитектура: `ARCHITECTURE.md`. Дорожная карта: `ROADMAP.md`.
+Full architecture: `ARCHITECTURE.md`. Roadmap: `ROADMAP.md`.
 
-## Стек
+## Stack
 
-- **Бэкенд:** Rust / Tauri 2 (Cargo workspace: основное приложение + `aither-flow-perms`)
-- **Фронтенд:** React 19 + TypeScript + Vite + Tailwind CSS v4
-- **Тема:** Gruvbox (dark/light), CSS-переменные
-- **Данные:** SQLite + FTS5 (память), JSON (чаты, настройки)
-- **Платформы:** Linux (основная), macOS (вторичная). Windows не поддерживается
+- **Backend:** Rust / Tauri 2 (Cargo workspace: main app + `aither-flow-perms`)
+- **Frontend:** React 19 + TypeScript + Vite + Tailwind CSS v4
+- **Theme:** Gruvbox (dark/light), CSS custom properties
+- **Data:** SQLite + FTS5 (memory), JSON (chats, settings)
+- **Platforms:** Linux (primary), macOS (secondary). Windows is not supported
 
-## Команды
+## Commands
 
 ```bash
-pnpm tauri dev          # запуск в dev-режиме
-pnpm tauri build        # production сборка
-pnpm tsc --noEmit       # проверка TypeScript (из корня проекта, НЕ из src-tauri/)
-cargo clippy            # lint Rust (из src-tauri/)
-pnpm test               # запуск тестов (vitest)
-pnpm test -- -t "name"  # запуск одного теста
+pnpm tauri dev          # run in dev mode
+pnpm tauri build        # production build
+pnpm tsc --noEmit       # typecheck (run from project root, NOT from src-tauri/)
+cargo clippy            # lint Rust (run from src-tauri/)
+pnpm test               # run tests (vitest)
+pnpm test -- -t "name"  # run a single test
 ```
 
-## Архитектура: дирижёр и оркестр
+## Architecture: conductor and orchestra
 
-Ядро (дирижёр) общается с CLI через stream-json и раздаёт события модулям через шину. Модули (секции оркестра) не знают друг о друге — общение только через события или ядро. Убрать один модуль — остальные работают.
+The core (conductor) communicates with CLI via stream-json and dispatches events to modules through an event bus. Modules (orchestra sections) are unaware of each other — they communicate only through events or the core. Removing one module does not affect the rest.
 
-### Секции
-- **Струнные** (данные): чаты, память (SQLite), проекты
-- **Духовые** (расширения CLI): навыки, MCP-серверы, агенты, хуки
-- **Ударные** (инфраструктура): файл-вьюер, веб-превью, Telegram, крон
+### Sections
+- **Strings** (data): chats, memory (SQLite), projects
+- **Winds** (CLI extensions): skills, MCP servers, agents, hooks
+- **Percussion** (infrastructure): file viewer, web preview, Telegram, cron
 
-### Модули интерфейса
-Чат, боковая панель, настройки, веб-превью, файл-вьюер, модалки (единый компонент Modal), статус-бар (с раскрывающимися панелями), хедер — каждый изолирован со своим состоянием.
+### UI modules
+Chat, sidebar, settings, web preview, file viewer, modals (single Modal component), status bar (with expandable panels), header — each is isolated with its own state.
 
-## Критические архитектурные решения
+## Critical architectural decisions
 
-### Изоляция агентов — фундамент
-Каждый агент = самостоятельный контейнер: свои сообщения, сессия, проект, CLI-процесс. Переключение вкладки = показ другого контейнера, НЕ перенастройка общего стейта. Нет общего `activeAgentId` в бизнес-логике.
+### Agent isolation — foundation
+Each agent = independent container: own messages, session, project, CLI process. Switching a tab = showing a different container, NOT reconfiguring shared state. No shared `activeAgentId` in business logic.
 
-### Интерактивные разрешения
-Отдельный бинарник `aither-flow-perms` (~200 строк Rust, без Tauri). CLI вызывает его через `--permission-prompt-tool`, он общается с GUI по unix socket. MCP-протокол: 3 метода (`initialize`, `tools/list`, `tools/call`).
+### Interactive permissions
+Separate binary `aither-flow-perms` (~200 lines of Rust, no Tauri). CLI calls it via `--permission-prompt-tool`; it communicates with the GUI over a unix socket. MCP protocol: 3 methods (`initialize`, `tools/list`, `tools/call`).
 
-### Совместимость с CLI
-GUI читает/пишет те же файлы что CLI. Навыки, агенты, MCP, хуки, разрешения, CLAUDE.md — единый формат. Никаких параллельных хранилищ.
+### CLI compatibility
+The GUI reads/writes the same files as the CLI. Skills, agents, MCP, hooks, permissions, CLAUDE.md — single format. No parallel storage.
 
-## CLI-интеграция
+## CLI integration
 
 ```
 claude -p --output-format stream-json --input-format stream-json --verbose --include-partial-messages
 ```
 
-Поток: `system (init)` → `stream_event (content_block_delta)` × N → `assistant` → `result`
+Stream flow: `system (init)` → `stream_event (content_block_delta)` × N → `assistant` → `result`
 
-Ключевые флаги: `--resume`, `--model`, `--agent`, `--worktree`, `--permission-mode`, `--add-dir`, `--max-turns`, `--max-budget-usd`, `--mcp-config`
+Key flags: `--resume`, `--model`, `--agent`, `--worktree`, `--permission-mode`, `--add-dir`, `--max-turns`, `--max-budget-usd`, `--mcp-config`
 
-## Пути (XDG с первого дня)
+## Paths (XDG from day one)
 
-- Конфиги: `~/.config/aither-flow/`
-- Данные: `~/.local/share/aither-flow/`
-- CLI-совместимые: `~/.claude/skills/`, `~/.claude/agents/`, `~/.claude.json`, `~/.claude/settings.json`
-- Использовать `dirs` crate для платформенных путей
+- Config: `~/.config/aither-flow/`
+- Data: `~/.local/share/aither-flow/`
+- CLI-compatible: `~/.claude/skills/`, `~/.claude/agents/`, `~/.claude.json`, `~/.claude/settings.json`
+- Use the `dirs` crate for platform-specific paths
 
 ## Conventions (Rust)
 
-- `platform.rs` — кроссплатформенный модуль с `#[cfg(target_os)]` блоками. Остальной код не знает про ОС
-- `atomic_write()` для ВСЕХ записей файлов (write to temp + rename)
-- `spawn_blocking` для ВСЕХ `#[tauri::command]` с `std::fs::*`, `Path::exists()`, `Command::new()`
-- `validate_path_safe()` для путей от пользователя (на ОБОИХ аргументах при copy/rename)
-- `sanitize_id()` для ID в путях файлов (допускает `@` и `.`)
-- Общие утилиты в `config.rs`: `get_home_dir()`, `get_claude_home()`, `read_json_file<T>()`, `write_json_file<T>()`
-- Никогда не проглатывать ошибки: `.map_err(|e| eprintln!(...)).ok()?`, не `let _ =` и не `.ok()?`
-- rusqlite Connection не Send — открывать внутри `spawn_blocking`
-- >7 аргументов функции → input struct с `#[derive(Deserialize)]`
+- `platform.rs` — cross-platform module with `#[cfg(target_os)]` blocks. All other code is OS-agnostic
+- `atomic_write()` for ALL file writes (write to temp + rename)
+- `spawn_blocking` for ALL `#[tauri::command]` handlers using `std::fs::*`, `Path::exists()`, `Command::new()`
+- `validate_path_safe()` for user-supplied paths (on BOTH arguments for copy/rename)
+- `sanitize_id()` for IDs used in file paths (allows `@` and `.`)
+- Shared utilities in `config.rs`: `get_home_dir()`, `get_claude_home()`, `read_json_file<T>()`, `write_json_file<T>()`
+- Never swallow errors: use `.map_err(|e| eprintln!(...)).ok()?`, not `let _ =` or bare `.ok()?`
+- rusqlite Connection is not Send — open it inside `spawn_blocking`
+- \>7 function arguments → use an input struct with `#[derive(Deserialize)]`
 
 ## Conventions (TypeScript/React)
 
-- Named exports для компонентов
-- `memo()` на тяжёлых компонентах (чат, список сообщений, карточки)
-- Все цвета через CSS-переменные Gruvbox, не хардкод
-- Единый компонент Modal для всех оверлеев
-- Горячие клавиши через `e.code` (работают на любой раскладке). Только Alt+* и Ctrl+*, НЕ Super — Hyprland перехватывает
-- Не проглатывать ошибки: `.catch(console.error)`, не `.catch(() => {})`
-- React hooks ДО любого раннего `return null`
+- Named exports for components
+- `memo()` on heavy components (chat, message list, cards)
+- All colors via Gruvbox CSS custom properties, no hardcoded values
+- Single Modal component for all overlays
+- Keyboard shortcuts via `e.code` (layout-independent). Only Alt+* and Ctrl+*, NOT Super — Hyprland intercepts it
+- Never swallow errors: use `.catch(console.error)`, not `.catch(() => {})`
+- React hooks BEFORE any early `return null`
 
 ## Gruvbox Design System
 
-CSS-переменные на `:root` (dark по умолчанию) и `[data-theme="light"]`:
+CSS custom properties on `:root` (dark by default) and `[data-theme="light"]`:
 - `--bg`, `--bg-hard`, `--bg-card`, `--accent` (orange), `--fg`, `--fg-muted`, `--border`
-- Цвета: `--red`, `--green`, `--blue`, `--yellow`, `--purple`, `--aqua`, `--gray`
+- Colors: `--red`, `--green`, `--blue`, `--yellow`, `--purple`, `--aqua`, `--gray`
 
-## Правила разработки (из ROADMAP.md)
+## Development rules (from ROADMAP.md)
 
-1. Один этап за раз — не забегать вперёд
-2. Одно изменение за раз — проверил → следующее
-3. Коммит после каждого логического блока с осмысленным сообщением
-4. Модули не знают друг о друге — шина событий, не прямые импорты
-5. ESLint + Prettier + `cargo clippy` после каждого блока изменений
-6. Не изобретать — где CLI имеет формат, использовать его
-7. Интерфейс приложения — на английском. Общение с пользователем — на русском
+1. One stage at a time — do not jump ahead
+2. One change at a time — verify → next
+3. Commit after each logical block with a meaningful message
+4. Modules must not know about each other — event bus, no direct imports
+5. ESLint + Prettier + `cargo clippy` after each block of changes
+6. Do not reinvent — where CLI has a format, use it
+7. Application UI is in English. Communication with the user is in Russian
 
-## Правила работы с пользователем
+## Working with the user
 
-- **Сначала обсуждаем — потом код.** Новые фичи не пилить без одобрения пользователя
-- **Баги и мелкие исправления** — зона ответственности агента, не дёргать пользователя
-- Пользователь НЕ программист. Объяснять простым языком, без листингов кода
-- Код V1 (GUI-Claude) — только как справочник, ничего не копировать
-- Всё пишем с чистого листа
+- **Discuss first — code second.** Do not build new features without user approval
+- **Bugs and minor fixes** — agent's responsibility, do not bother the user
+- The user is NOT a programmer. Explain in plain language, no code listings
+- V1 code (GUI-Claude) is reference only — do not copy anything from it
+- Everything is written from scratch
 
-## Брендинг
+## Branding
 
-- **Зонтик:** aitherlab (aither = Bold 700 #2a2a2a, lab = Extra Light 200 #d65d0e)
-- **Приложение:** aitherflow (aither = Bold 700, flow = Extra Light 200 orange)
-- **Шрифт логотипа:** Oswald (Google Fonts), letter-spacing: 0.05em
-- **Фон аватарки:** #d6cdbf
+- **Umbrella:** aitherlab (aither = Bold 700 #2a2a2a, lab = Extra Light 200 #d65d0e)
+- **Application:** aitherflow (aither = Bold 700, flow = Extra Light 200 orange)
+- **Logo font:** Oswald (Google Fonts), letter-spacing: 0.05em
+- **Avatar background:** #d6cdbf
 - **GitHub:** github.com/aitherlab-dev/aitherflow
 
-## Стейт-менеджмент
+## State management
 
-Zustand — каждый модуль имеет свой store. Модули не знают друг о друге.
-
-## Язык
-
-Всегда отвечать пользователю на русском.
+Zustand — each module has its own store. Modules are unaware of each other.
