@@ -15,6 +15,7 @@ pub fn data_dir() -> PathBuf {
 }
 
 /// Claude CLI home: ~/.claude/
+#[allow(dead_code)]
 pub fn claude_home() -> PathBuf {
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("~"))

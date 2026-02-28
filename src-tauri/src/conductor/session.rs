@@ -101,6 +101,7 @@ impl SessionManager {
     }
 
     /// Kill ALL sessions (for graceful shutdown on app exit).
+    #[allow(dead_code)]
     pub async fn kill_all(&self) {
         let mut map = self.sessions.lock().await;
         let ids: Vec<String> = map.keys().cloned().collect();

@@ -76,6 +76,7 @@ pub enum CliEvent {
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub enum SessionStatus {
     /// Process running, ready for input
+    #[allow(dead_code)]
     Idle,
     /// Process running, waiting for CLI response
     Thinking,

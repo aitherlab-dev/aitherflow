@@ -3,6 +3,7 @@
 //! See ARCHITECTURE.md section "platform.rs"
 
 /// Send a desktop notification.
+#[allow(dead_code)]
 pub fn notify(title: &str, body: &str) {
     #[cfg(target_os = "linux")]
     {
