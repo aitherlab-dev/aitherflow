@@ -91,6 +91,8 @@ Note: some utilities below are planned but not yet implemented. Create them foll
 
 ## Conventions (TypeScript/React)
 
+- CSS transitions on resizable elements must be disabled during drag (`style.transition = "none"` on mousedown, restore on mouseup)
+- Accent color (`--accent`) is NOT used on resize handles or interactive borders — use `--fg-dim` for subtle highlight
 - Named exports for components
 - `memo()` on heavy components (chat, message list, cards)
 - All colors via CSS custom properties (see Design System), no hardcoded values
@@ -113,6 +115,8 @@ Syntax highlighting: override `.hljs-*` classes with CSS variables instead of im
 Light theme: code blocks stay dark (terminal-style) — override `.code-block` bg/colors under `[data-theme="light"]` with dark theme values. Use `font-weight: 500` for better readability of dark text on light bg.
 Input bar: two-layer "cookie" design — outer container (`--bg-hover`) with inner textarea (`--bg-hard` + border). Accent color (`--accent`) is NOT used on interactive buttons in dark theme — use brightness-only contrast (`--bg-hover`/`--fg-muted`).
 Message list: `justify-content: flex-end` + `min-height: 100%` to keep messages at the bottom when few.
+Header layout: left = branding only, right = panel toggles and controls (sidebar toggle is rightmost).
+Sidebar: resizable 250–400px, default 300px. Toggle via Alt+B.
 
 ## Development rules (from ROADMAP.md)
 
@@ -124,7 +128,7 @@ Message list: `justify-content: flex-end` + `min-height: 100%` to keep messages 
 6. Do not reinvent — where CLI has a format, use it
 7. Application UI is in English. Communication with the user is in Russian
 8. All public-facing content (README, CLAUDE.md, commit messages, PR descriptions) must be in English
-9. Internal docs (ARCHITECTURE.md, ROADMAP.md, devlog/) are in Russian and excluded from git
+9. Internal docs (ARCHITECTURE.md, ROADMAP.md, devlog/) are in Russian and gitignored — do not `git add` them
 
 ## Working with the user
 
