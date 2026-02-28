@@ -1,19 +1,33 @@
-import { memo, useState, useCallback } from "react";
+import { memo, useState, useCallback, type ReactNode } from "react";
 import { Copy, Check } from "lucide-react";
 
-interface CodeBlockProps {
-  code: string;
-  language?: string;
+/** Recursively extract plain text from React node tree */
+function extractText(node: ReactNode): string {
+  if (typeof node === "string") return node;
+  if (typeof node === "number") return String(node);
+  if (!node) return "";
+  if (Array.isArray(node)) return node.map(extractText).join("");
+  if (typeof node === "object" && "props" in node) {
+    return extractText((node as { props: { children?: ReactNode } }).props.children);
+  }
+  return "";
 }
 
-export const CodeBlock = memo(function CodeBlock({ code, language }: CodeBlockProps) {
+interface CodeBlockProps {
+  language?: string;
+  children: ReactNode;
+}
+
+export const CodeBlock = memo(function CodeBlock({ language, children }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
 
+  const rawText = extractText(children).replace(/\n$/, "");
+
   const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(code).catch(console.error);
+    navigator.clipboard.writeText(rawText).catch(console.error);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  }, [code]);
+  }, [rawText]);
 
   return (
     <div className="code-block">
@@ -30,7 +44,7 @@ export const CodeBlock = memo(function CodeBlock({ code, language }: CodeBlockPr
       </div>
       <pre>
         <code className={language ? `language-${language}` : undefined}>
-          {code}
+          {children}
         </code>
       </pre>
     </div>

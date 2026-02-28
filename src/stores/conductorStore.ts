@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { listen } from "@tauri-apps/api/event";
 import type {
   CliEvent,
   StartSessionOptions,
@@ -30,14 +30,9 @@ interface ConductorState {
   stopSession: () => Promise<void>;
   clearError: () => void;
   reset: () => void;
-
-  // Listener management
-  _unlisten: UnlistenFn | null;
-  initListener: () => Promise<void>;
-  destroyListener: () => void;
 }
 
-export const useConductorStore = create<ConductorState>((set, get) => ({
+export const useConductorStore = create<ConductorState>((set) => ({
   // Initial state
   sessionId: null,
   streamingText: "",
@@ -48,63 +43,6 @@ export const useConductorStore = create<ConductorState>((set, get) => ({
   outputTokens: 0,
   costUsd: 0,
   events: [],
-
-  _unlisten: null,
-
-  initListener: async () => {
-    if (get()._unlisten) return;
-
-    const unlisten = await listen<CliEvent>("cli-event", (event) => {
-      const e = event.payload;
-
-      // Filter for default agent (Stage 2: single agent)
-      if (e.agent_id !== DEFAULT_AGENT_ID) return;
-
-      // Keep event log capped
-      set((s) => ({ events: [...s.events.slice(-MAX_EVENT_LOG), e] }));
-
-      switch (e.type) {
-        case "sessionId":
-          set({ sessionId: e.session_id });
-          break;
-        case "streamChunk":
-          set({ streamingText: e.text, isThinking: true });
-          break;
-        case "messageComplete":
-          set({ streamingText: e.text });
-          break;
-        case "modelInfo":
-          set({ model: e.model });
-          break;
-        case "usageInfo":
-          set({
-            inputTokens: e.input_tokens,
-            outputTokens: e.output_tokens,
-            costUsd: e.cost_usd,
-          });
-          break;
-        case "turnComplete":
-          set({ isThinking: false });
-          break;
-        case "processExited":
-          set({ isThinking: false });
-          break;
-        case "error":
-          set({ error: e.message, isThinking: false });
-          break;
-      }
-    });
-
-    set({ _unlisten: unlisten });
-  },
-
-  destroyListener: () => {
-    const unlisten = get()._unlisten;
-    if (unlisten) {
-      unlisten();
-      set({ _unlisten: null });
-    }
-  },
 
   startSession: async (prompt: string) => {
     set({
@@ -162,3 +100,46 @@ export const useConductorStore = create<ConductorState>((set, get) => ({
       events: [],
     }),
 }));
+
+// ── Module-level event listener (singleton, lives for app lifetime) ──
+
+listen<CliEvent>("cli-event", (event) => {
+  const e = event.payload;
+  if (e.agent_id !== DEFAULT_AGENT_ID) return;
+
+  const { setState: set, getState: get } = useConductorStore;
+
+  // Keep event log capped
+  set({ events: [...get().events.slice(-MAX_EVENT_LOG), e] });
+
+  switch (e.type) {
+    case "sessionId":
+      set({ sessionId: e.session_id });
+      break;
+    case "streamChunk":
+      set({ streamingText: e.text, isThinking: true });
+      break;
+    case "messageComplete":
+      set({ streamingText: e.text });
+      break;
+    case "modelInfo":
+      set({ model: e.model });
+      break;
+    case "usageInfo":
+      set({
+        inputTokens: e.input_tokens,
+        outputTokens: e.output_tokens,
+        costUsd: e.cost_usd,
+      });
+      break;
+    case "turnComplete":
+      set({ isThinking: false });
+      break;
+    case "processExited":
+      set({ isThinking: false });
+      break;
+    case "error":
+      set({ error: e.message, isThinking: false });
+      break;
+  }
+}).catch(console.error);

@@ -56,13 +56,15 @@ export const MessageList = memo(function MessageList() {
       className="message-list"
       onScroll={handleScroll}
     >
-      {messages.length === 0 ? (
-        <div className="message-list-empty">
-          <p>Start a conversation</p>
-        </div>
-      ) : (
-        messages.map((msg) => <MessageBubble key={msg.id} message={msg} />)
-      )}
+      <div className="message-list-inner">
+        {messages.length === 0 ? (
+          <div className="message-list-empty">
+            <p>Start a conversation</p>
+          </div>
+        ) : (
+          messages.map((msg) => <MessageBubble key={msg.id} message={msg} />)
+        )}
+      </div>
     </div>
   );
 });

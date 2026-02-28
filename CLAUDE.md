@@ -100,6 +100,7 @@ Note: some utilities below are planned but not yet implemented. Create them foll
 - React hooks BEFORE any early `return null`
 - TypeScript target does not include ES2023+ — use `[...arr].reverse().find()` instead of `Array.findLast()`
 - Streaming messages: render plain text during streaming, markdown only after completion (react-markdown is heavy, partial markdown looks broken)
+- rehypeHighlight turns code block children into React elements (spans). Never use `String(children)` — use recursive `extractText()` to get raw text
 
 ## Design System
 
@@ -141,3 +142,4 @@ Syntax highlighting: override `.hljs-*` classes with CSS variables instead of im
 
 Zustand — each module has its own store. Modules are unaware of each other.
 Multiple stores can listen to the same Tauri event independently (e.g., chatStore and conductorStore both listen to `cli-event`).
+Tauri event listeners (`listen()`) must be registered at module level, NOT inside React useEffect. Async `listen()` + React StrictMode = duplicate listeners and double event processing.
