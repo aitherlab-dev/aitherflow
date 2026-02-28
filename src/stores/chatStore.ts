@@ -6,6 +6,9 @@ import type { ChatMessage, ToolActivity } from "../types/chat";
 
 const DEFAULT_AGENT_ID = "default";
 
+/** Timer for delayed tool activity reset (keeps status visible briefly) */
+let toolActivityTimer: ReturnType<typeof setTimeout> | null = null;
+
 interface ChatState {
   // Data
   messages: ChatMessage[];
@@ -174,6 +177,10 @@ function handleCliEvent(e: CliEvent) {
         const tools = [...(last.tools ?? []), activity];
         msgs[msgs.length - 1] = { ...last, tools };
       }
+      if (toolActivityTimer) {
+        clearTimeout(toolActivityTimer);
+        toolActivityTimer = null;
+      }
       set({ messages: msgs, currentToolActivity: activity });
       break;
     }
@@ -189,7 +196,15 @@ function handleCliEvent(e: CliEvent) {
         );
         msgs[msgs.length - 1] = { ...last, tools };
       }
-      set({ messages: msgs, currentToolActivity: null });
+      set({ messages: msgs });
+      // Delay clearing tool activity so it stays visible briefly
+      if (toolActivityTimer) clearTimeout(toolActivityTimer);
+      toolActivityTimer = setTimeout(() => {
+        toolActivityTimer = null;
+        if (get().currentToolActivity?.toolUseId === e.tool_use_id) {
+          set({ currentToolActivity: null });
+        }
+      }, 1500);
       break;
     }
 

@@ -16,6 +16,7 @@ export const ThinkingIndicator = memo(function ThinkingIndicator() {
       <span className="thinking-dot" />
       <span className="thinking-dot" />
       <span className="thinking-dot" />
+      <span className="thinking-label">Thinking</span>
     </div>
   );
 });

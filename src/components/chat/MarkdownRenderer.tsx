@@ -18,6 +18,13 @@ function extractText(node: ReactNode): string {
 }
 
 const components: Components = {
+  table({ children }) {
+    return (
+      <div className="table-wrapper">
+        <table>{children}</table>
+      </div>
+    );
+  },
   code({ className, children, ...props }) {
     const match = /language-(\w+)/.exec(className ?? "");
     const rawText = extractText(children);

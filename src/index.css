@@ -42,11 +42,12 @@
 [data-theme="light"] {
   --bg: #c4b49a;
   --bg-hard: #f0e8db;
-  --bg-soft: #c9bead;
+  --bg-soft: #e8e0d2;
   --bg-card: #d6cdbf;
   --bg-hover: #ccc2b3;
 
   --fg: #2a2a2a;
+  font-weight: 500;
   --fg-muted: #5a5248;
   --fg-dim: #8a7e72;
 
@@ -78,7 +79,7 @@ body {
   background: var(--bg);
   color: var(--fg);
   font-family: "Inter", system-ui, -apple-system, sans-serif;
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.5;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
@@ -118,6 +119,7 @@ body {
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
+  position: relative;
 }
 
 /* ── Message List ── */
@@ -130,7 +132,11 @@ body {
 .message-list-inner {
   max-width: 820px;
   margin: 0 auto;
-  padding: 1.5rem 1.5rem 0;
+  padding: 1.5rem 1.5rem 220px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 100%;
 }
 
 .message-list-empty {
@@ -145,23 +151,27 @@ body {
 /* ── Message Bubbles ── */
 
 .chat-message {
-  margin-bottom: 0.75rem;
+  margin-bottom: 2.25rem;
   padding: 0.75rem 1rem;
   border-radius: 12px;
-  line-height: 1.6;
+  line-height: 1.7;
+  font-family: Georgia, "Times New Roman", serif;
 }
 
 .chat-message-user {
-  max-width: 85%;
+  max-width: 65%;
   margin-left: auto;
-  background: var(--bg-card);
+  background: var(--bg-hard);
   border: 1px solid var(--border);
   color: var(--fg);
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  font-size: 1.05rem;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 .chat-message-assistant {
+  max-width: 100%;
   margin-right: auto;
   background: var(--bg-soft);
   border: 1px solid var(--border);
@@ -192,6 +202,8 @@ body {
 .streaming-text {
   white-space: pre-wrap;
   word-break: break-word;
+  font-size: 1.2rem;
+  line-height: 1.7;
 }
 
 .streaming-cursor {
@@ -211,8 +223,20 @@ body {
 /* ── Chat Bottom (input area) ── */
 
 .chat-bottom {
-  flex-shrink: 0;
-  padding: 0.5rem 1rem 1rem;
+  position: absolute;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 825px;
+  padding: 0.5rem 0;
+  z-index: 10;
+  transition: bottom 0.3s ease;
+}
+
+.chat-bottom-center {
+  bottom: 50%;
+  transform: translate(-50%, 50%);
 }
 
 .chat-error {
@@ -230,16 +254,22 @@ body {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 0.5rem 0;
+  padding: 0 0.25rem;
   color: var(--fg-muted);
 }
 
 .thinking-dot {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--fg-muted);
   animation: thinking-bounce 1.4s ease-in-out infinite;
+}
+
+.thinking-label {
+  margin-left: 4px;
+  font-size: 0.75rem;
+  color: var(--fg-dim);
 }
 
 .thinking-dot:nth-child(2) { animation-delay: 0.2s; }
@@ -278,15 +308,15 @@ body {
 
 .input-bar {
   position: relative;
-  border-radius: 16px;
-  background: var(--bg-soft);
+  border-radius: 18px;
+  background: var(--bg-hover);
   border: 1px solid var(--border);
+  padding: 5px 4px 0;
   backdrop-filter: blur(8px);
-  transition: border-color 0.15s;
 }
 
-.input-bar:focus-within {
-  border-color: var(--accent);
+.input-bar:focus-within .input-bar-row {
+  border-color: var(--fg-dim);
 }
 
 .input-bar-dragover {
@@ -310,17 +340,31 @@ body {
 
 .input-bar-row {
   display: flex;
-  align-items: flex-end;
-  gap: 4px;
+  margin: 0;
   padding: 8px;
+  border-radius: 16px;
+  background: var(--bg-hard);
+  border: 1px solid var(--border);
+  transition: border-color 0.15s;
 }
 
-.input-bar-left,
-.input-bar-right {
+.input-bar-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px 6px;
+}
+
+.input-bar-bottom-left {
   display: flex;
   align-items: center;
   gap: 2px;
-  flex-shrink: 0;
+}
+
+.input-bar-bottom-right {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .input-bar-textarea {
@@ -333,7 +377,7 @@ body {
   outline: none;
   color: var(--fg);
   font-family: inherit;
-  font-size: 0.9rem;
+  font-size: 1.05rem;
   line-height: 1.5;
   resize: none;
 }
@@ -346,8 +390,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border-radius: 8px;
   border: none;
   background: transparent;
@@ -367,31 +411,40 @@ body {
 }
 
 .input-bar-send {
-  background: var(--accent);
-  color: #fff;
-  border-radius: 50%;
+  background: var(--bg-hover);
+  color: var(--fg-muted);
 }
 
 .input-bar-send:hover {
-  background: var(--accent-dim);
-  color: #fff;
+  background: var(--fg-dim);
+  color: var(--fg);
 }
 
 .input-bar-send:disabled {
   background: var(--bg-hover);
   color: var(--fg-dim);
+  opacity: 0.5;
+}
+
+.input-bar-model {
+  width: auto;
+  padding: 0 8px;
+}
+
+.input-bar-model-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--fg-muted);
 }
 
 .input-bar-stop {
-  background: var(--red);
-  color: #fff;
-  border-radius: 50%;
+  background: var(--bg-hover);
+  color: var(--fg-muted);
 }
 
 .input-bar-stop:hover {
-  opacity: 0.85;
-  color: #fff;
-  background: var(--red);
+  background: var(--fg-dim);
+  color: var(--fg);
 }
 
 /* ═══════════════════════════════════════════
@@ -399,7 +452,7 @@ body {
    ═══════════════════════════════════════════ */
 
 .markdown-body {
-  font-size: 0.9rem;
+  font-size: 1.2rem;
   line-height: 1.7;
   word-break: break-word;
 }
@@ -466,10 +519,13 @@ body {
   font-weight: 600;
 }
 
-.markdown-body table {
-  width: 100%;
-  border-collapse: collapse;
+.markdown-body .table-wrapper {
+  overflow-x: auto;
   margin: 0.75em 0;
+}
+
+.markdown-body table {
+  border-collapse: collapse;
   font-size: 0.85em;
 }
 
@@ -478,6 +534,7 @@ body {
   padding: 0.4em 0.75em;
   border: 1px solid var(--border);
   text-align: left;
+  white-space: nowrap;
 }
 
 .markdown-body th {
@@ -589,3 +646,56 @@ body {
 .hljs-template-variable { color: var(--aqua) !important; }
 .hljs-meta { color: var(--fg-muted) !important; }
 .hljs-regexp { color: var(--green) !important; }
+
+/* ── Light theme: dark code blocks (terminal style) ── */
+
+[data-theme="light"] .code-block {
+  background: #1e1c19;
+  border-color: #3d3830;
+}
+
+[data-theme="light"] .code-block-header {
+  background: #282521;
+  border-bottom-color: #3d3830;
+}
+
+[data-theme="light"] .code-block-lang {
+  color: #665c54;
+}
+
+[data-theme="light"] .code-block-copy {
+  color: #665c54;
+}
+
+[data-theme="light"] .code-block-copy:hover {
+  background: #3d3830;
+  color: #d6cdbf;
+}
+
+[data-theme="light"] .code-block code {
+  color: #d6cdbf;
+}
+
+[data-theme="light"] .code-block .hljs { color: #d6cdbf !important; }
+[data-theme="light"] .code-block .hljs-keyword,
+[data-theme="light"] .code-block .hljs-selector-tag { color: #fb4934 !important; }
+[data-theme="light"] .code-block .hljs-string,
+[data-theme="light"] .code-block .hljs-addition { color: #b8bb26 !important; }
+[data-theme="light"] .code-block .hljs-number,
+[data-theme="light"] .code-block .hljs-literal { color: #d3869b !important; }
+[data-theme="light"] .code-block .hljs-comment,
+[data-theme="light"] .code-block .hljs-quote { color: #928374 !important; font-style: italic; }
+[data-theme="light"] .code-block .hljs-title,
+[data-theme="light"] .code-block .hljs-section { color: #fabd2f !important; }
+[data-theme="light"] .code-block .hljs-name,
+[data-theme="light"] .code-block .hljs-tag { color: #83a598 !important; }
+[data-theme="light"] .code-block .hljs-attr,
+[data-theme="light"] .code-block .hljs-attribute { color: #8ec07c !important; }
+[data-theme="light"] .code-block .hljs-built_in,
+[data-theme="light"] .code-block .hljs-type { color: #fabd2f !important; }
+[data-theme="light"] .code-block .hljs-params { color: #d6cdbf !important; }
+[data-theme="light"] .code-block .hljs-deletion { color: #fb4934 !important; }
+[data-theme="light"] .code-block .hljs-variable,
+[data-theme="light"] .code-block .hljs-template-variable { color: #8ec07c !important; }
+[data-theme="light"] .code-block .hljs-meta { color: #a89984 !important; }
+[data-theme="light"] .code-block .hljs-regexp { color: #b8bb26 !important; }
