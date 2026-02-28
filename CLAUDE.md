@@ -98,6 +98,8 @@ Note: some utilities below are planned but not yet implemented. Create them foll
 - Keyboard shortcuts via `e.code` (layout-independent). Only Alt+* and Ctrl+*, NOT Super — Hyprland intercepts it
 - Never swallow errors: use `.catch(console.error)`, not `.catch(() => {})`
 - React hooks BEFORE any early `return null`
+- TypeScript target does not include ES2023+ — use `[...arr].reverse().find()` instead of `Array.findLast()`
+- Streaming messages: render plain text during streaming, markdown only after completion (react-markdown is heavy, partial markdown looks broken)
 
 ## Design System
 
@@ -105,6 +107,7 @@ CSS custom properties on `:root` (dark by default) and `[data-theme="light"]`.
 Layer hierarchy (deep → surface): `--bg` (floor, gaps between panels) → `--bg-soft`/`--bg-hard` (panels) → `--bg-card` (floating elements) → `--bg-hover` (interactive) → `--input-bg` (fields).
 Accent: `--accent` (#d65d0e orange, same in both themes).
 Full palette reference: `memory/palette.md` (agent auto-memory).
+Syntax highlighting: override `.hljs-*` classes with CSS variables instead of importing hljs themes — auto-switches with dark/light theme.
 
 ## Development rules (from ROADMAP.md)
 
@@ -137,3 +140,4 @@ Full palette reference: `memory/palette.md` (agent auto-memory).
 ## State management
 
 Zustand — each module has its own store. Modules are unaware of each other.
+Multiple stores can listen to the same Tauri event independently (e.g., chatStore and conductorStore both listen to `cli-event`).

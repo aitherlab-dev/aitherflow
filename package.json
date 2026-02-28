@@ -1,7 +1,7 @@
 {
   "name": "aitherflow",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -18,9 +18,13 @@
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-shell": "^2.3.5",
+    "highlight.js": "^11.11.1",
     "lucide-react": "^0.575.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-markdown": "^10.1.0",
+    "rehype-highlight": "^7.0.2",
+    "remark-gfm": "^4.0.1",
     "tailwindcss": "^4.2.1",
     "zustand": "^5.0.11"
   },
