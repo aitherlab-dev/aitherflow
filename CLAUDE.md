@@ -100,6 +100,7 @@ Note: some utilities below are planned but not yet implemented. Create them foll
 - React hooks BEFORE any early `return null`
 - TypeScript target does not include ES2023+ — use `[...arr].reverse().find()` instead of `Array.findLast()`
 - Streaming messages: render plain text during streaming, markdown only after completion (react-markdown is heavy, partial markdown looks broken)
+- Streaming text (`.streaming-text`) must have the same `font-size` and `line-height` as `.markdown-body` to avoid size jump on completion
 - rehypeHighlight turns code block children into React elements (spans). Never use `String(children)` — use recursive `extractText()` to get raw text
 
 ## Design System
@@ -109,6 +110,9 @@ Layer hierarchy (deep → surface): `--bg` (floor, gaps between panels) → `--b
 Accent: `--accent` (#d65d0e orange, same in both themes).
 Full palette reference: `memory/palette.md` (agent auto-memory).
 Syntax highlighting: override `.hljs-*` classes with CSS variables instead of importing hljs themes — auto-switches with dark/light theme.
+Light theme: code blocks stay dark (terminal-style) — override `.code-block` bg/colors under `[data-theme="light"]` with dark theme values. Use `font-weight: 500` for better readability of dark text on light bg.
+Input bar: two-layer "cookie" design — outer container (`--bg-hover`) with inner textarea (`--bg-hard` + border). Accent color (`--accent`) is NOT used on interactive buttons in dark theme — use brightness-only contrast (`--bg-hover`/`--fg-muted`).
+Message list: `justify-content: flex-end` + `min-height: 100%` to keep messages at the bottom when few.
 
 ## Development rules (from ROADMAP.md)
 
