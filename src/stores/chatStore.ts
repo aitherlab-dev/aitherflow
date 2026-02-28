@@ -3,25 +3,15 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { CliEvent, StartSessionOptions, SendMessageOptions } from "../types/conductor";
 import type { ChatMessage, ToolActivity } from "../types/chat";
+// NOTE: circular import (agentStore also imports chatStore).
+// Safe because cross-store calls happen only at runtime inside functions,
+// never at module-evaluation time.
+import { useAgentStore } from "./agentStore";
 
-const DEFAULT_AGENT_ID = "default";
+const AGENT_ID = "workspace";
 
 /** Timer for delayed tool activity reset (keeps status visible briefly) */
 let toolActivityTimer: ReturnType<typeof setTimeout> | null = null;
-
-interface ChatState {
-  // Data
-  messages: ChatMessage[];
-  hasSession: boolean;
-  isThinking: boolean;
-  currentToolActivity: ToolActivity | null;
-  error: string | null;
-
-  // Actions
-  sendMessage: (text: string) => Promise<void>;
-  stopGeneration: () => Promise<void>;
-  clearChat: () => void;
-}
 
 /** Human-readable label for a tool name */
 function toolLabel(toolName: string, toolInput: Record<string, unknown>): string {
@@ -57,33 +47,75 @@ function toolLabel(toolName: string, toolInput: Record<string, unknown>): string
   }
 }
 
+interface ChatState {
+  // Data
+  activeChatId: string | null;
+  chatMessages: Record<string, ChatMessage[]>;
+  messages: ChatMessage[]; // mirror of chatMessages[activeChatId]
+  hasSession: boolean;
+  isThinking: boolean;
+  currentToolActivity: ToolActivity | null;
+  error: string | null;
+
+  // Actions
+  setActiveChatId: (chatId: string) => void;
+  sendMessage: (text: string) => Promise<void>;
+  stopGeneration: () => Promise<void>;
+  clearChat: () => void;
+}
+
 export const useChatStore = create<ChatState>((set, get) => ({
+  activeChatId: null,
+  chatMessages: {},
   messages: [],
   hasSession: false,
   isThinking: false,
   currentToolActivity: null,
   error: null,
 
+  setActiveChatId: (chatId: string) => {
+    const state = get();
+    set({
+      activeChatId: chatId,
+      messages: state.chatMessages[chatId] ?? [],
+      error: null,
+    });
+  },
+
   sendMessage: async (text: string) => {
     const state = get();
+    const chatId = state.activeChatId;
+    if (!chatId) return;
 
-    // Add user message
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
       text,
       timestamp: Date.now(),
     };
-    set({ messages: [...state.messages, userMsg], error: null, isThinking: true });
+
+    const newMsgs = [...(state.chatMessages[chatId] ?? []), userMsg];
+    set({
+      chatMessages: { ...state.chatMessages, [chatId]: newMsgs },
+      messages: newMsgs,
+      error: null,
+      isThinking: true,
+    });
 
     try {
       if (state.hasSession) {
         await invoke("send_message", {
-          options: { agentId: DEFAULT_AGENT_ID, prompt: text } satisfies SendMessageOptions,
+          options: { agentId: AGENT_ID, prompt: text } satisfies SendMessageOptions,
         });
       } else {
+        const agentState = useAgentStore.getState();
+        const activeAgent = agentState.agents.find((a) => a.id === agentState.activeAgentId);
         await invoke("start_session", {
-          options: { agentId: DEFAULT_AGENT_ID, prompt: text } satisfies StartSessionOptions,
+          options: {
+            agentId: AGENT_ID,
+            prompt: text,
+            projectPath: activeAgent?.projectPath,
+          } satisfies StartSessionOptions,
         });
       }
     } catch (e) {
@@ -93,21 +125,26 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   stopGeneration: async () => {
     try {
-      await invoke("stop_session", { agentId: DEFAULT_AGENT_ID });
+      await invoke("stop_session", { agentId: AGENT_ID });
     } catch (e) {
       set({ error: String(e) });
     }
     set({ isThinking: false, currentToolActivity: null });
   },
 
-  clearChat: () =>
+  clearChat: () => {
+    const state = get();
+    const chatId = state.activeChatId;
+    if (!chatId) return;
     set({
+      chatMessages: { ...state.chatMessages, [chatId]: [] },
       messages: [],
       hasSession: false,
       isThinking: false,
       currentToolActivity: null,
       error: null,
-    }),
+    });
+  },
 }));
 
 /** Get a human-readable label for the current tool activity */
@@ -115,21 +152,39 @@ export function getToolLabel(activity: ToolActivity): string {
   return toolLabel(activity.toolName, activity.toolInput);
 }
 
+// ── Helper: update messages for a specific chat ──
+
+function updateMessages(chatId: string, msgs: ChatMessage[], extra?: Record<string, unknown>) {
+  const state = useChatStore.getState();
+  const update: Record<string, unknown> = {
+    chatMessages: { ...state.chatMessages, [chatId]: msgs },
+    ...extra,
+  };
+  // Only update the mirror field if this is the active chat
+  if (chatId === state.activeChatId) {
+    update.messages = msgs;
+  }
+  useChatStore.setState(update);
+}
+
 // ── Module-level event listener (singleton, lives for app lifetime) ──
 
 function handleCliEvent(e: CliEvent) {
-  if (e.agent_id !== DEFAULT_AGENT_ID) return;
+  if (e.agent_id !== AGENT_ID) return;
 
-  const { getState: get, setState: set } = useChatStore;
-  const state = get();
+  const state = useChatStore.getState();
+  const chatId = state.activeChatId;
+  if (!chatId) return;
+
+  const currentMsgs = state.chatMessages[chatId] ?? [];
 
   switch (e.type) {
     case "sessionId":
-      set({ hasSession: true });
+      useChatStore.setState({ hasSession: true });
       break;
 
     case "streamChunk": {
-      const msgs = [...state.messages];
+      const msgs = [...currentMsgs];
       const last = msgs[msgs.length - 1];
       if (last && last.role === "assistant" && last.isStreaming) {
         msgs[msgs.length - 1] = { ...last, text: e.text };
@@ -143,12 +198,12 @@ function handleCliEvent(e: CliEvent) {
           tools: [],
         });
       }
-      set({ messages: msgs, isThinking: true });
+      updateMessages(chatId, msgs, { isThinking: true });
       break;
     }
 
     case "messageComplete": {
-      const msgs = [...state.messages];
+      const msgs = [...currentMsgs];
       const last = msgs[msgs.length - 1];
       if (last && last.role === "assistant" && last.isStreaming) {
         msgs[msgs.length - 1] = { ...last, text: e.text, isStreaming: false };
@@ -161,7 +216,7 @@ function handleCliEvent(e: CliEvent) {
           isStreaming: false,
         });
       }
-      set({ messages: msgs });
+      updateMessages(chatId, msgs);
       break;
     }
 
@@ -171,7 +226,7 @@ function handleCliEvent(e: CliEvent) {
         toolName: e.tool_name,
         toolInput: e.tool_input,
       };
-      const msgs = [...state.messages];
+      const msgs = [...currentMsgs];
       const last = msgs[msgs.length - 1];
       if (last && last.role === "assistant") {
         const tools = [...(last.tools ?? []), activity];
@@ -181,12 +236,12 @@ function handleCliEvent(e: CliEvent) {
         clearTimeout(toolActivityTimer);
         toolActivityTimer = null;
       }
-      set({ messages: msgs, currentToolActivity: activity });
+      updateMessages(chatId, msgs, { currentToolActivity: activity });
       break;
     }
 
     case "toolResult": {
-      const msgs = [...state.messages];
+      const msgs = [...currentMsgs];
       const last = msgs[msgs.length - 1];
       if (last && last.role === "assistant" && last.tools) {
         const tools = last.tools.map((t) =>
@@ -196,44 +251,44 @@ function handleCliEvent(e: CliEvent) {
         );
         msgs[msgs.length - 1] = { ...last, tools };
       }
-      set({ messages: msgs });
+      updateMessages(chatId, msgs);
       // Delay clearing tool activity so it stays visible briefly
       if (toolActivityTimer) clearTimeout(toolActivityTimer);
       toolActivityTimer = setTimeout(() => {
         toolActivityTimer = null;
-        if (get().currentToolActivity?.toolUseId === e.tool_use_id) {
-          set({ currentToolActivity: null });
+        if (useChatStore.getState().currentToolActivity?.toolUseId === e.tool_use_id) {
+          useChatStore.setState({ currentToolActivity: null });
         }
       }, 1500);
       break;
     }
 
     case "turnComplete":
-      set({ isThinking: false, currentToolActivity: null });
+      useChatStore.setState({ isThinking: false, currentToolActivity: null });
       {
-        const msgs = [...state.messages];
+        const msgs = [...currentMsgs];
         const last = msgs[msgs.length - 1];
         if (last && last.role === "assistant" && last.isStreaming) {
           msgs[msgs.length - 1] = { ...last, isStreaming: false };
-          set({ messages: msgs });
+          updateMessages(chatId, msgs);
         }
       }
       break;
 
     case "processExited":
-      set({ hasSession: false, isThinking: false, currentToolActivity: null });
+      useChatStore.setState({ hasSession: false, isThinking: false, currentToolActivity: null });
       {
-        const msgs = [...state.messages];
+        const msgs = [...currentMsgs];
         const last = msgs[msgs.length - 1];
         if (last && last.role === "assistant" && last.isStreaming) {
           msgs[msgs.length - 1] = { ...last, isStreaming: false };
-          set({ messages: msgs });
+          updateMessages(chatId, msgs);
         }
       }
       break;
 
     case "error":
-      set({ error: e.message, isThinking: false });
+      useChatStore.setState({ error: e.message, isThinking: false });
       break;
   }
 }

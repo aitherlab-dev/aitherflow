@@ -22,7 +22,7 @@ Full architecture: `ARCHITECTURE.md`. Roadmap: `ROADMAP.md`.
 ```bash
 pnpm tauri dev          # run in dev mode
 pnpm tauri build        # production build
-pnpm tsc --noEmit       # typecheck (run from project root, NOT from src-tauri/)
+npx tsc --noEmit         # typecheck (run from project root, NOT from src-tauri/; pnpm tsc fails in workspace mode)
 cargo clippy            # lint Rust (run from src-tauri/)
 pnpm test               # run tests (vitest)
 pnpm test -- -t "name"  # run a single test
@@ -151,3 +151,5 @@ Sidebar: resizable 250–400px, default 300px. Toggle via Alt+B.
 Zustand — each module has its own store. Modules are unaware of each other.
 Multiple stores can listen to the same Tauri event independently (e.g., chatStore and conductorStore both listen to `cli-event`).
 Tauri event listeners (`listen()`) must be registered at module level, NOT inside React useEffect. Async `listen()` + React StrictMode = duplicate listeners and double event processing.
+Zustand selectors that derive new objects/arrays (`.filter()`, `.map()`, `{ ...spread }`) MUST use `useShallow` from `zustand/react/shallow` — otherwise each render creates a new reference, Zustand treats it as a change, and React enters an infinite loop.
+Cross-store communication: use `storeB.getState().action()` at runtime, NEVER React hooks that read from two stores. React 19 `useSyncExternalStore` causes infinite re-renders with cross-store hooks.

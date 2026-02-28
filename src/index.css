@@ -198,14 +198,217 @@ body {
 
 .sidebar-content {
   flex: 1;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 12px;
 }
 
-.sidebar-placeholder {
-  color: var(--fg-dim);
+/* ── Sidebar: Open Project button ── */
+
+.sidebar-open-project {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  border: 1px dashed var(--fg-dim);
+  background: transparent;
+  color: var(--fg-muted);
   font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.sidebar-open-project:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+  border-color: var(--fg-muted);
+}
+
+/* ── Sidebar: Sections ── */
+
+.sidebar-section {
+  margin-bottom: 2px;
+}
+
+.sidebar-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  color: var(--fg-dim);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: default;
+}
+
+/* ── Sidebar: Agent Card ── */
+
+.agent-card {
+  margin-bottom: 2px;
+}
+
+.agent-card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: none;
+  background: var(--bg-card);
+  color: var(--fg);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.agent-card-header:hover {
+  background: var(--bg-hover);
+}
+
+.agent-card-chevron {
+  flex-shrink: 0;
+  color: var(--fg-muted);
+  transition: transform 0.2s ease;
+}
+
+.agent-card-chevron-open {
+  transform: rotate(90deg);
+}
+
+.agent-card-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Accordion: grid-template-rows 0fr/1fr */
+.agent-card-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.2s ease;
+}
+
+.agent-card-body-open {
+  grid-template-rows: 1fr;
+}
+
+.agent-card-body-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ── Sidebar: Chat List ── */
+
+.chat-list {
+  padding: 4px 0 4px 20px;
+}
+
+.chat-list-empty {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0;
+  color: var(--fg-dim);
+  font-size: 0.78rem;
+}
+
+.chat-list-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  text-align: left;
+}
+
+.chat-list-item:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.chat-list-item-active {
+  background: var(--bg-card);
+  color: var(--fg);
+}
+
+.chat-list-item-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-list-new {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 5px 8px;
+  margin-top: 4px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--fg-dim);
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.chat-list-new:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+/* ── Sidebar: Spacer + Footer ── */
+
+.sidebar-spacer {
+  flex: 1;
+}
+
+.sidebar-footer {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.sidebar-footer-settings {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.sidebar-footer-settings:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.sidebar-footer-brand {
+  padding: 8px 10px 4px;
+  text-align: center;
+  opacity: 0.5;
 }
 
 /* ── Resize Handle ── */

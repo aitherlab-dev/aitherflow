@@ -1,6 +1,7 @@
 mod conductor;
 mod config;
 mod platform;
+mod workspace;
 
 use conductor::session::SessionManager;
 
@@ -15,6 +16,7 @@ pub fn run() {
             conductor::send_message,
             conductor::stop_session,
             conductor::has_active_session,
+            workspace::ensure_default_workspace,
         ])
         .setup(|_app| {
             let config_dir = config::config_dir();
