@@ -111,6 +111,147 @@ body {
 }
 
 /* ═══════════════════════════════════════════
+   App Layout (grid shell)
+   ═══════════════════════════════════════════ */
+
+.app-layout {
+  display: grid;
+  grid-template-rows: 40px 1fr 28px;
+  grid-template-columns: auto 1fr;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Header ── */
+
+.app-header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  background: var(--bg-soft);
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.header-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.header-btn:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+/* ── Brand ── */
+
+.brand-name {
+  font-family: "Oswald", sans-serif;
+  font-size: 15px;
+  letter-spacing: 0.05em;
+  line-height: 1;
+}
+
+.brand-aither {
+  font-weight: 700;
+  color: var(--fg);
+}
+
+.brand-flow {
+  font-weight: 200;
+  color: var(--accent);
+}
+
+/* ── Sidebar ── */
+
+.app-sidebar {
+  position: relative;
+  display: flex;
+  overflow: hidden;
+  background: var(--bg-soft);
+  border-right: 1px solid var(--border);
+  transition: width 0.2s ease;
+}
+
+.sidebar-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px;
+}
+
+.sidebar-placeholder {
+  color: var(--fg-dim);
+  font-size: 0.8rem;
+}
+
+/* ── Resize Handle ── */
+
+.resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 4px;
+  height: 100%;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.15s;
+  z-index: 5;
+}
+
+.resize-handle:hover,
+.resize-handle:active {
+  background: var(--fg-dim);
+}
+
+/* ── Main zone ── */
+
+.app-main {
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* ── Status Bar ── */
+
+.app-statusbar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  background: var(--bg-soft);
+  border-top: 1px solid var(--border);
+  user-select: none;
+}
+
+.statusbar-text {
+  font-size: 0.7rem;
+  color: var(--fg-dim);
+}
+
+/* ═══════════════════════════════════════════
    Chat Layout
    ═══════════════════════════════════════════ */
 
@@ -120,6 +261,10 @@ body {
   height: 100vh;
   overflow: hidden;
   position: relative;
+}
+
+.chat-view-inset {
+  height: 100%;
 }
 
 /* ── Message List ── */
@@ -229,7 +374,7 @@ body {
   transform: translateX(-50%);
   width: 100%;
   max-width: 825px;
-  padding: 0.5rem 0;
+  padding: 0.5rem 1.5rem;
   z-index: 10;
   transition: bottom 0.3s ease;
 }

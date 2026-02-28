@@ -1,5 +1,5 @@
-import { ChatView } from "./components/chat/ChatView";
+import { AppLayout } from "./components/layout/AppLayout";
 
 export function App() {
-  return <ChatView />;
+  return <AppLayout />;
 }

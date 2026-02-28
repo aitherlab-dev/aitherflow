@@ -7,7 +7,7 @@ export function ChatView() {
   const isEmpty = useChatStore((s) => s.messages.length === 0);
 
   return (
-    <div className="chat-view">
+    <div className="chat-view chat-view-inset">
       <MessageList />
 
       <div className={`chat-bottom ${isEmpty ? "chat-bottom-center" : ""}`}>
