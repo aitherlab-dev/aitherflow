@@ -1,5 +1,5 @@
 import { memo, useCallback, useState } from "react";
-import { ChevronRight, FolderOpen, Plus, Trash2 } from "lucide-react";
+import { ChevronRight, Plus, Trash2 } from "lucide-react";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useChatStore, type ChatMeta } from "../../stores/chatStore";
 import { ResizeHandle } from "./ResizeHandle";
@@ -17,6 +17,8 @@ const ChatItem = memo(function ChatItem({
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
+  const [removing, setRemoving] = useState(false);
+
   const handleClick = useCallback(() => {
     if (!disabled && !isCurrent) onSelect(chat.id);
   }, [chat.id, disabled, isCurrent, onSelect]);
@@ -24,14 +26,17 @@ const ChatItem = memo(function ChatItem({
   const handleDelete = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      if (!disabled) onDelete(chat.id);
+      if (!disabled && !removing) {
+        setRemoving(true);
+        setTimeout(() => onDelete(chat.id), 250);
+      }
     },
-    [chat.id, disabled, onDelete],
+    [chat.id, disabled, removing, onDelete],
   );
 
   return (
     <div
-      className={`chat-item ${isCurrent ? "chat-item--active" : ""} ${disabled ? "chat-item--disabled" : ""}`}
+      className={`chat-item ${isCurrent ? "chat-item--active" : ""} ${disabled ? "chat-item--disabled" : ""} ${removing ? "chat-item--removing" : ""}`}
       onClick={handleClick}
     >
       <span className="chat-item__title">{chat.title}</span>
@@ -98,7 +103,6 @@ export const Sidebar = memo(function Sidebar() {
                 size={14}
                 className={`sidebar-project__chevron ${expanded ? "sidebar-project__chevron--open" : ""}`}
               />
-              <FolderOpen size={16} className="sidebar-project__icon" />
               <span className="sidebar-project__name">{projectName}</span>
             </button>
 

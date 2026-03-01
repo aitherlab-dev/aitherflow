@@ -124,7 +124,7 @@ export const InputBar = memo(function InputBar() {
               <ArrowUp size={18} />
             </button>
           )}
-          <button className="input-bar-btn" title="Voice input" aria-label="Voice input">
+          <button className="input-bar-btn input-bar-btn--icon" title="Voice input" aria-label="Voice input">
             <Mic size={18} />
           </button>
         </div>

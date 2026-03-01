@@ -1,10 +1,27 @@
-import { memo } from "react";
-import { PanelLeftClose, PanelLeft } from "lucide-react";
+import { memo, useCallback, useState } from "react";
+import { PanelLeftClose, PanelLeft, Sun, Moon } from "lucide-react";
 import { useLayoutStore } from "../../stores/layoutStore";
 
 export const Header = memo(function Header() {
   const sidebarOpen = useLayoutStore((s) => s.sidebarOpen);
   const toggleSidebar = useLayoutStore((s) => s.toggleSidebar);
+  const [isDark, setIsDark] = useState(
+    () => !document.documentElement.hasAttribute("data-theme"),
+  );
+
+  const toggleTheme = useCallback(() => {
+    const next = !isDark;
+    setIsDark(next);
+    document.documentElement.classList.add("theme-transition");
+    if (next) {
+      document.documentElement.removeAttribute("data-theme");
+    } else {
+      document.documentElement.setAttribute("data-theme", "light");
+    }
+    setTimeout(() => {
+      document.documentElement.classList.remove("theme-transition");
+    }, 400);
+  }, [isDark]);
 
   return (
     <header className="app-header" data-tauri-drag-region>
@@ -15,7 +32,14 @@ export const Header = memo(function Header() {
         </div>
       </div>
       <div className="header-right">
-        {/* Buttons will be added in stage 4c */}
+        <button
+          className="header-btn"
+          onClick={toggleTheme}
+          title={isDark ? "Switch to light theme" : "Switch to dark theme"}
+          aria-label="Toggle theme"
+        >
+          {isDark ? <Sun size={16} /> : <Moon size={16} />}
+        </button>
         <button
           className="header-btn"
           onClick={toggleSidebar}

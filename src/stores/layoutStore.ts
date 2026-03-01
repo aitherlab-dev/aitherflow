@@ -1,8 +1,8 @@
 import { create } from "zustand";
 
 const SIDEBAR_MIN = 250;
-const SIDEBAR_MAX = 400;
-const SIDEBAR_DEFAULT = 300;
+const SIDEBAR_MAX = 350;
+const SIDEBAR_DEFAULT = 350;
 
 interface LayoutState {
   sidebarOpen: boolean;
