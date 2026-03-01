@@ -1,5 +1,5 @@
 import { memo, useCallback, useState } from "react";
-import { ChevronRight, Plus, Trash2 } from "lucide-react";
+import { ChevronRight, Plus, Trash2, Settings } from "lucide-react";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useChatStore, type ChatMeta } from "../../stores/chatStore";
 import { ResizeHandle } from "./ResizeHandle";
@@ -56,6 +56,9 @@ const ChatItem = memo(function ChatItem({
 export const Sidebar = memo(function Sidebar() {
   const open = useLayoutStore((s) => s.sidebarOpen);
   const width = useLayoutStore((s) => s.sidebarWidth);
+  const activeView = useLayoutStore((s) => s.activeView);
+  const openSettings = useLayoutStore((s) => s.openSettings);
+  const closeSettings = useLayoutStore((s) => s.closeSettings);
 
   const projectName = useChatStore((s) => s.projectName);
   const chatList = useChatStore((s) => s.chatList);
@@ -77,9 +80,11 @@ export const Sidebar = memo(function Sidebar() {
 
   const handleSelect = useCallback(
     (id: string) => {
+      // If settings is open, close it and switch to chat
+      if (activeView === "settings") closeSettings();
       switchChat(id).catch(console.error);
     },
-    [switchChat],
+    [activeView, closeSettings, switchChat],
   );
 
   const handleDelete = useCallback(
@@ -88,6 +93,14 @@ export const Sidebar = memo(function Sidebar() {
     },
     [deleteChat],
   );
+
+  const handleSettingsClick = useCallback(() => {
+    if (activeView === "settings") {
+      closeSettings();
+    } else {
+      openSettings();
+    }
+  }, [activeView, closeSettings, openSettings]);
 
   return (
     <aside
@@ -135,6 +148,18 @@ export const Sidebar = memo(function Sidebar() {
               </div>
             )}
           </div>
+
+          {/* Bottom functional tabs */}
+          <div className="sidebar-bottom">
+            <button
+              className={`sidebar-tab ${activeView === "settings" ? "sidebar-tab--active" : ""}`}
+              onClick={handleSettingsClick}
+            >
+              <Settings size={16} />
+              <span>Settings</span>
+            </button>
+          </div>
+
           <ResizeHandle />
         </>
       )}

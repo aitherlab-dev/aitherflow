@@ -37,8 +37,15 @@ claude -p --output-format stream-json --input-format stream-json --verbose --inc
 - Данные: `~/.local/share/aither-flow/`
 - Workspace: `~/.config/aither-flow/Workspace/` (дефолтный проект, создаётся при первом запуске)
 - Чаты: `~/.config/aither-flow/chats/` (JSON-файлы, по одному на чат)
+- Проекты: `~/.config/aither-flow/projects.json` (закладки проектов с доп. директориями)
 - CLI-совместимые: `~/.claude/skills/`, `~/.claude/agents/`, `~/.claude.json`
 - Использовать `dirs` crate для путей
+
+## Tauri-плагины
+
+- `tauri-plugin-opener` — открытие URL/файлов
+- `tauri-plugin-shell` — запуск CLI-процессов
+- `tauri-plugin-dialog` — нативные диалоги (выбор папки/файла)
 
 ## Правила Rust
 
@@ -74,6 +81,18 @@ CSS-переменные на `:root` (тёмная по умолчанию) и 
 Светлая тема (aitherlab.org) — независимая палитра, НЕ инверсия тёмной.
 
 Палитра: `memory/palette.md`.
+
+Сайдбар — два класса вкладок:
+- `.sidebar-project` — агенты/проекты: толще (padding 16px), яркий цвет (`--fg`)
+- `.sidebar-tab` — функциональные (Settings и т.д.): тоньше (padding 14px), приглушённый (`--fg-muted`)
+- Общее: рамка, скругление 6px, фон `--tab-bg-hover`, hover scale 1.04
+
+## Настройки (Settings)
+
+- Полноэкранный слой вместо чата, НЕ модалка
+- `layoutStore.activeView`: `'chat'` | `'settings'`
+- Закрытие: Escape, кнопка ×, клик по чату в сайдбаре
+- Навигация разделов — внутри экрана (слева), НЕ в сайдбаре
 
 ## Zustand (стейт)
 

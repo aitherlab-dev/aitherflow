@@ -3,10 +3,12 @@ import { Header } from "./Header";
 import { Sidebar } from "./Sidebar";
 import { StatusBar } from "./StatusBar";
 import { ChatView } from "../chat/ChatView";
+import { SettingsView } from "../settings/SettingsView";
 import { useLayoutStore } from "../../stores/layoutStore";
 
 export function AppLayout() {
   const toggleSidebar = useLayoutStore((s) => s.toggleSidebar);
+  const activeView = useLayoutStore((s) => s.activeView);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -28,7 +30,7 @@ export function AppLayout() {
       <Header />
       <Sidebar />
       <main className="app-main">
-        <ChatView />
+        {activeView === "settings" ? <SettingsView /> : <ChatView />}
       </main>
       <StatusBar />
     </div>

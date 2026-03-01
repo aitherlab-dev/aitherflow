@@ -2,6 +2,7 @@ mod chats;
 mod conductor;
 mod config;
 mod platform;
+mod projects;
 
 use conductor::session::SessionManager;
 
@@ -10,6 +11,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(SessionManager::new())
         .invoke_handler(tauri::generate_handler![
             conductor::start_session,
@@ -23,6 +25,8 @@ pub fn run() {
             chats::save_chat_messages,
             chats::update_chat_session,
             chats::delete_chat,
+            projects::load_projects,
+            projects::save_projects,
         ])
         .setup(|_app| {
             let config_dir = config::config_dir();
@@ -46,6 +50,9 @@ pub fn run() {
                     }
                 }
             }
+
+            // Ensure projects.json exists with Workspace as default
+            projects::ensure_projects_file();
 
             Ok(())
         })
