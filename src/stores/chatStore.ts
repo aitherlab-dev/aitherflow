@@ -8,10 +8,13 @@ import type { ChatMessage, ToolActivity } from "../types/chat";
 // never at module-evaluation time.
 import { useAgentStore } from "./agentStore";
 
-const AGENT_ID = "workspace";
-
 /** Timer for delayed tool activity reset (keeps status visible briefly) */
 let toolActivityTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Get the active agent ID from agentStore */
+function getActiveAgentId(): string {
+  return useAgentStore.getState().activeAgentId ?? "workspace";
+}
 
 /** Human-readable label for a tool name */
 function toolLabel(toolName: string, toolInput: Record<string, unknown>): string {
@@ -52,13 +55,15 @@ interface ChatState {
   activeChatId: string | null;
   chatMessages: Record<string, ChatMessage[]>;
   messages: ChatMessage[]; // mirror of chatMessages[activeChatId]
-  hasSession: boolean;
+  /** Per-agent session tracking: agentId → has active CLI session */
+  sessionByAgent: Record<string, boolean>;
   isThinking: boolean;
   currentToolActivity: ToolActivity | null;
   error: string | null;
 
   // Actions
   setActiveChatId: (chatId: string) => void;
+  switchToAgent: (agentId: string, chatId: string) => void;
   sendMessage: (text: string) => Promise<void>;
   stopGeneration: () => Promise<void>;
   clearChat: () => void;
@@ -68,7 +73,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   activeChatId: null,
   chatMessages: {},
   messages: [],
-  hasSession: false,
+  sessionByAgent: {},
   isThinking: false,
   currentToolActivity: null,
   error: null,
@@ -82,10 +87,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
   },
 
+  switchToAgent: (agentId: string, chatId: string) => {
+    const state = get();
+    const hasSession = state.sessionByAgent[agentId] ?? false;
+    set({
+      activeChatId: chatId,
+      messages: state.chatMessages[chatId] ?? [],
+      isThinking: false,
+      currentToolActivity: null,
+      error: null,
+    });
+    // If the agent has no active session, ensure isThinking is false
+    if (!hasSession) {
+      set({ isThinking: false });
+    }
+  },
+
   sendMessage: async (text: string) => {
     const state = get();
     const chatId = state.activeChatId;
     if (!chatId) return;
+
+    const agentId = getActiveAgentId();
 
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
@@ -103,16 +126,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
 
     try {
-      if (state.hasSession) {
+      const hasSession = state.sessionByAgent[agentId] ?? false;
+      if (hasSession) {
         await invoke("send_message", {
-          options: { agentId: AGENT_ID, prompt: text } satisfies SendMessageOptions,
+          options: { agentId, prompt: text } satisfies SendMessageOptions,
         });
       } else {
         const agentState = useAgentStore.getState();
-        const activeAgent = agentState.agents.find((a) => a.id === agentState.activeAgentId);
+        const activeAgent = agentState.agents.find((a) => a.id === agentId);
         await invoke("start_session", {
           options: {
-            agentId: AGENT_ID,
+            agentId,
             prompt: text,
             projectPath: activeAgent?.projectPath,
           } satisfies StartSessionOptions,
@@ -124,8 +148,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   stopGeneration: async () => {
+    const agentId = getActiveAgentId();
     try {
-      await invoke("stop_session", { agentId: AGENT_ID });
+      await invoke("stop_session", { agentId });
     } catch (e) {
       set({ error: String(e) });
     }
@@ -136,10 +161,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const state = get();
     const chatId = state.activeChatId;
     if (!chatId) return;
+
+    const agentId = getActiveAgentId();
+
     set({
       chatMessages: { ...state.chatMessages, [chatId]: [] },
       messages: [],
-      hasSession: false,
+      sessionByAgent: { ...state.sessionByAgent, [agentId]: false },
       isThinking: false,
       currentToolActivity: null,
       error: null,
@@ -170,17 +198,20 @@ function updateMessages(chatId: string, msgs: ChatMessage[], extra?: Record<stri
 // ── Module-level event listener (singleton, lives for app lifetime) ──
 
 function handleCliEvent(e: CliEvent) {
-  if (e.agent_id !== AGENT_ID) return;
-
-  const state = useChatStore.getState();
-  const chatId = state.activeChatId;
+  // Route events to the correct chat via activeChatByAgent mapping
+  const agentState = useAgentStore.getState();
+  const chatId = agentState.activeChatByAgent[e.agent_id];
   if (!chatId) return;
 
+  const state = useChatStore.getState();
+  const isActiveChat = chatId === state.activeChatId;
   const currentMsgs = state.chatMessages[chatId] ?? [];
 
   switch (e.type) {
     case "sessionId":
-      useChatStore.setState({ hasSession: true });
+      useChatStore.setState({
+        sessionByAgent: { ...state.sessionByAgent, [e.agent_id]: true },
+      });
       break;
 
     case "streamChunk": {
@@ -198,7 +229,7 @@ function handleCliEvent(e: CliEvent) {
           tools: [],
         });
       }
-      updateMessages(chatId, msgs, { isThinking: true });
+      updateMessages(chatId, msgs, isActiveChat ? { isThinking: true } : undefined);
       break;
     }
 
@@ -236,7 +267,7 @@ function handleCliEvent(e: CliEvent) {
         clearTimeout(toolActivityTimer);
         toolActivityTimer = null;
       }
-      updateMessages(chatId, msgs, { currentToolActivity: activity });
+      updateMessages(chatId, msgs, isActiveChat ? { currentToolActivity: activity } : undefined);
       break;
     }
 
@@ -253,18 +284,22 @@ function handleCliEvent(e: CliEvent) {
       }
       updateMessages(chatId, msgs);
       // Delay clearing tool activity so it stays visible briefly
-      if (toolActivityTimer) clearTimeout(toolActivityTimer);
-      toolActivityTimer = setTimeout(() => {
-        toolActivityTimer = null;
-        if (useChatStore.getState().currentToolActivity?.toolUseId === e.tool_use_id) {
-          useChatStore.setState({ currentToolActivity: null });
-        }
-      }, 1500);
+      if (isActiveChat) {
+        if (toolActivityTimer) clearTimeout(toolActivityTimer);
+        toolActivityTimer = setTimeout(() => {
+          toolActivityTimer = null;
+          if (useChatStore.getState().currentToolActivity?.toolUseId === e.tool_use_id) {
+            useChatStore.setState({ currentToolActivity: null });
+          }
+        }, 1500);
+      }
       break;
     }
 
     case "turnComplete":
-      useChatStore.setState({ isThinking: false, currentToolActivity: null });
+      if (isActiveChat) {
+        useChatStore.setState({ isThinking: false, currentToolActivity: null });
+      }
       {
         const msgs = [...currentMsgs];
         const last = msgs[msgs.length - 1];
@@ -276,7 +311,12 @@ function handleCliEvent(e: CliEvent) {
       break;
 
     case "processExited":
-      useChatStore.setState({ hasSession: false, isThinking: false, currentToolActivity: null });
+      useChatStore.setState({
+        sessionByAgent: { ...useChatStore.getState().sessionByAgent, [e.agent_id]: false },
+      });
+      if (isActiveChat) {
+        useChatStore.setState({ isThinking: false, currentToolActivity: null });
+      }
       {
         const msgs = [...currentMsgs];
         const last = msgs[msgs.length - 1];
@@ -288,7 +328,9 @@ function handleCliEvent(e: CliEvent) {
       break;
 
     case "error":
-      useChatStore.setState({ error: e.message, isThinking: false });
+      if (isActiveChat) {
+        useChatStore.setState({ error: e.message, isThinking: false });
+      }
       break;
   }
 }

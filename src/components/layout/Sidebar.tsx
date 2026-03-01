@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useState, useCallback } from "react";
 import {
   FolderOpen,
   FileText,
@@ -6,16 +6,22 @@ import {
   Server,
   Brain,
   Settings,
+  ChevronDown,
 } from "lucide-react";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { ResizeHandle } from "./ResizeHandle";
 import { AgentCard } from "../sidebar/AgentCard";
+import { ProjectDropdown } from "../sidebar/ProjectDropdown";
 
 export const Sidebar = memo(function Sidebar() {
   const open = useLayoutStore((s) => s.sidebarOpen);
   const width = useLayoutStore((s) => s.sidebarWidth);
   const agents = useAgentStore((s) => s.agents);
+
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const toggleDropdown = useCallback(() => setDropdownOpen((v) => !v), []);
+  const closeDropdown = useCallback(() => setDropdownOpen(false), []);
 
   return (
     <aside
@@ -25,11 +31,18 @@ export const Sidebar = memo(function Sidebar() {
       {open && (
         <>
           <div className="sidebar-content">
-            {/* Open Project button (stub) */}
-            <button className="sidebar-open-project">
-              <FolderOpen size={14} />
-              <span>Open Project</span>
-            </button>
+            {/* Open Project button + dropdown */}
+            <div className="project-dropdown-wrapper">
+              <button className="sidebar-open-project" onClick={toggleDropdown}>
+                <FolderOpen size={14} />
+                <span>Open Project</span>
+                <ChevronDown
+                  size={12}
+                  className={`sidebar-open-project-chevron ${dropdownOpen ? "open" : ""}`}
+                />
+              </button>
+              <ProjectDropdown open={dropdownOpen} onClose={closeDropdown} />
+            </div>
 
             {/* Agents section */}
             <div className="sidebar-section">

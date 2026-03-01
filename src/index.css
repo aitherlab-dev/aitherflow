@@ -229,6 +229,143 @@ body {
   border-color: var(--fg-muted);
 }
 
+/* ── Sidebar: Open Project chevron ── */
+
+.sidebar-open-project-chevron {
+  margin-left: auto;
+  transition: transform 0.15s;
+}
+
+.sidebar-open-project-chevron.open {
+  transform: rotate(180deg);
+}
+
+/* ── Project Dropdown ── */
+
+.project-dropdown-wrapper {
+  position: relative;
+}
+
+.project-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 2px;
+  padding: 4px;
+  border-radius: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 50;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.project-dropdown-new {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px dashed var(--fg-dim);
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.project-dropdown-new:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.project-dropdown-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+}
+
+.project-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s, color 0.1s;
+}
+
+.project-dropdown-item:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.project-dropdown-item-active {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.project-dropdown-path {
+  margin-left: auto;
+  font-size: 0.7rem;
+  color: var(--fg-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 120px;
+}
+
+/* ── AgentCard: title with path ── */
+
+.agent-card-title {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.agent-card-path {
+  font-size: 0.65rem;
+  color: var(--fg-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── AgentCard: close button ── */
+
+.agent-card-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  padding: 2px;
+  border-radius: 4px;
+  color: var(--fg-dim);
+  opacity: 0;
+  transition: opacity 0.1s, color 0.1s, background 0.1s;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.agent-card-header:hover .agent-card-close {
+  opacity: 1;
+}
+
+.agent-card-close:hover {
+  color: var(--fg);
+  background: var(--bg-hover);
+}
+
 /* ── Sidebar: Sections ── */
 
 .sidebar-section {

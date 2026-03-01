@@ -7,7 +7,7 @@ import type {
   SendMessageOptions,
 } from "../types/conductor";
 
-const DEFAULT_AGENT_ID = "default";
+import { useAgentStore } from "./agentStore";
 
 /** Maximum number of raw events to keep in the log */
 const MAX_EVENT_LOG = 200;
@@ -53,7 +53,7 @@ export const useConductorStore = create<ConductorState>((set) => ({
     try {
       await invoke("start_session", {
         options: {
-          agentId: DEFAULT_AGENT_ID,
+          agentId: useAgentStore.getState().activeAgentId ?? "workspace",
           prompt,
         } satisfies StartSessionOptions,
       });
@@ -67,7 +67,7 @@ export const useConductorStore = create<ConductorState>((set) => ({
     try {
       await invoke("send_message", {
         options: {
-          agentId: DEFAULT_AGENT_ID,
+          agentId: useAgentStore.getState().activeAgentId ?? "workspace",
           prompt,
         } satisfies SendMessageOptions,
       });
@@ -78,7 +78,7 @@ export const useConductorStore = create<ConductorState>((set) => ({
 
   stopSession: async () => {
     try {
-      await invoke("stop_session", { agentId: DEFAULT_AGENT_ID });
+      await invoke("stop_session", { agentId: useAgentStore.getState().activeAgentId ?? "workspace" });
     } catch (e) {
       set({ error: String(e) });
     }
@@ -105,7 +105,7 @@ export const useConductorStore = create<ConductorState>((set) => ({
 
 listen<CliEvent>("cli-event", (event) => {
   const e = event.payload;
-  if (e.agent_id !== DEFAULT_AGENT_ID) return;
+  // Accept events from any agent (log them all for debugging)
 
   const { setState: set, getState: get } = useConductorStore;
 
