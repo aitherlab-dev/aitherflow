@@ -19,8 +19,26 @@ pub fn run() {
         .setup(|_app| {
             let config_dir = config::config_dir();
             let data_dir = config::data_dir();
-            eprintln!("[aitherflow] config: {}", config_dir.display());
-            eprintln!("[aitherflow] data:   {}", data_dir.display());
+            let workspace = config::workspace_dir();
+            eprintln!("[aitherflow] config:    {}", config_dir.display());
+            eprintln!("[aitherflow] data:      {}", data_dir.display());
+            eprintln!("[aitherflow] workspace: {}", workspace.display());
+
+            // Create default workspace with CLAUDE.md on first launch
+            if !workspace.exists() {
+                if let Err(e) = std::fs::create_dir_all(&workspace) {
+                    eprintln!("[aitherflow] Failed to create workspace: {e}");
+                } else {
+                    let claude_md = workspace.join("CLAUDE.md");
+                    let content = "# Workspace\n\n\
+                        You are running inside Aither Flow, a custom GUI for Claude Code CLI.\n\
+                        The user may ask you to test things, search the web, automate tasks, etc.\n";
+                    if let Err(e) = std::fs::write(&claude_md, content) {
+                        eprintln!("[aitherflow] Failed to write CLAUDE.md: {e}");
+                    }
+                }
+            }
+
             Ok(())
         })
         .run(tauri::generate_context!())

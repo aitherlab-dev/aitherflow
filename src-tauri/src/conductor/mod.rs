@@ -20,7 +20,9 @@ pub async fn start_session(
         .agent_id
         .unwrap_or_else(|| DEFAULT_AGENT_ID.to_string());
     let prompt = options.prompt;
-    let project_path = options.project_path;
+    let project_path = options
+        .project_path
+        .or_else(|| Some(crate::config::workspace_dir().to_string_lossy().into_owned()));
     let model = options.model;
 
     // Clone for the spawned task (State<'_> can't cross spawn boundary)

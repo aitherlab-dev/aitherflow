@@ -14,6 +14,11 @@ pub fn data_dir() -> PathBuf {
         .join("aither-flow")
 }
 
+/// Default workspace: ~/.config/aither-flow/Workspace/
+pub fn workspace_dir() -> PathBuf {
+    config_dir().join("Workspace")
+}
+
 /// Claude CLI home: ~/.claude/
 #[allow(dead_code)]
 pub fn claude_home() -> PathBuf {
