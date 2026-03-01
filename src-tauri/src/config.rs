@@ -19,6 +19,12 @@ pub fn workspace_dir() -> PathBuf {
     config_dir().join("Workspace")
 }
 
+/// Return default workspace path (called from frontend on startup)
+#[tauri::command]
+pub fn get_workspace_path() -> String {
+    workspace_dir().to_string_lossy().into_owned()
+}
+
 /// Claude CLI home: ~/.claude/
 #[allow(dead_code)]
 pub fn claude_home() -> PathBuf {

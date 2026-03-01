@@ -203,9 +203,138 @@ body {
   padding: 12px;
 }
 
-.sidebar-placeholder {
+.sidebar-project {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px;
+  border: none;
+  border-radius: 6px;
+  background: var(--bg-card);
+  color: var(--fg);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.sidebar-project:hover {
+  background: var(--bg-hover);
+}
+
+.sidebar-project__chevron {
+  flex-shrink: 0;
+  color: var(--fg-dim);
+  transition: transform 0.15s;
+}
+
+.sidebar-project__chevron--open {
+  transform: rotate(90deg);
+}
+
+.sidebar-project__icon {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.sidebar-project-body {
+  padding-left: 4px;
+  margin-top: 4px;
+}
+
+.sidebar-project__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-new-chat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 8px;
+  margin-bottom: 8px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  background: transparent;
   color: var(--fg-dim);
   font-size: 0.8rem;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.sidebar-new-chat:hover:not(:disabled) {
+  color: var(--fg);
+  border-color: var(--fg-dim);
+}
+
+.sidebar-new-chat--disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.sidebar-chat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.chat-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.chat-item:hover:not(.chat-item--disabled) {
+  background: var(--bg-hover);
+}
+
+.chat-item--active {
+  background: var(--bg-card);
+}
+
+.chat-item--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.chat-item__title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  color: var(--fg-soft);
+}
+
+.chat-item--active .chat-item__title {
+  color: var(--fg);
+}
+
+.chat-item__delete {
+  display: none;
+  background: none;
+  border: none;
+  padding: 2px;
+  color: var(--fg-dim);
+  cursor: pointer;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.chat-item:hover:not(.chat-item--disabled) .chat-item__delete {
+  display: flex;
+}
+
+.chat-item__delete:hover {
+  color: var(--error, #cc241d);
+  background: var(--bg-hover);
 }
 
 /* ── Resize Handle ── */

@@ -20,6 +20,7 @@ pub async fn run_cli_session(
     prompt: String,
     project_path: Option<String>,
     model: Option<String>,
+    resume_session_id: Option<String>,
 ) -> Result<(), String> {
     // Build command arguments
     let mut args: Vec<String> = vec![
@@ -35,6 +36,11 @@ pub async fn run_cli_session(
     if let Some(ref m) = model {
         args.push("--model".into());
         args.push(m.clone());
+    }
+
+    if let Some(ref sid) = resume_session_id {
+        args.push("--resume".into());
+        args.push(sid.clone());
     }
 
     // Build command

@@ -9,8 +9,26 @@ const DEFAULT_AGENT_ID = "default";
 /** Timer for delayed tool activity reset (keeps status visible briefly) */
 let toolActivityTimer: ReturnType<typeof setTimeout> | null = null;
 
+// ── Types ──
+
+/** Chat metadata for sidebar listing (no messages) */
+export interface ChatMeta {
+  id: string;
+  title: string;
+  createdAt: number;
+  sessionId: string | null;
+}
+
 interface ChatState {
-  // Data
+  // Project
+  projectPath: string;
+  projectName: string;
+
+  // Chat list (sidebar)
+  chatList: ChatMeta[];
+  currentChatId: string | null;
+
+  // Current chat data
   messages: ChatMessage[];
   hasSession: boolean;
   isThinking: boolean;
@@ -18,9 +36,56 @@ interface ChatState {
   error: string | null;
 
   // Actions
+  init: () => Promise<void>;
+  loadChatList: () => Promise<void>;
   sendMessage: (text: string) => Promise<void>;
   stopGeneration: () => Promise<void>;
-  clearChat: () => void;
+  switchChat: (chatId: string) => Promise<void>;
+  newChat: () => Promise<void>;
+  deleteChat: (chatId: string) => Promise<void>;
+}
+
+// ── Helpers ──
+
+/** Truncate text to ~30 chars at word boundary */
+function generateTitle(text: string): string {
+  const max = 30;
+  const singleLine = text.replace(/\n/g, " ").trim();
+  if (singleLine.length <= max) return singleLine;
+  const truncated = singleLine.slice(0, max);
+  const lastSpace = truncated.lastIndexOf(" ");
+  return (lastSpace > 10 ? truncated.slice(0, lastSpace) : truncated) + "…";
+}
+
+/** Convert frontend ChatMessage[] to storable format (strip isStreaming) */
+function messagesToStored(messages: ChatMessage[]) {
+  return messages.map((m) => ({
+    id: m.id,
+    role: m.role,
+    text: m.text,
+    timestamp: m.timestamp,
+    tools: (m.tools ?? []).map((t) => ({
+      toolUseId: t.toolUseId,
+      toolName: t.toolName,
+      toolInput: t.toolInput,
+      result: t.result ?? null,
+      isError: t.isError ?? null,
+    })),
+  }));
+}
+
+/** Save current chat messages to disk */
+async function persistMessages() {
+  const { currentChatId, messages } = useChatStore.getState();
+  if (!currentChatId || messages.length === 0) return;
+  try {
+    await invoke("save_chat_messages", {
+      chatId: currentChatId,
+      messages: messagesToStored(messages),
+    });
+  } catch (e) {
+    console.error("Failed to save messages:", e);
+  }
 }
 
 /** Human-readable label for a tool name */
@@ -57,17 +122,51 @@ function toolLabel(toolName: string, toolInput: Record<string, unknown>): string
   }
 }
 
+/** Get a human-readable label for the current tool activity */
+export function getToolLabel(activity: ToolActivity): string {
+  return toolLabel(activity.toolName, activity.toolInput);
+}
+
+// ── Store ──
+
 export const useChatStore = create<ChatState>((set, get) => ({
+  projectPath: "",
+  projectName: "Workspace",
+  chatList: [],
+  currentChatId: null,
   messages: [],
   hasSession: false,
   isThinking: false,
   currentToolActivity: null,
   error: null,
 
+  init: async () => {
+    try {
+      const path = await invoke<string>("get_workspace_path");
+      const name = path.split("/").filter(Boolean).pop() ?? "Workspace";
+      set({ projectPath: path, projectName: name });
+      await get().loadChatList();
+    } catch (e) {
+      console.error("Failed to init chatStore:", e);
+    }
+  },
+
+  loadChatList: async () => {
+    const { projectPath } = get();
+    if (!projectPath) return;
+    try {
+      const list = await invoke<ChatMeta[]>("list_chats", { projectPath });
+      set({ chatList: list });
+    } catch (e) {
+      console.error("Failed to load chat list:", e);
+    }
+  },
+
   sendMessage: async (text: string) => {
     const state = get();
+    let chatId = state.currentChatId;
 
-    // Add user message
+    // Add user message immediately
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
@@ -77,13 +176,35 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ messages: [...state.messages, userMsg], error: null, isThinking: true });
 
     try {
+      // Lazy chat creation: create on first message
+      if (!chatId) {
+        const title = generateTitle(text);
+        const chat = await invoke<ChatMeta>("create_chat", {
+          projectPath: state.projectPath,
+          title,
+        });
+        chatId = chat.id;
+        set({ currentChatId: chatId });
+        // Refresh sidebar
+        get().loadChatList().catch(console.error);
+      }
+
       if (state.hasSession) {
+        // Existing live CLI process — send follow-up
         await invoke("send_message", {
           options: { agentId: DEFAULT_AGENT_ID, prompt: text } satisfies SendMessageOptions,
         });
       } else {
+        // Find if this chat has a session to resume
+        const chatMeta = get().chatList.find((c) => c.id === chatId);
+        const resumeSessionId = chatMeta?.sessionId ?? undefined;
+
         await invoke("start_session", {
-          options: { agentId: DEFAULT_AGENT_ID, prompt: text } satisfies StartSessionOptions,
+          options: {
+            agentId: DEFAULT_AGENT_ID,
+            prompt: text,
+            resumeSessionId,
+          } satisfies StartSessionOptions,
         });
       }
     } catch (e) {
@@ -100,20 +221,115 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ isThinking: false, currentToolActivity: null });
   },
 
-  clearChat: () =>
+  switchChat: async (chatId: string) => {
+    const state = get();
+    if (state.isThinking) return; // LOCKED
+    if (state.currentChatId === chatId) return;
+
+    // Save current chat before switching
+    await persistMessages();
+
+    // Kill current CLI process if alive
+    if (state.hasSession) {
+      try {
+        await invoke("stop_session", { agentId: DEFAULT_AGENT_ID });
+      } catch (e) {
+        console.error("Failed to stop session:", e);
+      }
+    }
+
+    // Load new chat from disk
+    try {
+      const chat = await invoke<{
+        id: string;
+        messages: Array<{
+          id: string;
+          role: string;
+          text: string;
+          timestamp: number;
+          tools: Array<{
+            toolUseId: string;
+            toolName: string;
+            toolInput: Record<string, unknown>;
+            result?: string;
+            isError?: boolean;
+          }>;
+        }>;
+      }>("load_chat", { chatId });
+
+      const messages: ChatMessage[] = chat.messages.map((m) => ({
+        id: m.id,
+        role: m.role as "user" | "assistant",
+        text: m.text,
+        timestamp: m.timestamp,
+        isStreaming: false,
+        tools: m.tools && m.tools.length > 0 ? m.tools : undefined,
+      }));
+
+      set({
+        currentChatId: chatId,
+        messages,
+        hasSession: false,
+        isThinking: false,
+        currentToolActivity: null,
+        error: null,
+      });
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  newChat: async () => {
+    const state = get();
+    if (state.isThinking) return; // LOCKED
+
+    // Save current chat before starting new
+    await persistMessages();
+
+    // Kill current CLI process if alive
+    if (state.hasSession) {
+      try {
+        await invoke("stop_session", { agentId: DEFAULT_AGENT_ID });
+      } catch (e) {
+        console.error("Failed to stop session:", e);
+      }
+    }
+
     set({
+      currentChatId: null,
       messages: [],
       hasSession: false,
       isThinking: false,
       currentToolActivity: null,
       error: null,
-    }),
-}));
+    });
+  },
 
-/** Get a human-readable label for the current tool activity */
-export function getToolLabel(activity: ToolActivity): string {
-  return toolLabel(activity.toolName, activity.toolInput);
-}
+  deleteChat: async (chatId: string) => {
+    const state = get();
+    if (state.isThinking) return; // LOCKED
+
+    try {
+      await invoke("delete_chat", { chatId });
+
+      // If deleting current chat, clear it
+      if (state.currentChatId === chatId) {
+        set({
+          currentChatId: null,
+          messages: [],
+          hasSession: false,
+          currentToolActivity: null,
+          error: null,
+        });
+      }
+
+      // Refresh sidebar
+      await get().loadChatList();
+    } catch (e) {
+      console.error("Failed to delete chat:", e);
+    }
+  },
+}));
 
 // ── Module-level event listener (singleton, lives for app lifetime) ──
 
@@ -124,9 +340,20 @@ function handleCliEvent(e: CliEvent) {
   const state = get();
 
   switch (e.type) {
-    case "sessionId":
+    case "sessionId": {
       set({ hasSession: true });
+      // Save CLI session ID to chat on disk
+      const chatId = state.currentChatId;
+      if (chatId) {
+        invoke("update_chat_session", { chatId, sessionId: e.session_id }).catch(console.error);
+        // Update local chatList entry too
+        const chatList = state.chatList.map((c) =>
+          c.id === chatId ? { ...c, sessionId: e.session_id } : c,
+        );
+        set({ chatList });
+      }
       break;
+    }
 
     case "streamChunk": {
       const msgs = [...state.messages];
@@ -218,6 +445,8 @@ function handleCliEvent(e: CliEvent) {
           set({ messages: msgs });
         }
       }
+      // Save messages to disk after each complete turn
+      persistMessages().catch(console.error);
       break;
 
     case "processExited":
@@ -230,6 +459,8 @@ function handleCliEvent(e: CliEvent) {
           set({ messages: msgs });
         }
       }
+      // Save messages when process exits
+      persistMessages().catch(console.error);
       break;
 
     case "error":

@@ -35,6 +35,7 @@ export interface StartSessionOptions {
   prompt: string;
   projectPath?: string;
   model?: string;
+  resumeSessionId?: string;
 }
 
 /** Options for sending a follow-up message */

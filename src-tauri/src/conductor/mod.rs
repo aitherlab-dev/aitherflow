@@ -24,6 +24,7 @@ pub async fn start_session(
         .project_path
         .or_else(|| Some(crate::config::workspace_dir().to_string_lossy().into_owned()));
     let model = options.model;
+    let resume_session_id = options.resume_session_id;
 
     // Clone for the spawned task (State<'_> can't cross spawn boundary)
     let sessions_owned = sessions.inner().clone();
@@ -39,6 +40,7 @@ pub async fn start_session(
             prompt,
             project_path,
             model,
+            resume_session_id,
         )
         .await
         {

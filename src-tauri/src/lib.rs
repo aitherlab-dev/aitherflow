@@ -1,3 +1,4 @@
+mod chats;
 mod conductor;
 mod config;
 mod platform;
@@ -15,6 +16,13 @@ pub fn run() {
             conductor::send_message,
             conductor::stop_session,
             conductor::has_active_session,
+            config::get_workspace_path,
+            chats::list_chats,
+            chats::create_chat,
+            chats::load_chat,
+            chats::save_chat_messages,
+            chats::update_chat_session,
+            chats::delete_chat,
         ])
         .setup(|_app| {
             let config_dir = config::config_dir();
