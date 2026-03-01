@@ -12,6 +12,7 @@ Full architecture: `ARCHITECTURE.md`. Roadmap: `ROADMAP.md`.
 
 - **Backend:** Rust / Tauri 2 (Cargo workspace: main app + `aither-flow-perms`)
 - **Frontend:** React 19 + TypeScript + Vite + Tailwind CSS v4
+- **Tauri plugins:** `shell`, `opener`, `dialog` (native folder picker for Open Project)
 - **Theme:** Custom warm palette (dark: coffee tone, light: aitherlab.org), CSS custom properties
 - **Data:** SQLite + FTS5 (memory), JSON (chats, settings)
 - **Scaffold note:** `pnpm create tauri-app` requires an empty directory; create in /tmp then copy
@@ -44,6 +45,14 @@ Chat, sidebar, settings, web preview, file viewer, modals (single Modal componen
 
 ### Agent isolation — foundation
 Each agent = independent container: own messages, session, project, CLI process. Switching a tab = showing a different container, NOT reconfiguring shared state. No shared `activeAgentId` in business logic.
+
+### Bookmarks vs Agents
+Two separate concepts in agentStore:
+- **Bookmarks** (`bookmarks: ProjectBookmark[]`) — persistent project list shown in dropdown. Workspace always first. Saved in `~/.config/aither-flow/projects.json`. Survive app restart.
+- **Agents** (`agents: AgentInfo[]`) — currently open cards in sidebar. Runtime state only.
+Closing an agent card (X) does NOT remove its bookmark. Project can be reopened from dropdown.
+At startup: only ONE agent (workspace). Saved projects load as bookmarks only, not as open agents.
+New agents are always created with `expanded: false`.
 
 ### Interactive permissions
 Separate binary `aither-flow-perms` (~200 lines of Rust, no Tauri). CLI calls it via `--permission-prompt-tool`; it communicates with the GUI over a unix socket. MCP protocol: 3 methods (`initialize`, `tools/list`, `tools/call`).
@@ -91,6 +100,7 @@ Note: some utilities below are planned but not yet implemented. Create them foll
 
 ## Conventions (TypeScript/React)
 
+- Icons: Lucide React (`lucide-react`). ALL icons via Lucide components, never CSS-drawn (::before/::after)
 - CSS transitions on resizable elements must be disabled during drag (`style.transition = "none"` on mousedown, restore on mouseup)
 - Accent color (`--accent`) is NOT used on resize handles or interactive borders — use `--fg-dim` for subtle highlight
 - Named exports for components
@@ -134,6 +144,8 @@ Sidebar: resizable 250–400px, default 300px. Toggle via Alt+B.
 
 - **Discuss first — code second.** Do not build new features without user approval
 - **Bugs and minor fixes** — agent's responsibility, do not bother the user
+- **No temporary solutions.** Never propose workarounds that will need to be removed later. Either do it properly or don't do it at all
+- **Remember from the first time.** Do not make the user repeat the same instruction twice. If corrected — fix it everywhere, not just the one place mentioned
 - The user is NOT a programmer. Explain in plain language, no code listings
 - V1 code (GUI-Claude) is reference only — do not copy anything from it
 - Everything is written from scratch
