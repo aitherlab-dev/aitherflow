@@ -65,7 +65,23 @@ pub async fn load_projects() -> Result<ProjectsConfig, String> {
 
         let data = fs::read_to_string(&path)
             .map_err(|e| format!("Failed to read projects.json: {e}"))?;
-        serde_json::from_str(&data).map_err(|e| format!("Failed to parse projects.json: {e}"))
+        let mut config: ProjectsConfig =
+            serde_json::from_str(&data).map_err(|e| format!("Failed to parse projects.json: {e}"))?;
+
+        // Ensure Workspace is always present as first project
+        let workspace = config::workspace_dir().to_string_lossy().into_owned();
+        if !config.projects.iter().any(|p| p.path == workspace) {
+            config.projects.insert(
+                0,
+                ProjectBookmark {
+                    path: workspace,
+                    name: "Workspace".to_string(),
+                    additional_dirs: Vec::new(),
+                },
+            );
+        }
+
+        Ok(config)
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?

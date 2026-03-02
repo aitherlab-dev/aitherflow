@@ -1,3 +1,4 @@
+mod agents;
 mod chats;
 mod conductor;
 mod config;
@@ -27,6 +28,8 @@ pub fn run() {
             chats::delete_chat,
             projects::load_projects,
             projects::save_projects,
+            agents::load_agents,
+            agents::save_agents,
         ])
         .setup(|_app| {
             let config_dir = config::config_dir();
@@ -53,6 +56,10 @@ pub fn run() {
 
             // Ensure projects.json exists with Workspace as default
             projects::ensure_projects_file();
+
+            // Ensure agents.json exists with default Workspace agent
+            // Also migrates old chats without agent_id
+            agents::ensure_agents_file();
 
             Ok(())
         })

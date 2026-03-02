@@ -6,8 +6,12 @@ import type {
   StartSessionOptions,
   SendMessageOptions,
 } from "../types/conductor";
+import { useChatStore } from "./chatStore";
 
-const DEFAULT_AGENT_ID = "default";
+/** Get the current active agentId from chatStore */
+function currentAgentId(): string {
+  return useChatStore.getState().agentId;
+}
 
 /** Maximum number of raw events to keep in the log */
 const MAX_EVENT_LOG = 200;
@@ -53,7 +57,7 @@ export const useConductorStore = create<ConductorState>((set) => ({
     try {
       await invoke("start_session", {
         options: {
-          agentId: DEFAULT_AGENT_ID,
+          agentId: currentAgentId(),
           prompt,
         } satisfies StartSessionOptions,
       });
@@ -67,7 +71,7 @@ export const useConductorStore = create<ConductorState>((set) => ({
     try {
       await invoke("send_message", {
         options: {
-          agentId: DEFAULT_AGENT_ID,
+          agentId: currentAgentId(),
           prompt,
         } satisfies SendMessageOptions,
       });
@@ -78,7 +82,7 @@ export const useConductorStore = create<ConductorState>((set) => ({
 
   stopSession: async () => {
     try {
-      await invoke("stop_session", { agentId: DEFAULT_AGENT_ID });
+      await invoke("stop_session", { agentId: currentAgentId() });
     } catch (e) {
       set({ error: String(e) });
     }
@@ -105,7 +109,7 @@ export const useConductorStore = create<ConductorState>((set) => ({
 
 listen<CliEvent>("cli-event", (event) => {
   const e = event.payload;
-  if (e.agent_id !== DEFAULT_AGENT_ID) return;
+  if (e.agent_id !== useChatStore.getState().agentId) return;
 
   const { setState: set, getState: get } = useConductorStore;
 

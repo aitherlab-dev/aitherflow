@@ -3,8 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { CliEvent, StartSessionOptions, SendMessageOptions } from "../types/conductor";
 import type { ChatMessage, ToolActivity } from "../types/chat";
-
-const DEFAULT_AGENT_ID = "default";
+import { useAgentStore } from "./agentStore";
 
 /** Timer for delayed tool activity reset (keeps status visible briefly) */
 let toolActivityTimer: ReturnType<typeof setTimeout> | null = null;
@@ -20,7 +19,8 @@ export interface ChatMeta {
 }
 
 interface ChatState {
-  // Project
+  // Agent context
+  agentId: string;
   projectPath: string;
   projectName: string;
 
@@ -36,13 +36,14 @@ interface ChatState {
   error: string | null;
 
   // Actions
-  init: () => Promise<void>;
+  init: (agentId: string, projectPath: string, projectName: string) => Promise<void>;
   loadChatList: () => Promise<void>;
   sendMessage: (text: string) => Promise<void>;
   stopGeneration: () => Promise<void>;
   switchChat: (chatId: string) => Promise<void>;
   newChat: () => Promise<void>;
   deleteChat: (chatId: string) => Promise<void>;
+  switchAgent: (agentId: string, projectPath: string, projectName: string, savedChatId: string | null) => Promise<void>;
 }
 
 // ── Helpers ──
@@ -130,6 +131,7 @@ export function getToolLabel(activity: ToolActivity): string {
 // ── Store ──
 
 export const useChatStore = create<ChatState>((set, get) => ({
+  agentId: "",
   projectPath: "",
   projectName: "Workspace",
   chatList: [],
@@ -140,15 +142,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   currentToolActivity: null,
   error: null,
 
-  init: async () => {
-    try {
-      const path = await invoke<string>("get_workspace_path");
-      const name = path.split("/").filter(Boolean).pop() ?? "Workspace";
-      set({ projectPath: path, projectName: name });
-      await get().loadChatList();
-    } catch (e) {
-      console.error("Failed to init chatStore:", e);
-    }
+  init: async (agentId, projectPath, projectName) => {
+    set({ agentId, projectPath, projectName });
+    await get().loadChatList();
   },
 
   loadChatList: async () => {
@@ -181,10 +177,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const title = generateTitle(text);
         const chat = await invoke<ChatMeta>("create_chat", {
           projectPath: state.projectPath,
+          agentId: state.agentId,
           title,
         });
         chatId = chat.id;
         set({ currentChatId: chatId });
+        // Update chat lock
+        useAgentStore.getState().updateChatLock(state.agentId, chatId);
         // Refresh sidebar
         get().loadChatList().catch(console.error);
       }
@@ -192,7 +191,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (state.hasSession) {
         // Existing live CLI process — send follow-up
         await invoke("send_message", {
-          options: { agentId: DEFAULT_AGENT_ID, prompt: text } satisfies SendMessageOptions,
+          options: { agentId: state.agentId, prompt: text } satisfies SendMessageOptions,
         });
       } else {
         // Find if this chat has a session to resume
@@ -201,8 +200,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         await invoke("start_session", {
           options: {
-            agentId: DEFAULT_AGENT_ID,
+            agentId: state.agentId,
             prompt: text,
+            projectPath: state.projectPath,
             resumeSessionId,
           } satisfies StartSessionOptions,
         });
@@ -213,8 +213,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   stopGeneration: async () => {
+    const { agentId } = get();
     try {
-      await invoke("stop_session", { agentId: DEFAULT_AGENT_ID });
+      await invoke("stop_session", { agentId });
     } catch (e) {
       set({ error: String(e) });
     }
@@ -232,7 +233,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // Kill current CLI process if alive
     if (state.hasSession) {
       try {
-        await invoke("stop_session", { agentId: DEFAULT_AGENT_ID });
+        await invoke("stop_session", { agentId: state.agentId });
       } catch (e) {
         console.error("Failed to stop session:", e);
       }
@@ -274,6 +275,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         currentToolActivity: null,
         error: null,
       });
+
+      // Update chat lock in agentStore
+      useAgentStore.getState().updateChatLock(get().agentId, chatId);
     } catch (e) {
       set({ error: String(e) });
     }
@@ -289,7 +293,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // Kill current CLI process if alive
     if (state.hasSession) {
       try {
-        await invoke("stop_session", { agentId: DEFAULT_AGENT_ID });
+        await invoke("stop_session", { agentId: state.agentId });
       } catch (e) {
         console.error("Failed to stop session:", e);
       }
@@ -303,6 +307,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       currentToolActivity: null,
       error: null,
     });
+
+    // Clear chat lock
+    useAgentStore.getState().updateChatLock(get().agentId, null);
   },
 
   deleteChat: async (chatId: string) => {
@@ -321,6 +328,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           currentToolActivity: null,
           error: null,
         });
+        useAgentStore.getState().updateChatLock(state.agentId, null);
       }
 
       // Refresh sidebar
@@ -329,12 +337,60 @@ export const useChatStore = create<ChatState>((set, get) => ({
       console.error("Failed to delete chat:", e);
     }
   },
+
+  switchAgent: async (agentId, projectPath, projectName, savedChatId) => {
+    const state = get();
+
+    // Save current chat before switching
+    await persistMessages();
+
+    // Kill current CLI process if alive
+    if (state.hasSession) {
+      try {
+        await invoke("stop_session", { agentId: state.agentId });
+      } catch (e) {
+        console.error("Failed to stop session on agent switch:", e);
+      }
+    }
+
+    // Clear tool activity timer
+    if (toolActivityTimer) {
+      clearTimeout(toolActivityTimer);
+      toolActivityTimer = null;
+    }
+
+    // Switch context
+    set({
+      agentId,
+      projectPath,
+      projectName,
+      currentChatId: null,
+      messages: [],
+      chatList: [],
+      hasSession: false,
+      isThinking: false,
+      currentToolActivity: null,
+      error: null,
+    });
+
+    // Load chats for the new agent's project
+    await get().loadChatList();
+
+    // Restore saved chat position if available
+    if (savedChatId) {
+      const exists = get().chatList.some((c) => c.id === savedChatId);
+      if (exists) {
+        await get().switchChat(savedChatId);
+      }
+    }
+  },
 }));
 
 // ── Module-level event listener (singleton, lives for app lifetime) ──
 
 function handleCliEvent(e: CliEvent) {
-  if (e.agent_id !== DEFAULT_AGENT_ID) return;
+  // Only process events for the currently active agent
+  if (e.agent_id !== useChatStore.getState().agentId) return;
 
   const { getState: get, setState: set } = useChatStore;
   const state = get();

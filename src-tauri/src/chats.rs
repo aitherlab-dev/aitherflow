@@ -36,6 +36,8 @@ pub struct ChatMessageStored {
 pub struct ChatFile {
     pub id: String,
     pub project_path: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_id: Option<String>,
     pub title: String,
     pub created_at: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -130,7 +132,11 @@ pub async fn list_chats(project_path: String) -> Result<Vec<ChatMeta>, String> {
 
 /// Create a new chat with a title (from first message)
 #[tauri::command]
-pub async fn create_chat(project_path: String, title: String) -> Result<ChatFile, String> {
+pub async fn create_chat(
+    project_path: String,
+    agent_id: String,
+    title: String,
+) -> Result<ChatFile, String> {
     tokio::task::spawn_blocking(move || {
         let id = uuid::Uuid::new_v4().to_string();
         let now = std::time::SystemTime::now()
@@ -141,6 +147,7 @@ pub async fn create_chat(project_path: String, title: String) -> Result<ChatFile
         let chat = ChatFile {
             id: id.clone(),
             project_path,
+            agent_id: Some(agent_id),
             title,
             created_at: now,
             session_id: None,
