@@ -29,6 +29,13 @@ export type CliEvent =
   | { type: "processExited"; agent_id: string; exit_code: number | null }
   | { type: "error"; agent_id: string; message: string };
 
+/** Attachment payload sent to Rust */
+export interface AttachmentPayload {
+  name: string;
+  content: string;
+  fileType: "image" | "text";
+}
+
 /** Options for starting a new CLI session */
 export interface StartSessionOptions {
   agentId?: string;
@@ -36,10 +43,13 @@ export interface StartSessionOptions {
   projectPath?: string;
   model?: string;
   resumeSessionId?: string;
+  permissionMode?: string;
+  attachments?: AttachmentPayload[];
 }
 
 /** Options for sending a follow-up message */
 export interface SendMessageOptions {
   agentId?: string;
   prompt: string;
+  attachments?: AttachmentPayload[];
 }

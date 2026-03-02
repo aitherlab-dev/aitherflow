@@ -4,7 +4,8 @@ use tokio::process::Command;
 
 use super::parser::parse_line;
 use super::session::{AgentSession, SessionManager};
-use super::types::{CliEvent, SessionStatus};
+use super::types::{AttachmentPayload, CliEvent, SessionStatus};
+use crate::attachments;
 
 /// Maximum stderr buffer size (64 KB) to prevent memory issues.
 const MAX_STDERR_BYTES: usize = 64 * 1024;
@@ -13,6 +14,7 @@ const MAX_STDERR_BYTES: usize = 64 * 1024;
 ///
 /// This is a long-running function — call it inside `tokio::spawn`.
 /// Events are emitted via `app.emit("cli-event", ...)`.
+#[allow(clippy::too_many_arguments)]
 pub async fn run_cli_session(
     app: AppHandle,
     sessions: SessionManager,
@@ -21,6 +23,8 @@ pub async fn run_cli_session(
     project_path: Option<String>,
     model: Option<String>,
     resume_session_id: Option<String>,
+    permission_mode: Option<String>,
+    image_attachments: Vec<AttachmentPayload>,
 ) -> Result<(), String> {
     // Build command arguments
     let mut args: Vec<String> = vec![
@@ -41,6 +45,11 @@ pub async fn run_cli_session(
     if let Some(ref sid) = resume_session_id {
         args.push("--resume".into());
         args.push(sid.clone());
+    }
+
+    if let Some(ref pm) = permission_mode {
+        args.push("--permission-mode".into());
+        args.push(pm.clone());
     }
 
     // Build command
@@ -90,7 +99,7 @@ pub async fn run_cli_session(
         .await;
 
     // Write first message
-    let ndjson = build_stdin_message(&prompt)?;
+    let ndjson = build_stdin_message(&prompt, &image_attachments)?;
     {
         let mut process_stdin = sessions
             .take_stdin(&agent_id)
@@ -206,16 +215,39 @@ pub async fn run_cli_session(
 
 /// Build NDJSON message for stdin.
 ///
-/// Format: `{"type":"user","message":{"role":"user","content":[{"type":"text","text":"..."}]}}`
-pub fn build_stdin_message(prompt: &str) -> Result<String, String> {
+/// Images go before text as content blocks.
+/// Format: `{"type":"user","message":{"role":"user","content":[...]}}`
+pub fn build_stdin_message(prompt: &str, images: &[AttachmentPayload]) -> Result<String, String> {
+    let mut content: Vec<serde_json::Value> = Vec::new();
+
+    // Add image blocks first
+    for img in images {
+        if img.file_type != "image" {
+            continue;
+        }
+        if let Some((media_type, data)) = attachments::parse_data_uri(&img.content) {
+            content.push(serde_json::json!({
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": media_type,
+                    "data": data
+                }
+            }));
+        }
+    }
+
+    // Add text block
+    content.push(serde_json::json!({
+        "type": "text",
+        "text": prompt
+    }));
+
     let msg = serde_json::json!({
         "type": "user",
         "message": {
             "role": "user",
-            "content": [{
-                "type": "text",
-                "text": prompt
-            }]
+            "content": content
         }
     });
     serde_json::to_string(&msg).map_err(|e| format!("Failed to serialize message: {e}"))

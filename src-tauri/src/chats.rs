@@ -16,6 +16,19 @@ pub struct ToolActivityStored {
     pub result: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_error: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_response: Option<String>,
+}
+
+/// Stored file attachment
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentStored {
+    pub id: String,
+    pub name: String,
+    pub content: String,
+    pub size: u64,
+    pub file_type: String,
 }
 
 /// Stored chat message (mirrors frontend ChatMessage, minus isStreaming)
@@ -28,6 +41,8 @@ pub struct ChatMessageStored {
     pub timestamp: u64,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tools: Vec<ToolActivityStored>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub attachments: Vec<AttachmentStored>,
 }
 
 /// Full chat file on disk

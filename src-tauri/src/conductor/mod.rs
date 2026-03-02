@@ -25,6 +25,8 @@ pub async fn start_session(
         .or_else(|| Some(crate::config::workspace_dir().to_string_lossy().into_owned()));
     let model = options.model;
     let resume_session_id = options.resume_session_id;
+    let permission_mode = options.permission_mode;
+    let image_attachments = options.attachments;
 
     // Clone for the spawned task (State<'_> can't cross spawn boundary)
     let sessions_owned = sessions.inner().clone();
@@ -41,6 +43,8 @@ pub async fn start_session(
             project_path,
             model,
             resume_session_id,
+            permission_mode,
+            image_attachments,
         )
         .await
         {
@@ -74,7 +78,7 @@ pub async fn send_message(
         .await
         .ok_or_else(|| "No active session for this agent".to_string())?;
 
-    let ndjson = process::build_stdin_message(&options.prompt)?;
+    let ndjson = process::build_stdin_message(&options.prompt, &options.attachments)?;
 
     let result = async {
         use tokio::io::AsyncWriteExt;

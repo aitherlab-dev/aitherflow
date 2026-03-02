@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { ProjectsSection } from "./ProjectsSection";
+import { GeneralSection } from "./GeneralSection";
 
 const NAV_ITEMS = [
   { id: "general", label: "General", icon: User },
@@ -82,6 +83,9 @@ export function SettingsView() {
 }
 
 function SectionContent({ section }: { section: string }) {
+  if (section === "general") {
+    return <GeneralSection />;
+  }
   if (section === "projects") {
     return <ProjectsSection />;
   }

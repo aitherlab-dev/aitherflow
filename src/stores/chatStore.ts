@@ -2,7 +2,9 @@ import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { CliEvent, StartSessionOptions, SendMessageOptions } from "../types/conductor";
-import type { ChatMessage, ToolActivity } from "../types/chat";
+import type { Attachment, ChatMessage, ToolActivity } from "../types/chat";
+import type { AttachmentPayload } from "../types/conductor";
+import { isInteractiveTool } from "../types/chat";
 import { useAgentStore } from "./agentStore";
 
 /** Timer for delayed tool activity reset (keeps status visible briefly) */
@@ -38,12 +40,13 @@ interface ChatState {
   // Actions
   init: (agentId: string, projectPath: string, projectName: string) => Promise<void>;
   loadChatList: () => Promise<void>;
-  sendMessage: (text: string) => Promise<void>;
+  sendMessage: (text: string, imageAttachments?: Attachment[]) => Promise<void>;
   stopGeneration: () => Promise<void>;
   switchChat: (chatId: string) => Promise<void>;
   newChat: () => Promise<void>;
   deleteChat: (chatId: string) => Promise<void>;
   switchAgent: (agentId: string, projectPath: string, projectName: string, savedChatId: string | null) => Promise<void>;
+  respondToCard: (toolUseId: string, response: string) => Promise<void>;
 }
 
 // ── Helpers ──
@@ -71,6 +74,14 @@ function messagesToStored(messages: ChatMessage[]) {
       toolInput: t.toolInput,
       result: t.result ?? null,
       isError: t.isError ?? null,
+      userResponse: t.userResponse ?? null,
+    })),
+    attachments: (m.attachments ?? []).map((a) => ({
+      id: a.id,
+      name: a.name,
+      content: a.content,
+      size: a.size,
+      fileType: a.fileType,
     })),
   }));
 }
@@ -118,6 +129,10 @@ function toolLabel(toolName: string, toolInput: Record<string, unknown>): string
       return "Searching web";
     case "WebFetch":
       return "Fetching page";
+    case "AskUserQuestion":
+      return "Asking question";
+    case "ExitPlanMode":
+      return "Awaiting plan approval";
     default:
       return toolName;
   }
@@ -158,16 +173,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  sendMessage: async (text: string) => {
+  sendMessage: async (text: string, imageAttachments?: Attachment[]) => {
     const state = get();
     let chatId = state.currentChatId;
 
-    // Add user message immediately
+    // Add user message immediately (with attachments for display)
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
       text,
       timestamp: Date.now(),
+      attachments: imageAttachments && imageAttachments.length > 0 ? imageAttachments : undefined,
     };
     set({ messages: [...state.messages, userMsg], error: null, isThinking: true });
 
@@ -188,15 +204,40 @@ export const useChatStore = create<ChatState>((set, get) => ({
         get().loadChatList().catch(console.error);
       }
 
+      // Convert image attachments to payload format for Rust
+      const attachmentPayloads: AttachmentPayload[] | undefined =
+        imageAttachments && imageAttachments.length > 0
+          ? imageAttachments.map((a) => ({
+              name: a.name,
+              content: a.content,
+              fileType: a.fileType,
+            }))
+          : undefined;
+
       if (state.hasSession) {
         // Existing live CLI process — send follow-up
         await invoke("send_message", {
-          options: { agentId: state.agentId, prompt: text } satisfies SendMessageOptions,
+          options: {
+            agentId: state.agentId,
+            prompt: text,
+            attachments: attachmentPayloads,
+          } satisfies SendMessageOptions,
         });
       } else {
         // Find if this chat has a session to resume
         const chatMeta = get().chatList.find((c) => c.id === chatId);
         const resumeSessionId = chatMeta?.sessionId ?? undefined;
+
+        // Load settings to check permission mode
+        let permissionMode: string | undefined;
+        try {
+          const settings = await invoke<{ bypassPermissions: boolean }>("load_settings");
+          if (settings.bypassPermissions) {
+            permissionMode = "bypassPermissions";
+          }
+        } catch (e) {
+          console.error("Failed to load settings:", e);
+        }
 
         await invoke("start_session", {
           options: {
@@ -204,6 +245,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
             prompt: text,
             projectPath: state.projectPath,
             resumeSessionId,
+            permissionMode,
+            attachments: attachmentPayloads,
           } satisfies StartSessionOptions,
         });
       }
@@ -254,6 +297,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
             toolInput: Record<string, unknown>;
             result?: string;
             isError?: boolean;
+            userResponse?: string;
+          }>;
+          attachments?: Array<{
+            id: string;
+            name: string;
+            content: string;
+            size: number;
+            fileType: string;
           }>;
         }>;
       }>("load_chat", { chatId });
@@ -265,6 +316,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
         timestamp: m.timestamp,
         isStreaming: false,
         tools: m.tools && m.tools.length > 0 ? m.tools : undefined,
+        attachments: m.attachments && m.attachments.length > 0
+          ? m.attachments.map((a) => ({
+              id: a.id,
+              name: a.name,
+              content: a.content,
+              size: a.size,
+              fileType: a.fileType as "image" | "text",
+            }))
+          : undefined,
       }));
 
       set({
@@ -384,6 +444,33 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
     }
   },
+
+  respondToCard: async (toolUseId: string, response: string) => {
+    const state = get();
+
+    // Mark the tool as answered (search all messages, not just the last one)
+    const msgs = [...state.messages];
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      const msg = msgs[i];
+      if (msg.role === "assistant" && msg.tools?.some((t) => t.toolUseId === toolUseId)) {
+        const tools = msg.tools.map((t) =>
+          t.toolUseId === toolUseId ? { ...t, userResponse: response } : t,
+        );
+        msgs[i] = { ...msg, tools };
+        break;
+      }
+    }
+    set({ messages: msgs, isThinking: true });
+
+    // Send response to CLI via stdin
+    try {
+      await invoke("send_message", {
+        options: { agentId: state.agentId, prompt: response } satisfies SendMessageOptions,
+      });
+    } catch (e) {
+      set({ error: String(e), isThinking: false });
+    }
+  },
 }));
 
 // ── Module-level event listener (singleton, lives for app lifetime) ──
@@ -460,11 +547,41 @@ function handleCliEvent(e: CliEvent) {
         const tools = [...(last.tools ?? []), activity];
         msgs[msgs.length - 1] = { ...last, tools };
       }
-      if (toolActivityTimer) {
-        clearTimeout(toolActivityTimer);
-        toolActivityTimer = null;
+      // Interactive tools (AskUserQuestion, ExitPlanMode) don't show as "running" status
+      if (!isInteractiveTool(e.tool_name)) {
+        if (toolActivityTimer) {
+          clearTimeout(toolActivityTimer);
+          toolActivityTimer = null;
+        }
+        set({ messages: msgs, currentToolActivity: activity });
+      } else {
+        // CLI is paused waiting for user input — stop streaming so cards render
+        const lastMsg = msgs[msgs.length - 1];
+        if (lastMsg && lastMsg.role === "assistant" && lastMsg.isStreaming) {
+          msgs[msgs.length - 1] = { ...lastMsg, isStreaming: false };
+        }
+
+        // Auto-approve ExitPlanMode (workaround for CLI bug #16712 —
+        // can't send tool_result, so CLI hangs waiting. Auto-send "yes"
+        // and show card as already approved. Remove when #16712 is fixed.)
+        if (e.tool_name === "ExitPlanMode") {
+          // Mark as auto-approved in the message
+          const lm = msgs[msgs.length - 1];
+          if (lm && lm.role === "assistant" && lm.tools) {
+            const tools = lm.tools.map((t) =>
+              t.toolUseId === e.tool_use_id ? { ...t, userResponse: "Auto-approved" } : t,
+            );
+            msgs[msgs.length - 1] = { ...lm, tools };
+          }
+          set({ messages: msgs, isThinking: true });
+          // Send "yes" to CLI
+          invoke("send_message", {
+            options: { agentId: state.agentId, prompt: "yes" } satisfies SendMessageOptions,
+          }).catch(console.error);
+        } else {
+          set({ messages: msgs, isThinking: false });
+        }
       }
-      set({ messages: msgs, currentToolActivity: activity });
       break;
     }
 

@@ -84,6 +84,17 @@ pub enum SessionStatus {
     Exited,
 }
 
+/// Attachment payload from frontend
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentPayload {
+    #[allow(dead_code)]
+    pub name: String,
+    /// data URI: data:image/png;base64,...
+    pub content: String,
+    pub file_type: String,
+}
+
 /// Options for starting a new CLI session.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -93,6 +104,9 @@ pub struct StartSessionOptions {
     pub project_path: Option<String>,
     pub model: Option<String>,
     pub resume_session_id: Option<String>,
+    pub permission_mode: Option<String>,
+    #[serde(default)]
+    pub attachments: Vec<AttachmentPayload>,
 }
 
 /// Options for sending a follow-up message to an existing session.
@@ -101,4 +115,6 @@ pub struct StartSessionOptions {
 pub struct SendMessageOptions {
     pub agent_id: Option<String>,
     pub prompt: String,
+    #[serde(default)]
+    pub attachments: Vec<AttachmentPayload>,
 }

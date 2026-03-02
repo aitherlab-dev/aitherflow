@@ -1,9 +1,11 @@
 mod agents;
+mod attachments;
 mod chats;
 mod conductor;
 mod config;
 mod platform;
 mod projects;
+mod settings;
 
 use conductor::session::SessionManager;
 
@@ -30,6 +32,11 @@ pub fn run() {
             projects::save_projects,
             agents::load_agents,
             agents::save_agents,
+            settings::load_settings,
+            settings::save_settings,
+            attachments::process_file,
+            attachments::read_clipboard_image,
+            attachments::cleanup_temp_file,
         ])
         .setup(|_app| {
             let config_dir = config::config_dir();
@@ -53,6 +60,9 @@ pub fn run() {
                     }
                 }
             }
+
+            // Clean up old temp files from clipboard pastes
+            attachments::cleanup_old_temp(3600);
 
             // Ensure projects.json exists with Workspace as default
             projects::ensure_projects_file();

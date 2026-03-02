@@ -65,7 +65,7 @@ const AgentTab = memo(function AgentTab({
   agentId,
   projectName,
   isActive,
-  isFirst,
+  isOnly,
   chatList,
   currentChatId,
   isThinking,
@@ -79,7 +79,7 @@ const AgentTab = memo(function AgentTab({
   agentId: string;
   projectName: string;
   isActive: boolean;
-  isFirst: boolean;
+  isOnly: boolean;
   chatList: ChatMeta[];
   currentChatId: string | null;
   isThinking: boolean;
@@ -126,15 +126,14 @@ const AgentTab = memo(function AgentTab({
           />
           <span className="sidebar-project__name">{projectName}</span>
         </button>
-        {!isFirst && (
-          <button
-            className="sidebar-project__close"
-            onClick={handleClose}
-            title="Close agent"
-          >
-            <X size={14} />
-          </button>
-        )}
+        <button
+          className={`sidebar-project__close ${isOnly ? "sidebar-project__close--disabled" : ""}`}
+          onClick={handleClose}
+          disabled={isOnly}
+          title="Close agent"
+        >
+          <X size={14} />
+        </button>
       </div>
 
       {expanded && isActive && (
@@ -390,7 +389,7 @@ export const Sidebar = memo(function Sidebar() {
                   agentId={agent.id}
                   projectName={agent.projectName}
                   isActive={agent.id === activeAgentId}
-                  isFirst={index === 0}
+                  isOnly={agents.length === 1}
                   chatList={agent.id === activeAgentId ? chatList : []}
                   currentChatId={agent.id === activeAgentId ? currentChatId : null}
                   isThinking={agent.id === activeAgentId && isThinking}

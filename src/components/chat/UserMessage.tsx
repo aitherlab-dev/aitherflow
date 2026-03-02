@@ -19,8 +19,22 @@ export const UserMessage = memo(function UserMessage({ message }: UserMessagePro
     }
   }, [message.text]);
 
+  const images = message.attachments?.filter((a) => a.fileType === "image");
+
   return (
     <div className="chat-message chat-message-user">
+      {images && images.length > 0 && (
+        <div className="message-images">
+          {images.map((img) => (
+            <img
+              key={img.id}
+              src={img.content}
+              alt={img.name}
+              className="message-image"
+            />
+          ))}
+        </div>
+      )}
       <div
         ref={contentRef}
         className="chat-message-content"

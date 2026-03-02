@@ -1,14 +1,38 @@
 import { memo, useState, useRef, useCallback, useEffect } from "react";
-import { Plus, Star, Mic, ArrowUp, Square } from "lucide-react";
+import { Plus, Star, Mic, ArrowUp, Square, X, FileText } from "lucide-react";
+import { open } from "@tauri-apps/plugin-dialog";
+import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useChatStore, getToolLabel } from "../../stores/chatStore";
 import { ThinkingIndicator } from "./ThinkingIndicator";
+import type { Attachment } from "../../types/chat";
 
 /** Max textarea height in px (~6 lines) */
 const MAX_HEIGHT = 168;
 
+/** Image extensions for file picker filter */
+const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "gif", "webp", "svg"];
+/** Text extensions for file picker filter */
+const TEXT_EXTENSIONS = [
+  "txt", "log", "rs", "ts", "tsx", "js", "jsx", "py", "md", "toml",
+  "json", "yaml", "yml", "css", "html", "sh", "bash", "fish", "zsh",
+  "c", "h", "cpp", "hpp", "go", "rb", "java", "xml", "csv", "sql",
+];
+
+/** Read a File (blob) into a data URI string */
+function readFileAsDataUri(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.readAsDataURL(file);
+  });
+}
+
 export const InputBar = memo(function InputBar() {
   const [text, setText] = useState("");
   const [isDragOver, setIsDragOver] = useState(false);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const sendMessage = useChatStore((s) => s.sendMessage);
   const stopGeneration = useChatStore((s) => s.stopGeneration);
@@ -23,12 +47,209 @@ export const InputBar = memo(function InputBar() {
     el.style.height = Math.min(el.scrollHeight, MAX_HEIGHT) + "px";
   }, [text]);
 
+  // Listen for Tauri drag-drop events (gives real file paths)
+  useEffect(() => {
+    const win = getCurrentWindow();
+    const unlisten = win.onDragDropEvent(async (event) => {
+      if (event.payload.type === "drop") {
+        setIsDragOver(false);
+        const paths = event.payload.paths;
+        for (const path of paths) {
+          try {
+            const result = await invoke<{
+              name: string;
+              content: string;
+              size: number;
+              fileType: string;
+            }>("process_file", { path });
+            const att: Attachment = {
+              id: crypto.randomUUID(),
+              name: result.name,
+              content: result.content,
+              size: result.size,
+              fileType: result.fileType as "image" | "text",
+            };
+            setAttachments((prev) => [...prev, att]);
+          } catch (e) {
+            console.error("Failed to process dropped file:", e);
+          }
+        }
+      } else if (event.payload.type === "over") {
+        setIsDragOver(true);
+      } else if (event.payload.type === "leave") {
+        setIsDragOver(false);
+      }
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, []);
+
+  // ── Add file via native picker ──
+  const handleAddFile = useCallback(async () => {
+    try {
+      const selected = await open({
+        multiple: true,
+        filters: [
+          { name: "Images", extensions: IMAGE_EXTENSIONS },
+          { name: "Text files", extensions: TEXT_EXTENSIONS },
+        ],
+      });
+      if (!selected) return;
+      const paths = Array.isArray(selected) ? selected : [selected];
+      for (const path of paths) {
+        try {
+          const result = await invoke<{
+            name: string;
+            content: string;
+            size: number;
+            fileType: string;
+          }>("process_file", { path });
+          const att: Attachment = {
+            id: crypto.randomUUID(),
+            name: result.name,
+            content: result.content,
+            size: result.size,
+            fileType: result.fileType as "image" | "text",
+          };
+          setAttachments((prev) => [...prev, att]);
+        } catch (e) {
+          console.error("Failed to process file:", e);
+        }
+      }
+    } catch (e) {
+      console.error("File dialog error:", e);
+    }
+  }, []);
+
+  // ── Paste handler (Ctrl+V) ──
+  const handlePaste = useCallback(async (e: React.ClipboardEvent) => {
+    const cd = e.clipboardData;
+    const types = Array.from(cd.types);
+
+    // If text + image together (e.g. Telegram copy), prioritize text
+    if (types.includes("text/plain") && types.some((t) => t.startsWith("image/"))) {
+      // Let default paste handle the text
+      return;
+    }
+
+    // Branch 1: explicit File with image MIME
+    if (types.includes("Files")) {
+      const files = cd.files;
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (file.type.startsWith("image/")) {
+          e.preventDefault();
+          try {
+            const dataUri = await readFileAsDataUri(file);
+            const att: Attachment = {
+              id: crypto.randomUUID(),
+              name: file.name || "pasted-image.png",
+              content: dataUri,
+              size: file.size,
+              fileType: "image",
+            };
+            setAttachments((prev) => [...prev, att]);
+          } catch (err) {
+            console.error("Failed to read pasted file:", err);
+          }
+          return;
+        }
+      }
+    }
+
+    // Branch 2: raw image type in clipboard items (screenshot)
+    if (types.some((t) => t.startsWith("image/"))) {
+      e.preventDefault();
+      const items = cd.items;
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.startsWith("image/")) {
+          const file = item.getAsFile();
+          if (!file) continue;
+          try {
+            const dataUri = await readFileAsDataUri(file);
+            const att: Attachment = {
+              id: crypto.randomUUID(),
+              name: "screenshot.png",
+              content: dataUri,
+              size: file.size,
+              fileType: "image",
+            };
+            setAttachments((prev) => [...prev, att]);
+          } catch (err) {
+            console.error("Failed to read pasted image:", err);
+          }
+          return;
+        }
+      }
+    }
+
+    // Branch 3: empty types (Wayland/WebKitGTK bug) — fallback to Rust clipboard
+    if (types.length === 0) {
+      e.preventDefault();
+      try {
+        const result = await invoke<{
+          path: string;
+          preview: string;
+          size: number;
+          filename: string;
+        }>("read_clipboard_image");
+        const att: Attachment = {
+          id: crypto.randomUUID(),
+          name: result.filename,
+          content: result.preview,
+          size: result.size,
+          fileType: "image",
+        };
+        setAttachments((prev) => [...prev, att]);
+      } catch {
+        // No image in clipboard — do nothing
+      }
+      return;
+    }
+
+    // Default: let the browser handle text paste normally
+  }, []);
+
+  // ── Remove attachment ──
+  const handleRemoveAttachment = useCallback((id: string) => {
+    setAttachments((prev) => {
+      const removed = prev.find((a) => a.id === id);
+      // Clean up temp file if it's from clipboard paste
+      if (removed && removed.name.startsWith("paste-")) {
+        invoke("cleanup_temp_file", {
+          path: `/tmp/aither-flow/${removed.name}`,
+        }).catch(console.error);
+      }
+      return prev.filter((a) => a.id !== id);
+    });
+  }, []);
+
+  // ── Send message with attachments ──
   const handleSend = useCallback(() => {
     const trimmed = text.trim();
-    if (!trimmed || isThinking) return;
+    const hasContent = trimmed || attachments.length > 0;
+    if (!hasContent || isThinking) return;
+
+    // Build final prompt: text attachments inline as code blocks
+    let finalPrompt = "";
+    const imageAttachments: Attachment[] = [];
+
+    for (const att of attachments) {
+      if (att.fileType === "text") {
+        finalPrompt += `\`\`\`${att.name}\n${att.content}\n\`\`\`\n\n`;
+      } else {
+        imageAttachments.push(att);
+      }
+    }
+
+    finalPrompt += trimmed;
+
     setText("");
-    sendMessage(trimmed).catch(console.error);
-  }, [text, isThinking, sendMessage]);
+    setAttachments([]);
+    sendMessage(finalPrompt.trim(), imageAttachments).catch(console.error);
+  }, [text, attachments, isThinking, sendMessage]);
 
   const handleStop = useCallback(() => {
     stopGeneration().catch(console.error);
@@ -44,6 +265,7 @@ export const InputBar = memo(function InputBar() {
     [handleSend],
   );
 
+  // DOM drag events (visual feedback only — actual file handling via Tauri events)
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(true);
@@ -56,7 +278,7 @@ export const InputBar = memo(function InputBar() {
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
-    // File handling will be implemented in a future stage
+    // Actual file processing handled by Tauri onDragDropEvent
   }, []);
 
   return (
@@ -69,12 +291,41 @@ export const InputBar = memo(function InputBar() {
       {isDragOver && (
         <div className="input-bar-drop-overlay">Drop files here</div>
       )}
+
+      {/* Attachment chips */}
+      {attachments.length > 0 && (
+        <div className="attachment-chips">
+          {attachments.map((att) => (
+            <div key={att.id} className="attachment-chip">
+              {att.fileType === "image" ? (
+                <img
+                  src={att.content}
+                  alt={att.name}
+                  className="attachment-chip-preview"
+                />
+              ) : (
+                <FileText size={20} className="attachment-chip-icon" />
+              )}
+              <span className="attachment-chip-name">{att.name}</span>
+              <button
+                className="attachment-chip-remove"
+                onClick={() => handleRemoveAttachment(att.id)}
+                title="Remove"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="input-bar-row">
         <textarea
           ref={textareaRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
           placeholder="Message..."
           rows={1}
           className="input-bar-textarea"
@@ -82,7 +333,12 @@ export const InputBar = memo(function InputBar() {
       </div>
       <div className="input-bar-bottom">
         <div className="input-bar-bottom-left">
-          <button className="input-bar-btn" title="Add file" aria-label="Add file">
+          <button
+            className="input-bar-btn"
+            title="Add file"
+            aria-label="Add file"
+            onClick={handleAddFile}
+          >
             <Plus size={18} />
           </button>
           <button className="input-bar-btn" title="Favorite skills" aria-label="Favorite skills">
@@ -117,7 +373,7 @@ export const InputBar = memo(function InputBar() {
             <button
               className="input-bar-btn input-bar-send"
               onClick={handleSend}
-              disabled={!text.trim()}
+              disabled={!text.trim() && attachments.length === 0}
               title="Send"
               aria-label="Send message"
             >
