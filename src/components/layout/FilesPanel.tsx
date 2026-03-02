@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAgentStore } from "../../stores/agentStore";
-import { useAttachmentStore } from "../../stores/attachmentStore";
+import { useFileViewerStore } from "../../stores/fileViewerStore";
 import type { FileEntry, MountEntry } from "../../types/files";
 
 type FilesMode = "tree" | "browser";
@@ -22,27 +22,40 @@ const TreeEntry = memo(function TreeEntry({
   depth,
   expanded,
   onToggle,
-  onAttach,
+  onFileClick,
+  onFileDblClick,
   children,
 }: {
   entry: FileEntry;
   depth: number;
   expanded: boolean;
   onToggle: (path: string) => void;
-  onAttach: (path: string) => void;
+  onFileClick: (path: string) => void;
+  onFileDblClick: (path: string) => void;
   children?: React.ReactNode;
 }) {
   const [flash, setFlash] = useState(false);
+  const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleClick = useCallback(() => {
     if (entry.isDir) {
       onToggle(entry.path);
-    } else {
-      onAttach(entry.path);
-      setFlash(true);
-      setTimeout(() => setFlash(false), 400);
+      return;
     }
-  }, [entry.isDir, entry.path, onToggle, onAttach]);
+    // Single click with delay to detect double click
+    if (clickTimer.current) {
+      clearTimeout(clickTimer.current);
+      clickTimer.current = null;
+      onFileDblClick(entry.path);
+    } else {
+      clickTimer.current = setTimeout(() => {
+        clickTimer.current = null;
+        onFileClick(entry.path);
+        setFlash(true);
+        setTimeout(() => setFlash(false), 400);
+      }, 250);
+    }
+  }, [entry.isDir, entry.path, onToggle, onFileClick, onFileDblClick]);
 
   return (
     <>
@@ -78,23 +91,35 @@ const TreeEntry = memo(function TreeEntry({
 const BrowserEntry = memo(function BrowserEntry({
   entry,
   onNavigate,
-  onAttach,
+  onFileClick,
+  onFileDblClick,
 }: {
   entry: FileEntry;
   onNavigate: (path: string) => void;
-  onAttach: (path: string) => void;
+  onFileClick: (path: string) => void;
+  onFileDblClick: (path: string) => void;
 }) {
   const [flash, setFlash] = useState(false);
+  const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleClick = useCallback(() => {
     if (entry.isDir) {
       onNavigate(entry.path);
-    } else {
-      onAttach(entry.path);
-      setFlash(true);
-      setTimeout(() => setFlash(false), 400);
+      return;
     }
-  }, [entry.isDir, entry.path, onNavigate, onAttach]);
+    if (clickTimer.current) {
+      clearTimeout(clickTimer.current);
+      clickTimer.current = null;
+      onFileDblClick(entry.path);
+    } else {
+      clickTimer.current = setTimeout(() => {
+        clickTimer.current = null;
+        onFileClick(entry.path);
+        setFlash(true);
+        setTimeout(() => setFlash(false), 400);
+      }, 250);
+    }
+  }, [entry.isDir, entry.path, onNavigate, onFileClick, onFileDblClick]);
 
   return (
     <div
@@ -119,14 +144,16 @@ function TreeLevel({
   expandedSet,
   childrenCache,
   onToggle,
-  onAttach,
+  onFileClick,
+  onFileDblClick,
 }: {
   parentPath: string;
   depth: number;
   expandedSet: Set<string>;
   childrenCache: Map<string, FileEntry[]>;
   onToggle: (path: string) => void;
-  onAttach: (path: string) => void;
+  onFileClick: (path: string) => void;
+  onFileDblClick: (path: string) => void;
 }) {
   const entries = childrenCache.get(parentPath);
   if (!entries) return null;
@@ -140,7 +167,8 @@ function TreeLevel({
           depth={depth}
           expanded={expandedSet.has(entry.path)}
           onToggle={onToggle}
-          onAttach={onAttach}
+          onFileClick={onFileClick}
+          onFileDblClick={onFileDblClick}
         >
           {entry.isDir && expandedSet.has(entry.path) && (
             <TreeLevel
@@ -149,7 +177,8 @@ function TreeLevel({
               expandedSet={expandedSet}
               childrenCache={childrenCache}
               onToggle={onToggle}
-              onAttach={onAttach}
+              onFileClick={onFileClick}
+              onFileDblClick={onFileDblClick}
             />
           )}
         </TreeEntry>
@@ -255,9 +284,14 @@ export const FilesPanel = memo(function FilesPanel() {
     }
   }, [childrenCache, loadDirectory]);
 
-  // Attach file
-  const handleAttach = useCallback((path: string) => {
-    useAttachmentStore.getState().queueAttachment(path);
+  // File click → open in viewer
+  const handleFileClick = useCallback((path: string) => {
+    useFileViewerStore.getState().openPreview(path).catch(console.error);
+  }, []);
+
+  // File double click → pin in viewer
+  const handleFileDblClick = useCallback((path: string) => {
+    useFileViewerStore.getState().openPinned(path).catch(console.error);
   }, []);
 
   // Browser: navigate to folder
@@ -359,7 +393,8 @@ export const FilesPanel = memo(function FilesPanel() {
             expandedSet={expandedSet}
             childrenCache={childrenCache}
             onToggle={handleToggle}
-            onAttach={handleAttach}
+            onFileClick={handleFileClick}
+            onFileDblClick={handleFileDblClick}
           />
         ) : (
           <>
@@ -383,7 +418,8 @@ export const FilesPanel = memo(function FilesPanel() {
                     key={entry.path}
                     entry={entry}
                     onNavigate={handleNavigate}
-                    onAttach={handleAttach}
+                    onFileClick={handleFileClick}
+                    onFileDblClick={handleFileDblClick}
                   />
                 ))
             )}

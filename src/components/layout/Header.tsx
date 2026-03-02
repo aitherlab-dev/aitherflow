@@ -1,10 +1,25 @@
 import { memo, useCallback, useState } from "react";
-import { PanelLeftClose, PanelLeft, Sun, Moon } from "lucide-react";
+import {
+  PanelLeftClose,
+  PanelLeft,
+  PanelRight,
+  PanelRightClose,
+  PanelBottom,
+  PanelBottomClose,
+  Sun,
+  Moon,
+} from "lucide-react";
 import { useLayoutStore } from "../../stores/layoutStore";
 
 export const Header = memo(function Header() {
   const sidebarOpen = useLayoutStore((s) => s.sidebarOpen);
   const toggleSidebar = useLayoutStore((s) => s.toggleSidebar);
+  const fileViewerVisible = useLayoutStore((s) => s.fileViewerVisible);
+  const fileViewerPosition = useLayoutStore((s) => s.fileViewerPosition);
+  const toggleFileViewer = useLayoutStore((s) => s.toggleFileViewer);
+  const setFileViewerPosition = useLayoutStore(
+    (s) => s.setFileViewerPosition,
+  );
   const [isDark, setIsDark] = useState(
     () => !document.documentElement.hasAttribute("data-theme"),
   );
@@ -23,6 +38,24 @@ export const Header = memo(function Header() {
     }, 400);
   }, [isDark]);
 
+  const handleTogglePosition = useCallback(() => {
+    setFileViewerPosition(fileViewerPosition === "right" ? "bottom" : "right");
+  }, [fileViewerPosition, setFileViewerPosition]);
+
+  // Panel visibility icon: show active state based on position
+  const PanelVisibilityIcon =
+    fileViewerPosition === "right"
+      ? fileViewerVisible
+        ? PanelRightClose
+        : PanelRight
+      : fileViewerVisible
+        ? PanelBottomClose
+        : PanelBottom;
+
+  // Panel orientation icon
+  const PanelOrientationIcon =
+    fileViewerPosition === "right" ? PanelBottom : PanelRight;
+
   return (
     <header className="app-header" data-tauri-drag-region>
       <div className="header-left">
@@ -32,6 +65,28 @@ export const Header = memo(function Header() {
         </div>
       </div>
       <div className="header-right">
+        <button
+          className="header-btn"
+          onClick={handleTogglePosition}
+          title={
+            fileViewerPosition === "right"
+              ? "Move panel to bottom"
+              : "Move panel to right"
+          }
+          aria-label="Toggle panel position"
+        >
+          <PanelOrientationIcon size={16} />
+        </button>
+        <button
+          className={`header-btn ${fileViewerVisible ? "header-btn--active" : ""}`}
+          onClick={toggleFileViewer}
+          title={
+            fileViewerVisible ? "Hide file viewer" : "Show file viewer"
+          }
+          aria-label="Toggle file viewer"
+        >
+          <PanelVisibilityIcon size={16} />
+        </button>
         <button
           className="header-btn"
           onClick={toggleTheme}

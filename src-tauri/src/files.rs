@@ -24,7 +24,7 @@ const IGNORED: &[&str] = &[
 ];
 
 /// Check that path is under $HOME, /tmp, /mnt, or /run/media (canonicalized).
-fn validate_path_safe(path: &Path) -> Result<(), String> {
+pub fn validate_path_safe(path: &Path) -> Result<(), String> {
     let canonical = path
         .canonicalize()
         .map_err(|e| format!("Cannot resolve path: {e}"))?;

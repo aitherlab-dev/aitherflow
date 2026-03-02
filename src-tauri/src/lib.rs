@@ -3,6 +3,7 @@ mod attachments;
 mod chats;
 mod conductor;
 mod config;
+mod file_ops;
 mod files;
 mod platform;
 mod projects;
@@ -41,6 +42,10 @@ pub fn run() {
             files::get_home_path,
             files::list_directory,
             files::list_mounts,
+            file_ops::read_file,
+            file_ops::write_file,
+            file_ops::delete_file,
+            file_ops::file_snapshot,
         ])
         .setup(|_app| {
             let config_dir = config::config_dir();

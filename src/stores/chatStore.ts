@@ -10,6 +10,9 @@ import { useAgentStore } from "./agentStore";
 /** Timer for delayed tool activity reset (keeps status visible briefly) */
 let toolActivityTimer: ReturnType<typeof setTimeout> | null = null;
 
+/** Tools that edit files and should be bridged to fileViewerStore */
+const FILE_EDIT_TOOLS = new Set(["Edit", "Write", "MultiEdit"]);
+
 // ── Types ──
 
 /** Chat metadata for sidebar listing (no messages) */
@@ -176,6 +179,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   sendMessage: async (text: string, imageAttachments?: Attachment[]) => {
     const state = get();
     let chatId = state.currentChatId;
+
+    // Auto-accept all pending diffs when user sends a new message
+    import("./fileViewerStore").then(({ useFileViewerStore }) => {
+      useFileViewerStore.getState().acceptAllPending();
+    }).catch(console.error);
 
     // Add user message immediately (with attachments for display)
     const userMsg: ChatMessage = {
@@ -419,6 +427,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       toolActivityTimer = null;
     }
 
+    // Clear file viewer on agent switch
+    import("./fileViewerStore").then(({ useFileViewerStore }) => {
+      useFileViewerStore.getState().clearAll();
+    }).catch(console.error);
+
     // Switch context
     set({
       agentId,
@@ -547,6 +560,34 @@ function handleCliEvent(e: CliEvent) {
         const tools = [...(last.tools ?? []), activity];
         msgs[msgs.length - 1] = { ...last, tools };
       }
+
+      // Bridge to file viewer for file-editing tools
+      if (FILE_EDIT_TOOLS.has(e.tool_name)) {
+        import("./fileViewerStore").then(({ useFileViewerStore }) => {
+          useFileViewerStore
+            .getState()
+            .addDiffFromToolUse(e.tool_use_id, e.tool_name, e.tool_input)
+            .catch(console.error);
+        }).catch(console.error);
+      }
+      // Open preview for Read tool
+      if (e.tool_name === "Read") {
+        const filePath =
+          typeof e.tool_input.file_path === "string"
+            ? e.tool_input.file_path
+            : typeof e.tool_input.path === "string"
+              ? e.tool_input.path
+              : null;
+        if (filePath) {
+          import("./fileViewerStore").then(({ useFileViewerStore }) => {
+            useFileViewerStore
+              .getState()
+              .openPreview(filePath)
+              .catch(console.error);
+          }).catch(console.error);
+        }
+      }
+
       // Interactive tools (AskUserQuestion, ExitPlanMode) don't show as "running" status
       if (!isInteractiveTool(e.tool_name)) {
         if (toolActivityTimer) {
@@ -597,6 +638,14 @@ function handleCliEvent(e: CliEvent) {
         msgs[msgs.length - 1] = { ...last, tools };
       }
       set({ messages: msgs });
+
+      // Refresh file viewer after file-editing tool completes
+      import("./fileViewerStore").then(({ useFileViewerStore }) => {
+        useFileViewerStore
+          .getState()
+          .refreshAfterToolResult(e.tool_use_id)
+          .catch(console.error);
+      }).catch(console.error);
       // Delay clearing tool activity so it stays visible briefly
       if (toolActivityTimer) clearTimeout(toolActivityTimer);
       toolActivityTimer = setTimeout(() => {
