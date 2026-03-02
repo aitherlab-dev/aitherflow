@@ -30,6 +30,9 @@ interface AgentState {
 
   /** Update chatLock for the active agent (called by chatStore on chat switch) */
   updateChatLock: (agentId: string, chatId: string | null) => void;
+
+  /** Move agent from one index to another */
+  reorderAgent: (fromIndex: number, toIndex: number) => Promise<void>;
 }
 
 /** Persist current agents state to disk */
@@ -56,7 +59,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   },
 
   createAgent: async (projectPath, projectName) => {
-    const { agents, activeAgentId } = get();
+    const { agents, activeAgentId, chatLocks } = get();
     const newAgent: AgentEntry = {
       id: crypto.randomUUID(),
       projectPath,
@@ -65,9 +68,22 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       order: agents.length,
     };
 
+    // Save current chat position for the old agent
+    if (activeAgentId) {
+      const currentChatId = useChatStore.getState().currentChatId;
+      set({
+        chatLocks: { ...chatLocks, [activeAgentId]: currentChatId },
+      });
+    }
+
     const updated = [...agents, newAgent];
-    set({ agents: updated });
-    await persist(updated, activeAgentId);
+    set({ agents: updated, activeAgentId: newAgent.id });
+    await persist(updated, newAgent.id);
+
+    // Switch chatStore to the new agent
+    await useChatStore
+      .getState()
+      .switchAgent(newAgent.id, newAgent.projectPath, newAgent.projectName, null);
   },
 
   removeAgent: async (agentId) => {
@@ -156,5 +172,19 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   updateChatLock: (agentId, chatId) => {
     const { chatLocks } = get();
     set({ chatLocks: { ...chatLocks, [agentId]: chatId } });
+  },
+
+  reorderAgent: async (fromIndex, toIndex) => {
+    const { agents, activeAgentId } = get();
+    if (fromIndex === toIndex) return;
+    if (fromIndex < 0 || toIndex < 0) return;
+    if (fromIndex >= agents.length || toIndex >= agents.length) return;
+
+    const updated = [...agents];
+    const [moved] = updated.splice(fromIndex, 1);
+    updated.splice(toIndex, 0, moved);
+
+    set({ agents: updated });
+    await persist(updated, activeAgentId);
   },
 }));

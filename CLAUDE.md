@@ -12,6 +12,16 @@ Aither Flow — десктопная GUI-обёртка для Claude Code CLI. 
 - **Данные:** JSON (чаты, настройки), позже SQLite (память)
 - **Платформы:** Linux (основная), macOS (вторичная)
 
+## Структура
+
+- `src/components/chat/` — чат: сообщения, ввод, рендер markdown
+- `src/components/layout/` — каркас: сайдбар, хедер, статусбар, resize
+- `src/components/settings/` — экран настроек и проектов
+- `src/stores/` — Zustand-сторы (agent, chat, conductor, layout, project)
+- `src/types/` — TypeScript-типы (agents, chat, conductor, projects)
+- `src-tauri/src/conductor/` — ядро: запуск CLI, парсинг потока, управление сессиями
+- `src-tauri/src/` — Tauri-команды: agents, chats, config, projects, platform
+
 ## Команды
 
 ```bash
@@ -19,9 +29,15 @@ pnpm tauri dev          # запуск в dev-режиме
 pnpm tauri build        # production-сборка
 npx tsc --noEmit        # проверка типов (из корня проекта, НЕ из src-tauri/)
 cargo clippy            # lint Rust (из src-tauri/)
+pnpm lint               # ESLint
+pnpm format             # Prettier
 ```
 
-## CLI-интеграция
+CI: GitHub Actions (`ci.yml`) — `tsc --noEmit` + `eslint` + `cargo clippy -D warnings`
+
+## Как работает
+
+**CLI-интеграция:**
 
 ```
 claude -p --output-format stream-json --input-format stream-json --verbose --include-partial-messages
@@ -31,7 +47,7 @@ claude -p --output-format stream-json --input-format stream-json --verbose --inc
 
 Флаги: `--resume`, `--model`, `--agent`, `--permission-mode`, `--add-dir`, `--max-turns`, `--max-budget-usd`, `--mcp-config`
 
-## Пути (XDG)
+**Пути (XDG):**
 
 - Конфиги: `~/.config/aither-flow/`
 - Данные: `~/.local/share/aither-flow/`
@@ -41,22 +57,20 @@ claude -p --output-format stream-json --input-format stream-json --verbose --inc
 - CLI-совместимые: `~/.claude/skills/`, `~/.claude/agents/`, `~/.claude.json`
 - Использовать `dirs` crate для путей
 
-## Tauri-плагины
+**Tauri-плагины:** `tauri-plugin-opener` (URL/файлы), `tauri-plugin-shell` (CLI-процессы), `tauri-plugin-dialog` (нативные диалоги)
 
-- `tauri-plugin-opener` — открытие URL/файлов
-- `tauri-plugin-shell` — запуск CLI-процессов
-- `tauri-plugin-dialog` — нативные диалоги (выбор папки/файла)
+**Settings:** полноэкранный слой вместо чата (НЕ модалка). `layoutStore.activeView`: `'chat'` | `'settings'`. Закрытие: Escape, ×, клик по чату в сайдбаре
 
-## Правила Rust
+## Подводные камни
 
+**Rust:**
 - `spawn_blocking` для ВСЕХ `#[tauri::command]` с `std::fs::*`, `Path::exists()`, `Command::new()`
 - `atomic_write()` для записи файлов (temp + rename)
 - `validate_path_safe()` для пользовательских путей
 - Не проглатывать ошибки: `.map_err(|e| eprintln!(...)).ok()?`, НЕ `let _ =`
-- rusqlite Connection не Send — открывать внутри `spawn_blocking`
+- (будущее) rusqlite Connection не Send — открывать внутри `spawn_blocking`
 
-## Правила TypeScript/React
-
+**TypeScript/React:**
 - Иконки: **только Lucide React** (`lucide-react`). Никаких CSS-иконок (::before/::after), никакого инлайн-SVG
 - Все цвета через CSS-переменные, никаких захардкоженных значений
 - `memo()` на тяжёлых компонентах (чат, список сообщений)
@@ -67,6 +81,15 @@ claude -p --output-format stream-json --input-format stream-json --verbose --inc
 - `useShallow` обязателен для `.filter()` / `.map()` в Zustand-селекторах
 - CSS transitions отключать на resizable элементах во время drag
 - При десериализации JSON: optional массивы могут быть `undefined` — всегда проверять перед `.length`
+
+**Zustand:**
+- Каждый модуль = свой стор. Модули не знают друг о друге
+- Tauri event listeners (`listen()`) регистрировать на уровне модуля, НЕ в useEffect
+- Cross-store: `storeB.getState().action()`, НИКОГДА React-хуки из двух сторов (бесконечный loop)
+
+**Сайдбар:**
+- `sidebar-content` — flex с `gap: 4px`. При расчёте визуальных отступов учитывать gap + margin (суммируются)
+- Блок агентов (`sidebar-agent-block`) — flex-контейнер с собственным `gap: 6px`, отступы от линий через `padding`
 
 ## Дизайн-система
 
@@ -86,19 +109,6 @@ CSS-переменные на `:root` (тёмная по умолчанию) и 
 - `.sidebar-project` — агенты/проекты: толще (padding 16px), яркий цвет (`--fg`)
 - `.sidebar-tab` — функциональные (Settings и т.д.): тоньше (padding 14px), приглушённый (`--fg-muted`)
 - Общее: рамка, скругление 6px, фон `--tab-bg-hover`, hover scale 1.04
-
-## Настройки (Settings)
-
-- Полноэкранный слой вместо чата, НЕ модалка
-- `layoutStore.activeView`: `'chat'` | `'settings'`
-- Закрытие: Escape, кнопка ×, клик по чату в сайдбаре
-- Навигация разделов — внутри экрана (слева), НЕ в сайдбаре
-
-## Zustand (стейт)
-
-- Каждый модуль = свой стор. Модули не знают друг о друге
-- Tauri event listeners (`listen()`) регистрировать на уровне модуля, НЕ в useEffect
-- Cross-store: `storeB.getState().action()`, НИКОГДА React-хуки из двух сторов (бесконечный loop)
 
 ## ARCHITECTURE.md и ROADMAP.md
 

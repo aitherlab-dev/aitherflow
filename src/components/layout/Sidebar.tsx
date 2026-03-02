@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
-import { ChevronRight, Plus, Trash2, Settings, X } from "lucide-react";
+import { ChevronRight, Plus, Trash2, Settings, X, Brain, Sparkles, Cable } from "lucide-react";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useChatStore, type ChatMeta } from "../../stores/chatStore";
 import { useAgentStore } from "../../stores/agentStore";
@@ -141,7 +141,7 @@ const AgentTab = memo(function AgentTab({
         <div className="sidebar-project-body">
           <button
             className={`sidebar-new-chat ${isThinking ? "sidebar-new-chat--disabled" : ""}`}
-            onClick={onNewChat}
+            onClick={() => { onNewChat(); setExpanded(false); }}
             disabled={isThinking}
           >
             <Plus size={16} />
@@ -156,7 +156,7 @@ const AgentTab = memo(function AgentTab({
                 isCurrent={chat.id === currentChatId}
                 disabled={isThinking}
                 locked={lockedChatIds.includes(chat.id)}
-                onSelect={onSelectChat}
+                onSelect={(id: string) => { onSelectChat(id); setExpanded(false); }}
                 onDelete={onDeleteChat}
               />
             ))}
@@ -171,26 +171,13 @@ const AgentTab = memo(function AgentTab({
 
 const ProjectDropdown = memo(function ProjectDropdown({
   onSelect,
-  onClose,
 }: {
   onSelect: (projectPath: string, projectName: string) => void;
-  onClose: () => void;
 }) {
   const projects = useProjectStore((s) => s.projects);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        onClose();
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [onClose]);
 
   return (
-    <div className="project-dropdown" ref={ref}>
+    <div className="project-dropdown">
       {projects.map((p) => (
         <button
           key={p.path}
@@ -223,6 +210,7 @@ export const Sidebar = memo(function Sidebar() {
   const removeAgent = useAgentStore((s) => s.removeAgent);
   const setActiveAgent = useAgentStore((s) => s.setActiveAgent);
   const getLockedChatIds = useAgentStore((s) => s.getLockedChatIds);
+  const reorderAgent = useAgentStore((s) => s.reorderAgent);
 
   const chatList = useChatStore((s) => s.chatList);
   const currentChatId = useChatStore((s) => s.currentChatId);
@@ -245,12 +233,9 @@ export const Sidebar = memo(function Sidebar() {
     [createAgent],
   );
 
-  const handleDropdownClose = useCallback(() => {
-    setDropdownOpen(false);
-  }, []);
-
   const handleActivateAgent = useCallback(
     (agentId: string) => {
+      setDropdownOpen(false);
       if (activeView === "settings") closeSettings();
       setActiveAgent(agentId).catch(console.error);
     },
@@ -284,12 +269,90 @@ export const Sidebar = memo(function Sidebar() {
   );
 
   const handleSettingsClick = useCallback(() => {
+    setDropdownOpen(false);
     if (activeView === "settings") {
       closeSettings();
     } else {
       openSettings();
     }
   }, [activeView, closeSettings, openSettings]);
+
+  // ── Shift+drag reorder for agent tabs ──
+
+  const agentDragRef = useRef<{
+    fromIndex: number;
+    el: HTMLElement;
+    startY: number;
+    offsetY: number;
+  } | null>(null);
+  const [agentDragIndex, setAgentDragIndex] = useState<number | null>(null);
+  const [agentDropIndex, setAgentDropIndex] = useState<number | null>(null);
+  const agentRefs = useRef<(HTMLElement | null)[]>([]);
+
+  const handleAgentMouseDown = useCallback(
+    (e: React.MouseEvent, index: number) => {
+      if (!e.shiftKey) return;
+      e.preventDefault();
+      const el = agentRefs.current[index];
+      if (!el) return;
+
+      const rect = el.getBoundingClientRect();
+      agentDragRef.current = {
+        fromIndex: index,
+        el,
+        startY: rect.top,
+        offsetY: e.clientY - rect.top,
+      };
+      setAgentDragIndex(index);
+      setAgentDropIndex(index);
+      document.body.classList.add("select-none");
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (agentDragIndex === null) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!agentDragRef.current) return;
+
+      const refs = agentRefs.current;
+      let newDrop = agentDragRef.current.fromIndex;
+      for (let i = 0; i < refs.length; i++) {
+        const ref = refs[i];
+        if (!ref) continue;
+        const rect = ref.getBoundingClientRect();
+        const mid = rect.top + rect.height / 2;
+        if (e.clientY < mid) {
+          newDrop = i;
+          break;
+        }
+        newDrop = i + 1;
+      }
+      newDrop = Math.max(0, Math.min(newDrop, agents.length - 1));
+      setAgentDropIndex(newDrop);
+    };
+
+    const handleMouseUp = () => {
+      if (agentDragRef.current && agentDropIndex !== null) {
+        const from = agentDragRef.current.fromIndex;
+        if (from !== agentDropIndex) {
+          reorderAgent(from, agentDropIndex).catch(console.error);
+        }
+      }
+      agentDragRef.current = null;
+      setAgentDragIndex(null);
+      setAgentDropIndex(null);
+      document.body.classList.remove("select-none");
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [agentDragIndex, agentDropIndex, agents.length, reorderAgent]);
 
   return (
     <aside
@@ -298,45 +361,65 @@ export const Sidebar = memo(function Sidebar() {
     >
       {open && (
         <>
-          {/* Top: + New Agent */}
-          <div className="sidebar-top">
-            <div className="sidebar-top__wrapper">
-              <button className="sidebar-tab" onClick={handleNewAgent}>
+          {/* Agent block */}
+          <div className="sidebar-content">
+            {/* New Agent — pinned to top */}
+            <div className="sidebar-agent-top">
+              <button
+                className={`sidebar-tab ${dropdownOpen ? "sidebar-tab--expanded" : ""}`}
+                onClick={handleNewAgent}
+              >
                 <Plus size={16} />
                 <span>New Agent</span>
               </button>
               {dropdownOpen && (
                 <ProjectDropdown
                   onSelect={handleProjectSelect}
-                  onClose={handleDropdownClose}
                 />
               )}
             </div>
-          </div>
 
-          {/* Middle: Agent list */}
-          <div className="sidebar-content">
             {agents.map((agent, index) => (
-              <AgentTab
+              <div
                 key={agent.id}
-                agentId={agent.id}
-                projectName={agent.projectName}
-                isActive={agent.id === activeAgentId}
-                isFirst={index === 0}
-                chatList={agent.id === activeAgentId ? chatList : []}
-                currentChatId={agent.id === activeAgentId ? currentChatId : null}
-                isThinking={agent.id === activeAgentId && isThinking}
-                lockedChatIds={activeAgentId ? getLockedChatIds(activeAgentId) : []}
-                onActivate={handleActivateAgent}
-                onClose={handleCloseAgent}
-                onNewChat={handleNewChat}
-                onSelectChat={handleSelectChat}
-                onDeleteChat={handleDeleteChat}
-              />
+                ref={(el) => { agentRefs.current[index] = el; }}
+                className={`sidebar-agent-slot ${agentDragIndex === index ? "sidebar-agent-slot--dragging" : ""} ${agentDropIndex === index && agentDragIndex !== null && agentDragIndex !== index ? "sidebar-agent-slot--drop-target" : ""}`}
+                onMouseDown={(e) => handleAgentMouseDown(e, index)}
+              >
+                <AgentTab
+                  agentId={agent.id}
+                  projectName={agent.projectName}
+                  isActive={agent.id === activeAgentId}
+                  isFirst={index === 0}
+                  chatList={agent.id === activeAgentId ? chatList : []}
+                  currentChatId={agent.id === activeAgentId ? currentChatId : null}
+                  isThinking={agent.id === activeAgentId && isThinking}
+                  lockedChatIds={activeAgentId ? getLockedChatIds(activeAgentId) : []}
+                  onActivate={handleActivateAgent}
+                  onClose={handleCloseAgent}
+                  onNewChat={handleNewChat}
+                  onSelectChat={handleSelectChat}
+                  onDeleteChat={handleDeleteChat}
+                />
+              </div>
             ))}
           </div>
 
-          {/* Bottom: Settings */}
+          {/* Functional tabs */}
+          <button className="sidebar-tab sidebar-tab--disabled" disabled>
+            <Brain size={16} />
+            <span>Memory</span>
+          </button>
+          <button className="sidebar-tab sidebar-tab--disabled" disabled>
+            <Sparkles size={16} />
+            <span>Skills</span>
+          </button>
+          <button className="sidebar-tab sidebar-tab--disabled" disabled>
+            <Cable size={16} />
+            <span>MCP</span>
+          </button>
+
+          {/* Settings — always pinned to bottom */}
           <div className="sidebar-bottom">
             <button
               className={`sidebar-tab ${activeView === "settings" ? "sidebar-tab--active" : ""}`}

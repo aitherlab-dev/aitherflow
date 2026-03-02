@@ -222,25 +222,19 @@ body {
   transition: width 0.2s ease;
 }
 
-/* Top area: + New Agent button */
-.sidebar-top {
-  padding: 12px 12px 0;
-  flex-shrink: 0;
-}
-
-.sidebar-top__wrapper {
-  position: relative;
-}
-
 .sidebar-content {
-  flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
+  border-top: 1px solid #555250;
+  border-bottom: 1px solid #555250;
+  margin: 8px 0;
 }
+
+
 
 /* Agent tab wrapper (project button + close) */
 .sidebar-project-wrapper {
@@ -266,7 +260,7 @@ body {
 }
 
 .sidebar-project--active {
-  border-color: var(--accent-stroke);
+  border-color: var(--fg-dim);
   background: var(--tab-bg);
 }
 
@@ -331,6 +325,21 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ── Agent slot drag-and-drop ── */
+
+.sidebar-agent-slot {
+  transition: transform 0.15s, opacity 0.15s;
+}
+
+.sidebar-agent-slot--dragging {
+  opacity: 0.5;
+  transform: scale(0.97);
+}
+
+.sidebar-agent-slot--drop-target {
+  box-shadow: 0 -2px 0 0 var(--accent);
 }
 
 .sidebar-new-chat {
@@ -1201,69 +1210,33 @@ body {
   font-size: 0.9rem;
 }
 
-/* ── Project Dropdown (for + New Agent) ── */
+/* ── Functional tab chevron (New Agent accordion) ── */
 
-.project-dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  z-index: 20;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-  overflow: hidden;
-  animation: dropdown-in 0.15s ease-out;
-}
-
-@keyframes dropdown-in {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.project-dropdown__item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 10px 12px;
-  border: none;
-  background: none;
-  color: var(--fg-muted);
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-
-.project-dropdown__item:hover {
-  background: var(--bg-hover);
-  color: var(--fg);
-}
-
-.project-dropdown__item + .project-dropdown__item {
-  border-top: 1px solid var(--border);
-}
-
-.project-dropdown__dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent-stroke);
+.sidebar-tab__chevron {
   flex-shrink: 0;
+  color: var(--accent-stroke);
+  transition: transform 0.15s;
 }
 
-.project-dropdown__name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.sidebar-tab__chevron--open {
+  transform: rotate(90deg);
 }
 
-.project-dropdown__empty {
-  padding: 12px;
+/* ── Functional tab accordion body ── */
+
+.sidebar-tab-body {
+  background: var(--tab-bg-hover);
+  border-radius: 0 0 6px 6px;
+  padding: 4px 8px 4px 12px;
+  margin: 0 12px 4px;
+  border: 1px solid var(--border);
+  border-top: none;
+}
+
+.sidebar-tab-body__empty {
+  padding: 8px 4px;
   color: var(--fg-dim);
   font-size: 0.8rem;
-  text-align: center;
 }
 
 /* ── Functional tabs (Settings, Limits, etc.) ── */
@@ -1273,7 +1246,7 @@ body {
   align-items: center;
   gap: 8px;
   width: calc(100% - 24px);
-  margin: 0 12px 4px;
+  margin: 0 12px 8px;
   padding: 14px 8px;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -1297,8 +1270,80 @@ body {
   color: var(--fg);
 }
 
-/* Bottom group spacing */
+.sidebar-tab--disabled {
+  cursor: default;
+}
+
+.sidebar-tab--expanded {
+  border-radius: 6px 6px 0 0;
+  margin-bottom: 0;
+}
+
+/* New Agent — pinned to top of agent block */
+.sidebar-agent-top {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg-soft);
+}
+
+.sidebar-agent-top .sidebar-tab {
+  width: 100%;
+  margin: 0;
+}
+
+/* Project dropdown (inline, like chat list) */
+.project-dropdown {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 4px 8px 4px 12px;
+  background: var(--tab-bg-hover);
+  border-radius: 0 0 6px 6px;
+}
+
+.project-dropdown__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 5px 4px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: color 0.12s;
+}
+
+.project-dropdown__item:hover {
+  color: var(--fg);
+}
+
+.project-dropdown__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent-stroke);
+  flex-shrink: 0;
+}
+
+.project-dropdown__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-dropdown__empty {
+  padding: 8px 4px;
+  color: var(--fg-dim);
+  font-size: 0.8rem;
+}
+
+/* Bottom group spacing — always pinned to bottom */
 .sidebar-bottom {
+  margin-top: auto;
   padding: 8px 0 12px;
   flex-shrink: 0;
 }
