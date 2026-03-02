@@ -237,10 +237,22 @@ pub fn build_stdin_message(prompt: &str, images: &[AttachmentPayload]) -> Result
         }
     }
 
-    // Add text block
+    // CLI in -p mode adds cache_control to text blocks, so a text block is always
+    // required. If the user sent only images, use a default prompt.
+    let has_images = content.iter().any(|b| b.get("type").and_then(|t| t.as_str()) == Some("image"));
+    let text = prompt.trim();
+    let text = if text.is_empty() {
+        if has_images {
+            "What's in this image?"
+        } else {
+            return Err("Cannot send empty message".to_string());
+        }
+    } else {
+        text
+    };
     content.push(serde_json::json!({
         "type": "text",
-        "text": prompt
+        "text": text
     }));
 
     let msg = serde_json::json!({

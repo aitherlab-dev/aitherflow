@@ -5,18 +5,21 @@ const SIDEBAR_MAX = 350;
 const SIDEBAR_DEFAULT = 350;
 
 export type ActiveView = "chat" | "settings";
+export type SidebarPanel = "agents" | "files";
 
 interface LayoutState {
   sidebarOpen: boolean;
   sidebarWidth: number;
   activeView: ActiveView;
   settingsSection: string;
+  sidebarPanel: SidebarPanel;
 
   toggleSidebar: () => void;
   setSidebarWidth: (width: number) => void;
   openSettings: (section?: string) => void;
   closeSettings: () => void;
   setSettingsSection: (section: string) => void;
+  setSidebarPanel: (panel: SidebarPanel) => void;
 }
 
 export const useLayoutStore = create<LayoutState>((set) => ({
@@ -24,6 +27,7 @@ export const useLayoutStore = create<LayoutState>((set) => ({
   sidebarWidth: SIDEBAR_DEFAULT,
   activeView: "chat",
   settingsSection: "projects",
+  sidebarPanel: "agents",
 
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
 
@@ -39,4 +43,6 @@ export const useLayoutStore = create<LayoutState>((set) => ({
   closeSettings: () => set({ activeView: "chat" }),
 
   setSettingsSection: (section: string) => set({ settingsSection: section }),
+
+  setSidebarPanel: (panel) => set({ sidebarPanel: panel }),
 }));

@@ -3,6 +3,7 @@ mod attachments;
 mod chats;
 mod conductor;
 mod config;
+mod files;
 mod platform;
 mod projects;
 mod settings;
@@ -37,6 +38,9 @@ pub fn run() {
             attachments::process_file,
             attachments::read_clipboard_image,
             attachments::cleanup_temp_file,
+            files::get_home_path,
+            files::list_directory,
+            files::list_mounts,
         ])
         .setup(|_app| {
             let config_dir = config::config_dir();

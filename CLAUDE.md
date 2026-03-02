@@ -17,10 +17,10 @@ Aither Flow — десктопная GUI-обёртка для Claude Code CLI. 
 - `src/components/chat/` — чат: сообщения, ввод, рендер markdown
 - `src/components/layout/` — каркас: сайдбар, хедер, статусбар, resize
 - `src/components/settings/` — экран настроек и проектов
-- `src/stores/` — Zustand-сторы (agent, chat, conductor, layout, project)
-- `src/types/` — TypeScript-типы (agents, chat, conductor, projects)
+- `src/stores/` — Zustand-сторы (agent, attachment, chat, conductor, layout, project)
+- `src/types/` — TypeScript-типы (agents, chat, conductor, files, projects)
 - `src-tauri/src/conductor/` — ядро: запуск CLI, парсинг потока, управление сессиями
-- `src-tauri/src/` — Tauri-команды: agents, chats, config, projects, platform
+- `src-tauri/src/` — Tauri-команды: agents, attachments, chats, config, files, platform, projects, settings
 
 ## Команды
 
@@ -67,6 +67,7 @@ claude -p --output-format stream-json --input-format stream-json --verbose --inc
 - `spawn_blocking` для ВСЕХ `#[tauri::command]` с `std::fs::*`, `Path::exists()`, `Command::new()`
 - `atomic_write()` для записи файлов (temp + rename)
 - `validate_path_safe()` для пользовательских путей
+- `entry.file_type()` вместо `entry.path().is_dir()` для записей каталогов — `is_dir()` вызывает `stat()`, который блокируется на холодных маунтах
 - Не проглатывать ошибки: `.map_err(|e| eprintln!(...)).ok()?`, НЕ `let _ =`
 - (будущее) rusqlite Connection не Send — открывать внутри `spawn_blocking`
 
@@ -103,7 +104,7 @@ CSS-переменные на `:root` (тёмная по умолчанию) и 
 
 Светлая тема (aitherlab.org) — независимая палитра, НЕ инверсия тёмной.
 
-Палитра: `memory/palette.md`.
+Палитра: `~/.claude/projects/-home-sasha-WORK-AITHEFLOW/memory/palette.md`
 
 Сайдбар — два класса вкладок:
 - `.sidebar-project` — агенты/проекты: толще (padding 16px), яркий цвет (`--fg`)

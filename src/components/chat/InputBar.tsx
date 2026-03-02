@@ -4,6 +4,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useChatStore, getToolLabel } from "../../stores/chatStore";
+import { useAttachmentStore } from "../../stores/attachmentStore";
 import { ThinkingIndicator } from "./ThinkingIndicator";
 import type { Attachment } from "../../types/chat";
 
@@ -83,6 +84,36 @@ export const InputBar = memo(function InputBar() {
     return () => {
       unlisten.then((fn) => fn());
     };
+  }, []);
+
+  // ── Process files queued from FilesPanel ──
+  useEffect(() => {
+    const unsub = useAttachmentStore.subscribe(async (state, prev) => {
+      if (state.pendingPaths.length === 0 || state.pendingPaths === prev.pendingPaths) return;
+      const paths = [...state.pendingPaths];
+      useAttachmentStore.getState().clearPending();
+      for (const path of paths) {
+        try {
+          const result = await invoke<{
+            name: string;
+            content: string;
+            size: number;
+            fileType: string;
+          }>("process_file", { path });
+          const att: Attachment = {
+            id: crypto.randomUUID(),
+            name: result.name,
+            content: result.content,
+            size: result.size,
+            fileType: result.fileType as "image" | "text",
+          };
+          setAttachments((prev) => [...prev, att]);
+        } catch (e) {
+          console.error("Failed to process file from panel:", e);
+        }
+      }
+    });
+    return unsub;
   }, []);
 
   // ── Add file via native picker ──

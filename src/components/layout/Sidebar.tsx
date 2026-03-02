@@ -1,10 +1,11 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
-import { ChevronRight, Plus, Trash2, Settings, X, Brain, Sparkles, Cable } from "lucide-react";
+import { ChevronRight, Plus, Trash2, Settings, X, Brain, Sparkles, Cable, FolderOpen } from "lucide-react";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useChatStore, type ChatMeta } from "../../stores/chatStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { useProjectStore } from "../../stores/projectStore";
 import { ResizeHandle } from "./ResizeHandle";
+import { FilesPanel } from "./FilesPanel";
 
 // ── Chat item (single chat in the list) ──
 
@@ -219,6 +220,7 @@ export const Sidebar = memo(function Sidebar() {
   const deleteChat = useChatStore((s) => s.deleteChat);
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [filesOpen, setFilesOpen] = useState(false);
 
   const handleNewAgent = useCallback(() => {
     setDropdownOpen((prev) => !prev);
@@ -275,6 +277,11 @@ export const Sidebar = memo(function Sidebar() {
       openSettings();
     }
   }, [activeView, closeSettings, openSettings]);
+
+  const handleFilesClick = useCallback(() => {
+    setDropdownOpen(false);
+    setFilesOpen((prev) => !prev);
+  }, []);
 
   // ── Shift+drag reorder for agent tabs ──
 
@@ -417,6 +424,20 @@ export const Sidebar = memo(function Sidebar() {
             <Cable size={16} />
             <span>MCP</span>
           </button>
+          <button
+            className={`sidebar-tab ${filesOpen ? "sidebar-tab--active" : ""}`}
+            onClick={handleFilesClick}
+          >
+            <FolderOpen size={16} />
+            <span>Files</span>
+          </button>
+
+          {/* Files accordion */}
+          {filesOpen && (
+            <div className="files-accordion">
+              <FilesPanel />
+            </div>
+          )}
 
           {/* Settings — always pinned to bottom */}
           <div className="sidebar-bottom">
