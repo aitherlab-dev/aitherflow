@@ -937,6 +937,62 @@
   opacity: 1;
 }
 
+/* ── Skills popup menu ── */
+
+.skills-menu {
+  min-width: 180px;
+  max-width: 280px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.skills-menu__empty {
+  padding: 10px 12px;
+  color: var(--fg-dim);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.skills-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  font-size: 0.78rem;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+}
+
+.skills-menu__item:hover {
+  background: var(--bg-hover);
+}
+
+.skills-menu__star {
+  color: var(--accent-icon);
+  flex-shrink: 0;
+}
+
+.skills-menu__name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skills-menu__command {
+  color: var(--fg-dim);
+  font-size: 0.7rem;
+  flex-shrink: 0;
+}
+
 /* Effort badge on model button */
 .model-effort-badge {
   font-size: 0.6rem;

@@ -8,6 +8,7 @@ import { useAttachmentStore } from "../../stores/attachmentStore";
 import { useFileAttach } from "../../hooks/useFileAttach";
 import { ThinkingIndicator } from "./ThinkingIndicator";
 import { ModelMenu } from "./ModelMenu";
+import { SkillsMenu } from "./SkillsMenu";
 import { useConductorStore } from "../../stores/conductorStore";
 
 
@@ -37,7 +38,9 @@ export const InputBar = memo(function InputBar() {
   const [text, setText] = useState("");
   const [isDragOver, setIsDragOver] = useState(false);
   const [modelMenuRect, setModelMenuRect] = useState<DOMRect | null>(null);
+  const [skillsMenuRect, setSkillsMenuRect] = useState<DOMRect | null>(null);
   const modelBtnRef = useRef<HTMLButtonElement>(null);
+  const skillsBtnRef = useRef<HTMLButtonElement>(null);
   const { attachments, processFromPaths, addAttachment, removeAttachment, clearAttachments } = useFileAttach();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const sendMessage = useChatStore((s) => s.sendMessage);
@@ -405,7 +408,19 @@ export const InputBar = memo(function InputBar() {
           )}
         </div>
         <div className="input-bar-cell input-bar-cell--btns input-bar-cell--end">
-          <button className="input-bar-label-btn" title="Favorite skills" aria-label="Favorite skills">
+          <button
+            ref={skillsBtnRef}
+            className="input-bar-label-btn"
+            title="Favorite skills"
+            aria-label="Favorite skills"
+            onClick={() => {
+              if (skillsMenuRect) {
+                setSkillsMenuRect(null);
+              } else if (skillsBtnRef.current) {
+                setSkillsMenuRect(skillsBtnRef.current.getBoundingClientRect());
+              }
+            }}
+          >
             <Star size={14} />
             <span>Skills</span>
           </button>
@@ -415,6 +430,12 @@ export const InputBar = memo(function InputBar() {
         <ModelMenu
           anchorRect={modelMenuRect}
           onClose={() => setModelMenuRect(null)}
+        />
+      )}
+      {skillsMenuRect && (
+        <SkillsMenu
+          anchorRect={skillsMenuRect}
+          onClose={() => setSkillsMenuRect(null)}
         />
       )}
     </div>

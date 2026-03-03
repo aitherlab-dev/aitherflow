@@ -58,6 +58,135 @@
   color: var(--accent-icon);
 }
 
+/* ── DevTools buttons (Build, Dev) ── */
+
+.devtools-btn-wrap {
+  position: relative;
+  flex: 1;
+  display: flex;
+}
+
+.devtools-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  flex: 1;
+  height: 100%;
+  border: none;
+  border-right: 1px solid var(--border);
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.devtools-btn:last-child {
+  border-right: none;
+}
+
+.devtools-btn:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.devtools-btn--dev-active {
+  background: rgba(76, 175, 80, 0.12);
+  color: #66bb6a;
+}
+
+.devtools-btn--dev-active:hover {
+  background: rgba(76, 175, 80, 0.2);
+  color: #81c784;
+}
+
+.devtools-btn--blocked {
+  color: var(--accent-icon);
+}
+
+.devtools-btn--closing {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* Dev server pulse dot */
+.dev-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #66bb6a;
+  animation: dev-pulse-anim 1.5s ease-in-out infinite;
+}
+
+@keyframes dev-pulse-anim {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* Build confirmation popup */
+.build-confirm-popup {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+  white-space: nowrap;
+}
+
+.build-confirm-text {
+  font-size: 12px;
+  color: var(--fg);
+  font-weight: 500;
+}
+
+.build-confirm-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.build-confirm-btn {
+  flex: 1;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.build-confirm-no {
+  background: transparent;
+  color: var(--fg-muted);
+}
+
+.build-confirm-no:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.build-confirm-yes {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.build-confirm-yes:hover {
+  opacity: 0.85;
+}
+
 /* ── Brand ── */
 
 .brand-name {
@@ -360,9 +489,11 @@
   user-select: none;
 }
 
-/* Sidebar footer stub (future: Build/Dev buttons) */
+/* Sidebar footer — Build/Dev buttons */
 .sidebar-footer {
   grid-column: 1;
+  display: flex;
+  align-items: stretch;
   background: var(--bg-soft);
   border-right: 1px solid var(--border);
   border-top: 1px solid var(--border);
@@ -544,6 +675,200 @@
   margin-top: auto;
   padding: 8px 0 12px;
   flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════════════
+   Skills Panel (sidebar)
+   ═══════════════════════════════════════════ */
+
+.skills-accordion {
+  max-height: 45vh;
+  overflow-y: auto;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.skills-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.skills-panel--empty {
+  padding: 16px;
+  color: var(--fg-muted);
+  font-size: 0.8rem;
+}
+
+/* Search bar */
+.skills-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.skills-search__icon {
+  color: var(--fg-dim);
+  flex-shrink: 0;
+}
+
+.skills-search__input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  font-size: 0.8rem;
+  outline: none;
+}
+
+.skills-search__input::placeholder {
+  color: var(--fg-dim);
+}
+
+/* Scrollable content */
+.skills-panel-content {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Collapsible group */
+.skills-group {
+  border-bottom: 1px solid var(--border-soft, var(--border));
+}
+
+.skills-group__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: color 0.12s;
+}
+
+.skills-group__header:hover {
+  color: var(--fg);
+}
+
+.skills-group__chevron {
+  flex-shrink: 0;
+  transition: transform 0.15s;
+}
+
+.skills-group__chevron--open {
+  transform: rotate(90deg);
+}
+
+.skills-group__label {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skills-group__count {
+  color: var(--fg-dim);
+  font-size: 0.7rem;
+  font-weight: 400;
+}
+
+.skills-group__body {
+  padding: 0 4px 4px;
+}
+
+/* Single skill row */
+.skills-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.skills-row:hover {
+  background: var(--bg-hover);
+}
+
+.skills-row__name {
+  flex: 1;
+  font-size: 0.8rem;
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skills-row__command {
+  font-size: 0.7rem;
+  color: var(--fg-dim);
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100px;
+}
+
+.skills-row__star {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fg-dim);
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.12s, color 0.12s;
+}
+
+.skills-row:hover .skills-row__star {
+  opacity: 1;
+}
+
+.skills-row__star:hover {
+  color: var(--accent-icon);
+}
+
+.skills-row__star--active {
+  opacity: 1;
+  color: var(--accent-icon);
+}
+
+/* Manage button at bottom */
+.skills-manage-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: none;
+  border-top: 1px solid var(--border);
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+}
+
+.skills-manage-btn:hover {
+  color: var(--fg);
+  background: var(--bg-hover);
 }
 
 /* ═══════════════════════════════════════════

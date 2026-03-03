@@ -6,6 +6,7 @@ import { useAgentStore } from "../../stores/agentStore";
 import { useProjectStore } from "../../stores/projectStore";
 import { ResizeHandle } from "./ResizeHandle";
 import { FilesPanel } from "./FilesPanel";
+import { SkillsPanel } from "./SkillsPanel";
 
 // ── Chat item (single chat in the list) ──
 
@@ -221,6 +222,7 @@ export const Sidebar = memo(function Sidebar() {
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [filesOpen, setFilesOpen] = useState(false);
+  const [skillsOpen, setSkillsOpen] = useState(false);
 
   const handleNewAgent = useCallback(() => {
     setDropdownOpen((prev) => !prev);
@@ -281,7 +283,14 @@ export const Sidebar = memo(function Sidebar() {
   const handleFilesClick = useCallback(() => {
     setDropdownOpen(false);
     setFilesOpen((prev) => !prev);
-  }, []);
+    if (!filesOpen) setSkillsOpen(false);
+  }, [filesOpen]);
+
+  const handleSkillsClick = useCallback(() => {
+    setDropdownOpen(false);
+    setSkillsOpen((prev) => !prev);
+    if (!skillsOpen) setFilesOpen(false);
+  }, [skillsOpen]);
 
   // ── Shift+drag reorder for agent tabs ──
 
@@ -416,10 +425,20 @@ export const Sidebar = memo(function Sidebar() {
             <Brain size={16} />
             <span>Memory</span>
           </button>
-          <button className="sidebar-tab sidebar-tab--disabled" disabled>
+          <button
+            className={`sidebar-tab ${skillsOpen ? "sidebar-tab--active" : ""}`}
+            onClick={handleSkillsClick}
+          >
             <Sparkles size={16} />
             <span>Skills</span>
           </button>
+
+          {/* Skills accordion */}
+          {skillsOpen && (
+            <div className="skills-accordion">
+              <SkillsPanel />
+            </div>
+          )}
           <button className="sidebar-tab sidebar-tab--disabled" disabled>
             <Cable size={16} />
             <span>MCP</span>

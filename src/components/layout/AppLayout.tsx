@@ -8,6 +8,7 @@ import { AgentLog } from "../chat/AgentLog";
 import { FileViewerPanel } from "../fileviewer/FileViewerPanel";
 import { FileViewerResizeHandle } from "../fileviewer/FileViewerResizeHandle";
 import { useLayoutStore } from "../../stores/layoutStore";
+import { DevToolsBar } from "./DevToolsBar";
 
 export function AppLayout() {
   const toggleSidebar = useLayoutStore((s) => s.toggleSidebar);
@@ -64,7 +65,7 @@ export function AppLayout() {
           </>
         )}
       </main>
-      <div className="sidebar-footer" />
+      <DevToolsBar />
       <StatusBar />
     </div>
   );

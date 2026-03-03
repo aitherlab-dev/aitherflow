@@ -2,6 +2,7 @@ import { memo, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { CodeBlock } from "./CodeBlock";
 import type { Components } from "react-markdown";
 
@@ -18,6 +19,19 @@ function extractText(node: ReactNode): string {
 }
 
 const components: Components = {
+  a({ href, children }) {
+    return (
+      <a
+        href={href}
+        onClick={(e) => {
+          e.preventDefault();
+          if (href) openUrl(href).catch(console.error);
+        }}
+      >
+        {children}
+      </a>
+    );
+  },
   table({ children }) {
     return (
       <div className="table-wrapper">

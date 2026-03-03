@@ -3,12 +3,14 @@ mod attachments;
 mod chats;
 mod conductor;
 mod config;
+mod devtools;
 mod file_ops;
 mod file_watcher;
 mod files;
 mod platform;
 mod projects;
 mod settings;
+mod skills;
 
 use conductor::session::SessionManager;
 
@@ -54,6 +56,12 @@ pub fn run() {
             file_ops::copy_entry,
             file_watcher::watch_directories,
             file_watcher::unwatch_directories,
+            skills::load_skills,
+            skills::load_skill_favorites,
+            skills::save_skill_favorites,
+            devtools::self_build,
+            devtools::self_dev,
+            devtools::stop_dev,
         ])
         .setup(|_app| {
             let config_dir = config::config_dir();
