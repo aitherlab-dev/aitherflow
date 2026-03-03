@@ -8,6 +8,7 @@ mod file_ops;
 mod file_watcher;
 mod files;
 mod platform;
+mod plugins;
 mod projects;
 mod settings;
 mod skills;
@@ -62,6 +63,12 @@ pub fn run() {
             devtools::self_build,
             devtools::self_dev,
             devtools::stop_dev,
+            plugins::load_plugins,
+            plugins::install_plugin,
+            plugins::uninstall_plugin,
+            plugins::add_marketplace,
+            plugins::remove_marketplace,
+            plugins::update_marketplaces,
         ])
         .setup(|_app| {
             let config_dir = config::config_dir();
