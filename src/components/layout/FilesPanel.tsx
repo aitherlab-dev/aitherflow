@@ -11,6 +11,7 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import { useAgentStore } from "../../stores/agentStore";
 import { useFileViewerStore } from "../../stores/fileViewerStore";
+import { useAttachmentStore } from "../../stores/attachmentStore";
 import type { FileEntry, MountEntry } from "../../types/files";
 
 type FilesMode = "tree" | "browser";
@@ -57,12 +58,25 @@ const TreeEntry = memo(function TreeEntry({
     }
   }, [entry.isDir, entry.path, onToggle, onFileClick, onFileDblClick]);
 
+  const handleDragStart = useCallback((e: React.DragEvent) => {
+    e.dataTransfer.setData("text/plain", entry.path);
+    e.dataTransfer.effectAllowed = "copy";
+    useAttachmentStore.getState().setDragPath(entry.path);
+  }, [entry.path]);
+
+  const handleDragEnd = useCallback(() => {
+    useAttachmentStore.getState().setDragPath(null);
+  }, []);
+
   return (
     <>
       <div
         className={`files-entry ${entry.isDir ? "files-entry--dir" : "files-entry--file"} ${flash ? "files-entry--flash" : ""}`}
         style={{ paddingLeft: depth * 16 + 8 }}
         onClick={handleClick}
+        draggable={!entry.isDir}
+        onDragStart={!entry.isDir ? handleDragStart : undefined}
+        onDragEnd={!entry.isDir ? handleDragEnd : undefined}
       >
         {entry.isDir ? (
           <>
@@ -121,10 +135,23 @@ const BrowserEntry = memo(function BrowserEntry({
     }
   }, [entry.isDir, entry.path, onNavigate, onFileClick, onFileDblClick]);
 
+  const handleDragStart = useCallback((e: React.DragEvent) => {
+    e.dataTransfer.setData("text/plain", entry.path);
+    e.dataTransfer.effectAllowed = "copy";
+    useAttachmentStore.getState().setDragPath(entry.path);
+  }, [entry.path]);
+
+  const handleDragEnd = useCallback(() => {
+    useAttachmentStore.getState().setDragPath(null);
+  }, []);
+
   return (
     <div
       className={`files-entry ${entry.isDir ? "files-entry--dir" : "files-entry--file"} ${flash ? "files-entry--flash" : ""}`}
       onClick={handleClick}
+      draggable={!entry.isDir}
+      onDragStart={!entry.isDir ? handleDragStart : undefined}
+      onDragEnd={!entry.isDir ? handleDragEnd : undefined}
     >
       {entry.isDir ? (
         <Folder size={16} className="files-entry__icon files-entry__icon--dir" />

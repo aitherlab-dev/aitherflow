@@ -43,7 +43,7 @@ interface ChatState {
   // Actions
   init: (agentId: string, projectPath: string, projectName: string) => Promise<void>;
   loadChatList: () => Promise<void>;
-  sendMessage: (text: string, imageAttachments?: Attachment[]) => Promise<void>;
+  sendMessage: (text: string, allAttachments?: Attachment[]) => Promise<void>;
   stopGeneration: () => Promise<void>;
   switchChat: (chatId: string) => Promise<void>;
   newChat: () => Promise<void>;
@@ -176,7 +176,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  sendMessage: async (text: string, imageAttachments?: Attachment[]) => {
+  sendMessage: async (text: string, allAttachments?: Attachment[]) => {
     const state = get();
     let chatId = state.currentChatId;
 
@@ -185,13 +185,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
       useFileViewerStore.getState().acceptAllPending();
     }).catch(console.error);
 
-    // Add user message immediately (with attachments for display)
+    // Add user message immediately (with all attachments for display)
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
       text,
       timestamp: Date.now(),
-      attachments: imageAttachments && imageAttachments.length > 0 ? imageAttachments : undefined,
+      attachments: allAttachments && allAttachments.length > 0 ? allAttachments : undefined,
     };
     set({ messages: [...state.messages, userMsg], error: null, isThinking: true });
 
@@ -212,10 +212,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
         get().loadChatList().catch(console.error);
       }
 
-      // Convert image attachments to payload format for Rust
+      // Convert image attachments to payload format for Rust (text is already in prompt)
+      const imageAtts = allAttachments?.filter((a) => a.fileType === "image");
       const attachmentPayloads: AttachmentPayload[] | undefined =
-        imageAttachments && imageAttachments.length > 0
-          ? imageAttachments.map((a) => ({
+        imageAtts && imageAtts.length > 0
+          ? imageAtts.map((a) => ({
               name: a.name,
               content: a.content,
               fileType: a.fileType,

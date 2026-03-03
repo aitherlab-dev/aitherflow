@@ -7,7 +7,7 @@ import { useChatStore, getToolLabel } from "../../stores/chatStore";
 import { useAttachmentStore } from "../../stores/attachmentStore";
 import { useFileAttach } from "../../hooks/useFileAttach";
 import { ThinkingIndicator } from "./ThinkingIndicator";
-import type { Attachment } from "../../types/chat";
+
 
 /** Max textarea height in px (~6 lines) */
 const MAX_HEIGHT = 168;
@@ -190,23 +190,18 @@ export const InputBar = memo(function InputBar() {
     const hasContent = trimmed || attachments.length > 0;
     if (!hasContent || isThinking) return;
 
-    // Build final prompt: text attachments inline as code blocks
+    // Build final prompt: text attachments inline as code blocks (for CLI)
     let finalPrompt = "";
-    const imageAttachments: Attachment[] = [];
-
     for (const att of attachments) {
       if (att.fileType === "text") {
         finalPrompt += `\`\`\`${att.name}\n${att.content}\n\`\`\`\n\n`;
-      } else {
-        imageAttachments.push(att);
       }
     }
-
     finalPrompt += trimmed;
 
     setText("");
     clearAttachments();
-    sendMessage(finalPrompt.trim(), imageAttachments).catch(console.error);
+    sendMessage(finalPrompt.trim(), attachments.length > 0 ? [...attachments] : undefined).catch(console.error);
   }, [text, attachments, isThinking, sendMessage, clearAttachments]);
 
   const handleStop = useCallback(() => {
@@ -236,7 +231,8 @@ export const InputBar = memo(function InputBar() {
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
-    // Actual file processing handled by Tauri onDragDropEvent
+    // Actual file processing handled by Tauri onDragDropEvent (OS drops)
+    // or ChatView drop handler (internal FilesPanel drops)
   }, []);
 
   return (
@@ -250,11 +246,18 @@ export const InputBar = memo(function InputBar() {
         <div className="input-bar-drop-overlay">Drop files here</div>
       )}
 
-      {/* Attachment chips */}
+      {/* Attachment cards */}
       {attachments.length > 0 && (
         <div className="attachment-chips">
           {attachments.map((att) => (
-            <div key={att.id} className="attachment-chip">
+            <div key={att.id} className={`attachment-chip ${att.fileType === "image" ? "attachment-chip--image" : "attachment-chip--file"}`}>
+              <button
+                className="attachment-chip-remove"
+                onClick={() => removeAttachment(att.id)}
+                title="Remove"
+              >
+                <X size={10} />
+              </button>
               {att.fileType === "image" ? (
                 <img
                   src={att.content}
@@ -262,16 +265,13 @@ export const InputBar = memo(function InputBar() {
                   className="attachment-chip-preview"
                 />
               ) : (
-                <FileText size={20} className="attachment-chip-icon" />
+                <>
+                  <span className="attachment-chip-name">{att.name}</span>
+                  <span className="attachment-chip-ext">
+                    {att.name.includes(".") ? att.name.split(".").pop()!.toUpperCase() : "FILE"}
+                  </span>
+                </>
               )}
-              <span className="attachment-chip-name">{att.name}</span>
-              <button
-                className="attachment-chip-remove"
-                onClick={() => removeAttachment(att.id)}
-                title="Remove"
-              >
-                <X size={12} />
-              </button>
             </div>
           ))}
         </div>
