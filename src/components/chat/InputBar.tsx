@@ -1,5 +1,5 @@
-import { memo, useState, useRef, useCallback, useEffect } from "react";
-import { Plus, Star, Mic, ArrowUp, Square, X, MessageSquarePlus } from "lucide-react";
+import { memo, useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { Plus, Star, Mic, ArrowUp, Square, X, MessageSquarePlus, Sparkles } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -39,8 +39,20 @@ export const InputBar = memo(function InputBar() {
   const sendMessage = useChatStore((s) => s.sendMessage);
   const stopGeneration = useChatStore((s) => s.stopGeneration);
   const isThinking = useChatStore((s) => s.isThinking);
-  const toolActivity = useChatStore((s) => s.currentToolActivity);
+  const messages = useChatStore((s) => s.messages);
   const newChat = useChatStore((s) => s.newChat);
+
+  // Last 2 tool activities from the latest assistant message
+  const recentTools = useMemo(() => {
+    if (!isThinking) return [];
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (msg.role === "assistant" && msg.tools && msg.tools.length > 0) {
+        return msg.tools.slice(-2);
+      }
+    }
+    return [];
+  }, [isThinking, messages]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -290,7 +302,8 @@ export const InputBar = memo(function InputBar() {
         />
       </div>
       <div className="input-bar-bottom">
-        <div className="input-bar-bottom-left">
+        {/* ── Row 1 ── */}
+        <div className="input-bar-cell input-bar-cell--btns">
           <button
             className="input-bar-btn"
             title="Add file"
@@ -299,35 +312,17 @@ export const InputBar = memo(function InputBar() {
           >
             <Plus size={18} />
           </button>
-          <button className="input-bar-btn" title="Favorite skills" aria-label="Favorite skills">
-            <Star size={18} />
-          </button>
           <ThinkingIndicator />
         </div>
-        <div className="input-bar-bottom-right">
-          {!isThinking && (
-            <button
-              className="input-bar-btn"
-              onClick={newChat}
-              title="New chat"
-              aria-label="New chat"
-            >
-              <MessageSquarePlus size={18} />
-            </button>
-          )}
-          {toolActivity && (
-            <div className="tool-status">
+        <div className="input-bar-cell input-bar-cell--status">
+          {recentTools[0] && (
+            <div className={`tool-status ${recentTools[0].result !== undefined ? "tool-status--done" : ""}`}>
               <span className="tool-status-dot" />
-              <span className="tool-status-text">{getToolLabel(toolActivity)}</span>
+              <span className="tool-status-text">{getToolLabel(recentTools[0])}</span>
             </div>
           )}
-          <button
-            className="input-bar-btn input-bar-model"
-            title="Switch model"
-            aria-label="Switch model"
-          >
-            <span className="input-bar-model-label">Sonnet</span>
-          </button>
+        </div>
+        <div className="input-bar-cell input-bar-cell--btns input-bar-cell--end">
           {isThinking ? (
             <button
               className="input-bar-btn input-bar-stop"
@@ -350,6 +345,41 @@ export const InputBar = memo(function InputBar() {
           )}
           <button className="input-bar-btn input-bar-btn--icon" title="Voice input" aria-label="Voice input">
             <Mic size={18} />
+          </button>
+        </div>
+
+        {/* ── Row 2 ── */}
+        <div className="input-bar-cell input-bar-cell--btns">
+          <button
+            className="input-bar-label-btn"
+            onClick={newChat}
+            title="New chat"
+            aria-label="New chat"
+          >
+            <MessageSquarePlus size={14} />
+            <span>New Chat</span>
+          </button>
+          <button
+            className="input-bar-label-btn"
+            title="Switch model"
+            aria-label="Switch model"
+          >
+            <Sparkles size={14} />
+            <span>Sonnet</span>
+          </button>
+        </div>
+        <div className="input-bar-cell input-bar-cell--status">
+          {recentTools[1] && (
+            <div className={`tool-status ${recentTools[1].result !== undefined ? "tool-status--done" : ""}`}>
+              <span className="tool-status-dot" />
+              <span className="tool-status-text">{getToolLabel(recentTools[1])}</span>
+            </div>
+          )}
+        </div>
+        <div className="input-bar-cell input-bar-cell--btns input-bar-cell--end">
+          <button className="input-bar-label-btn" title="Favorite skills" aria-label="Favorite skills">
+            <Star size={14} />
+            <span>Skills</span>
           </button>
         </div>
       </div>
