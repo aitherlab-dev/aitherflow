@@ -58,6 +58,12 @@ pub async fn run_cli_session(
         args.push(pm.clone());
     }
 
+    // Attach built-in memory MCP server if binary is available
+    if let Some(mcp_config) = build_memory_mcp_config(project_path.as_deref()) {
+        args.push("--mcp-config".into());
+        args.push(mcp_config);
+    }
+
     // Build command
     let mut cmd = Command::new("claude");
     cmd.args(&args)
@@ -204,6 +210,14 @@ pub async fn run_cli_session(
         // (CLI writes debug info to stderr with --verbose, which is normal)
     }
 
+    // Trigger background re-indexing for this project
+    if let Some(ref pp) = project_path {
+        let pp = pp.clone();
+        tokio::task::spawn_blocking(move || {
+            crate::memory::background_index(&pp);
+        });
+    }
+
     // Emit process exited
     let _ = app.emit(
         "cli-event",
@@ -269,4 +283,73 @@ pub fn build_stdin_message(prompt: &str, images: &[AttachmentPayload]) -> Result
         }
     });
     serde_json::to_string(&msg).map_err(|e| format!("Failed to serialize message: {e}"))
+}
+
+/// Try to find the aither-flow-memory binary.
+/// Checks: next to the current executable, then in PATH.
+fn find_memory_binary() -> Option<String> {
+    // Check next to the current binary
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            let candidate = dir.join("aither-flow-memory");
+            if candidate.exists() {
+                return Some(candidate.to_string_lossy().into_owned());
+            }
+        }
+    }
+
+    // Check in Cargo target directory (development mode)
+    // The workspace target is at AITHEFLOW/target/debug/
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            // In dev, exe is in target/debug/ — memory binary is there too
+            let candidate = dir.join("aither-flow-memory");
+            if candidate.exists() {
+                return Some(candidate.to_string_lossy().into_owned());
+            }
+        }
+    }
+
+    // Check in PATH
+    if let Ok(output) = std::process::Command::new("which")
+        .arg("aither-flow-memory")
+        .output()
+    {
+        if output.status.success() {
+            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !path.is_empty() {
+                return Some(path);
+            }
+        }
+    }
+
+    None
+}
+
+/// Build --mcp-config JSON string for the memory MCP server.
+fn build_memory_mcp_config(project_path: Option<&str>) -> Option<String> {
+    let binary = find_memory_binary()?;
+    let db_path = crate::memory::memory_db_path();
+    let project = project_path.unwrap_or("unknown");
+
+    let config = serde_json::json!({
+        "aither-memory": {
+            "command": binary,
+            "args": [
+                "--db", db_path.to_string_lossy(),
+                "--project", project
+            ]
+        }
+    });
+
+    match serde_json::to_string(&config) {
+        Ok(s) => {
+            eprintln!("[conductor] Memory MCP: {s}");
+            Some(s)
+        }
+        Err(e) => {
+            eprintln!("[conductor] Failed to build MCP config: {e}");
+            None
+        }
+    }
 }

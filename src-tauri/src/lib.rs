@@ -7,6 +7,7 @@ mod devtools;
 mod file_ops;
 mod file_watcher;
 mod files;
+mod memory;
 mod platform;
 mod plugins;
 mod projects;
@@ -73,6 +74,10 @@ pub fn run() {
             translations::load_translations,
             translations::translate_content,
             translations::clear_translations,
+            memory::memory_search,
+            memory::memory_list_sessions,
+            memory::memory_get_session,
+            memory::memory_index_project,
         ])
         .setup(|_app| {
             let config_dir = config::config_dir();
@@ -96,6 +101,9 @@ pub fn run() {
                     }
                 }
             }
+
+            // Initialize session memory database
+            memory::init();
 
             // Clean up old temp files from clipboard pastes
             attachments::cleanup_old_temp(3600);

@@ -1,3 +1,3 @@
 [workspace]
-members = ["src-tauri", "src-tauri/crates/aither-flow-perms"]
+members = ["src-tauri", "src-tauri/crates/aither-flow-perms", "src-tauri/crates/memory-mcp"]
 resolver = "2"

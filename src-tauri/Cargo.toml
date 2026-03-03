@@ -28,3 +28,4 @@ base64 = "0.22"
 trash = "5"
 notify = "7"
 notify-debouncer-mini = "0.5"
+rusqlite = { version = "0.34", features = ["bundled"] }
