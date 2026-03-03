@@ -26,12 +26,18 @@ interface LayoutState {
   fileViewerSize: number;
   fileViewerHasContent: boolean;
 
+  // Agent log panel
+  agentLogOpen: boolean;
+
   toggleSidebar: () => void;
   setSidebarWidth: (width: number) => void;
   openSettings: (section?: string) => void;
   closeSettings: () => void;
   setSettingsSection: (section: string) => void;
   setSidebarPanel: (panel: SidebarPanel) => void;
+
+  // Agent log actions
+  toggleAgentLog: () => void;
 
   // File viewer actions
   toggleFileViewer: () => void;
@@ -87,6 +93,8 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     prefs.fileViewerPosition === "right" ? FV_RIGHT_DEFAULT : FV_BOTTOM_DEFAULT,
   fileViewerHasContent: false,
 
+  agentLogOpen: false,
+
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
 
   setSidebarWidth: (width: number) =>
@@ -103,6 +111,8 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   setSettingsSection: (section: string) => set({ settingsSection: section }),
 
   setSidebarPanel: (panel) => set({ sidebarPanel: panel }),
+
+  toggleAgentLog: () => set((s) => ({ agentLogOpen: !s.agentLogOpen })),
 
   toggleFileViewer: () => {
     const next = !get().fileViewerVisible;

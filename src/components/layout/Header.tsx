@@ -21,22 +21,22 @@ export const Header = memo(function Header() {
     (s) => s.setFileViewerPosition,
   );
   const [isDark, setIsDark] = useState(
-    () => !document.documentElement.hasAttribute("data-theme"),
+    () => document.documentElement.getAttribute("data-theme") !== "light",
   );
 
   const toggleTheme = useCallback(() => {
-    const next = !isDark;
-    setIsDark(next);
+    const currentlyDark = document.documentElement.getAttribute("data-theme") !== "light";
     document.documentElement.classList.add("theme-transition");
-    if (next) {
-      document.documentElement.removeAttribute("data-theme");
-    } else {
+    if (currentlyDark) {
       document.documentElement.setAttribute("data-theme", "light");
+    } else {
+      document.documentElement.setAttribute("data-theme", "dark");
     }
+    setIsDark(!currentlyDark);
     setTimeout(() => {
       document.documentElement.classList.remove("theme-transition");
     }, 400);
-  }, [isDark]);
+  }, []);
 
   const handleTogglePosition = useCallback(() => {
     setFileViewerPosition(fileViewerPosition === "right" ? "bottom" : "right");

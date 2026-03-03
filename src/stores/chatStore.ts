@@ -146,6 +146,44 @@ export function getToolLabel(activity: ToolActivity): string {
   return toolLabel(activity.toolName, activity.toolInput);
 }
 
+/** Longer summary for Agent Log cards (path, command, query) */
+export function summarizeToolInput(toolName: string, toolInput: Record<string, unknown>): string {
+  const filePath = typeof toolInput.file_path === "string"
+    ? toolInput.file_path
+    : typeof toolInput.path === "string"
+      ? toolInput.path
+      : null;
+
+  switch (toolName) {
+    case "Read":
+    case "Edit":
+    case "Write":
+    case "MultiEdit":
+    case "NotebookEdit":
+    case "NotebookRead":
+      return filePath ?? "";
+    case "Bash": {
+      const cmd = typeof toolInput.command === "string" ? toolInput.command : "";
+      return cmd.length > 80 ? cmd.slice(0, 80) + "…" : cmd;
+    }
+    case "Glob":
+      return typeof toolInput.pattern === "string" ? toolInput.pattern : "";
+    case "Grep":
+      return typeof toolInput.pattern === "string" ? toolInput.pattern : "";
+    case "WebSearch":
+      return typeof toolInput.query === "string" ? toolInput.query : "";
+    case "WebFetch":
+      return typeof toolInput.url === "string" ? toolInput.url : "";
+    case "TodoWrite":
+      return "Updating tasks";
+    case "Task":
+    case "Agent":
+      return typeof toolInput.description === "string" ? toolInput.description : "Running subagent";
+    default:
+      return "";
+  }
+}
+
 // ── Store ──
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -558,8 +596,19 @@ function handleCliEvent(e: CliEvent) {
       const msgs = [...state.messages];
       const last = msgs[msgs.length - 1];
       if (last && last.role === "assistant") {
-        const tools = [...(last.tools ?? []), activity];
+        const existing = last.tools ?? [];
+        if (existing.some((t) => t.toolUseId === activity.toolUseId)) break;
+        const tools = [...existing, activity];
         msgs[msgs.length - 1] = { ...last, tools };
+      } else {
+        msgs.push({
+          id: crypto.randomUUID(),
+          role: "assistant",
+          text: "",
+          timestamp: Date.now(),
+          isStreaming: true,
+          tools: [activity],
+        });
       }
 
       // Bridge to file viewer for file-editing tools

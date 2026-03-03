@@ -1,5 +1,5 @@
 import { memo, useState, useRef, useCallback, useEffect } from "react";
-import { Plus, Star, Mic, ArrowUp, Square, X, FileText, MessageSquarePlus } from "lucide-react";
+import { Plus, Star, Mic, ArrowUp, Square, X, MessageSquarePlus } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
