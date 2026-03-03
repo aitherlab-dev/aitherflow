@@ -125,6 +125,119 @@ pub async fn delete_file(path: String) -> Result<(), String> {
     .map_err(|e| format!("Task join error: {e}"))?
 }
 
+/// Move file or directory to system trash
+#[tauri::command]
+pub async fn trash_entry(path: String) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let p = Path::new(&path);
+        validate_path_safe(p)?;
+        trash::delete(p).map_err(|e| format!("Failed to move to trash: {e}"))
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// Create a new directory
+#[tauri::command]
+pub async fn create_directory(path: String, name: String) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        let parent = Path::new(&path);
+        validate_path_safe(parent)?;
+        let target = parent.join(&name);
+        if target.exists() {
+            return Err(format!("'{}' already exists", name));
+        }
+        fs::create_dir(&target).map_err(|e| format!("Failed to create directory: {e}"))?;
+        Ok(target.to_string_lossy().into_owned())
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// Create a new empty file
+#[tauri::command]
+pub async fn create_file(path: String, name: String) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        let parent = Path::new(&path);
+        validate_path_safe(parent)?;
+        let target = parent.join(&name);
+        if target.exists() {
+            return Err(format!("'{}' already exists", name));
+        }
+        fs::File::create(&target).map_err(|e| format!("Failed to create file: {e}"))?;
+        Ok(target.to_string_lossy().into_owned())
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// Copy a file or directory recursively
+#[tauri::command]
+pub async fn copy_entry(src: String, dest_dir: String) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        let src_path = Path::new(&src);
+        let dest_parent = Path::new(&dest_dir);
+        validate_path_safe(src_path)?;
+        validate_path_safe(dest_parent)?;
+
+        let file_name = src_path
+            .file_name()
+            .ok_or("Invalid source path")?
+            .to_string_lossy();
+
+        // Find a unique name if target exists
+        let mut target = dest_parent.join(file_name.as_ref());
+        if target.exists() {
+            let stem = src_path
+                .file_stem()
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            let ext = src_path
+                .extension()
+                .map(|s| format!(".{}", s.to_string_lossy()))
+                .unwrap_or_default();
+            let mut i = 1u32;
+            loop {
+                let candidate = format!("{stem} (copy{i_suffix}){ext}",
+                    i_suffix = if i == 1 { String::new() } else { format!(" {i}") });
+                target = dest_parent.join(&candidate);
+                if !target.exists() {
+                    break;
+                }
+                i += 1;
+            }
+        }
+
+        if src_path.is_dir() {
+            copy_dir_recursive(src_path, &target)?;
+        } else {
+            fs::copy(src_path, &target)
+                .map_err(|e| format!("Failed to copy file: {e}"))?;
+        }
+
+        Ok(target.to_string_lossy().into_owned())
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// Recursively copy a directory
+fn copy_dir_recursive(src: &Path, dest: &Path) -> Result<(), String> {
+    fs::create_dir(dest).map_err(|e| format!("Failed to create dir: {e}"))?;
+    for entry in fs::read_dir(src).map_err(|e| format!("Failed to read dir: {e}"))? {
+        let entry = entry.map_err(|e| format!("Failed to read entry: {e}"))?;
+        let ft = entry.file_type().map_err(|e| format!("Failed to get file type: {e}"))?;
+        let dest_child = dest.join(entry.file_name());
+        if ft.is_dir() {
+            copy_dir_recursive(&entry.path(), &dest_child)?;
+        } else {
+            fs::copy(entry.path(), &dest_child)
+                .map_err(|e| format!("Failed to copy: {e}"))?;
+        }
+    }
+    Ok(())
+}
+
 /// Get current file content as a snapshot (for reject support).
 /// Returns None if the file doesn't exist.
 #[tauri::command]

@@ -22,6 +22,7 @@ pub async fn run_cli_session(
     prompt: String,
     project_path: Option<String>,
     model: Option<String>,
+    effort: Option<String>,
     resume_session_id: Option<String>,
     permission_mode: Option<String>,
     image_attachments: Vec<AttachmentPayload>,
@@ -40,6 +41,11 @@ pub async fn run_cli_session(
     if let Some(ref m) = model {
         args.push("--model".into());
         args.push(m.clone());
+    }
+
+    if let Some(ref e) = effort {
+        args.push("--effort".into());
+        args.push(e.clone());
     }
 
     if let Some(ref sid) = resume_session_id {

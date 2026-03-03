@@ -103,6 +103,7 @@ pub struct StartSessionOptions {
     pub prompt: String,
     pub project_path: Option<String>,
     pub model: Option<String>,
+    pub effort: Option<String>,
     pub resume_session_id: Option<String>,
     pub permission_mode: Option<String>,
     #[serde(default)]

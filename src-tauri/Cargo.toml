@@ -25,3 +25,6 @@ tauri-plugin-dialog = "2"
 arboard = "3"
 image = { version = "0.25", default-features = false, features = ["png"] }
 base64 = "0.22"
+trash = "5"
+notify = "7"
+notify-debouncer-mini = "0.5"

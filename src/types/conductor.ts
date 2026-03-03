@@ -42,6 +42,7 @@ export interface StartSessionOptions {
   prompt: string;
   projectPath?: string;
   model?: string;
+  effort?: string;
   resumeSessionId?: string;
   permissionMode?: string;
   attachments?: AttachmentPayload[];

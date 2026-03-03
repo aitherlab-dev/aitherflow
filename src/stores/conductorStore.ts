@@ -21,6 +21,8 @@ interface ConductorState {
   sessionId: string | null;
   streamingText: string;
   model: string | null;
+  selectedModel: string;
+  selectedEffort: string;
   isThinking: boolean;
   error: string | null;
   inputTokens: number;
@@ -29,6 +31,8 @@ interface ConductorState {
   events: CliEvent[];
 
   // Actions
+  setSelectedModel: (model: string) => void;
+  setSelectedEffort: (effort: string) => void;
   startSession: (prompt: string) => Promise<void>;
   sendFollowup: (prompt: string) => Promise<void>;
   stopSession: () => Promise<void>;
@@ -41,12 +45,17 @@ export const useConductorStore = create<ConductorState>((set) => ({
   sessionId: null,
   streamingText: "",
   model: null,
+  selectedModel: "opus",
+  selectedEffort: "high",
   isThinking: false,
   error: null,
   inputTokens: 0,
   outputTokens: 0,
   costUsd: 0,
   events: [],
+
+  setSelectedModel: (model: string) => set({ selectedModel: model }),
+  setSelectedEffort: (effort: string) => set({ selectedEffort: effort }),
 
   startSession: async (prompt: string) => {
     set({

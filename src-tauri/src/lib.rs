@@ -4,6 +4,7 @@ mod chats;
 mod conductor;
 mod config;
 mod file_ops;
+mod file_watcher;
 mod files;
 mod platform;
 mod projects;
@@ -18,6 +19,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(SessionManager::new())
+        .manage(file_watcher::WatcherState::new())
         .invoke_handler(tauri::generate_handler![
             conductor::start_session,
             conductor::send_message,
@@ -46,6 +48,12 @@ pub fn run() {
             file_ops::write_file,
             file_ops::delete_file,
             file_ops::file_snapshot,
+            file_ops::trash_entry,
+            file_ops::create_directory,
+            file_ops::create_file,
+            file_ops::copy_entry,
+            file_watcher::watch_directories,
+            file_watcher::unwatch_directories,
         ])
         .setup(|_app| {
             let config_dir = config::config_dir();

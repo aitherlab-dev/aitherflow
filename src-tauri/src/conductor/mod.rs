@@ -24,6 +24,7 @@ pub async fn start_session(
         .project_path
         .or_else(|| Some(crate::config::workspace_dir().to_string_lossy().into_owned()));
     let model = options.model;
+    let effort = options.effort;
     let resume_session_id = options.resume_session_id;
     let permission_mode = options.permission_mode;
     let image_attachments = options.attachments;
@@ -42,6 +43,7 @@ pub async fn start_session(
             prompt,
             project_path,
             model,
+            effort,
             resume_session_id,
             permission_mode,
             image_attachments,

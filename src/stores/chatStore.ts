@@ -6,6 +6,7 @@ import type { Attachment, ChatMessage, ToolActivity } from "../types/chat";
 import type { AttachmentPayload } from "../types/conductor";
 import { isInteractiveTool } from "../types/chat";
 import { useAgentStore } from "./agentStore";
+import { useConductorStore } from "./conductorStore";
 
 /** Timer for delayed tool activity reset (keeps status visible briefly) */
 let toolActivityTimer: ReturnType<typeof setTimeout> | null = null;
@@ -286,11 +287,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
           console.error("Failed to load settings:", e);
         }
 
+        // Get selected model and effort from conductor store
+        const { selectedModel, selectedEffort } = useConductorStore.getState();
+
         await invoke("start_session", {
           options: {
             agentId: state.agentId,
             prompt: text,
             projectPath: state.projectPath,
+            model: selectedModel,
+            effort: selectedEffort !== "high" ? selectedEffort : undefined,
             resumeSessionId,
             permissionMode,
             attachments: attachmentPayloads,

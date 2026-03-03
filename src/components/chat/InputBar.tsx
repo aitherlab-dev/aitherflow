@@ -1,5 +1,5 @@
 import { memo, useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { Plus, Star, Mic, ArrowUp, Square, X, MessageSquarePlus, Sparkles } from "lucide-react";
+import { Plus, Star, Mic, ArrowUp, Square, X, MessageSquarePlus, Sparkles, Brain, Zap } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -7,6 +7,8 @@ import { useChatStore, getToolLabel } from "../../stores/chatStore";
 import { useAttachmentStore } from "../../stores/attachmentStore";
 import { useFileAttach } from "../../hooks/useFileAttach";
 import { ThinkingIndicator } from "./ThinkingIndicator";
+import { ModelMenu } from "./ModelMenu";
+import { useConductorStore } from "../../stores/conductorStore";
 
 
 /** Max textarea height in px (~6 lines) */
@@ -34,6 +36,8 @@ function readFileAsDataUri(file: File): Promise<string> {
 export const InputBar = memo(function InputBar() {
   const [text, setText] = useState("");
   const [isDragOver, setIsDragOver] = useState(false);
+  const [modelMenuRect, setModelMenuRect] = useState<DOMRect | null>(null);
+  const modelBtnRef = useRef<HTMLButtonElement>(null);
   const { attachments, processFromPaths, addAttachment, removeAttachment, clearAttachments } = useFileAttach();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const sendMessage = useChatStore((s) => s.sendMessage);
@@ -41,6 +45,21 @@ export const InputBar = memo(function InputBar() {
   const isThinking = useChatStore((s) => s.isThinking);
   const messages = useChatStore((s) => s.messages);
   const newChat = useChatStore((s) => s.newChat);
+  const selectedModel = useConductorStore((s) => s.selectedModel);
+  const selectedEffort = useConductorStore((s) => s.selectedEffort);
+  const activeModel = useConductorStore((s) => s.model);
+  const hasSession = useChatStore((s) => s.hasSession);
+
+  // Show actual model from CLI during active session, user's choice otherwise
+  const displayModel = useMemo(() => {
+    if (hasSession && activeModel) {
+      const lower = activeModel.toLowerCase();
+      if (lower.includes("opus")) return "Opus";
+      if (lower.includes("haiku")) return "Haiku";
+      return "Sonnet";
+    }
+    return selectedModel.charAt(0).toUpperCase() + selectedModel.slice(1);
+  }, [hasSession, activeModel, selectedModel]);
 
   // Last 2 tool activities from the latest assistant message
   const recentTools = useMemo(() => {
@@ -360,12 +379,21 @@ export const InputBar = memo(function InputBar() {
             <span>New Chat</span>
           </button>
           <button
+            ref={modelBtnRef}
             className="input-bar-label-btn"
-            title="Switch model"
+            title="Switch model (right-click for effort)"
             aria-label="Switch model"
+            onClick={() => {
+              if (modelBtnRef.current) {
+                setModelMenuRect(modelBtnRef.current.getBoundingClientRect());
+              }
+            }}
           >
-            <Sparkles size={14} />
-            <span>Sonnet</span>
+            {selectedEffort === "low" ? <Zap size={14} /> : selectedEffort === "medium" ? <Sparkles size={14} /> : <Brain size={14} />}
+            <span>{displayModel}</span>
+            {selectedEffort !== "high" && (
+              <span className="model-effort-badge">{selectedEffort}</span>
+            )}
           </button>
         </div>
         <div className="input-bar-cell input-bar-cell--status">
@@ -383,6 +411,12 @@ export const InputBar = memo(function InputBar() {
           </button>
         </div>
       </div>
+      {modelMenuRect && (
+        <ModelMenu
+          anchorRect={modelMenuRect}
+          onClose={() => setModelMenuRect(null)}
+        />
+      )}
     </div>
   );
 });
