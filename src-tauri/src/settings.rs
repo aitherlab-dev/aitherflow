@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::io::Write;
 use std::path::PathBuf;
 
 use crate::config;
+use crate::file_ops::atomic_write;
 
 /// App-wide settings stored on disk
 #[derive(Default, Serialize, Deserialize, Clone)]
@@ -18,22 +18,6 @@ fn settings_path() -> PathBuf {
     config::config_dir().join("settings.json")
 }
 
-/// Atomic write helper: write to temp file, then rename
-fn atomic_write(path: &PathBuf, data: &[u8]) -> Result<(), String> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|e| format!("Failed to create dir {}: {e}", parent.display()))?;
-    }
-    let tmp = path.with_extension("json.tmp");
-    let mut file =
-        fs::File::create(&tmp).map_err(|e| format!("Failed to create temp file: {e}"))?;
-    file.write_all(data)
-        .map_err(|e| format!("Failed to write temp file: {e}"))?;
-    file.sync_all()
-        .map_err(|e| format!("Failed to sync temp file: {e}"))?;
-    fs::rename(&tmp, path).map_err(|e| format!("Failed to rename temp file: {e}"))?;
-    Ok(())
-}
 
 /// Load settings from disk. Returns defaults if file doesn't exist.
 #[tauri::command]

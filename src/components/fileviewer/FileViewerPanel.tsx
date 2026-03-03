@@ -55,6 +55,7 @@ export const FileViewerPanel = memo(function FileViewerPanel() {
             content={activeTab.content}
             language={activeTab.language}
             diffEdits={activeDiff?.edits}
+            snapshot={activeDiff?.snapshot ?? null}
             onLineEdit={handleLineEdit}
             onSave={handleSave}
           />

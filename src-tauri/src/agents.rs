@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::io::Write;
 use std::path::PathBuf;
 
 use crate::config;
+use crate::file_ops::atomic_write;
 
 /// A single agent entry (tab in sidebar)
 #[derive(Serialize, Deserialize, Clone)]
@@ -31,22 +31,6 @@ fn agents_path() -> PathBuf {
     config::config_dir().join("agents.json")
 }
 
-/// Atomic write helper: write to temp file, then rename
-fn atomic_write(path: &PathBuf, data: &[u8]) -> Result<(), String> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|e| format!("Failed to create dir {}: {e}", parent.display()))?;
-    }
-    let tmp = path.with_extension("json.tmp");
-    let mut file =
-        fs::File::create(&tmp).map_err(|e| format!("Failed to create temp file: {e}"))?;
-    file.write_all(data)
-        .map_err(|e| format!("Failed to write temp file: {e}"))?;
-    file.sync_all()
-        .map_err(|e| format!("Failed to sync temp file: {e}"))?;
-    fs::rename(&tmp, path).map_err(|e| format!("Failed to rename temp file: {e}"))?;
-    Ok(())
-}
 
 /// Load agents config from disk. Returns default config with Workspace agent if file doesn't exist.
 #[tauri::command]
@@ -98,7 +82,7 @@ fn make_default_agent() -> AgentEntry {
 
     AgentEntry {
         id: uuid::Uuid::new_v4().to_string(),
-        project_path: config::workspace_dir().to_string_lossy().into_owned(),
+        project_path: config::get_workspace_path(),
         project_name: "Workspace".to_string(),
         created_at: now,
         order: 0,
@@ -108,7 +92,7 @@ fn make_default_agent() -> AgentEntry {
 /// Initialize agents.json on startup.
 ///
 /// - First launch: create default Workspace agent + migrate old chats
-/// - Subsequent launches: keep only the first agent (Workspace), discard the rest
+/// - Subsequent launches: find Workspace agent by path, discard the rest
 ///
 /// Called from setup().
 pub fn ensure_agents_file() {
@@ -142,7 +126,7 @@ pub fn ensure_agents_file() {
         return;
     }
 
-    // File exists: reset to only the first agent (Workspace)
+    // File exists: reset to only the Workspace agent
     let data = match fs::read_to_string(&path) {
         Ok(d) => d,
         Err(e) => {
@@ -159,15 +143,17 @@ pub fn ensure_agents_file() {
         }
     };
 
-    if config.agents.is_empty() {
-        // Corrupted: recreate default
-        config.agents = vec![make_default_agent()];
-    }
+    // Find the Workspace agent by path (not by position — user may have reordered)
+    let workspace_path = config::get_workspace_path();
+    let workspace = config
+        .agents
+        .iter()
+        .find(|a| a.project_path == workspace_path)
+        .cloned()
+        .unwrap_or_else(make_default_agent);
 
-    // Keep only the first agent (Workspace)
-    let workspace = config.agents[0].clone();
-    config.agents = vec![workspace.clone()];
-    config.active_agent_id = Some(workspace.id);
+    config.active_agent_id = Some(workspace.id.clone());
+    config.agents = vec![workspace];
 
     match serde_json::to_string_pretty(&config) {
         Ok(new_data) => {

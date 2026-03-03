@@ -37,42 +37,83 @@ interface CodeViewerProps {
   content: string;
   language: string | null;
   diffEdits?: DiffEdit[];
+  snapshot?: string | null;
   onLineEdit?: (lineIndex: number, newText: string) => void;
   onSave?: () => void;
 }
 
-/** Compute line-level diff markers from edit hunks */
-function computeDiffLines(
-  content: string,
-  edits: DiffEdit[],
-): Map<number, "added" | "removed"> {
-  const markers = new Map<number, "added" | "removed">();
+interface DiffLine {
+  type: "normal" | "removed" | "added";
+  content: string;
+  lineNumber: number | null;
+}
 
+/** Append split lines to result array, returning updated line number */
+function pushLines(
+  result: DiffLine[],
+  text: string,
+  type: DiffLine["type"],
+  lineNum: number,
+): number {
+  for (const line of text.split("\n")) {
+    result.push({
+      type,
+      content: line,
+      lineNumber: type === "removed" ? null : lineNum++,
+    });
+  }
+  return lineNum;
+}
+
+/** Build diff lines from snapshot content and edit hunks */
+function buildDiffLines(content: string, edits: DiffEdit[]): DiffLine[] {
+  // Filter edits that have oldString and find their positions
+  const located: { charIdx: number; edit: DiffEdit }[] = [];
+  let searchFrom = 0;
   for (const edit of edits) {
-    if (!edit.oldString && edit.newString) {
-      // Pure addition — mark all new lines as added
-      const newLines = edit.newString.split("\n");
-      const idx = content.indexOf(edit.newString);
-      if (idx >= 0) {
-        const lineStart = content.slice(0, idx).split("\n").length - 1;
-        for (let i = 0; i < newLines.length; i++) {
-          markers.set(lineStart + i, "added");
-        }
-      }
-    } else if (edit.oldString && edit.newString) {
-      // Replacement — find new text location and mark
-      const newLines = edit.newString.split("\n");
-      const idx = content.indexOf(edit.newString);
-      if (idx >= 0) {
-        const lineStart = content.slice(0, idx).split("\n").length - 1;
-        for (let i = 0; i < newLines.length; i++) {
-          markers.set(lineStart + i, "added");
-        }
-      }
-    }
+    if (!edit.oldString) continue;
+    const idx = content.indexOf(edit.oldString, searchFrom);
+    if (idx < 0) continue;
+    located.push({ charIdx: idx, edit });
+    searchFrom = idx + edit.oldString.length;
   }
 
-  return markers;
+  // If no edits found in content, return plain lines
+  if (located.length === 0) {
+    return content.split("\n").map((line, i) => ({
+      type: "normal" as const,
+      content: line,
+      lineNumber: i + 1,
+    }));
+  }
+
+  const result: DiffLine[] = [];
+  let lineNum = 1;
+  let cursor = 0;
+
+  for (const { charIdx, edit } of located) {
+    // Text before this edit → normal lines
+    if (charIdx > cursor) {
+      lineNum = pushLines(result, content.slice(cursor, charIdx), "normal", lineNum);
+    }
+
+    // Old text → removed lines
+    pushLines(result, edit.oldString, "removed", lineNum);
+
+    // New text → added lines
+    if (edit.newString) {
+      lineNum = pushLines(result, edit.newString, "added", lineNum);
+    }
+
+    cursor = charIdx + edit.oldString.length;
+  }
+
+  // Text after last edit → normal lines
+  if (cursor < content.length) {
+    pushLines(result, content.slice(cursor), "normal", lineNum);
+  }
+
+  return result;
 }
 
 /**
@@ -88,6 +129,7 @@ export const CodeViewer = memo(function CodeViewer({
   content,
   language,
   diffEdits,
+  snapshot,
   onLineEdit,
   onSave,
 }: CodeViewerProps) {
@@ -109,10 +151,14 @@ export const CodeViewer = memo(function CodeViewer({
     }
   }, [content, language, lines]);
 
-  const diffMarkers = useMemo(() => {
+  // Build diff lines from snapshot when we have edits with oldString
+  const diffLines = useMemo(() => {
     if (!diffEdits || diffEdits.length === 0) return null;
-    return computeDiffLines(content, diffEdits);
-  }, [content, diffEdits]);
+    const hasOld = diffEdits.some((e) => e.oldString);
+    if (!hasOld) return null;
+    const source = snapshot ?? content;
+    return buildDiffLines(source, diffEdits);
+  }, [diffEdits, snapshot, content]);
 
   const handleDoubleClick = useCallback(
     (lineIdx: number) => {
@@ -159,38 +205,59 @@ export const CodeViewer = memo(function CodeViewer({
     }
   }, [editingLine]);
 
+  // Diff mode: plain text with removed/added/normal lines
+  if (diffLines) {
+    return (
+      <div className="fv-code-viewer">
+        <table className="fv-code-table">
+          <tbody>
+            {diffLines.map((dl, idx) => (
+              <tr
+                key={idx}
+                className={`fv-line${dl.type !== "normal" ? ` fv-line--${dl.type}` : ""}`}
+              >
+                <td className="fv-line-number">
+                  {dl.type === "removed" ? "\u2212" : dl.type === "added" ? "+" : dl.lineNumber}
+                </td>
+                <td className="fv-line-content">
+                  <code>{dl.content || "\u00a0"}</code>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  // Normal mode: syntax highlighting + editing
   return (
     <div className="fv-code-viewer">
       <table className="fv-code-table">
         <tbody>
-          {highlighted.map((html, idx) => {
-            const diffClass = diffMarkers?.get(idx);
-            const lineClass = diffClass ? `fv-line--${diffClass}` : "";
-
-            return (
-              <tr key={idx} className={`fv-line ${lineClass}`}>
-                <td className="fv-line-number">{idx + 1}</td>
-                <td
-                  className="fv-line-content"
-                  onDoubleClick={() => handleDoubleClick(idx)}
-                >
-                  {editingLine === idx ? (
-                    <textarea
-                      ref={textareaRef}
-                      className="fv-line-editor"
-                      value={editText}
-                      onChange={handleChange}
-                      onKeyDown={handleKeyDown}
-                      rows={1}
-                      spellCheck={false}
-                    />
-                  ) : (
-                    <LineContent html={html} />
-                  )}
-                </td>
-              </tr>
-            );
-          })}
+          {highlighted.map((html, idx) => (
+            <tr key={idx} className="fv-line">
+              <td className="fv-line-number">{idx + 1}</td>
+              <td
+                className="fv-line-content"
+                onDoubleClick={() => handleDoubleClick(idx)}
+              >
+                {editingLine === idx ? (
+                  <textarea
+                    ref={textareaRef}
+                    className="fv-line-editor"
+                    value={editText}
+                    onChange={handleChange}
+                    onKeyDown={handleKeyDown}
+                    rows={1}
+                    spellCheck={false}
+                  />
+                ) : (
+                  <LineContent html={html} />
+                )}
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>

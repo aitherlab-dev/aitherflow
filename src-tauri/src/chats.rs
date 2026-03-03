@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::io::Write;
 use std::path::PathBuf;
 
 use crate::config;
+use crate::file_ops::atomic_write;
 
 /// Stored tool activity (mirrors frontend ToolActivity)
 #[derive(Serialize, Deserialize, Clone)]
@@ -80,23 +80,6 @@ fn chat_path(chat_id: &str) -> PathBuf {
     chats_dir().join(format!("{chat_id}.json"))
 }
 
-/// Atomic write helper: write to temp file, then rename
-fn atomic_write(path: &PathBuf, data: &[u8]) -> Result<(), String> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|e| format!("Failed to create dir {}: {e}", parent.display()))?;
-    }
-    let tmp = path.with_extension("json.tmp");
-    let mut file = fs::File::create(&tmp)
-        .map_err(|e| format!("Failed to create temp file: {e}"))?;
-    file.write_all(data)
-        .map_err(|e| format!("Failed to write temp file: {e}"))?;
-    file.sync_all()
-        .map_err(|e| format!("Failed to sync temp file: {e}"))?;
-    fs::rename(&tmp, path)
-        .map_err(|e| format!("Failed to rename temp file: {e}"))?;
-    Ok(())
-}
 
 /// Read a single chat file
 fn read_chat_file(chat_id: &str) -> Option<ChatFile> {

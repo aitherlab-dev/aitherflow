@@ -45,7 +45,7 @@ fn is_binary(data: &[u8]) -> bool {
 }
 
 /// Atomic write: write to temp file, then rename
-fn atomic_write(path: &Path, data: &[u8]) -> Result<(), String> {
+pub fn atomic_write(path: &Path, data: &[u8]) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
             .map_err(|e| format!("Failed to create dir {}: {e}", parent.display()))?;

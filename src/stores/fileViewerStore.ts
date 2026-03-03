@@ -299,6 +299,9 @@ export const useFileViewerStore = create<FileViewerState>((set, get) => ({
 
     set((s) => ({ diffs: [...s.diffs, diff] }));
     notifyHasContent(true);
+
+    // Auto-open file in preview tab
+    get().openPreview(filePath).catch(console.error);
   },
 
   refreshAfterToolResult: async (toolUseId: string) => {
@@ -306,9 +309,12 @@ export const useFileViewerStore = create<FileViewerState>((set, get) => ({
     const diff = state.diffs.find((d) => d.toolUseId === toolUseId);
     if (!diff) return;
 
-    // Re-read the file into the open tab
+    // Re-read the file into the open tab (or open preview if no tab yet — e.g. new file)
     const tab = state.tabs.find((t) => t.filePath === diff.filePath);
-    if (!tab) return;
+    if (!tab) {
+      get().openPreview(diff.filePath).catch(console.error);
+      return;
+    }
 
     try {
       const result = await invoke<FileContent>("read_file", {
