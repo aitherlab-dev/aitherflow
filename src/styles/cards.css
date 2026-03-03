@@ -1,0 +1,236 @@
+/* ── Interactive Cards ── */
+
+.interactive-card {
+  margin-top: 8px;
+  padding: 12px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.interactive-card--answered {
+  opacity: 0.85;
+}
+
+.interactive-card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.interactive-card-icon {
+  color: var(--accent-icon);
+  flex-shrink: 0;
+}
+
+/* Question block */
+
+.interactive-card-question {
+  margin-bottom: 8px;
+}
+
+.interactive-card-question:last-child {
+  margin-bottom: 0;
+}
+
+.interactive-card-question-text {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+  color: var(--fg);
+  line-height: 1.4;
+}
+
+.interactive-card-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.interactive-card-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 6px 12px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  position: relative;
+}
+
+.interactive-card-option:hover:not(:disabled) {
+  background: var(--tab-bg);
+  border-color: var(--fg-dim);
+}
+
+.interactive-card-option--selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.interactive-card-option--selected:hover:not(:disabled) {
+  background: var(--accent-dim);
+  border-color: var(--accent-dim);
+}
+
+.interactive-card-option:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.interactive-card-option-label {
+  font-weight: 500;
+}
+
+.interactive-card-option-desc {
+  font-size: 0.75rem;
+  color: var(--fg-muted);
+}
+
+.interactive-card-option--selected .interactive-card-option-desc {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.interactive-card-option-check {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  color: #fff;
+}
+
+.interactive-card-submit {
+  margin-top: 8px;
+  padding: 5px 14px;
+  background: var(--accent);
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.interactive-card-submit:hover {
+  background: var(--accent-dim);
+}
+
+/* ExitPlanMode prompts */
+
+.interactive-card-prompts {
+  margin-bottom: 10px;
+}
+
+.interactive-card-prompts-label {
+  margin: 0 0 4px;
+  font-size: 0.78rem;
+  color: var(--fg-muted);
+}
+
+.interactive-card-prompts-list {
+  margin: 0;
+  padding: 0 0 0 16px;
+  font-size: 0.8rem;
+  color: var(--fg);
+  line-height: 1.5;
+}
+
+.interactive-card-prompts-list li {
+  margin-bottom: 2px;
+}
+
+.interactive-card-prompt-tool {
+  font-weight: 500;
+  margin-right: 6px;
+  color: var(--fg-muted);
+}
+
+.interactive-card-prompt-text {
+  color: var(--fg);
+}
+
+/* Approve / Reject */
+
+.interactive-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.interactive-card-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.interactive-card-approve,
+.interactive-card-reject {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.interactive-card-approve {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.interactive-card-approve:hover {
+  background: var(--accent-dim);
+  border-color: var(--accent-dim);
+}
+
+.interactive-card-reject {
+  background: var(--bg-hover);
+  color: var(--fg-muted);
+}
+
+.interactive-card-reject:hover {
+  background: var(--tab-bg);
+  color: var(--fg);
+}
+
+.interactive-card-reject-input {
+  width: 100%;
+  padding: 6px 10px;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  font-size: 0.82rem;
+  outline: none;
+}
+
+.interactive-card-reject-input:focus {
+  border-color: var(--fg-dim);
+}
+
+.interactive-card-result {
+  font-size: 0.82rem;
+  padding: 4px 0;
+}
+
+.interactive-card-result--approved {
+  color: var(--accent-icon);
+  font-weight: 500;
+}
+
+.interactive-card-result--rejected {
+  color: var(--fg-muted);
+}

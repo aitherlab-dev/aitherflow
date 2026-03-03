@@ -1,0 +1,96 @@
+/* ── Theme transition (applied temporarily during switch) ── */
+.theme-transition,
+.theme-transition *,
+.theme-transition *::before,
+.theme-transition *::after {
+  transition: background-color 0.35s ease, color 0.35s ease, border-color 0.35s ease !important;
+}
+
+/* ── Dark — warm neutral ── */
+:root {
+  --bg: #1f1d1a;
+  --bg-hard: #161411;
+  --bg-soft: #282623;
+  --bg-card: #2f2d2a;
+  --bg-hover: #3c3a37;
+
+  --fg: #d6cdbf;
+  --fg-muted: #a89984;
+  --fg-dim: #665c54;
+
+  --accent: #a84e1c;
+  --accent-stroke: #cacaca;
+  --accent-icon: #d97a4b;
+  --accent-dim: #af3a03;
+
+  --border: #3c3a37;
+  --input-bg: #2f2d2a;
+  --bubble-ai: #282623;
+  --header-bg: #282623;
+  --chat-list-bg: #1f1d1a;
+
+  --tab-bg: #504e4b;
+  --tab-bg-hover: #3c3a37;
+
+  --red: #fb4934;
+  --green: #b8bb26;
+  --blue: #83a598;
+  --yellow: #fabd2f;
+  --purple: #d3869b;
+  --aqua: #8ec07c;
+  --gray: #928374;
+
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 8px 32px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.25);
+
+  /* Brand */
+  --brand-dark: #2a2a2a;
+  --brand-orange: #d65d0e;
+  --brand-bg: #d6cdbf;
+
+  color-scheme: dark;
+}
+
+/* ── Light — aitherlab.org palette ── */
+[data-theme="light"] {
+  --bg: #c4b49a;
+  --bg-hard: #f0e8db;
+  --bg-soft: #ccc2b0;
+  --bg-card: #d6cdbf;
+  --bg-hover: #ccc2b3;
+
+  --fg: #2a2a2a;
+  font-weight: 500;
+  --fg-muted: #5a5248;
+  --fg-dim: #8a7e72;
+
+  --accent: #a84e1c;
+  --accent-stroke: #cacaca;
+  --accent-icon: #d97a4b;
+  --accent-dim: #af3a03;
+
+  --border: #c4b9a8;
+  --input-bg: #e5ddd0;
+  --bubble-ai: #e2d9c8;
+  --header-bg: #e2d9c8;
+  --chat-list-bg: #e2d9c8;
+
+  --tab-bg: #f2ece4;
+  --tab-bg-hover: #e8e2d8;
+  --accent-stroke: #5a5248;
+
+  --red: #cc241d;
+  --green: #98971a;
+  --blue: #458588;
+  --yellow: #d79921;
+  --purple: #b16286;
+  --aqua: #689d6a;
+  --gray: #7c6f64;
+
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.18), 0 4px 12px rgba(0, 0, 0, 0.1);
+
+  color-scheme: light;
+}

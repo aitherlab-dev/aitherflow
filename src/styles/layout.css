@@ -1,0 +1,697 @@
+/* ═══════════════════════════════════════════
+   App Layout (grid shell)
+   ═══════════════════════════════════════════ */
+
+.app-layout {
+  display: grid;
+  grid-template-rows: 40px 1fr 28px;
+  grid-template-columns: auto 1fr;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Header ── */
+
+.app-header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  background: var(--header-bg);
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.header-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.header-btn:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.header-btn--active {
+  color: var(--accent-icon);
+}
+
+/* ── Brand ── */
+
+.brand-name {
+  font-family: "Oswald", sans-serif;
+  font-size: 15px;
+  letter-spacing: 0.05em;
+  line-height: 1;
+}
+
+.brand-aither {
+  font-weight: 700;
+  color: var(--fg);
+}
+
+.brand-flow {
+  font-weight: 200;
+  color: var(--accent);
+}
+
+/* ── Sidebar ── */
+
+.app-sidebar {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-soft);
+  border-right: 1px solid var(--border);
+  transition: width 0.2s ease;
+}
+
+.sidebar-content {
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid #555250;
+  border-bottom: 1px solid #555250;
+  margin: 8px 0;
+}
+
+
+
+/* Agent tab wrapper (project button + close) */
+.sidebar-project-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.sidebar-project {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 16px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--tab-bg-hover);
+  color: var(--fg);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.25s ease-out;
+}
+
+.sidebar-project--active {
+  border-color: var(--fg-dim);
+  background: var(--tab-bg);
+}
+
+.sidebar-project:hover {
+  background: var(--tab-bg);
+  transform: scale(1.04);
+}
+
+.sidebar-project--active:hover {
+  transform: none;
+}
+
+/* Close button on agent tabs */
+.sidebar-project__close {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.sidebar-project__close--disabled {
+  color: var(--fg-dim);
+  cursor: default;
+  pointer-events: none;
+}
+
+.sidebar-project__close:hover {
+  color: var(--fg);
+}
+
+.sidebar-project__chevron {
+  flex-shrink: 0;
+  color: var(--accent-stroke);
+  transition: transform 0.15s;
+}
+
+.sidebar-project__chevron--open {
+  transform: rotate(90deg);
+}
+
+.sidebar-project__icon {
+  color: var(--accent-stroke);
+  flex-shrink: 0;
+}
+
+.sidebar-project-body {
+  margin-top: 4px;
+  background: var(--tab-bg);
+  border-radius: 6px;
+}
+
+.sidebar-project__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Agent slot drag-and-drop ── */
+
+.sidebar-agent-slot {
+  transition: transform 0.15s, opacity 0.15s;
+}
+
+.sidebar-agent-slot--dragging {
+  opacity: 0.5;
+  transform: scale(0.97);
+}
+
+.sidebar-agent-slot--drop-target {
+  box-shadow: 0 -2px 0 0 var(--accent);
+}
+
+.sidebar-new-chat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: var(--tab-bg);
+  color: var(--fg);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.sidebar-new-chat:hover:not(:disabled) {
+  color: var(--accent-icon);
+}
+
+.sidebar-new-chat--disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.sidebar-chat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  list-style: none;
+  padding: 4px 8px 4px 12px;
+  background: var(--tab-bg-hover);
+  border-radius: 0 0 6px 6px;
+}
+
+@keyframes chat-item-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes chat-item-out {
+  from { opacity: 1; max-height: 40px; }
+  to { opacity: 0; max-height: 0; padding: 0 4px; }
+}
+
+.chat-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 4px;
+  cursor: pointer;
+  animation: chat-item-in 0.3s ease-out;
+  overflow: hidden;
+}
+
+.chat-item--removing {
+  animation: chat-item-out 0.25s ease-out forwards;
+  pointer-events: none;
+}
+
+.chat-item::before {
+  content: "\2022";
+  color: var(--fg-dim);
+  flex-shrink: 0;
+  font-size: 0.9rem;
+}
+
+.chat-item--active::before {
+  color: var(--fg);
+}
+
+.chat-item--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.chat-item--locked {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.chat-item__title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  color: var(--fg-muted);
+}
+
+.chat-item--active .chat-item__title {
+  color: var(--fg);
+}
+
+.chat-item__delete {
+  display: flex;
+  background: none;
+  border: none;
+  padding: 2px;
+  color: var(--fg-dim);
+  cursor: pointer;
+  border-radius: 4px;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+
+.chat-item__delete:hover {
+  color: var(--accent-icon);
+}
+
+/* ── Resize Handle ── */
+
+.resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 4px;
+  height: 100%;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.15s;
+  z-index: 5;
+}
+
+.resize-handle:hover,
+.resize-handle:active {
+  background: var(--fg-dim);
+}
+
+/* ── Main zone ── */
+
+.app-main {
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* ── Status Bar ── */
+
+.app-statusbar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  background: var(--header-bg);
+  border-top: 1px solid var(--border);
+  user-select: none;
+}
+
+.statusbar-text {
+  font-size: 0.7rem;
+  color: var(--fg-dim);
+}
+
+/* ── Functional tab chevron (New Agent accordion) ── */
+
+.sidebar-tab__chevron {
+  flex-shrink: 0;
+  color: var(--accent-stroke);
+  transition: transform 0.15s;
+}
+
+.sidebar-tab__chevron--open {
+  transform: rotate(90deg);
+}
+
+/* ── Functional tab accordion body ── */
+
+.sidebar-tab-body {
+  background: var(--tab-bg-hover);
+  border-radius: 0 0 6px 6px;
+  padding: 4px 8px 4px 12px;
+  margin: 0 12px 4px;
+  border: 1px solid var(--border);
+  border-top: none;
+}
+
+.sidebar-tab-body__empty {
+  padding: 8px 4px;
+  color: var(--fg-dim);
+  font-size: 0.8rem;
+}
+
+/* ── Functional tabs (Settings, Limits, etc.) ── */
+
+.sidebar-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: calc(100% - 24px);
+  margin: 0 12px 8px;
+  padding: 14px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--tab-bg-hover);
+  color: var(--fg-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.2s, transform 0.25s ease-out, color 0.15s;
+}
+
+.sidebar-tab:hover {
+  background: var(--tab-bg);
+  color: var(--fg);
+  transform: scale(1.04);
+}
+
+.sidebar-tab--active {
+  background: var(--tab-bg);
+  color: var(--fg);
+}
+
+.sidebar-tab--disabled {
+  cursor: default;
+}
+
+.sidebar-tab--expanded {
+  border-radius: 6px 6px 0 0;
+  margin-bottom: 0;
+}
+
+/* New Agent — pinned to top of agent block */
+.sidebar-agent-top {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg-soft);
+}
+
+.sidebar-agent-top .sidebar-tab {
+  width: 100%;
+  margin: 0;
+}
+
+/* Project dropdown (inline, like chat list) */
+.project-dropdown {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 4px 8px 4px 12px;
+  background: var(--tab-bg-hover);
+  border-radius: 0 0 6px 6px;
+}
+
+.project-dropdown__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 5px 4px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: color 0.12s;
+}
+
+.project-dropdown__item:hover {
+  color: var(--fg);
+}
+
+.project-dropdown__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent-stroke);
+  flex-shrink: 0;
+}
+
+.project-dropdown__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-dropdown__empty {
+  padding: 8px 4px;
+  color: var(--fg-dim);
+  font-size: 0.8rem;
+}
+
+/* Bottom group spacing — always pinned to bottom */
+.sidebar-bottom {
+  margin-top: auto;
+  padding: 8px 0 12px;
+  flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════════════
+   Files Panel (sidebar)
+   ═══════════════════════════════════════════ */
+
+/* Accordion wrapper in sidebar */
+.files-accordion {
+  max-height: 45vh;
+  overflow-y: auto;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.files-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.files-panel--empty {
+  padding: 16px;
+  color: var(--fg-muted);
+  font-size: 0.8rem;
+}
+
+.files-panel--loading {
+  padding: 12px 16px;
+  color: var(--fg-muted);
+  font-size: 0.8rem;
+}
+
+/* Header */
+.files-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.files-panel-header__title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.files-panel-header__mode {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+
+.files-panel-header__mode:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+/* Breadcrumbs */
+.files-breadcrumbs {
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  gap: 2px;
+  overflow-x: auto;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.files-breadcrumb {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.files-breadcrumb__sep {
+  color: var(--fg-dim);
+  font-size: 0.7rem;
+  margin: 0 2px;
+}
+
+.files-breadcrumb__btn {
+  background: none;
+  border: none;
+  color: var(--fg-muted);
+  font-size: 0.72rem;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+
+.files-breadcrumb__btn:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+/* Content */
+.files-panel-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+/* Entry (file or folder row) */
+.files-entry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  cursor: pointer;
+  font-size: 0.78rem;
+  color: var(--fg);
+  transition: background 0.12s;
+  user-select: none;
+}
+
+.files-entry:hover {
+  background: var(--bg-hover);
+}
+
+.files-entry--flash {
+  animation: files-flash 0.4s ease-out;
+}
+
+@keyframes files-flash {
+  0% { background: var(--accent); opacity: 0.3; }
+  100% { background: transparent; opacity: 1; }
+}
+
+/* Chevron for tree folders */
+.files-entry__chevron {
+  flex-shrink: 0;
+  color: var(--fg-dim);
+  transition: transform 0.15s;
+}
+
+.files-entry__chevron--open {
+  transform: rotate(90deg);
+}
+
+/* Icons */
+.files-entry__icon {
+  flex-shrink: 0;
+}
+
+.files-entry__icon--dir {
+  color: var(--accent-icon);
+}
+
+.files-entry__icon--file {
+  color: var(--fg-muted);
+}
+
+/* Name */
+.files-entry__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* Drives section */
+.files-drives {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+
+.files-drives__label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fg-muted);
+  padding: 2px 6px 4px;
+}
+
+.files-entry__icon--drive {
+  color: var(--fg-muted);
+}

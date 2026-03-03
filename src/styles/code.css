@@ -1,0 +1,151 @@
+/* ── Inline code ── */
+
+.inline-code {
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  background: var(--bg-hard);
+  color: var(--yellow);
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  font-size: 0.85em;
+}
+
+/* ── Code blocks ── */
+
+.code-block {
+  margin: 0.75em 0;
+  border-radius: 8px;
+  background: var(--bg-hard);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4em 0.75em;
+  background: color-mix(in srgb, var(--bg-hard) 80%, var(--bg-hover));
+  border-bottom: 1px solid var(--border);
+  font-size: 0.75em;
+}
+
+.code-block-lang {
+  color: var(--fg-dim);
+  text-transform: lowercase;
+}
+
+.code-block-copy {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--fg-dim);
+  font-size: 1em;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+
+.code-block-copy:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.code-block pre {
+  margin: 0;
+  padding: 0.75em;
+  overflow-x: auto;
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  font-size: 0.85em;
+  line-height: 1.5;
+}
+
+.code-block code {
+  background: transparent;
+  color: var(--fg);
+}
+
+/* ── highlight.js overrides (use CSS variables) ── */
+
+.hljs {
+  background: transparent !important;
+  color: var(--fg) !important;
+}
+
+.hljs-keyword,
+.hljs-selector-tag { color: var(--red) !important; }
+.hljs-string,
+.hljs-addition { color: var(--green) !important; }
+.hljs-number,
+.hljs-literal { color: var(--purple) !important; }
+.hljs-comment,
+.hljs-quote { color: var(--gray) !important; font-style: italic; }
+.hljs-title,
+.hljs-section { color: var(--yellow) !important; }
+.hljs-name,
+.hljs-tag { color: var(--blue) !important; }
+.hljs-attr,
+.hljs-attribute { color: var(--aqua) !important; }
+.hljs-built_in,
+.hljs-type { color: var(--yellow) !important; }
+.hljs-params { color: var(--fg) !important; }
+.hljs-deletion { color: var(--red) !important; }
+.hljs-variable,
+.hljs-template-variable { color: var(--aqua) !important; }
+.hljs-meta { color: var(--fg-muted) !important; }
+.hljs-regexp { color: var(--green) !important; }
+
+/* ── Light theme: dark code blocks (terminal style) ── */
+
+[data-theme="light"] .code-block {
+  background: #1e1c19;
+  border-color: #3d3830;
+}
+
+[data-theme="light"] .code-block-header {
+  background: #282521;
+  border-bottom-color: #3d3830;
+}
+
+[data-theme="light"] .code-block-lang {
+  color: #665c54;
+}
+
+[data-theme="light"] .code-block-copy {
+  color: #665c54;
+}
+
+[data-theme="light"] .code-block-copy:hover {
+  background: #3d3830;
+  color: #d6cdbf;
+}
+
+[data-theme="light"] .code-block code {
+  color: #d6cdbf;
+}
+
+[data-theme="light"] .code-block .hljs { color: #d6cdbf !important; }
+[data-theme="light"] .code-block .hljs-keyword,
+[data-theme="light"] .code-block .hljs-selector-tag { color: #fb4934 !important; }
+[data-theme="light"] .code-block .hljs-string,
+[data-theme="light"] .code-block .hljs-addition { color: #b8bb26 !important; }
+[data-theme="light"] .code-block .hljs-number,
+[data-theme="light"] .code-block .hljs-literal { color: #d3869b !important; }
+[data-theme="light"] .code-block .hljs-comment,
+[data-theme="light"] .code-block .hljs-quote { color: #928374 !important; font-style: italic; }
+[data-theme="light"] .code-block .hljs-title,
+[data-theme="light"] .code-block .hljs-section { color: #fabd2f !important; }
+[data-theme="light"] .code-block .hljs-name,
+[data-theme="light"] .code-block .hljs-tag { color: #83a598 !important; }
+[data-theme="light"] .code-block .hljs-attr,
+[data-theme="light"] .code-block .hljs-attribute { color: #8ec07c !important; }
+[data-theme="light"] .code-block .hljs-built_in,
+[data-theme="light"] .code-block .hljs-type { color: #fabd2f !important; }
+[data-theme="light"] .code-block .hljs-params { color: #d6cdbf !important; }
+[data-theme="light"] .code-block .hljs-deletion { color: #fb4934 !important; }
+[data-theme="light"] .code-block .hljs-variable,
+[data-theme="light"] .code-block .hljs-template-variable { color: #8ec07c !important; }
+[data-theme="light"] .code-block .hljs-meta { color: #a89984 !important; }
+[data-theme="light"] .code-block .hljs-regexp { color: #b8bb26 !important; }
