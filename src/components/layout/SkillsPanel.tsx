@@ -9,6 +9,7 @@ import { useSkillStore } from "../../stores/skillStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useChatStore } from "../../stores/chatStore";
+import { useTranslationStore } from "../../stores/translationStore";
 import type { SkillEntry, PluginSkillGroup } from "../../types/skills";
 
 // ── Single skill row ──
@@ -24,11 +25,16 @@ const SkillRow = memo(function SkillRow({
   onToggleFav: (id: string) => void;
   onInvoke: (command: string) => void;
 }) {
+  const translated = useTranslationStore(
+    (s) => s.cache.entries[`skill:${skill.id}`],
+  );
+  const desc = translated || skill.description || skill.name;
+
   return (
     <div
       className="skills-row"
       onClick={() => onInvoke(skill.command)}
-      title={skill.description || skill.name}
+      title={desc}
     >
       <span className="skills-row__name">{skill.name}</span>
       <span className="skills-row__command">{skill.command}</span>

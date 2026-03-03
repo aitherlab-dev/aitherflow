@@ -11,11 +11,13 @@ import {
   FolderOpen,
   Gauge,
   Sparkles,
+  Languages,
 } from "lucide-react";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { ProjectsSection } from "./ProjectsSection";
 import { GeneralSection } from "./GeneralSection";
 import { SkillsSection } from "./SkillsSection";
+import { LanguageSection } from "./LanguageSection";
 
 const NAV_ITEMS = [
   { id: "general", label: "General", icon: User },
@@ -27,6 +29,7 @@ const NAV_ITEMS = [
   { id: "telegram", label: "Telegram", icon: Send },
   { id: "skills", label: "Skills", icon: Sparkles },
   { id: "projects", label: "Projects", icon: FolderOpen },
+  { id: "language", label: "Language", icon: Languages },
   { id: "limits", label: "Limits", icon: Gauge },
 ] as const;
 
@@ -94,6 +97,9 @@ function SectionContent({ section }: { section: string }) {
   }
   if (section === "projects") {
     return <ProjectsSection />;
+  }
+  if (section === "language") {
+    return <LanguageSection />;
   }
   return (
     <div className="settings-placeholder">

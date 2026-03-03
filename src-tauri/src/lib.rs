@@ -12,6 +12,7 @@ mod plugins;
 mod projects;
 mod settings;
 mod skills;
+mod translations;
 
 use conductor::session::SessionManager;
 
@@ -69,6 +70,9 @@ pub fn run() {
             plugins::add_marketplace,
             plugins::remove_marketplace,
             plugins::update_marketplaces,
+            translations::load_translations,
+            translations::translate_content,
+            translations::clear_translations,
         ])
         .setup(|_app| {
             let config_dir = config::config_dir();

@@ -3,10 +3,11 @@ import { invoke } from "@tauri-apps/api/core";
 
 interface AppSettings {
   bypassPermissions: boolean;
+  translationLanguage: string;
 }
 
 export function GeneralSection() {
-  const [settings, setSettings] = useState<AppSettings>({ bypassPermissions: false });
+  const [settings, setSettings] = useState<AppSettings>({ bypassPermissions: false, translationLanguage: "" });
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {

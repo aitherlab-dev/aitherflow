@@ -11,6 +11,9 @@ use crate::file_ops::atomic_write;
 pub struct AppSettings {
     #[serde(default)]
     pub bypass_permissions: bool,
+    /// Translation language code: "ru", "zh", "ja", "es", "fr", or "" (disabled)
+    #[serde(default)]
+    pub translation_language: String,
 }
 
 /// Path to settings.json

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Star } from "lucide-react";
 import { useSkillStore } from "../../stores/skillStore";
 import { useChatStore } from "../../stores/chatStore";
+import { useTranslationStore } from "../../stores/translationStore";
 import type { SkillEntry } from "../../types/skills";
 
 interface SkillsMenuProps {
@@ -17,6 +18,7 @@ export const SkillsMenu = memo(function SkillsMenu({
   const menuRef = useRef<HTMLDivElement>(null);
   const getFavorites = useSkillStore((s) => s.getFavorites);
   const favorites = getFavorites();
+  const translations = useTranslationStore((s) => s.cache.entries);
 
   // Close on click outside or Escape
   useEffect(() => {
@@ -64,7 +66,7 @@ export const SkillsMenu = memo(function SkillsMenu({
             key={skill.id}
             className="skills-menu__item"
             onClick={() => handleSkillClick(skill)}
-            title={skill.description || skill.name}
+            title={translations[`skill:${skill.id}`] || skill.description || skill.name}
           >
             <Star size={12} className="skills-menu__star" />
             <span className="skills-menu__name">{skill.name}</span>

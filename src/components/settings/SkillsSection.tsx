@@ -14,6 +14,7 @@ import {
 import { usePluginStore } from "../../stores/pluginStore";
 import { useSkillStore } from "../../stores/skillStore";
 import { useAgentStore } from "../../stores/agentStore";
+import { useTranslationStore } from "../../stores/translationStore";
 import type { InstalledPlugin, AvailablePlugin, MarketplaceSource } from "../../types/plugins";
 import type { SkillEntry } from "../../types/skills";
 
@@ -39,6 +40,9 @@ const PluginCard = memo(function PluginCard({
   isUninstalling: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const translatedDesc = useTranslationStore(
+    (s) => s.cache.entries[`installed-plugin:${plugin.id}`],
+  );
 
   return (
     <div className="plugin-card">
@@ -62,7 +66,7 @@ const PluginCard = memo(function PluginCard({
       {expanded && (
         <div className="plugin-card-body">
           {plugin.description && (
-            <p className="plugin-card-desc">{plugin.description}</p>
+            <p className="plugin-card-desc">{translatedDesc || plugin.description}</p>
           )}
           <div className="plugin-card-meta">
             <span>Source: {plugin.marketplace}</span>
@@ -177,6 +181,10 @@ const AvailableRow = memo(function AvailableRow({
   onInstall: (name: string, marketplace: string) => void;
   isInstalling: boolean;
 }) {
+  const translatedDesc = useTranslationStore(
+    (s) => s.cache.entries[`available-plugin:${plugin.name}@${plugin.marketplace}`],
+  );
+
   return (
     <div className="available-row">
       <div className="available-row-info">
@@ -191,7 +199,7 @@ const AvailableRow = memo(function AvailableRow({
           )}
         </div>
         {plugin.description && (
-          <p className="available-row-desc">{plugin.description}</p>
+          <p className="available-row-desc">{translatedDesc || plugin.description}</p>
         )}
       </div>
       {!plugin.isInstalled && (
