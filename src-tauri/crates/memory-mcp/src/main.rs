@@ -56,7 +56,9 @@ fn main() {
         };
 
         let response = handle_request(&conn, &project_path, &request);
-        write_response(&mut stdout, &response);
+        if !response.is_null() {
+            write_response(&mut stdout, &response);
+        }
     }
 }
 
@@ -284,8 +286,9 @@ fn tool_search_history(
                 role: row.get(1)?,
                 text: {
                     let full: String = row.get(2)?;
-                    if full.len() > 300 {
-                        format!("{}...", &full[..300])
+                    if full.chars().count() > 300 {
+                        let truncated: String = full.chars().take(300).collect();
+                        format!("{truncated}...")
                     } else {
                         full
                     }

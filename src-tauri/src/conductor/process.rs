@@ -333,12 +333,14 @@ fn build_memory_mcp_config(project_path: Option<&str>) -> Option<String> {
     let project = project_path.unwrap_or("unknown");
 
     let config = serde_json::json!({
-        "aither-memory": {
-            "command": binary,
-            "args": [
-                "--db", db_path.to_string_lossy(),
-                "--project", project
-            ]
+        "mcpServers": {
+            "aither-memory": {
+                "command": binary,
+                "args": [
+                    "--db", db_path.to_string_lossy(),
+                    "--project", project
+                ]
+            }
         }
     });
 
