@@ -1,5 +1,5 @@
 import { memo, useState, useRef, useCallback, useEffect } from "react";
-import { Plus, Star, Mic, ArrowUp, Square, X, FileText } from "lucide-react";
+import { Plus, Star, Mic, ArrowUp, Square, X, FileText, MessageSquarePlus } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -39,6 +39,7 @@ export const InputBar = memo(function InputBar() {
   const stopGeneration = useChatStore((s) => s.stopGeneration);
   const isThinking = useChatStore((s) => s.isThinking);
   const toolActivity = useChatStore((s) => s.currentToolActivity);
+  const newChat = useChatStore((s) => s.newChat);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -378,6 +379,16 @@ export const InputBar = memo(function InputBar() {
           <ThinkingIndicator />
         </div>
         <div className="input-bar-bottom-right">
+          {!isThinking && (
+            <button
+              className="input-bar-btn"
+              onClick={newChat}
+              title="New chat"
+              aria-label="New chat"
+            >
+              <MessageSquarePlus size={18} />
+            </button>
+          )}
           {toolActivity && (
             <div className="tool-status">
               <span className="tool-status-dot" />
