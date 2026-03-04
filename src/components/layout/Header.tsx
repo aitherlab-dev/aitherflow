@@ -58,12 +58,6 @@ export const Header = memo(function Header() {
 
   return (
     <header className="app-header" data-tauri-drag-region>
-      <div className="header-left">
-        <div className="brand-name">
-          <span className="brand-aither">aither</span>
-          <span className="brand-flow">flow</span>
-        </div>
-      </div>
       <div className="header-right">
         <button
           className="header-btn"

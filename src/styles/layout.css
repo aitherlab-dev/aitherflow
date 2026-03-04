@@ -13,10 +13,11 @@
 /* ── Header ── */
 
 .app-header {
-  grid-column: 1 / -1;
+  grid-column: 2;
+  grid-row: 1;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   padding: 0 12px;
   background: var(--header-bg);
   border-bottom: 1px solid var(--border);
@@ -130,7 +131,7 @@
 /* Build confirmation popup */
 .build-confirm-popup {
   position: absolute;
-  bottom: calc(100% + 6px);
+  top: calc(100% + 6px);
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -564,11 +565,24 @@
   user-select: none;
 }
 
-/* Sidebar footer — Build/Dev buttons */
+/* Sidebar header — Build/Dev buttons (top-left) */
 .sidebar-footer {
   grid-column: 1;
+  grid-row: 1;
   display: flex;
   align-items: stretch;
+  background: var(--bg-soft);
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+/* Brand footer — logo (bottom-left) */
+.brand-footer {
+  grid-column: 1;
+  grid-row: 3;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
   background: var(--bg-soft);
   border-right: 1px solid var(--border);
   border-top: 1px solid var(--border);
