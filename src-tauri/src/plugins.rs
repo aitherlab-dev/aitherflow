@@ -547,7 +547,9 @@ pub async fn uninstall_plugin(name: String, marketplace: String) -> Result<(), S
         // Optionally remove cache directory
         let cache_dir = base.join("cache").join(&marketplace).join(&name);
         if cache_dir.exists() {
-            let _ = fs::remove_dir_all(&cache_dir);
+            if let Err(e) = fs::remove_dir_all(&cache_dir) {
+                eprintln!("[plugins] Failed to remove cache dir {}: {e}", cache_dir.display());
+            }
         }
 
         Ok(())
@@ -590,7 +592,9 @@ pub async fn add_marketplace(
 
         if !output.status.success() {
             // Clean up on failure
-            let _ = fs::remove_dir_all(&target_dir);
+            if let Err(e) = fs::remove_dir_all(&target_dir) {
+                eprintln!("[plugins] Failed to clean up {}: {e}", target_dir.display());
+            }
             let stderr = String::from_utf8_lossy(&output.stderr);
             return Err(format!("Git clone failed: {}", stderr.trim()));
         }
@@ -725,7 +729,9 @@ pub async fn update_marketplaces() -> Result<(), String> {
                         }
                     }
                     if let Ok(json_str) = serde_json::to_string_pretty(&file) {
-                        let _ = atomic_write(&sources_path, json_str.as_bytes());
+                        if let Err(e) = atomic_write(&sources_path, json_str.as_bytes()) {
+                            eprintln!("[plugins] Failed to save marketplace metadata: {e}");
+                        }
                     }
                 }
             }

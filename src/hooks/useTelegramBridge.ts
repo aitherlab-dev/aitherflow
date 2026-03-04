@@ -133,7 +133,7 @@ export function useTelegramBridge() {
 
   // Stream agent responses to Telegram
   useEffect(() => {
-    return useChatStore.subscribe((state) => {
+    const unsub = useChatStore.subscribe((state) => {
       const wasThinking = prevIsThinking.current;
       prevIsThinking.current = state.isThinking;
 
@@ -215,6 +215,13 @@ export function useTelegramBridge() {
         lastEditedText.current = "";
       }
     });
+    return () => {
+      unsub();
+      if (streamTimer.current) {
+        clearInterval(streamTimer.current);
+        streamTimer.current = null;
+      }
+    };
   }, []);
 
   // Sync current project to Telegram bot state

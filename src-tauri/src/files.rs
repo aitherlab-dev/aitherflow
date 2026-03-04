@@ -130,7 +130,7 @@ pub async fn list_directory(path: String) -> Result<Vec<FileEntry>, String> {
             }
 
             let entry_path = entry.path();
-            let is_dir = entry_path.is_dir();
+            let is_dir = entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
             let path_str = entry_path.to_string_lossy().into_owned();
 
             let fe = FileEntry {

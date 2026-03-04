@@ -57,7 +57,9 @@ mod web_server_manager {
             let mut cfg = crate::web_config::load();
             if cfg.token.is_empty() {
                 cfg.token = crate::web_config::generate_token();
-                crate::web_config::save(&cfg);
+                if let Err(e) = crate::web_config::save(&cfg) {
+                    eprintln!("[web_config] {e}");
+                }
             }
 
             let (event_tx, _) = tokio::sync::broadcast::channel(512);
@@ -177,11 +179,12 @@ pub mod web_config {
             .unwrap_or_default()
     }
 
-    pub fn save(cfg: &WebServerConfig) {
+    pub fn save(cfg: &WebServerConfig) -> Result<(), String> {
         let path = config_path();
-        if let Ok(data) = serde_json::to_string_pretty(cfg) {
-            let _ = crate::file_ops::atomic_write(&path, data.as_bytes());
-        }
+        let data = serde_json::to_string_pretty(cfg)
+            .map_err(|e| format!("Failed to serialize web config: {e}"))?;
+        crate::file_ops::atomic_write(&path, data.as_bytes())
+            .map_err(|e| format!("Failed to save web config: {e}"))
     }
 
     pub fn generate_token() -> String {
@@ -193,13 +196,16 @@ pub mod web_config {
 
     #[tauri::command]
     pub async fn load_web_config() -> Result<WebServerConfig, String> {
-        Ok(load())
+        tokio::task::spawn_blocking(load)
+            .await
+            .map_err(|e| format!("Task join error: {e}"))
     }
 
     #[tauri::command]
     pub async fn save_web_config(config: WebServerConfig) -> Result<(), String> {
-        save(&config);
-        Ok(())
+        tokio::task::spawn_blocking(move || save(&config))
+            .await
+            .map_err(|e| format!("Task join error: {e}"))?
     }
 
     #[tauri::command]

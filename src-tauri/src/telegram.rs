@@ -57,6 +57,7 @@ struct BotState {
     outgoing_tx: Option<mpsc::UnboundedSender<TgOutgoing>>,
     incoming_tx: Option<mpsc::UnboundedSender<TgIncoming>>,
     incoming_rx: Option<mpsc::UnboundedReceiver<TgIncoming>>,
+    http_client: Option<reqwest::Client>,
     current_project: Option<String>,
     current_project_path: Option<String>,
     recent_messages: Vec<RecentMsg>,
@@ -975,17 +976,21 @@ pub fn get_telegram_status() -> Result<TelegramStatus, String> {
 
 #[tauri::command]
 pub async fn start_telegram_bot() -> Result<TelegramStatus, String> {
+    // Load config outside mutex to avoid blocking I/O under lock
+    let disk_config = load_config_from_disk().unwrap_or_else(|e| {
+        eprintln!("[TG] {e}");
+        TelegramConfig::default()
+    });
+
     let config = with_state(|s| {
         let state = s.get_or_insert_with(|| BotState {
-            config: load_config_from_disk().unwrap_or_else(|e| {
-                eprintln!("[TG] {e}");
-                TelegramConfig::default()
-            }),
+            config: disk_config.clone(),
             status: TelegramStatus::default(),
             task_handle: None,
             outgoing_tx: None,
             incoming_tx: None,
             incoming_rx: None,
+            http_client: None,
             current_project: None,
             current_project_path: None,
             recent_messages: Vec::new(),
@@ -1038,15 +1043,13 @@ pub async fn start_telegram_bot() -> Result<TelegramStatus, String> {
 
     with_state(|s| {
         let state = s.get_or_insert_with(|| BotState {
-            config: load_config_from_disk().unwrap_or_else(|e| {
-                eprintln!("[TG] {e}");
-                TelegramConfig::default()
-            }),
+            config: disk_config,
             status: TelegramStatus::default(),
             task_handle: None,
             outgoing_tx: None,
             incoming_tx: None,
             incoming_rx: None,
+            http_client: None,
             current_project: None,
             current_project_path: None,
             recent_messages: Vec::new(),
@@ -1056,6 +1059,7 @@ pub async fn start_telegram_bot() -> Result<TelegramStatus, String> {
         state.outgoing_tx = Some(outgoing_tx);
         state.incoming_tx = Some(incoming_tx);
         state.incoming_rx = Some(incoming_rx);
+        state.http_client = Some(client);
     });
 
     Ok(status)
@@ -1130,7 +1134,7 @@ pub fn notify_telegram(text: String) -> Result<(), String> {
 /// Send initial streaming message ("..."), return message_id for later editing
 #[tauri::command]
 pub async fn telegram_stream_start() -> Result<i64, String> {
-    let (token, chat_id) = with_state(|s| {
+    let (token, chat_id, client) = with_state(|s| {
         let state = s.as_ref().ok_or("Bot not running")?;
         let token = state
             .config
@@ -1139,17 +1143,17 @@ pub async fn telegram_stream_start() -> Result<i64, String> {
             .filter(|t| !t.is_empty())
             .ok_or("No token")?;
         let chat_id = state.config.chat_id.ok_or("No chat_id")?;
-        Ok::<_, String>((token, chat_id))
+        let client = state.http_client.clone().unwrap_or_else(reqwest::Client::new);
+        Ok::<_, String>((token, chat_id, client))
     })?;
 
-    let client = reqwest::Client::new();
     tg_send_and_get_id(&client, &token, chat_id, "...").await
 }
 
 /// Edit a streaming message with updated text
 #[tauri::command]
 pub async fn telegram_stream_update(message_id: i64, text: String) -> Result<(), String> {
-    let (token, chat_id) = with_state(|s| {
+    let (token, chat_id, client) = with_state(|s| {
         let state = s.as_ref().ok_or("Bot not running")?;
         let token = state
             .config
@@ -1158,10 +1162,10 @@ pub async fn telegram_stream_update(message_id: i64, text: String) -> Result<(),
             .filter(|t| !t.is_empty())
             .ok_or("No token")?;
         let chat_id = state.config.chat_id.ok_or("No chat_id")?;
-        Ok::<_, String>((token, chat_id))
+        let client = state.http_client.clone().unwrap_or_else(reqwest::Client::new);
+        Ok::<_, String>((token, chat_id, client))
     })?;
 
-    let client = reqwest::Client::new();
     tg_edit_message(&client, &token, chat_id, message_id, &text).await
 }
 

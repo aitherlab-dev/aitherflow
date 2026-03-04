@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { type ReactNode, memo } from "react";
 import { openUrl } from "../../lib/transport";
 
 /**
@@ -89,7 +89,7 @@ interface InlineMarkdownProps {
   content: string;
 }
 
-export function InlineMarkdown({ content }: InlineMarkdownProps) {
+export const InlineMarkdown = memo(function InlineMarkdown({ content }: InlineMarkdownProps) {
   if (!content) return null;
 
   const paragraphs = content.split(/\n{2,}/);
@@ -99,4 +99,4 @@ export function InlineMarkdown({ content }: InlineMarkdownProps) {
       {paragraphs.map((p, i) => renderParagraph(p, i))}
     </div>
   );
-}
+});

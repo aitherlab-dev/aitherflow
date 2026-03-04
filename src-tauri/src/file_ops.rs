@@ -143,6 +143,10 @@ pub async fn create_directory(path: String, name: String) -> Result<String, Stri
     tokio::task::spawn_blocking(move || {
         let parent = Path::new(&path);
         validate_path_safe(parent)?;
+        // Reject path separators and traversal in name
+        if name.contains('/') || name.contains('\\') || name == ".." || name == "." {
+            return Err(format!("Invalid name: '{}'", name));
+        }
         let target = parent.join(&name);
         if target.exists() {
             return Err(format!("'{}' already exists", name));
@@ -160,6 +164,10 @@ pub async fn create_file(path: String, name: String) -> Result<String, String> {
     tokio::task::spawn_blocking(move || {
         let parent = Path::new(&path);
         validate_path_safe(parent)?;
+        // Reject path separators and traversal in name
+        if name.contains('/') || name.contains('\\') || name == ".." || name == "." {
+            return Err(format!("Invalid name: '{}'", name));
+        }
         let target = parent.join(&name);
         if target.exists() {
             return Err(format!("'{}' already exists", name));
