@@ -6,6 +6,7 @@
 //! For commands that need SessionManager — we pull it from WebState.
 //! For commands that are free-standing (chats, settings, …) — call directly.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use axum::extract::{Query, State};
@@ -19,6 +20,14 @@ use crate::conductor::process;
 use crate::conductor::types::{CliEvent, SendMessageOptions, StartSessionOptions, DEFAULT_AGENT_ID};
 
 // ── Helpers ────────────────────────────────────────────────────────
+
+/// Validate that a filesystem path is within allowed directories.
+/// Returns 403 Forbidden if the path is outside allowed areas.
+#[allow(clippy::result_large_err)]
+fn check_path(path: &str) -> Result<(), Response> {
+    crate::files::validate_path_safe(std::path::Path::new(path))
+        .map_err(|e| (StatusCode::FORBIDDEN, e).into_response())
+}
 
 /// Convert Result<T, String> to an Axum response.
 fn ok_json<T: serde::Serialize>(result: Result<T, String>) -> Response {
@@ -403,6 +412,43 @@ pub async fn generate_web_token() -> Response {
     ok_json(crate::web_config::generate_web_token().await)
 }
 
+/// Generate a one-time auth code (called from the app, requires auth).
+pub async fn create_auth_code(State(state): State<Arc<WebState>>) -> Response {
+    let code = state.session_store.create_code().await;
+    Json(serde_json::json!({ "code": code })).into_response()
+}
+
+/// Exchange a one-time auth code for a session cookie (no auth required).
+pub async fn exchange_auth_code(
+    State(state): State<Arc<WebState>>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Response {
+    use axum::http::header;
+
+    let Some(code) = params.get("code") else {
+        return (StatusCode::BAD_REQUEST, "Missing ?code= parameter").into_response();
+    };
+
+    let Some(session_token) = state.session_store.exchange_code(code).await else {
+        return (StatusCode::UNAUTHORIZED, "Invalid or expired code").into_response();
+    };
+
+    // Set HttpOnly, Secure, SameSite=Strict cookie
+    let cookie = format!(
+        "af_session={session_token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800"
+    );
+
+    // Redirect to app root
+    (
+        StatusCode::FOUND,
+        [
+            (header::SET_COOKIE, cookie),
+            (header::LOCATION, "/".to_string()),
+        ],
+    )
+        .into_response()
+}
+
 // ── Memory ─────────────────────────────────────────────────────────
 
 pub async fn memory_stats(Json(p): Json<ProjectPathParam>) -> Response {
@@ -421,6 +467,7 @@ pub struct PathParam {
 }
 
 pub async fn process_file(Json(p): Json<PathParam>) -> Response {
+    if let Err(r) = check_path(&p.path) { return r; }
     ok_json(crate::attachments::process_file(p.path).await)
 }
 
@@ -433,16 +480,19 @@ pub async fn read_clipboard_image() -> Response {
 }
 
 pub async fn cleanup_temp_file(Json(p): Json<PathParam>) -> Response {
+    if let Err(r) = check_path(&p.path) { return r; }
     ok_empty(crate::attachments::cleanup_temp_file(p.path).await)
 }
 
 // ── Files ──────────────────────────────────────────────────────────
 
 pub async fn read_file(Json(p): Json<PathParam>) -> Response {
+    if let Err(r) = check_path(&p.path) { return r; }
     ok_json(crate::file_ops::read_file(p.path).await)
 }
 
 pub async fn file_snapshot(Json(p): Json<PathParam>) -> Response {
+    if let Err(r) = check_path(&p.path) { return r; }
     ok_json(crate::file_ops::file_snapshot(p.path).await)
 }
 
@@ -456,6 +506,7 @@ pub struct ListDirParam {
 }
 
 pub async fn list_directory(Json(p): Json<ListDirParam>) -> Response {
+    if let Err(r) = check_path(&p.path) { return r; }
     ok_json(crate::files::list_directory(p.path).await)
 }
 
@@ -472,10 +523,9 @@ pub async fn serve_file(Query(q): Query<FileQuery>) -> Response {
     use axum::body::Body;
     use axum::http::header;
 
+    if let Err(r) = check_path(&q.path) { return r; }
+
     let path = std::path::Path::new(&q.path);
-    if !path.exists() {
-        return StatusCode::NOT_FOUND.into_response();
-    }
 
     match tokio::fs::read(path).await {
         Ok(data) => {

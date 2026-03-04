@@ -12,7 +12,6 @@ use axum::routing::{get, post};
 use axum::Router;
 use include_dir::{include_dir, Dir};
 use tokio::sync::broadcast;
-use tower_http::cors::CorsLayer;
 
 use crate::conductor::session::SessionManager;
 use crate::conductor::types::CliEvent;
@@ -26,12 +25,13 @@ pub struct WebState {
     pub sessions: SessionManager,
     pub event_tx: broadcast::Sender<CliEvent>,
     pub auth_token: String,
+    pub rate_limiter: auth::RateLimiter,
+    pub session_store: auth::SessionStore,
 }
 
-/// Start the embedded web server on the given port.
-///
-/// This function never returns (runs until the app exits).
-pub async fn run(state: WebState, port: u16) {
+/// Start the embedded web server. Returns `Err` only if binding fails.
+/// Otherwise runs until the task is aborted.
+pub async fn run(state: WebState, port: u16, remote_access: bool) -> Result<(), String> {
     let state = Arc::new(state);
 
     let api = Router::new()
@@ -92,30 +92,42 @@ pub async fn run(state: WebState, port: u16) {
         .route("/api/list_directory", post(handlers::list_directory))
         // ── File serving (for convertFileSrc) ──
         .route("/api/file", get(handlers::serve_file))
+        // ── Auth ──
+        .route("/api/create_auth_code", post(handlers::create_auth_code))
         // ── WebSocket ──
         .route("/ws", get(ws::ws_handler))
         // ── Middleware ──
         .layer(DefaultBodyLimit::max(50 * 1024 * 1024)) // 50MB for image uploads
-        .layer(CorsLayer::permissive())
+        // No CORS layer — frontend is served from same origin.
+        // Cross-origin requests are blocked by default.
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             auth::auth_middleware,
         ))
         .with_state(state.clone());
 
-    // SPA fallback: serve embedded frontend files
-    let app = api.fallback(serve_embedded);
+    // Auth code exchange — no auth required (the code IS the auth)
+    let auth_route = Router::new()
+        .route("/auth", get(handlers::exchange_auth_code))
+        .with_state(state.clone());
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
+    // SPA fallback: serve embedded frontend files
+    let app = api.merge(auth_route).fallback(serve_embedded);
+
+    let bind_ip: [u8; 4] = if remote_access { [0, 0, 0, 0] } else { [127, 0, 0, 1] };
+    let addr = SocketAddr::from((bind_ip, port));
     eprintln!("[web_server] Listening on http://{addr}");
 
     let listener = tokio::net::TcpListener::bind(addr)
         .await
-        .expect("Failed to bind web server port");
+        .map_err(|e| format!("Failed to bind port {port}: {e}"))?;
 
-    axum::serve(listener, app)
-        .await
-        .expect("Web server error");
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .map_err(|e| format!("Web server error: {e}"))
 }
 
 /// Serve static files from the embedded dist/ directory.

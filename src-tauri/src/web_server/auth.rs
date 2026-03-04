@@ -1,12 +1,130 @@
+use std::collections::HashMap;
+use std::net::IpAddr;
 use std::sync::Arc;
+use std::time::Instant;
 
 use axum::body::Body;
+use axum::extract::connect_info::ConnectInfo;
 use axum::extract::State;
 use axum::http::{Request, StatusCode};
 use axum::middleware::Next;
 use axum::response::Response;
+use subtle::ConstantTimeEq;
+use tokio::sync::Mutex;
 
 use super::WebState;
+
+/// Max failed auth attempts per IP before blocking.
+const MAX_FAILURES: u32 = 10;
+/// Window in seconds — failures older than this are forgotten.
+const WINDOW_SECS: u64 = 300; // 5 minutes
+/// One-time auth codes expire after 5 minutes.
+const CODE_TTL_SECS: u64 = 300;
+/// Session cookies expire after 7 days.
+const SESSION_TTL_SECS: u64 = 7 * 24 * 3600;
+
+fn generate_hex(len: usize) -> String {
+    use rand::Rng;
+    let mut rng = rand::thread_rng();
+    let bytes: Vec<u8> = (0..len).map(|_| rng.gen()).collect();
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+// ── Rate Limiter ────────────────────────────────────────────────────
+
+#[derive(Clone, Default)]
+pub struct RateLimiter {
+    failures: Arc<Mutex<HashMap<IpAddr, (u32, Instant)>>>,
+}
+
+impl RateLimiter {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    async fn record_failure(&self, ip: IpAddr) -> bool {
+        let mut map = self.failures.lock().await;
+        let now = Instant::now();
+        let entry = map.entry(ip).or_insert((0, now));
+        if now.duration_since(entry.1).as_secs() > WINDOW_SECS {
+            *entry = (1, now);
+            return false;
+        }
+        entry.0 += 1;
+        entry.0 >= MAX_FAILURES
+    }
+
+    async fn is_blocked(&self, ip: IpAddr) -> bool {
+        let mut map = self.failures.lock().await;
+        if let Some(entry) = map.get(&ip) {
+            let now = Instant::now();
+            if now.duration_since(entry.1).as_secs() > WINDOW_SECS {
+                map.remove(&ip);
+                return false;
+            }
+            return entry.0 >= MAX_FAILURES;
+        }
+        false
+    }
+
+    async fn clear(&self, ip: IpAddr) {
+        self.failures.lock().await.remove(&ip);
+    }
+}
+
+// ── Session Store ───────────────────────────────────────────────────
+
+#[derive(Clone, Default)]
+pub struct SessionStore {
+    /// One-time auth codes → creation time
+    codes: Arc<Mutex<HashMap<String, Instant>>>,
+    /// Active session tokens → creation time
+    sessions: Arc<Mutex<HashMap<String, Instant>>>,
+}
+
+impl SessionStore {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Create a one-time auth code (valid for 5 minutes).
+    pub async fn create_code(&self) -> String {
+        let code = generate_hex(16); // 32 hex chars
+        self.codes.lock().await.insert(code.clone(), Instant::now());
+        code
+    }
+
+    /// Validate and consume a one-time code. Returns a session token on success.
+    pub async fn exchange_code(&self, code: &str) -> Option<String> {
+        let mut codes = self.codes.lock().await;
+        if let Some(created) = codes.remove(code) {
+            if Instant::now().duration_since(created).as_secs() <= CODE_TTL_SECS {
+                let session_token = generate_hex(32); // 64 hex chars
+                self.sessions
+                    .lock()
+                    .await
+                    .insert(session_token.clone(), Instant::now());
+                return Some(session_token);
+            }
+        }
+        None
+    }
+
+    /// Check if a session token is valid.
+    async fn validate_session(&self, token: &str) -> bool {
+        let mut sessions = self.sessions.lock().await;
+        if let Some(created) = sessions.get(token) {
+            if Instant::now().duration_since(*created).as_secs() <= SESSION_TTL_SECS {
+                return true;
+            }
+            // Expired — remove
+            sessions.remove(token);
+        }
+        false
+    }
+}
+
+// ── Token extraction ────────────────────────────────────────────────
 
 fn percent_decode(s: &str) -> String {
     let mut out = Vec::with_capacity(s.len());
@@ -29,9 +147,20 @@ fn percent_decode(s: &str) -> String {
     String::from_utf8(out).unwrap_or_default()
 }
 
-/// Extract token from Authorization header or `token` query param.
-fn extract_token(req: &Request<Body>) -> Option<String> {
-    // Check Authorization: Bearer <token>
+/// Extract session token from cookie.
+fn extract_session_cookie(req: &Request<Body>) -> Option<String> {
+    let cookie_header = req.headers().get("cookie")?.to_str().ok()?;
+    for part in cookie_header.split(';') {
+        let part = part.trim();
+        if let Some(val) = part.strip_prefix("af_session=") {
+            return Some(val.to_string());
+        }
+    }
+    None
+}
+
+/// Extract bearer token from Authorization header or query param.
+fn extract_bearer(req: &Request<Body>) -> Option<String> {
     if let Some(auth) = req.headers().get("authorization") {
         if let Ok(val) = auth.to_str() {
             if let Some(token) = val.strip_prefix("Bearer ") {
@@ -39,37 +168,60 @@ fn extract_token(req: &Request<Body>) -> Option<String> {
             }
         }
     }
-
-    // Check ?token=<token> query parameter (for WebSocket & initial page load)
     if let Some(query) = req.uri().query() {
         for pair in query.split('&') {
             if let Some(val) = pair.strip_prefix("token=") {
-                // Simple percent-decode (tokens are hex, so this is mostly a no-op)
                 return Some(percent_decode(val));
             }
         }
     }
-
     None
 }
 
-/// Middleware that checks for a valid auth token.
-///
-/// Skips auth for static file serving (paths without /api/ and /ws).
+// ── Auth middleware ──────────────────────────────────────────────────
+
+/// Middleware: cookie session → Bearer token → reject.
+/// Skips auth for static files and the /auth endpoint.
 pub async fn auth_middleware(
     State(state): State<Arc<WebState>>,
+    connect_info: ConnectInfo<std::net::SocketAddr>,
     req: Request<Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
     let path = req.uri().path();
 
-    // Skip auth for static files (frontend assets)
+    // Skip auth for static files (frontend) and the /auth exchange endpoint
     if !path.starts_with("/api/") && !path.starts_with("/ws") {
         return Ok(next.run(req).await);
     }
 
-    match extract_token(&req) {
-        Some(token) if token == state.auth_token => Ok(next.run(req).await),
-        _ => Err(StatusCode::UNAUTHORIZED),
+    let ip = connect_info.0.ip();
+
+    if state.rate_limiter.is_blocked(ip).await {
+        eprintln!("[auth] Blocked request from {ip} (too many failures)");
+        return Err(StatusCode::TOO_MANY_REQUESTS);
     }
+
+    // 1. Check session cookie
+    if let Some(session_token) = extract_session_cookie(&req) {
+        if state.session_store.validate_session(&session_token).await {
+            state.rate_limiter.clear(ip).await;
+            return Ok(next.run(req).await);
+        }
+    }
+
+    // 2. Check Bearer token (master auth token)
+    if let Some(bearer) = extract_bearer(&req) {
+        if bearer.as_bytes().ct_eq(state.auth_token.as_bytes()).into() {
+            state.rate_limiter.clear(ip).await;
+            return Ok(next.run(req).await);
+        }
+    }
+
+    // Failed
+    let blocked = state.rate_limiter.record_failure(ip).await;
+    if blocked {
+        eprintln!("[auth] IP {ip} blocked after {MAX_FAILURES} failed attempts");
+    }
+    Err(StatusCode::UNAUTHORIZED)
 }

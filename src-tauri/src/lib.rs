@@ -18,6 +18,115 @@ mod web_server;
 
 use conductor::session::SessionManager;
 
+/// Manages the lifecycle of the embedded web server (start/stop at runtime).
+mod web_server_manager {
+    use std::sync::Arc;
+    use tokio::sync::Mutex;
+    use tokio::task::JoinHandle;
+
+    use crate::conductor::session::SessionManager;
+    use crate::web_server;
+
+    #[derive(Clone)]
+    pub struct WebServerManager {
+        handle: Arc<Mutex<Option<JoinHandle<()>>>>,
+        sessions: SessionManager,
+        session_store: web_server::auth::SessionStore,
+    }
+
+    impl WebServerManager {
+        pub fn new(
+            sessions: SessionManager,
+            session_store: web_server::auth::SessionStore,
+        ) -> Self {
+            Self {
+                handle: Arc::new(Mutex::new(None)),
+                sessions,
+                session_store,
+            }
+        }
+
+        pub async fn start(&self) -> Result<(), String> {
+            let mut guard = self.handle.lock().await;
+            if guard.is_some() {
+                return Err("Web server is already running".into());
+            }
+
+            let mut cfg = crate::web_config::load();
+            if cfg.token.is_empty() {
+                cfg.token = crate::web_config::generate_token();
+                crate::web_config::save(&cfg);
+            }
+
+            let (event_tx, _) = tokio::sync::broadcast::channel(512);
+
+            let state = web_server::WebState {
+                sessions: self.sessions.clone(),
+                event_tx,
+                auth_token: cfg.token.clone(),
+                rate_limiter: web_server::auth::RateLimiter::new(),
+                session_store: self.session_store.clone(),
+            };
+
+            let port = cfg.port;
+            let remote = cfg.remote_access;
+
+            let h = tokio::spawn(async move {
+                if let Err(e) = web_server::run(state, port, remote).await {
+                    eprintln!("[web_server] {e}");
+                }
+            });
+
+            eprintln!(
+                "[aitherflow] Web server started on port {}, token: {}…",
+                cfg.port,
+                &cfg.token[..8.min(cfg.token.len())]
+            );
+
+            *guard = Some(h);
+            Ok(())
+        }
+
+        pub async fn stop(&self) {
+            let mut guard = self.handle.lock().await;
+            if let Some(h) = guard.take() {
+                h.abort();
+                eprintln!("[aitherflow] Web server stopped");
+            }
+        }
+
+        pub async fn is_running(&self) -> bool {
+            let guard = self.handle.lock().await;
+            match &*guard {
+                Some(h) => !h.is_finished(),
+                None => false,
+            }
+        }
+    }
+
+    #[tauri::command]
+    pub async fn start_web_server(
+        mgr: tauri::State<'_, WebServerManager>,
+    ) -> Result<(), String> {
+        mgr.start().await
+    }
+
+    #[tauri::command]
+    pub async fn stop_web_server(
+        mgr: tauri::State<'_, WebServerManager>,
+    ) -> Result<(), String> {
+        mgr.stop().await;
+        Ok(())
+    }
+
+    #[tauri::command]
+    pub async fn web_server_status(
+        mgr: tauri::State<'_, WebServerManager>,
+    ) -> Result<bool, String> {
+        Ok(mgr.is_running().await)
+    }
+}
+
 /// Web server config: ~/.config/aither-flow/web-server.json
 pub mod web_config {
     use serde::{Deserialize, Serialize};
@@ -31,6 +140,9 @@ pub mod web_config {
         pub port: u16,
         #[serde(default)]
         pub token: String,
+        /// Allow remote access (bind 0.0.0.0 instead of 127.0.0.1)
+        #[serde(default)]
+        pub remote_access: bool,
     }
 
     fn default_port() -> u16 {
@@ -43,6 +155,7 @@ pub mod web_config {
                 enabled: false,
                 port: default_port(),
                 token: String::new(),
+                remote_access: false,
             }
         }
     }
@@ -91,6 +204,14 @@ pub mod web_config {
     pub async fn generate_web_token() -> Result<String, String> {
         Ok(generate_token())
     }
+
+    #[tauri::command]
+    pub async fn create_auth_code(
+        store: tauri::State<'_, crate::web_server::auth::SessionStore>,
+    ) -> Result<serde_json::Value, String> {
+        let code = store.create_code().await;
+        Ok(serde_json::json!({ "code": code }))
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -98,11 +219,20 @@ pub fn run() {
     // Shared session manager for both Tauri and Axum
     let sessions = SessionManager::new();
 
+    let session_store = web_server::auth::SessionStore::new();
+
+    let web_mgr = web_server_manager::WebServerManager::new(
+        sessions.clone(),
+        session_store.clone(),
+    );
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(sessions.clone())
+        .manage(session_store.clone())
+        .manage(web_mgr.clone())
         .manage(file_watcher::WatcherState::new())
         .invoke_handler(tauri::generate_handler![
             conductor::start_session,
@@ -164,6 +294,10 @@ pub fn run() {
             web_config::load_web_config,
             web_config::save_web_config,
             web_config::generate_web_token,
+            web_config::create_auth_code,
+            web_server_manager::start_web_server,
+            web_server_manager::stop_web_server,
+            web_server_manager::web_server_status,
         ])
         .setup(move |_app| {
             let cfg_dir = config::config_dir();
@@ -202,31 +336,12 @@ pub fn run() {
             agents::ensure_agents_file();
 
             // Start web server if enabled
-            let mut web_cfg = web_config::load();
-            if web_cfg.enabled {
-                if web_cfg.token.is_empty() {
-                    web_cfg.token = web_config::generate_token();
-                    web_config::save(&web_cfg);
-                }
-
-                let (event_tx, _) = tokio::sync::broadcast::channel(512);
-
-                let state = web_server::WebState {
-                    sessions: sessions.clone(),
-                    event_tx,
-                    auth_token: web_cfg.token.clone(),
-                };
-
-                let port = web_cfg.port;
+            if web_config::load().enabled {
                 tauri::async_runtime::spawn(async move {
-                    web_server::run(state, port).await;
+                    if let Err(e) = web_mgr.start().await {
+                        eprintln!("[aitherflow] Failed to start web server: {e}");
+                    }
                 });
-
-                eprintln!(
-                    "[aitherflow] Web server enabled on port {}, token: {}…",
-                    web_cfg.port,
-                    &web_cfg.token[..8.min(web_cfg.token.len())]
-                );
             }
 
             Ok(())

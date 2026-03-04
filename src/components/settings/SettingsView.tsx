@@ -2,14 +2,9 @@ import { useCallback, useEffect } from "react";
 import {
   X,
   User,
-  Cpu,
-  Keyboard,
-  Mic,
   Webhook,
-  Bot,
   Globe,
   FolderOpen,
-  Gauge,
   Sparkles,
   Languages,
   Brain,
@@ -24,17 +19,12 @@ import { WebServerSection } from "./WebServerSection";
 
 const NAV_ITEMS = [
   { id: "general", label: "General", icon: User },
-  { id: "model", label: "Model", icon: Cpu },
-  { id: "hotkeys", label: "Hotkeys", icon: Keyboard },
-  { id: "voice", label: "Voice", icon: Mic },
   { id: "hooks", label: "Hooks", icon: Webhook },
-  { id: "agents", label: "Agents", icon: Bot },
   { id: "web-server", label: "Web Server", icon: Globe },
   { id: "skills", label: "Skills", icon: Sparkles },
   { id: "projects", label: "Projects", icon: FolderOpen },
   { id: "language", label: "Language", icon: Languages },
   { id: "memory", label: "Memory", icon: Brain },
-  { id: "limits", label: "Limits", icon: Gauge },
 ] as const;
 
 export function SettingsView() {

@@ -53,27 +53,13 @@ function getWebServerUrl(): string {
   return window.location.origin;
 }
 
-function getAuthToken(): string {
-  // On first load, extract token from ?token= query param and persist
-  const stored = localStorage.getItem("aither-flow-token");
-  if (stored) return stored;
-
-  const params = new URLSearchParams(window.location.search);
-  const fromUrl = params.get("token");
-  if (fromUrl) {
-    localStorage.setItem("aither-flow-token", fromUrl);
-    return fromUrl;
-  }
-  return "";
-}
-
 function ensureWebSocket(): Promise<void> {
   if (_wsReady) return _wsReady;
 
   _wsReady = new Promise<void>((resolve, reject) => {
     const base = getWebServerUrl().replace(/^http/, "ws");
-    const token = getAuthToken();
-    _ws = new WebSocket(`${base}/ws?token=${encodeURIComponent(token)}`);
+    // Cookie is sent automatically by the browser for same-origin WS
+    _ws = new WebSocket(`${base}/ws`);
 
     _ws.onopen = () => resolve();
     _ws.onerror = () => reject(new Error("WebSocket connection failed"));
@@ -116,10 +102,8 @@ export async function invoke<T = unknown>(
   const url = `${getWebServerUrl()}/api/${cmd}`;
   const res = await fetch(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${getAuthToken()}`,
-    },
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
     body: args ? JSON.stringify(args) : undefined,
   });
 
@@ -161,7 +145,8 @@ export function convertFileSrc(path: string): string {
   if (isTauri && _tauriConvertFileSrc) {
     return _tauriConvertFileSrc(path);
   }
-  return `${getWebServerUrl()}/api/file?path=${encodeURIComponent(path)}&token=${encodeURIComponent(getAuthToken())}`;
+  // Cookie is sent automatically for same-origin requests
+  return `${getWebServerUrl()}/api/file?path=${encodeURIComponent(path)}`;
 }
 
 /** Open a native file/folder dialog. In browser → <input type="file">. */
