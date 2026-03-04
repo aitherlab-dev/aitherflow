@@ -5,7 +5,7 @@ import {
   X,
   FolderPlus,
 } from "lucide-react";
-import { open } from "@tauri-apps/plugin-dialog";
+import { openDialog } from "../../lib/transport";
 import { useProjectStore } from "../../stores/projectStore";
 import type { ProjectBookmark } from "../../types/projects";
 
@@ -66,7 +66,7 @@ const ProjectItem = memo(function ProjectItem({
   );
 
   const handleAddDir = useCallback(async () => {
-    const selected = await open({ directory: true, multiple: false });
+    const selected = await openDialog({ directory: true, multiple: false });
     if (selected) {
       await addDirectory(project.path, selected as string);
     }
@@ -151,7 +151,7 @@ export function ProjectsSection() {
   const addProject = useProjectStore((s) => s.addProject);
 
   const handleAdd = useCallback(async () => {
-    const selected = await open({ directory: true, multiple: false });
+    const selected = await openDialog({ directory: true, multiple: false });
     if (selected) {
       const path = selected as string;
       const name = path.split("/").pop() ?? path;

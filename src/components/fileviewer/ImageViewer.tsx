@@ -1,6 +1,6 @@
 import { memo, useState, useCallback, useRef } from "react";
 import { ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { convertFileSrc } from "../../lib/transport";
 
 interface ImageViewerProps {
   filePath: string;

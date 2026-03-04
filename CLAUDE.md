@@ -9,7 +9,7 @@ Aither Flow — десктопная GUI-обёртка для Claude Code CLI. 
 - **Бэкенд:** Rust / Tauri 2
 - **Фронтенд:** React 19 + TypeScript + Vite + Tailwind CSS v4
 - **Тема:** тёплая палитра (dark: кофейные тона, light: aitherlab.org), CSS-переменные
-- **Данные:** JSON (чаты, настройки), позже SQLite (память)
+- **Данные:** JSON (чаты, настройки), SQLite+FTS5 (session memory)
 - **Платформы:** Linux (основная), macOS (вторичная)
 
 ## Структура
@@ -17,10 +17,13 @@ Aither Flow — десктопная GUI-обёртка для Claude Code CLI. 
 - `src/components/chat/` — чат: сообщения, ввод, рендер markdown
 - `src/components/layout/` — каркас: сайдбар, хедер, статусбар, resize
 - `src/components/settings/` — экран настроек и проектов
-- `src/stores/` — Zustand-сторы (agent, attachment, chat, conductor, layout, project)
-- `src/types/` — TypeScript-типы (agents, chat, conductor, files, projects)
+- `src/components/fileviewer/` — просмотр файлов: код, изображения, вкладки
+- `src/stores/` — Zustand-сторы (agent, attachment, chat, conductor, fileViewer, layout, plugin, project, skill, translation)
+- `src/types/` — TypeScript-типы (agents, chat, conductor, files, fileviewer, plugins, projects, skills)
 - `src-tauri/src/conductor/` — ядро: запуск CLI, парсинг потока, управление сессиями
-- `src-tauri/src/` — Tauri-команды: agents, attachments, chats, config, files, platform, projects, settings
+- `src-tauri/src/memory/` — индексер session memory (SQLite+FTS5)
+- `src-tauri/src/` — Tauri-команды: agents, attachments, chats, config, devtools, files, file_ops, file_watcher, platform, plugins, projects, settings, skills, translations
+- `src-tauri/crates/` — отдельные крейты: `memory-mcp` (MCP-сервер памяти), `aither-flow-perms` (разрешения)
 
 ## Команды
 
@@ -36,6 +39,8 @@ pnpm format             # Prettier
 CI: GitHub Actions (`ci.yml`) — `tsc --noEmit` + `eslint` + `cargo clippy -D warnings`
 
 ## Как работает
+
+**Мультиагенты:** каждый агент — отдельный CLI-процесс. `SessionManager` (Rust) хранит `HashMap<agent_id, AgentSession>`. Переключение агента в UI = переключение контекста (чаты, сообщения), фоновые агенты продолжают работать. `agentStates: Map<agentId, AgentChatState>` на фронте хранит состояние всех агентов, активный синхронизируется с Zustand.
 
 **CLI-интеграция:**
 

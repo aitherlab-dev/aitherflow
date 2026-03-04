@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from "../../lib/transport";
 
 /**
  * Lightweight inline-only markdown renderer for streaming text.

@@ -1,6 +1,7 @@
 import { create } from "zustand";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../lib/transport";
 import type { ProjectBookmark, ProjectsConfig } from "../types/projects";
+import { useAgentStore } from "./agentStore";
 
 interface ProjectState {
   projects: ProjectBookmark[];
@@ -72,6 +73,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     );
     set({ projects: updated });
     await persist(updated, lastOpenedProject);
+    // Sync display name to all agents bound to this project
+    useAgentStore.getState().renameProjectInAgents(path, newName).catch(console.error);
   },
 
   addDirectory: async (projectPath, dirPath) => {

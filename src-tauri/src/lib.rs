@@ -14,16 +14,95 @@ mod projects;
 mod settings;
 mod skills;
 mod translations;
+mod web_server;
 
 use conductor::session::SessionManager;
 
+/// Web server config: ~/.config/aither-flow/web-server.json
+pub mod web_config {
+    use serde::{Deserialize, Serialize};
+    use std::fs;
+
+    #[derive(Serialize, Deserialize, Clone)]
+    pub struct WebServerConfig {
+        #[serde(default)]
+        pub enabled: bool,
+        #[serde(default = "default_port")]
+        pub port: u16,
+        #[serde(default)]
+        pub token: String,
+    }
+
+    fn default_port() -> u16 {
+        3080
+    }
+
+    impl Default for WebServerConfig {
+        fn default() -> Self {
+            Self {
+                enabled: false,
+                port: default_port(),
+                token: String::new(),
+            }
+        }
+    }
+
+    fn config_path() -> std::path::PathBuf {
+        crate::config::config_dir().join("web-server.json")
+    }
+
+    pub fn load() -> WebServerConfig {
+        let path = config_path();
+        if !path.exists() {
+            return WebServerConfig::default();
+        }
+        fs::read_to_string(&path)
+            .ok()
+            .and_then(|data| serde_json::from_str(&data).ok())
+            .unwrap_or_default()
+    }
+
+    pub fn save(cfg: &WebServerConfig) {
+        let path = config_path();
+        if let Ok(data) = serde_json::to_string_pretty(cfg) {
+            let _ = crate::file_ops::atomic_write(&path, data.as_bytes());
+        }
+    }
+
+    pub fn generate_token() -> String {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+        let bytes: Vec<u8> = (0..32).map(|_| rng.gen()).collect();
+        bytes.iter().map(|b| format!("{b:02x}")).collect()
+    }
+
+    #[tauri::command]
+    pub async fn load_web_config() -> Result<WebServerConfig, String> {
+        Ok(load())
+    }
+
+    #[tauri::command]
+    pub async fn save_web_config(config: WebServerConfig) -> Result<(), String> {
+        save(&config);
+        Ok(())
+    }
+
+    #[tauri::command]
+    pub async fn generate_web_token() -> Result<String, String> {
+        Ok(generate_token())
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Shared session manager for both Tauri and Axum
+    let sessions = SessionManager::new();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
-        .manage(SessionManager::new())
+        .manage(sessions.clone())
         .manage(file_watcher::WatcherState::new())
         .invoke_handler(tauri::generate_handler![
             conductor::start_session,
@@ -37,6 +116,8 @@ pub fn run() {
             chats::save_chat_messages,
             chats::update_chat_session,
             chats::delete_chat,
+            chats::rename_chat,
+            chats::toggle_chat_pin,
             projects::load_projects,
             projects::save_projects,
             agents::load_agents,
@@ -45,6 +126,7 @@ pub fn run() {
             settings::save_settings,
             attachments::process_file,
             attachments::read_clipboard_image,
+            attachments::read_clipboard_text,
             attachments::cleanup_temp_file,
             files::get_home_path,
             files::list_directory,
@@ -79,12 +161,15 @@ pub fn run() {
             memory::memory_get_session,
             memory::memory_stats,
             memory::memory_index_project,
+            web_config::load_web_config,
+            web_config::save_web_config,
+            web_config::generate_web_token,
         ])
-        .setup(|_app| {
-            let config_dir = config::config_dir();
+        .setup(move |_app| {
+            let cfg_dir = config::config_dir();
             let data_dir = config::data_dir();
             let workspace = config::workspace_dir();
-            eprintln!("[aitherflow] config:    {}", config_dir.display());
+            eprintln!("[aitherflow] config:    {}", cfg_dir.display());
             eprintln!("[aitherflow] data:      {}", data_dir.display());
             eprintln!("[aitherflow] workspace: {}", workspace.display());
 
@@ -115,6 +200,34 @@ pub fn run() {
             // Ensure agents.json exists with default Workspace agent
             // Also migrates old chats without agent_id
             agents::ensure_agents_file();
+
+            // Start web server if enabled
+            let mut web_cfg = web_config::load();
+            if web_cfg.enabled {
+                if web_cfg.token.is_empty() {
+                    web_cfg.token = web_config::generate_token();
+                    web_config::save(&web_cfg);
+                }
+
+                let (event_tx, _) = tokio::sync::broadcast::channel(512);
+
+                let state = web_server::WebState {
+                    sessions: sessions.clone(),
+                    event_tx,
+                    auth_token: web_cfg.token.clone(),
+                };
+
+                let port = web_cfg.port;
+                tauri::async_runtime::spawn(async move {
+                    web_server::run(state, port).await;
+                });
+
+                eprintln!(
+                    "[aitherflow] Web server enabled on port {}, token: {}…",
+                    web_cfg.port,
+                    &web_cfg.token[..8.min(web_cfg.token.len())]
+                );
+            }
 
             Ok(())
         })

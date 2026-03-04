@@ -324,6 +324,16 @@
   white-space: nowrap;
 }
 
+.sidebar-project__bg-spinner {
+  flex-shrink: 0;
+  color: var(--accent-stroke);
+  animation: bg-spinner-spin 1.5s linear infinite;
+}
+
+@keyframes bg-spinner-spin {
+  to { transform: rotate(360deg); }
+}
+
 /* ── Agent slot drag-and-drop ── */
 
 .sidebar-agent-slot {
@@ -447,6 +457,71 @@
 
 .chat-item__delete:hover {
   color: var(--accent-icon);
+}
+
+/* Pinned chat: hide bullet, show pin icon */
+.chat-item--pinned::before {
+  display: none;
+}
+
+.chat-item__pin {
+  flex-shrink: 0;
+  color: var(--accent-stroke);
+}
+
+/* Inline rename input */
+.chat-item__rename-input {
+  flex: 1;
+  min-width: 0;
+  padding: 1px 4px;
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  background: var(--input-bg);
+  color: var(--fg);
+  font-size: 0.8rem;
+  outline: none;
+  font-family: inherit;
+}
+
+/* Chat context menu */
+.chat-context-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 140px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.chat-context-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: background 0.12s;
+  font-family: inherit;
+}
+
+.chat-context-menu__item:hover {
+  background: var(--bg-hover);
+}
+
+.chat-context-menu__item--danger {
+  color: var(--accent-icon);
+}
+
+.chat-context-menu__sep {
+  height: 1px;
+  margin: 4px 8px;
+  background: var(--border);
 }
 
 /* ── Resize Handle ── */

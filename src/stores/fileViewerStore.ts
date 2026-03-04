@@ -1,6 +1,5 @@
 import { create } from "zustand";
-import { invoke } from "@tauri-apps/api/core";
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { invoke, convertFileSrc } from "../lib/transport";
 import type { FileTab, FileDiff, DiffEdit } from "../types/fileviewer";
 import { isImageFile } from "../types/fileviewer";
 

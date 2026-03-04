@@ -1,8 +1,6 @@
 import { memo, useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { Plus, Star, Mic, ArrowUp, Square, X, MessageSquarePlus, Sparkles, Brain, Zap } from "lucide-react";
-import { open } from "@tauri-apps/plugin-dialog";
-import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { openDialog, invoke, getCurrentWindow } from "../../lib/transport";
 import { useChatStore, getToolLabel } from "../../stores/chatStore";
 import { useAttachmentStore } from "../../stores/attachmentStore";
 import { useFileAttach } from "../../hooks/useFileAttach";
@@ -86,19 +84,30 @@ export const InputBar = memo(function InputBar() {
 
   // Listen for Tauri drag-drop events (gives real file paths)
   useEffect(() => {
-    const win = getCurrentWindow();
-    const unlisten = win.onDragDropEvent(async (event) => {
-      if (event.payload.type === "drop") {
-        setIsDragOver(false);
-        processFromPaths(event.payload.paths);
-      } else if (event.payload.type === "over") {
-        setIsDragOver(true);
-      } else if (event.payload.type === "leave") {
-        setIsDragOver(false);
-      }
+    let cancelled = false;
+    let cleanup: (() => void) | undefined;
+
+    getCurrentWindow().then((win) => {
+      if (cancelled || !win) return;
+      const unlisten = win.onDragDropEvent(async (event: { payload: { type: string; paths: string[] } }) => {
+        if (event.payload.type === "drop") {
+          setIsDragOver(false);
+          processFromPaths(event.payload.paths);
+        } else if (event.payload.type === "over") {
+          setIsDragOver(true);
+        } else if (event.payload.type === "leave") {
+          setIsDragOver(false);
+        }
+      });
+      unlisten.then((fn: () => void) => {
+        if (cancelled) fn();
+        else cleanup = fn;
+      });
     });
+
     return () => {
-      unlisten.then((fn) => fn());
+      cancelled = true;
+      cleanup?.();
     };
   }, [processFromPaths]);
 
@@ -116,7 +125,7 @@ export const InputBar = memo(function InputBar() {
   // ── Add file via native picker ──
   const handleAddFile = useCallback(async () => {
     try {
-      const selected = await open({
+      const selected = await openDialog({
         multiple: true,
         filters: [
           { name: "Images", extensions: IMAGE_EXTENSIONS },
@@ -195,6 +204,34 @@ export const InputBar = memo(function InputBar() {
     // Branch 3: empty types (Wayland/WebKitGTK bug) — fallback to Rust clipboard
     if (types.length === 0) {
       e.preventDefault();
+
+      // Try text first
+      try {
+        const clipText = await invoke<string>("read_clipboard_text");
+        if (clipText) {
+          const ta = textareaRef.current;
+          if (ta) {
+            const start = ta.selectionStart;
+            const end = ta.selectionEnd;
+            const before = text.slice(0, start);
+            const after = text.slice(end);
+            setText(before + clipText + after);
+            // Restore cursor position after inserted text
+            requestAnimationFrame(() => {
+              const pos = start + clipText.length;
+              ta.selectionStart = pos;
+              ta.selectionEnd = pos;
+            });
+          } else {
+            setText((prev) => prev + clipText);
+          }
+          return;
+        }
+      } catch {
+        // No text — try image below
+      }
+
+      // Try image
       try {
         const result = await invoke<{
           path: string;
@@ -210,7 +247,7 @@ export const InputBar = memo(function InputBar() {
           fileType: "image",
         });
       } catch {
-        // No image in clipboard — do nothing
+        // No image in clipboard either — nothing to paste
       }
       return;
     }

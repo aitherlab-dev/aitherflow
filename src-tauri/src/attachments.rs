@@ -224,6 +224,21 @@ pub async fn read_clipboard_image() -> Result<ClipboardImage, String> {
     .map_err(|e| format!("Task join error: {e}"))?
 }
 
+/// Read text from system clipboard (Wayland/X11 fallback)
+#[tauri::command]
+pub async fn read_clipboard_text() -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        let mut clipboard = arboard::Clipboard::new()
+            .map_err(|e| format!("Failed to open clipboard: {e}"))?;
+
+        clipboard
+            .get_text()
+            .map_err(|e| format!("No text in clipboard: {e}"))
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
 /// Delete a temp file (only within /tmp/aither-flow/)
 #[tauri::command]
 pub async fn cleanup_temp_file(path: String) -> Result<(), String> {

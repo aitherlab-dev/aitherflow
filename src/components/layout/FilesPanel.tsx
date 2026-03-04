@@ -15,8 +15,7 @@ import {
   Clipboard,
   Trash2,
 } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { invoke, listen } from "../../lib/transport";
 import { useAgentStore } from "../../stores/agentStore";
 import { useFileViewerStore } from "../../stores/fileViewerStore";
 import { useAttachmentStore } from "../../stores/attachmentStore";

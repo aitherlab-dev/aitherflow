@@ -2,7 +2,7 @@ import { memo, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from "../../lib/transport";
 import { CodeBlock } from "./CodeBlock";
 import type { Components } from "react-markdown";
 

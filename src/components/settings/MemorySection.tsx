@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../../lib/transport";
 import { Brain, RefreshCw, Loader, Database } from "lucide-react";
 import { useProjectStore } from "../../stores/projectStore";
 

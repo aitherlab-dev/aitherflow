@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
-import { ChevronRight, Plus, Trash2, Settings, X, Sparkles, Cable, FolderOpen } from "lucide-react";
+import { createPortal } from "react-dom";
+import { ChevronRight, Loader, Plus, Trash2, Settings, X, Sparkles, Cable, FolderOpen, Pin, Pencil } from "lucide-react";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useChatStore, type ChatMeta } from "../../stores/chatStore";
 import { useAgentStore } from "../../stores/agentStore";
@@ -8,6 +9,77 @@ import { ResizeHandle } from "./ResizeHandle";
 import { FilesPanel } from "./FilesPanel";
 import { SkillsPanel } from "./SkillsPanel";
 
+// ── Chat context menu (portal) ──
+
+interface ChatContextMenuProps {
+  x: number;
+  y: number;
+  chat: ChatMeta;
+  onRename: () => void;
+  onTogglePin: () => void;
+  onDelete: () => void;
+  onClose: () => void;
+}
+
+const ChatContextMenu = memo(function ChatContextMenu({
+  x,
+  y,
+  chat,
+  onRename,
+  onTogglePin,
+  onDelete,
+  onClose,
+}: ChatContextMenuProps) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ x, y });
+
+  useEffect(() => {
+    if (!ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    let nx = x;
+    let ny = y;
+    if (nx + rect.width > vw) nx = vw - rect.width - 4;
+    if (ny + rect.height > vh) ny = vh - rect.height - 4;
+    setPos({ x: nx, y: ny });
+  }, [x, y]);
+
+  useEffect(() => {
+    const handle = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.code === "Escape") onClose();
+    };
+    document.addEventListener("mousedown", handle);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handle);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [onClose]);
+
+  return createPortal(
+    <div ref={ref} className="chat-context-menu" style={{ left: pos.x, top: pos.y }}>
+      <button type="button" className="chat-context-menu__item" onClick={onRename}>
+        <Pencil size={14} />
+        <span>Rename</span>
+      </button>
+      <button type="button" className="chat-context-menu__item" onClick={onTogglePin}>
+        <Pin size={14} />
+        <span>{chat.pinned ? "Unpin" : "Pin to top"}</span>
+      </button>
+      <div className="chat-context-menu__sep" />
+      <button type="button" className="chat-context-menu__item chat-context-menu__item--danger" onClick={onDelete}>
+        <Trash2 size={14} />
+        <span>Delete</span>
+      </button>
+    </div>,
+    document.body,
+  );
+});
+
 // ── Chat item (single chat in the list) ──
 
 const ChatItem = memo(function ChatItem({
@@ -15,17 +87,26 @@ const ChatItem = memo(function ChatItem({
   isCurrent,
   disabled,
   locked,
+  isEditing,
   onSelect,
   onDelete,
+  onContextMenu,
+  onRenameSubmit,
+  onRenameCancel,
 }: {
   chat: ChatMeta;
   isCurrent: boolean;
   disabled: boolean;
   locked: boolean;
+  isEditing: boolean;
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
+  onContextMenu: (e: React.MouseEvent, chatId: string) => void;
+  onRenameSubmit: (id: string, newTitle: string) => void;
+  onRenameCancel: () => void;
 }) {
   const [removing, setRemoving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const handleClick = useCallback(() => {
     if (!disabled && !locked && !isCurrent) onSelect(chat.id);
@@ -42,13 +123,62 @@ const ChatItem = memo(function ChatItem({
     [chat.id, disabled, locked, removing, onDelete],
   );
 
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      if (!disabled && !locked) onContextMenu(e, chat.id);
+    },
+    [chat.id, disabled, locked, onContextMenu],
+  );
+
+  // Inline rename
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  const handleRenameKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.code === "Enter") {
+        onRenameSubmit(chat.id, (e.target as HTMLInputElement).value);
+      } else if (e.code === "Escape") {
+        onRenameCancel();
+      }
+    },
+    [chat.id, onRenameSubmit, onRenameCancel],
+  );
+
+  const handleRenameBlur = useCallback(
+    (e: React.FocusEvent<HTMLInputElement>) => {
+      onRenameSubmit(chat.id, e.target.value);
+    },
+    [chat.id, onRenameSubmit],
+  );
+
+  const displayTitle = chat.customTitle || chat.title;
+
   return (
     <div
-      className={`chat-item ${isCurrent ? "chat-item--active" : ""} ${disabled ? "chat-item--disabled" : ""} ${locked ? "chat-item--locked" : ""} ${removing ? "chat-item--removing" : ""}`}
+      className={`chat-item ${isCurrent ? "chat-item--active" : ""} ${disabled ? "chat-item--disabled" : ""} ${locked ? "chat-item--locked" : ""} ${removing ? "chat-item--removing" : ""} ${chat.pinned ? "chat-item--pinned" : ""}`}
       onClick={handleClick}
+      onContextMenu={handleContextMenu}
     >
-      <span className="chat-item__title">{chat.title}</span>
-      {!disabled && !locked && (
+      {chat.pinned && <Pin size={10} className="chat-item__pin" />}
+      {isEditing ? (
+        <input
+          ref={inputRef}
+          className="chat-item__rename-input"
+          defaultValue={displayTitle}
+          onKeyDown={handleRenameKeyDown}
+          onBlur={handleRenameBlur}
+          onClick={(e) => e.stopPropagation()}
+        />
+      ) : (
+        <span className="chat-item__title">{displayTitle}</span>
+      )}
+      {!disabled && !locked && !isEditing && (
         <button
           className="chat-item__delete"
           onClick={handleDelete}
@@ -71,12 +201,15 @@ const AgentTab = memo(function AgentTab({
   chatList,
   currentChatId,
   isThinking,
+  isBackgroundThinking,
   lockedChatIds,
   onActivate,
   onClose,
   onNewChat,
   onSelectChat,
   onDeleteChat,
+  onRenameChat,
+  onToggleChatPin,
 }: {
   agentId: string;
   projectName: string;
@@ -85,14 +218,19 @@ const AgentTab = memo(function AgentTab({
   chatList: ChatMeta[];
   currentChatId: string | null;
   isThinking: boolean;
+  isBackgroundThinking: boolean;
   lockedChatIds: string[];
   onActivate: (id: string) => void;
   onClose: (id: string) => void;
   onNewChat: () => void;
   onSelectChat: (id: string) => void;
   onDeleteChat: (id: string) => void;
+  onRenameChat: (id: string, newTitle: string) => void;
+  onToggleChatPin: (id: string, pinned: boolean) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [editingChatId, setEditingChatId] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ chatId: string; x: number; y: number } | null>(null);
 
   // Collapse chat list when agent becomes inactive
   useEffect(() => {
@@ -115,6 +253,46 @@ const AgentTab = memo(function AgentTab({
     [agentId, onClose],
   );
 
+  const handleChatContextMenu = useCallback((e: React.MouseEvent, chatId: string) => {
+    setContextMenu({ chatId, x: e.clientX, y: e.clientY });
+  }, []);
+
+  const closeContextMenu = useCallback(() => setContextMenu(null), []);
+
+  const handleContextRename = useCallback(() => {
+    if (contextMenu) {
+      setEditingChatId(contextMenu.chatId);
+      setContextMenu(null);
+    }
+  }, [contextMenu]);
+
+  const handleContextPin = useCallback(() => {
+    if (contextMenu) {
+      const chat = chatList.find((c) => c.id === contextMenu.chatId);
+      if (chat) onToggleChatPin(chat.id, !chat.pinned);
+      setContextMenu(null);
+    }
+  }, [contextMenu, chatList, onToggleChatPin]);
+
+  const handleContextDelete = useCallback(() => {
+    if (contextMenu) {
+      onDeleteChat(contextMenu.chatId);
+      setContextMenu(null);
+    }
+  }, [contextMenu, onDeleteChat]);
+
+  const handleRenameSubmit = useCallback(
+    (id: string, newTitle: string) => {
+      setEditingChatId(null);
+      onRenameChat(id, newTitle);
+    },
+    [onRenameChat],
+  );
+
+  const handleRenameCancel = useCallback(() => setEditingChatId(null), []);
+
+  const contextChat = contextMenu ? chatList.find((c) => c.id === contextMenu.chatId) : null;
+
   return (
     <>
       <div className="sidebar-project-wrapper">
@@ -127,6 +305,9 @@ const AgentTab = memo(function AgentTab({
             className={`sidebar-project__chevron ${expanded && isActive ? "sidebar-project__chevron--open" : ""}`}
           />
           <span className="sidebar-project__name">{projectName}</span>
+          {isBackgroundThinking && !isActive && (
+            <Loader size={14} className="sidebar-project__bg-spinner" />
+          )}
         </button>
         <button
           className={`sidebar-project__close ${isOnly ? "sidebar-project__close--disabled" : ""}`}
@@ -157,12 +338,28 @@ const AgentTab = memo(function AgentTab({
                 isCurrent={chat.id === currentChatId}
                 disabled={isThinking}
                 locked={lockedChatIds.includes(chat.id)}
+                isEditing={editingChatId === chat.id}
                 onSelect={(id: string) => { onSelectChat(id); setExpanded(false); }}
                 onDelete={onDeleteChat}
+                onContextMenu={handleChatContextMenu}
+                onRenameSubmit={handleRenameSubmit}
+                onRenameCancel={handleRenameCancel}
               />
             ))}
           </div>
         </div>
+      )}
+
+      {contextMenu && contextChat && (
+        <ChatContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          chat={contextChat}
+          onRename={handleContextRename}
+          onTogglePin={handleContextPin}
+          onDelete={handleContextDelete}
+          onClose={closeContextMenu}
+        />
       )}
     </>
   );
@@ -216,9 +413,12 @@ export const Sidebar = memo(function Sidebar() {
   const chatList = useChatStore((s) => s.chatList);
   const currentChatId = useChatStore((s) => s.currentChatId);
   const isThinking = useChatStore((s) => s.isThinking);
+  const thinkingAgentIds = useChatStore((s) => s.thinkingAgentIds);
   const newChat = useChatStore((s) => s.newChat);
   const switchChat = useChatStore((s) => s.switchChat);
   const deleteChat = useChatStore((s) => s.deleteChat);
+  const renameChat = useChatStore((s) => s.renameChat);
+  const toggleChatPin = useChatStore((s) => s.toggleChatPin);
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [filesOpen, setFilesOpen] = useState(false);
@@ -269,6 +469,20 @@ export const Sidebar = memo(function Sidebar() {
       deleteChat(id).catch(console.error);
     },
     [deleteChat],
+  );
+
+  const handleRenameChat = useCallback(
+    (id: string, newTitle: string) => {
+      renameChat(id, newTitle).catch(console.error);
+    },
+    [renameChat],
+  );
+
+  const handleToggleChatPin = useCallback(
+    (id: string, pinned: boolean) => {
+      toggleChatPin(id, pinned).catch(console.error);
+    },
+    [toggleChatPin],
   );
 
   const handleSettingsClick = useCallback(() => {
@@ -409,12 +623,15 @@ export const Sidebar = memo(function Sidebar() {
                   chatList={agent.id === activeAgentId ? chatList : []}
                   currentChatId={agent.id === activeAgentId ? currentChatId : null}
                   isThinking={agent.id === activeAgentId && isThinking}
+                  isBackgroundThinking={thinkingAgentIds.includes(agent.id)}
                   lockedChatIds={activeAgentId ? getLockedChatIds(activeAgentId) : []}
                   onActivate={handleActivateAgent}
                   onClose={handleCloseAgent}
                   onNewChat={handleNewChat}
                   onSelectChat={handleSelectChat}
                   onDeleteChat={handleDeleteChat}
+                  onRenameChat={handleRenameChat}
+                  onToggleChatPin={handleToggleChatPin}
                 />
               </div>
             ))}

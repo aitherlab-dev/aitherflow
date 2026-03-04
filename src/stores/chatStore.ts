@@ -1,6 +1,5 @@
 import { create } from "zustand";
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { invoke, listen } from "../lib/transport";
 import type { CliEvent, StartSessionOptions, SendMessageOptions } from "../types/conductor";
 import type { Attachment, ChatMessage, ToolActivity } from "../types/chat";
 import type { AttachmentPayload } from "../types/conductor";
@@ -10,6 +9,38 @@ import { useConductorStore } from "./conductorStore";
 
 /** Timer for delayed tool activity reset (keeps status visible briefly) */
 let toolActivityTimer: ReturnType<typeof setTimeout> | null = null;
+
+// ── Per-agent state map ──
+
+/** State for each agent (active uses Zustand as truth, background uses this Map) */
+interface AgentChatState {
+  messages: ChatMessage[];
+  chatId: string | null;
+  hasSession: boolean;
+  isThinking: boolean;
+  currentToolActivity: ToolActivity | null;
+  error: string | null;
+}
+
+/** Module-level map: stores state for ALL agents. Background agents updated directly by events, active agent snapshotted on switch. */
+const agentStates = new Map<string, AgentChatState>();
+
+/** Get or create a state entry for an agent */
+function getOrCreateAgentState(agentId: string): AgentChatState {
+  let state = agentStates.get(agentId);
+  if (!state) {
+    state = {
+      messages: [],
+      chatId: null,
+      hasSession: false,
+      isThinking: false,
+      currentToolActivity: null,
+      error: null,
+    };
+    agentStates.set(agentId, state);
+  }
+  return state;
+}
 
 /** Tools that edit files and should be bridged to fileViewerStore */
 const FILE_EDIT_TOOLS = new Set(["Edit", "Write", "MultiEdit"]);
@@ -22,6 +53,8 @@ export interface ChatMeta {
   title: string;
   createdAt: number;
   sessionId: string | null;
+  customTitle: string | null;
+  pinned: boolean;
 }
 
 interface ChatState {
@@ -41,6 +74,9 @@ interface ChatState {
   currentToolActivity: ToolActivity | null;
   error: string | null;
 
+  // Multi-agent
+  thinkingAgentIds: string[];
+
   // Actions
   init: (agentId: string, projectPath: string, projectName: string) => Promise<void>;
   loadChatList: () => Promise<void>;
@@ -49,8 +85,11 @@ interface ChatState {
   switchChat: (chatId: string) => Promise<void>;
   newChat: () => Promise<void>;
   deleteChat: (chatId: string) => Promise<void>;
+  renameChat: (chatId: string, customTitle: string) => Promise<void>;
+  toggleChatPin: (chatId: string, pinned: boolean) => Promise<void>;
   switchAgent: (agentId: string, projectPath: string, projectName: string, savedChatId: string | null) => Promise<void>;
   respondToCard: (toolUseId: string, response: string) => Promise<void>;
+  clearAgentState: (agentId: string) => void;
 }
 
 // ── Helpers ──
@@ -198,8 +237,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isThinking: false,
   currentToolActivity: null,
   error: null,
+  thinkingAgentIds: [],
 
   init: async (agentId, projectPath, projectName) => {
+    // Ensure Map entry exists for the initial agent
+    getOrCreateAgentState(agentId);
     set({ agentId, projectPath, projectName });
     await get().loadChatList();
   },
@@ -451,20 +493,44 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
+  renameChat: async (chatId: string, customTitle: string) => {
+    try {
+      await invoke("rename_chat", { chatId, customTitle });
+      // Update locally without full reload
+      const chatList = get().chatList.map((c) =>
+        c.id === chatId ? { ...c, customTitle: customTitle.trim() || null } : c,
+      );
+      set({ chatList });
+    } catch (e) {
+      console.error("Failed to rename chat:", e);
+    }
+  },
+
+  toggleChatPin: async (chatId: string, pinned: boolean) => {
+    try {
+      await invoke("toggle_chat_pin", { chatId, pinned });
+      // Reload list because sort order changes
+      await get().loadChatList();
+    } catch (e) {
+      console.error("Failed to toggle chat pin:", e);
+    }
+  },
+
   switchAgent: async (agentId, projectPath, projectName, savedChatId) => {
     const state = get();
 
     // Save current chat before switching
     await persistMessages();
 
-    // Kill current CLI process if alive
-    if (state.hasSession) {
-      try {
-        await invoke("stop_session", { agentId: state.agentId });
-      } catch (e) {
-        console.error("Failed to stop session on agent switch:", e);
-      }
-    }
+    // Snapshot current Zustand state → Map for the outgoing agent
+    agentStates.set(state.agentId, {
+      messages: state.messages,
+      chatId: state.currentChatId,
+      hasSession: state.hasSession,
+      isThinking: state.isThinking,
+      currentToolActivity: state.currentToolActivity,
+      error: state.error,
+    });
 
     // Clear tool activity timer
     if (toolActivityTimer) {
@@ -472,34 +538,68 @@ export const useChatStore = create<ChatState>((set, get) => ({
       toolActivityTimer = null;
     }
 
+    // Cancel any pending stream RAF
+    cancelStreamRaf();
+
     // Clear file viewer on agent switch
     import("./fileViewerStore").then(({ useFileViewerStore }) => {
       useFileViewerStore.getState().clearAll();
     }).catch(console.error);
 
-    // Switch context
-    set({
-      agentId,
-      projectPath,
-      projectName,
-      currentChatId: null,
-      messages: [],
-      chatList: [],
-      hasSession: false,
-      isThinking: false,
-      currentToolActivity: null,
-      error: null,
-    });
+    // Restore incoming agent from Map (or start fresh)
+    const target = agentStates.get(agentId);
+    if (target) {
+      set({
+        agentId,
+        projectPath,
+        projectName,
+        currentChatId: target.chatId,
+        messages: target.messages,
+        chatList: [],
+        hasSession: target.hasSession,
+        isThinking: target.isThinking,
+        currentToolActivity: target.currentToolActivity,
+        error: null,
+      });
 
-    // Load chats for the new agent's project
-    await get().loadChatList();
+      // Load chats for sidebar
+      await get().loadChatList();
+    } else {
+      // No saved state — fresh agent
+      set({
+        agentId,
+        projectPath,
+        projectName,
+        currentChatId: null,
+        messages: [],
+        chatList: [],
+        hasSession: false,
+        isThinking: false,
+        currentToolActivity: null,
+        error: null,
+      });
 
-    // Restore saved chat position if available
-    if (savedChatId) {
-      const exists = get().chatList.some((c) => c.id === savedChatId);
-      if (exists) {
-        await get().switchChat(savedChatId);
+      // Load chats for the new agent's project
+      await get().loadChatList();
+
+      // Restore saved chat position if available
+      if (savedChatId) {
+        const exists = get().chatList.some((c) => c.id === savedChatId);
+        if (exists) {
+          await get().switchChat(savedChatId);
+        }
       }
+    }
+
+    // Update thinking indicators
+    syncThinkingIds();
+  },
+
+  clearAgentState: (agentId: string) => {
+    agentStates.delete(agentId);
+    const ids = get().thinkingAgentIds.filter((id) => id !== agentId);
+    if (ids.length !== get().thinkingAgentIds.length) {
+      set({ thinkingAgentIds: ids });
     }
   },
 
@@ -576,10 +676,202 @@ function cancelStreamRaf() {
   streamBufferIsNew = false;
 }
 
-function handleCliEvent(e: CliEvent) {
-  // Only process events for the currently active agent
-  if (e.agent_id !== useChatStore.getState().agentId) return;
+/** Save agent messages to disk (works for both active and background agents) */
+async function persistAgentMessages(agentId: string) {
+  const isActive = agentId === useChatStore.getState().agentId;
+  const messages = isActive
+    ? useChatStore.getState().messages
+    : agentStates.get(agentId)?.messages ?? [];
+  const chatId = isActive
+    ? useChatStore.getState().currentChatId
+    : agentStates.get(agentId)?.chatId ?? null;
 
+  if (!chatId || messages.length === 0) return;
+  try {
+    await invoke("save_chat_messages", {
+      chatId,
+      messages: messagesToStored(messages),
+    });
+  } catch (e) {
+    console.error("Failed to save agent messages:", e);
+  }
+}
+
+/** Update thinkingAgentIds — collects isThinking from active agent + all background agents in Map */
+function syncThinkingIds() {
+  const { getState: get, setState: set } = useChatStore;
+  const activeId = get().agentId;
+  const ids: string[] = [];
+
+  // Active agent
+  if (get().isThinking) ids.push(activeId);
+
+  // Background agents from Map
+  for (const [agentId, state] of agentStates) {
+    if (agentId !== activeId && state.isThinking) {
+      ids.push(agentId);
+    }
+  }
+
+  // Only update if changed
+  const current = get().thinkingAgentIds;
+  if (ids.length !== current.length || ids.some((id, i) => id !== current[i])) {
+    set({ thinkingAgentIds: ids });
+  }
+}
+
+/** Process CLI events for background agents (updates Map directly, no Zustand reactivity) */
+function processBackgroundEvent(agentState: AgentChatState, e: CliEvent) {
+  switch (e.type) {
+    case "sessionId":
+      agentState.hasSession = true;
+      break;
+
+    case "streamChunk": {
+      const msgs = [...agentState.messages];
+      const last = msgs[msgs.length - 1];
+      if (last && last.role === "assistant" && last.isStreaming) {
+        msgs[msgs.length - 1] = { ...last, text: e.text };
+      } else {
+        msgs.push({
+          id: crypto.randomUUID(),
+          role: "assistant",
+          text: e.text,
+          timestamp: Date.now(),
+          isStreaming: true,
+          tools: [],
+        });
+      }
+      agentState.messages = msgs;
+      break;
+    }
+
+    case "messageComplete": {
+      const msgs = [...agentState.messages];
+      const last = msgs[msgs.length - 1];
+      if (last && last.role === "assistant" && last.isStreaming) {
+        msgs[msgs.length - 1] = { ...last, text: e.text, isStreaming: false };
+      } else {
+        msgs.push({
+          id: crypto.randomUUID(),
+          role: "assistant",
+          text: e.text,
+          timestamp: Date.now(),
+          isStreaming: false,
+        });
+      }
+      agentState.messages = msgs;
+      break;
+    }
+
+    case "toolUse": {
+      const activity: ToolActivity = {
+        toolUseId: e.tool_use_id,
+        toolName: e.tool_name,
+        toolInput: e.tool_input,
+      };
+      const msgs = [...agentState.messages];
+      const last = msgs[msgs.length - 1];
+      if (last && last.role === "assistant") {
+        const existing = last.tools ?? [];
+        if (existing.some((t) => t.toolUseId === activity.toolUseId)) break;
+        const tools = [...existing, activity];
+        msgs[msgs.length - 1] = { ...last, tools };
+      } else {
+        msgs.push({
+          id: crypto.randomUUID(),
+          role: "assistant",
+          text: "",
+          timestamp: Date.now(),
+          isStreaming: true,
+          tools: [activity],
+        });
+      }
+      agentState.messages = msgs;
+
+      // Auto-approve ExitPlanMode in background (otherwise CLI hangs)
+      if (e.tool_name === "ExitPlanMode") {
+        const lm = msgs[msgs.length - 1];
+        if (lm && lm.role === "assistant" && lm.tools) {
+          const tools = lm.tools.map((t) =>
+            t.toolUseId === e.tool_use_id ? { ...t, userResponse: "Auto-approved" } : t,
+          );
+          msgs[msgs.length - 1] = { ...lm, tools };
+          agentState.messages = msgs;
+        }
+        invoke("send_message", {
+          options: { agentId: e.agent_id, prompt: "yes" } satisfies SendMessageOptions,
+        }).catch(console.error);
+      }
+      break;
+    }
+
+    case "toolResult": {
+      const msgs = [...agentState.messages];
+      const last = msgs[msgs.length - 1];
+      if (last && last.role === "assistant" && last.tools) {
+        const tools = last.tools.map((t) =>
+          t.toolUseId === e.tool_use_id
+            ? { ...t, result: e.output_preview, isError: e.is_error }
+            : t,
+        );
+        msgs[msgs.length - 1] = { ...last, tools };
+      }
+      agentState.messages = msgs;
+      break;
+    }
+
+    case "turnComplete": {
+      agentState.isThinking = false;
+      agentState.currentToolActivity = null;
+      const msgs = [...agentState.messages];
+      const last = msgs[msgs.length - 1];
+      if (last && last.role === "assistant" && last.isStreaming) {
+        msgs[msgs.length - 1] = { ...last, isStreaming: false };
+        agentState.messages = msgs;
+      }
+      persistAgentMessages(e.agent_id).catch(console.error);
+      break;
+    }
+
+    case "processExited": {
+      agentState.hasSession = false;
+      agentState.isThinking = false;
+      agentState.currentToolActivity = null;
+      const msgs = [...agentState.messages];
+      const last = msgs[msgs.length - 1];
+      if (last && last.role === "assistant" && last.isStreaming) {
+        msgs[msgs.length - 1] = { ...last, isStreaming: false };
+        agentState.messages = msgs;
+      }
+      persistAgentMessages(e.agent_id).catch(console.error);
+      break;
+    }
+
+    case "error":
+      agentState.isThinking = false;
+      agentState.error = e.message;
+      break;
+  }
+}
+
+// ── Single event handler for ALL agents ──
+
+function handleCliEvent(e: CliEvent) {
+  const isActive = e.agent_id === useChatStore.getState().agentId;
+
+  // Background agent → update Map directly
+  if (!isActive) {
+    const agentState = agentStates.get(e.agent_id);
+    if (!agentState) return;
+    const wasThinking = agentState.isThinking;
+    processBackgroundEvent(agentState, e);
+    // Sync thinking indicator if changed
+    if (wasThinking !== agentState.isThinking) syncThinkingIds();
+    return;
+  }
+
+  // Active agent → update Zustand (same as before)
   const { getState: get, setState: set } = useChatStore;
   const state = get();
 
@@ -713,6 +1005,7 @@ function handleCliEvent(e: CliEvent) {
           }).catch(console.error);
         } else {
           set({ messages: msgs, isThinking: false });
+          syncThinkingIds();
         }
       }
       break;
@@ -762,6 +1055,7 @@ function handleCliEvent(e: CliEvent) {
       }
       // Save messages to disk after each complete turn
       persistMessages().catch(console.error);
+      syncThinkingIds();
       break;
 
     case "processExited":
@@ -777,10 +1071,12 @@ function handleCliEvent(e: CliEvent) {
       }
       // Save messages when process exits
       persistMessages().catch(console.error);
+      syncThinkingIds();
       break;
 
     case "error":
       set({ error: e.message, isThinking: false });
+      syncThinkingIds();
       break;
   }
 }

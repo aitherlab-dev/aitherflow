@@ -7,7 +7,7 @@ use super::db;
 /// Encode a project path the same way CLI does: slashes → dashes.
 /// e.g. `/home/sasha/WORK/AITHEFLOW` → `-home-sasha-WORK-AITHEFLOW`
 fn encode_project_path(project_path: &str) -> String {
-    project_path.replace('/', "-")
+    project_path.replace(['/', '.', '_'], "-")
 }
 
 /// Find the CLI projects directory for a given project path.

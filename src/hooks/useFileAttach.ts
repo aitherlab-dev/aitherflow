@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../lib/transport";
 import type { Attachment } from "../types/chat";
 
 interface ProcessFileResult {

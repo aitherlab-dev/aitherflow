@@ -57,6 +57,10 @@ pub struct ChatFile {
     pub created_at: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom_title: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pinned: Option<bool>,
     pub messages: Vec<ChatMessageStored>,
 }
 
@@ -68,6 +72,8 @@ pub struct ChatMeta {
     pub title: String,
     pub created_at: u64,
     pub session_id: Option<String>,
+    pub custom_title: Option<String>,
+    pub pinned: bool,
 }
 
 /// Directory where chat JSON files live: ~/.config/aither-flow/chats/
@@ -114,14 +120,18 @@ pub async fn list_chats(project_path: String) -> Result<Vec<ChatMeta>, String> {
                             title: chat.title,
                             created_at: chat.created_at,
                             session_id: chat.session_id,
+                            custom_title: chat.custom_title,
+                            pinned: chat.pinned.unwrap_or(false),
                         });
                     }
                 }
             }
         }
 
-        // Newest first
-        chats.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        // Pinned first, then newest first within each group
+        chats.sort_by(|a, b| {
+            b.pinned.cmp(&a.pinned).then(b.created_at.cmp(&a.created_at))
+        });
         Ok(chats)
     })
     .await
@@ -149,6 +159,8 @@ pub async fn create_chat(
             title,
             created_at: now,
             session_id: None,
+            custom_title: None,
+            pinned: None,
             messages: Vec::new(),
         };
 
@@ -215,6 +227,41 @@ pub async fn delete_chat(chat_id: String) -> Result<(), String> {
                 .map_err(|e| format!("Failed to delete chat file: {e}"))?;
         }
         Ok(())
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// Rename a chat (set custom display title)
+#[tauri::command]
+pub async fn rename_chat(chat_id: String, custom_title: String) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let mut chat = read_chat_file(&chat_id)
+            .ok_or_else(|| format!("Chat {chat_id} not found"))?;
+        let trimmed = custom_title.trim();
+        chat.custom_title = if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        };
+        let data = serde_json::to_string_pretty(&chat)
+            .map_err(|e| format!("Failed to serialize chat: {e}"))?;
+        atomic_write(&chat_path(&chat_id), data.as_bytes())
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// Toggle chat pin status
+#[tauri::command]
+pub async fn toggle_chat_pin(chat_id: String, pinned: bool) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let mut chat = read_chat_file(&chat_id)
+            .ok_or_else(|| format!("Chat {chat_id} not found"))?;
+        chat.pinned = if pinned { Some(true) } else { None };
+        let data = serde_json::to_string_pretty(&chat)
+            .map_err(|e| format!("Failed to serialize chat: {e}"))?;
+        atomic_write(&chat_path(&chat_id), data.as_bytes())
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?

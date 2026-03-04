@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../lib/transport";
 import type { AgentEntry, AgentsConfig } from "../types/agents";
 import { useChatStore } from "./chatStore";
 
@@ -33,6 +33,9 @@ interface AgentState {
 
   /** Move agent from one index to another */
   reorderAgent: (fromIndex: number, toIndex: number) => Promise<void>;
+
+  /** Update projectName for all agents bound to a given project path */
+  renameProjectInAgents: (projectPath: string, newName: string) => Promise<void>;
 }
 
 /** Persist current agents state to disk */
@@ -92,12 +95,13 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     // Don't remove the last agent
     if (agents.length <= 1) return;
 
-    // Stop CLI for this agent
+    // Stop CLI for this agent and clean up background buffer
     try {
       await invoke("stop_session", { agentId });
     } catch {
       // Ignore — may not have an active session
     }
+    useChatStore.getState().clearAgentState(agentId);
 
     const updated = agents.filter((a) => a.id !== agentId);
     let newActiveId = activeAgentId;
@@ -184,6 +188,15 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     const [moved] = updated.splice(fromIndex, 1);
     updated.splice(toIndex, 0, moved);
 
+    set({ agents: updated });
+    await persist(updated, activeAgentId);
+  },
+
+  renameProjectInAgents: async (projectPath, newName) => {
+    const { agents, activeAgentId } = get();
+    const updated = agents.map((a) =>
+      a.projectPath === projectPath ? { ...a, projectName: newName } : a,
+    );
     set({ agents: updated });
     await persist(updated, activeAgentId);
   },

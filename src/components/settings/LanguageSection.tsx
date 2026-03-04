@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../../lib/transport";
 import { Loader, RefreshCw, Languages } from "lucide-react";
 import { useTranslationStore } from "../../stores/translationStore";
 import { useSkillStore } from "../../stores/skillStore";
