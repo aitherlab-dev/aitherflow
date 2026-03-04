@@ -13,6 +13,7 @@ mod plugins;
 mod projects;
 mod settings;
 mod skills;
+mod telegram;
 mod translations;
 mod voice;
 mod web_server;
@@ -303,6 +304,18 @@ pub fn run() {
             voice::voice_start,
             voice::voice_stop,
             voice::voice_transcribe,
+            telegram::load_telegram_config,
+            telegram::save_telegram_config,
+            telegram::get_telegram_status,
+            telegram::start_telegram_bot,
+            telegram::stop_telegram_bot,
+            telegram::poll_telegram_messages,
+            telegram::send_to_telegram,
+            telegram::notify_telegram,
+            telegram::telegram_stream_start,
+            telegram::telegram_stream_update,
+            telegram::telegram_set_project,
+            telegram::telegram_push_message,
         ])
         .setup(move |_app| {
             let cfg_dir = config::config_dir();

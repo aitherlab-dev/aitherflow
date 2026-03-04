@@ -9,6 +9,7 @@ import {
   Languages,
   Brain,
   Mic,
+  Send,
 } from "lucide-react";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { ProjectsSection } from "./ProjectsSection";
@@ -18,6 +19,7 @@ import { LanguageSection } from "./LanguageSection";
 import { MemorySection } from "./MemorySection";
 import { WebServerSection } from "./WebServerSection";
 import { VoiceSection } from "./VoiceSection";
+import { TelegramSection } from "./TelegramSection";
 
 const NAV_ITEMS = [
   { id: "general", label: "General", icon: User },
@@ -28,6 +30,7 @@ const NAV_ITEMS = [
   { id: "language", label: "Language", icon: Languages },
   { id: "memory", label: "Memory", icon: Brain },
   { id: "voice", label: "Voice", icon: Mic },
+  { id: "telegram", label: "Telegram", icon: Send },
 ] as const;
 
 export function SettingsView() {
@@ -106,6 +109,9 @@ function SectionContent({ section }: { section: string }) {
   }
   if (section === "voice") {
     return <VoiceSection />;
+  }
+  if (section === "telegram") {
+    return <TelegramSection />;
   }
   return (
     <div className="settings-placeholder">

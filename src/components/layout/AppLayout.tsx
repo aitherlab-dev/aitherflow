@@ -1,4 +1,5 @@
 import { useEffect, useCallback } from "react";
+import { useTelegramBridge } from "../../hooks/useTelegramBridge";
 import { Header } from "./Header";
 import { Sidebar } from "./Sidebar";
 import { StatusBar } from "./StatusBar";
@@ -12,6 +13,7 @@ import { DevToolsBar } from "./DevToolsBar";
 import { BrandFooter } from "./BrandFooter";
 
 export function AppLayout() {
+  useTelegramBridge();
   const toggleSidebar = useLayoutStore((s) => s.toggleSidebar);
   const activeView = useLayoutStore((s) => s.activeView);
   const agentLogOpen = useLayoutStore((s) => s.agentLogOpen);
