@@ -78,9 +78,9 @@ pub async fn start_session(
     let agent_id_clone = agent_id.clone();
 
     tokio::spawn(async move {
-        if let Err(e) = process::run_cli_session_web(
+        if let Err(e) = process::run_cli_session(
+            process::EventSink::Broadcast(event_tx.clone()),
             sessions,
-            event_tx.clone(),
             agent_id_clone.clone(),
             prompt,
             project_path,

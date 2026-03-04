@@ -38,7 +38,7 @@ pub async fn start_session(
     // Spawn session in background — command returns immediately
     tokio::spawn(async move {
         if let Err(e) = process::run_cli_session(
-            app_clone.clone(),
+            process::EventSink::Tauri(app_clone.clone()),
             sessions_owned,
             agent_id_clone.clone(),
             prompt,

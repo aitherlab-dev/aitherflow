@@ -22,7 +22,8 @@ Aither Flow — десктопная GUI-обёртка для Claude Code CLI. 
 - `src/types/` — TypeScript-типы (agents, chat, conductor, files, fileviewer, plugins, projects, skills)
 - `src-tauri/src/conductor/` — ядро: запуск CLI, парсинг потока, управление сессиями
 - `src-tauri/src/memory/` — индексер session memory (SQLite+FTS5)
-- `src-tauri/src/` — Tauri-команды: agents, attachments, chats, config, devtools, files, file_ops, file_watcher, platform, plugins, projects, settings, skills, translations
+- `src-tauri/src/web_server/` — встроенный Axum-сервер: auth, handlers, WebSocket
+- `src-tauri/src/` — Tauri-команды: agents, attachments, chats, config, devtools, files, file_ops, file_watcher, platform, plugins, projects, settings, skills, telegram, translations, voice
 - `src-tauri/crates/` — отдельные крейты: `memory-mcp` (MCP-сервер памяти), `aither-flow-perms` (разрешения)
 
 ## Команды
@@ -30,7 +31,7 @@ Aither Flow — десктопная GUI-обёртка для Claude Code CLI. 
 ```bash
 pnpm tauri dev          # запуск в dev-режиме
 pnpm tauri build        # production-сборка
-npx tsc --noEmit        # проверка типов (из корня проекта, НЕ из src-tauri/)
+pnpm typecheck          # проверка типов (алиас для tsc --noEmit, из корня проекта)
 cargo clippy            # lint Rust (из src-tauri/)
 pnpm lint               # ESLint
 pnpm format             # Prettier
@@ -65,6 +66,10 @@ claude -p --output-format stream-json --input-format stream-json --verbose --inc
 **Tauri-плагины:** `tauri-plugin-opener` (URL/файлы), `tauri-plugin-shell` (CLI-процессы), `tauri-plugin-dialog` (нативные диалоги)
 
 **Settings:** полноэкранный слой вместо чата (НЕ модалка). `layoutStore.activeView`: `'chat'` | `'settings'`. Закрытие: Escape, ×, клик по чату в сайдбаре
+
+**Веб-сервер:** встроенный Axum-сервер, раздаёт React-фронтенд в браузере. Auth: cookie-сессии + bearer token, CSRF-проверка Origin, rate limiting. Конфиг: `~/.config/aither-flow/web-server.json`
+
+**Telegram:** бот для управления агентом из Telegram — отправка сообщений, получение ответов, голосовые (Groq Whisper), стриминг через edit. Конфиг: `~/.config/aither-flow/telegram.json`
 
 ## Подводные камни
 
@@ -129,8 +134,6 @@ CSS-переменные на `:root` (тёмная по умолчанию) и 
 - **Сначала обсудить — потом писать код.** Не строить фичи без одобрения
 - **Баги и мелочи** — ответственность агента, не дёргать пользователя
 - **Одно изменение за раз.** Сделал → `pnpm tauri dev` → проверил → следующее
-- Пользователь НЕ программист. Объяснять простым языком
-- **НЕ ссылаться на код** в объяснениях (file:line, имена переменных, Rust-конструкции). Объяснять только логику
 - `pnpm tauri dev` для проверки запускает **пользователь**. Агент запускает только для отладки своего кода
 - Интерфейс на английском. Общение с пользователем на русском
 

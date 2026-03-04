@@ -178,6 +178,49 @@ fn extract_bearer(req: &Request<Body>) -> Option<String> {
     None
 }
 
+// ── CSRF Origin check ──────────────────────────────────────────────
+
+/// Check that Origin (or Referer) header matches the request Host.
+/// Returns `true` if there's no Origin/Referer (e.g. same-origin non-fetch requests)
+/// or if the origin host matches the Host header.
+fn check_origin_matches_host(req: &Request<Body>) -> bool {
+    let host = match req.headers().get("host").and_then(|h| h.to_str().ok()) {
+        Some(h) => h,
+        None => return true, // No Host header — can't validate
+    };
+    // Strip port from host for comparison
+    let host_name = host.split(':').next().unwrap_or(host);
+
+    // Try Origin first, then Referer
+    let origin_value = req
+        .headers()
+        .get("origin")
+        .and_then(|h| h.to_str().ok())
+        .or_else(|| {
+            req.headers()
+                .get("referer")
+                .and_then(|h| h.to_str().ok())
+        });
+
+    match origin_value {
+        None => true, // No Origin/Referer — allow (non-browser clients, same-origin GET, etc.)
+        Some(origin) => {
+            // Extract host from Origin URL (e.g., "http://localhost:3080" → "localhost")
+            if let Some(after_scheme) = origin
+                .strip_prefix("http://")
+                .or_else(|| origin.strip_prefix("https://"))
+            {
+                let origin_host = after_scheme.split('/').next().unwrap_or(after_scheme);
+                let origin_name = origin_host.split(':').next().unwrap_or(origin_host);
+                origin_name.eq_ignore_ascii_case(host_name)
+            } else {
+                // Malformed origin
+                false
+            }
+        }
+    }
+}
+
 // ── Auth middleware ──────────────────────────────────────────────────
 
 /// Middleware: cookie session → Bearer token → reject.
@@ -205,12 +248,17 @@ pub async fn auth_middleware(
     // 1. Check session cookie
     if let Some(session_token) = extract_session_cookie(&req) {
         if state.session_store.validate_session(&session_token).await {
+            // CSRF: cookie-based auth requires Origin/Referer to match Host
+            if !check_origin_matches_host(&req) {
+                eprintln!("[auth] CSRF check failed: Origin/Referer mismatch for cookie auth from {ip}");
+                return Err(StatusCode::FORBIDDEN);
+            }
             state.rate_limiter.clear(ip).await;
             return Ok(next.run(req).await);
         }
     }
 
-    // 2. Check Bearer token (master auth token)
+    // 2. Check Bearer token (master auth token) — no CSRF check needed (explicit auth)
     if let Some(bearer) = extract_bearer(&req) {
         if bearer.as_bytes().ct_eq(state.auth_token.as_bytes()).into() {
             state.rate_limiter.clear(ip).await;

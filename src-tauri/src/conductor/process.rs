@@ -10,13 +10,41 @@ use crate::attachments;
 /// Maximum stderr buffer size (64 KB) to prevent memory issues.
 const MAX_STDERR_BYTES: usize = 64 * 1024;
 
+/// Abstraction over event delivery — Tauri emit vs broadcast channel.
+pub enum EventSink {
+    Tauri(AppHandle),
+    Broadcast(tokio::sync::broadcast::Sender<CliEvent>),
+}
+
+impl EventSink {
+    fn emit(&self, event: &CliEvent) {
+        match self {
+            EventSink::Tauri(app) => {
+                if let Err(e) = app.emit("cli-event", event) {
+                    eprintln!("[conductor] Failed to emit event: {e}");
+                }
+            }
+            EventSink::Broadcast(tx) => {
+                let _ = tx.send(event.clone());
+            }
+        }
+    }
+
+    fn tag(&self) -> &str {
+        match self {
+            EventSink::Tauri(_) => "conductor",
+            EventSink::Broadcast(_) => "conductor-web",
+        }
+    }
+}
+
 /// Spawn Claude CLI and run the session until the process exits.
 ///
 /// This is a long-running function — call it inside `tokio::spawn`.
-/// Events are emitted via `app.emit("cli-event", ...)`.
+/// Events are delivered through the provided `EventSink`.
 #[allow(clippy::too_many_arguments)]
 pub async fn run_cli_session(
-    app: AppHandle,
+    sink: EventSink,
     sessions: SessionManager,
     agent_id: String,
     prompt: String,
@@ -28,6 +56,8 @@ pub async fn run_cli_session(
     chrome: bool,
     image_attachments: Vec<AttachmentPayload>,
 ) -> Result<(), String> {
+    let tag = sink.tag();
+
     // Build command arguments
     let mut args: Vec<String> = vec![
         "-p".into(),
@@ -189,20 +219,15 @@ pub async fn run_cli_session(
         match parse_line(&line, &agent_id, &mut completed_text, &mut delta_text) {
             Ok(events) => {
                 for event in events {
-                    if let Err(e) = app.emit("cli-event", &event) {
-                        eprintln!("[conductor] Failed to emit event: {e}");
-                    }
+                    sink.emit(&event);
                 }
             }
             Err(e) => {
-                eprintln!("[conductor] Parse error: {e} — line: {line}");
-                let _ = app.emit(
-                    "cli-event",
-                    &CliEvent::Error {
-                        agent_id: agent_id.clone(),
-                        message: format!("Parse error: {e}"),
-                    },
-                );
+                eprintln!("[{tag}] Parse error: {e} — line: {line}");
+                sink.emit(&CliEvent::Error {
+                    agent_id: agent_id.clone(),
+                    message: format!("Parse error: {e}"),
+                });
             }
         }
     }
@@ -218,7 +243,7 @@ pub async fn run_cli_session(
     // Report stderr if non-empty and not just whitespace
     let stderr_trimmed = stderr_output.trim();
     if !stderr_trimmed.is_empty() {
-        eprintln!("[conductor] CLI stderr: {stderr_trimmed}");
+        eprintln!("[{tag}] CLI stderr: {stderr_trimmed}");
         // Only emit as error if it looks like a real problem
         // (CLI writes debug info to stderr with --verbose, which is normal)
     }
@@ -232,218 +257,14 @@ pub async fn run_cli_session(
     }
 
     // Emit process exited
-    let _ = app.emit(
-        "cli-event",
-        &CliEvent::ProcessExited {
-            agent_id: agent_id.clone(),
-            exit_code: None,
-        },
-    );
-
-    // Clean up session
-    sessions.kill(&agent_id).await;
-
-    Ok(())
-}
-
-/// Spawn Claude CLI session without AppHandle (for web server).
-///
-/// Events are sent through a broadcast channel instead of Tauri emit.
-#[allow(clippy::too_many_arguments)]
-pub async fn run_cli_session_web(
-    sessions: SessionManager,
-    event_tx: tokio::sync::broadcast::Sender<CliEvent>,
-    agent_id: String,
-    prompt: String,
-    project_path: Option<String>,
-    model: Option<String>,
-    effort: Option<String>,
-    resume_session_id: Option<String>,
-    permission_mode: Option<String>,
-    chrome: bool,
-    image_attachments: Vec<AttachmentPayload>,
-) -> Result<(), String> {
-    let mut args: Vec<String> = vec![
-        "-p".into(),
-        "--output-format".into(),
-        "stream-json".into(),
-        "--input-format".into(),
-        "stream-json".into(),
-        "--verbose".into(),
-        "--include-partial-messages".into(),
-    ];
-
-    if let Some(ref m) = model {
-        args.push("--model".into());
-        args.push(m.clone());
-    }
-    if let Some(ref e) = effort {
-        args.push("--effort".into());
-        args.push(e.clone());
-    }
-    if let Some(ref sid) = resume_session_id {
-        args.push("--resume".into());
-        args.push(sid.clone());
-    }
-    if let Some(ref pm) = permission_mode {
-        args.push("--permission-mode".into());
-        args.push(pm.clone());
-    }
-    if chrome {
-        args.push("--chrome".into());
-    }
-    if let Some(mcp_config) = build_memory_mcp_config(project_path.as_deref()) {
-        args.push("--mcp-config".into());
-        args.push(mcp_config);
-    }
-
-    if let Some(ref pp) = project_path {
-        let pp = pp.clone();
-        tokio::task::spawn_blocking(move || {
-            crate::memory::background_index(&pp);
-        });
-    }
-
-    let mut cmd = Command::new("claude");
-    cmd.args(&args)
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped());
-    if let Some(ref dir) = project_path {
-        cmd.current_dir(dir);
-    }
-
-    let mut child = cmd.spawn().map_err(|e| {
-        if e.kind() == std::io::ErrorKind::NotFound {
-            "Claude CLI not found. Make sure 'claude' is installed and in PATH.".to_string()
-        } else {
-            format!("Failed to spawn claude: {e}")
-        }
-    })?;
-
-    let stdin = child
-        .stdin
-        .take()
-        .ok_or_else(|| "Failed to capture stdin".to_string())?;
-    let stdout = child
-        .stdout
-        .take()
-        .ok_or_else(|| "Failed to capture stdout".to_string())?;
-    let stderr = child
-        .stderr
-        .take()
-        .ok_or_else(|| "Failed to capture stderr".to_string())?;
-
-    sessions
-        .insert(
-            agent_id.clone(),
-            AgentSession {
-                child,
-                stdin: Some(stdin),
-                status: SessionStatus::Thinking,
-            },
-        )
-        .await;
-
-    // Write first message
-    let ndjson = build_stdin_message(&prompt, &image_attachments)?;
-    {
-        let mut process_stdin = sessions
-            .take_stdin(&agent_id)
-            .await
-            .ok_or_else(|| "Session lost before first write".to_string())?;
-
-        let write_result = async {
-            use tokio::io::AsyncWriteExt;
-            process_stdin.write_all(ndjson.as_bytes()).await?;
-            process_stdin.write_all(b"\n").await?;
-            process_stdin.flush().await?;
-            Ok::<(), std::io::Error>(())
-        }
-        .await;
-
-        sessions.return_stdin(&agent_id, process_stdin).await;
-
-        if let Err(e) = write_result {
-            return Err(format!("Failed to write first message: {e}"));
-        }
-    }
-
-    // Stderr reader
-    let stderr_handle = tokio::spawn(async move {
-        let mut reader = BufReader::new(stderr);
-        let mut buf = String::new();
-        let mut line = String::new();
-        loop {
-            line.clear();
-            match reader.read_line(&mut line).await {
-                Ok(0) => break,
-                Ok(_) => {
-                    if buf.len() + line.len() > MAX_STDERR_BYTES {
-                        let excess = (buf.len() + line.len()) - MAX_STDERR_BYTES;
-                        if excess < buf.len() {
-                            buf.drain(..excess);
-                        } else {
-                            buf.clear();
-                        }
-                    }
-                    buf.push_str(&line);
-                }
-                Err(_) => break,
-            }
-        }
-        buf
-    });
-
-    // Read stdout — send via broadcast instead of app.emit
-    let reader = BufReader::new(stdout);
-    let mut lines = reader.lines();
-    let mut completed_text = String::new();
-    let mut delta_text = String::new();
-
-    while let Ok(Some(line)) = lines.next_line().await {
-        if line.trim().is_empty() {
-            continue;
-        }
-        match parse_line(&line, &agent_id, &mut completed_text, &mut delta_text) {
-            Ok(events) => {
-                for event in events {
-                    let _ = event_tx.send(event);
-                }
-            }
-            Err(e) => {
-                eprintln!("[conductor-web] Parse error: {e}");
-                let _ = event_tx.send(CliEvent::Error {
-                    agent_id: agent_id.clone(),
-                    message: format!("Parse error: {e}"),
-                });
-            }
-        }
-    }
-
-    sessions
-        .set_status(&agent_id, SessionStatus::Exited)
-        .await;
-
-    let stderr_output = stderr_handle.await.unwrap_or_default();
-    let stderr_trimmed = stderr_output.trim();
-    if !stderr_trimmed.is_empty() {
-        eprintln!("[conductor-web] CLI stderr: {stderr_trimmed}");
-    }
-
-    if let Some(ref pp) = project_path {
-        let pp = pp.clone();
-        tokio::task::spawn_blocking(move || {
-            crate::memory::background_index(&pp);
-        });
-    }
-
-    let _ = event_tx.send(CliEvent::ProcessExited {
+    sink.emit(&CliEvent::ProcessExited {
         agent_id: agent_id.clone(),
         exit_code: None,
     });
 
+    // Clean up session
     sessions.kill(&agent_id).await;
+
     Ok(())
 }
 
