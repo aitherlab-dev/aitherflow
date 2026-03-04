@@ -286,31 +286,29 @@ pub fn build_stdin_message(prompt: &str, images: &[AttachmentPayload]) -> Result
 }
 
 /// Try to find the aither-flow-memory binary.
-/// Checks: next to the current executable, then in PATH.
+/// Checks: next to the current executable (with and without target triple), then in PATH.
 fn find_memory_binary() -> Option<String> {
-    // Check next to the current binary
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
-            let candidate = dir.join("aither-flow-memory");
-            if candidate.exists() {
-                return Some(candidate.to_string_lossy().into_owned());
+            // Production: Tauri externalBin adds target triple suffix
+            let target_triple = format!(
+                "{}-unknown-linux-gnu",
+                std::env::consts::ARCH
+            );
+            let sidecar = dir.join(format!("aither-flow-memory-{target_triple}"));
+            if sidecar.exists() {
+                return Some(sidecar.to_string_lossy().into_owned());
+            }
+
+            // Dev mode: cargo workspace puts both binaries in target/debug/
+            let dev = dir.join("aither-flow-memory");
+            if dev.exists() {
+                return Some(dev.to_string_lossy().into_owned());
             }
         }
     }
 
-    // Check in Cargo target directory (development mode)
-    // The workspace target is at AITHEFLOW/target/debug/
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            // In dev, exe is in target/debug/ — memory binary is there too
-            let candidate = dir.join("aither-flow-memory");
-            if candidate.exists() {
-                return Some(candidate.to_string_lossy().into_owned());
-            }
-        }
-    }
-
-    // Check in PATH
+    // Fallback: check in PATH
     if let Ok(output) = std::process::Command::new("which")
         .arg("aither-flow-memory")
         .output()

@@ -312,7 +312,7 @@ fn tool_search_history(
             i + 1,
             hit.role,
             hit.timestamp,
-            &hit.session_id[..8],
+            hit.session_id,
             hit.snippet
         ));
     }
@@ -331,6 +331,18 @@ fn tool_get_session(conn: &Connection, args: &Value) -> Result<String, String> {
         .and_then(|m| m.as_u64())
         .unwrap_or(50) as usize;
 
+    // Support both full UUID and short prefix (e.g. first 8 chars)
+    let resolved_id = if session_id.len() < 36 {
+        let mut stmt = conn
+            .prepare("SELECT session_id FROM sessions WHERE session_id LIKE ?1 LIMIT 1")
+            .map_err(|e| format!("Query failed: {e}"))?;
+        let pattern = format!("{session_id}%");
+        stmt.query_row(params![pattern], |row| row.get::<_, String>(0))
+            .map_err(|_| format!("No session found matching '{session_id}'"))?
+    } else {
+        session_id.to_string()
+    };
+
     let mut stmt = conn
         .prepare(
             "SELECT role, text, timestamp
@@ -342,7 +354,7 @@ fn tool_get_session(conn: &Connection, args: &Value) -> Result<String, String> {
         .map_err(|e| format!("Query failed: {e}"))?;
 
     let messages: Vec<(String, String, String)> = stmt
-        .query_map(params![session_id, max_messages as i64], |row| {
+        .query_map(params![resolved_id, max_messages as i64], |row| {
             Ok((row.get(0)?, row.get(1)?, row.get(2)?))
         })
         .map_err(|e| format!("Query failed: {e}"))?
@@ -350,10 +362,10 @@ fn tool_get_session(conn: &Connection, args: &Value) -> Result<String, String> {
         .collect();
 
     if messages.is_empty() {
-        return Ok(format!("Session {session_id} not found or empty."));
+        return Ok(format!("Session {resolved_id} not found or empty."));
     }
 
-    let mut output = format!("Session {} ({} messages):\n\n", &session_id[..8], messages.len());
+    let mut output = format!("Session {resolved_id} ({} messages):\n\n", messages.len());
     for (role, text, ts) in &messages {
         let label = if role == "user" { "USER" } else { "ASSISTANT" };
         output.push_str(&format!("[{label}] ({ts})\n{text}\n\n---\n\n"));
@@ -405,10 +417,7 @@ fn tool_list_sessions(
             .collect::<String>();
         output.push_str(&format!(
             "- {} | {} | {} msgs | {}\n",
-            &sid[..8],
-            created,
-            count,
-            preview
+            sid, created, count, preview
         ));
     }
 

@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
-import { ChevronRight, Plus, Trash2, Settings, X, Brain, Sparkles, Cable, FolderOpen } from "lucide-react";
+import { ChevronRight, Plus, Trash2, Settings, X, Sparkles, Cable, FolderOpen } from "lucide-react";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useChatStore, type ChatMeta } from "../../stores/chatStore";
 import { useAgentStore } from "../../stores/agentStore";
@@ -421,10 +421,6 @@ export const Sidebar = memo(function Sidebar() {
           </div>
 
           {/* Functional tabs */}
-          <button className="sidebar-tab sidebar-tab--disabled" disabled>
-            <Brain size={16} />
-            <span>Memory</span>
-          </button>
           <button
             className={`sidebar-tab ${skillsOpen ? "sidebar-tab--active" : ""}`}
             onClick={handleSkillsClick}

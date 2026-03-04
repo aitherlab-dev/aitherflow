@@ -1,6 +1,8 @@
 import { memo } from "react";
 import { MarkdownRenderer } from "./MarkdownRenderer";
+import { InlineMarkdown } from "./InlineMarkdown";
 import { InteractiveCard } from "./InteractiveCard";
+import { useTypewriter } from "./useTypewriter";
 import type { ChatMessage } from "../../types/chat";
 import { isInteractiveTool } from "../../types/chat";
 
@@ -14,13 +16,14 @@ export const AssistantMessage = memo(function AssistantMessage({
   const interactiveTools = message.tools?.filter((t) =>
     isInteractiveTool(t.toolName),
   );
+  const displayText = useTypewriter(message.text, message.isStreaming ?? false);
 
-  // While streaming — plain text for performance. Markdown after completion.
+  // While streaming — lightweight inline markdown with typewriter effect.
   if (message.isStreaming) {
     return (
       <div className="chat-message chat-message-assistant">
-        <div className="chat-message-content streaming-text">
-          {message.text}
+        <div className="chat-message-content">
+          <InlineMarkdown content={displayText} />
           <span className="streaming-cursor" />
         </div>
       </div>

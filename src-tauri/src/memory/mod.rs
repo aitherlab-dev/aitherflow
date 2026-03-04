@@ -84,6 +84,17 @@ pub async fn memory_get_session(
 }
 
 #[tauri::command]
+pub async fn memory_stats(project_path: String) -> Result<db::MemoryStats, String> {
+    tokio::task::spawn_blocking(move || {
+        let db_path = memory_db_path();
+        let conn = db::open_db(&db_path)?;
+        db::get_stats(&conn, &project_path)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+#[tauri::command]
 pub async fn memory_index_project(project_path: String) -> Result<usize, String> {
     tokio::task::spawn_blocking(move || {
         let db_path = memory_db_path();

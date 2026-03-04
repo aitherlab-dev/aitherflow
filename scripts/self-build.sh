@@ -39,6 +39,16 @@ if pnpm tauri build --no-bundle; then
     chmod +x "$HOME/.local/bin/$BIN_NAME"
     echo "=== Self-Build: installed to ~/.local/bin/$BIN_NAME ==="
 
+    # Install memory MCP sidecar (found via PATH by the app)
+    MEMORY_BIN="$PROJECT_DIR/target/release/aither-flow-memory"
+    if [ -f "$MEMORY_BIN" ]; then
+        cp "$MEMORY_BIN" "$HOME/.local/bin/aither-flow-memory"
+        chmod +x "$HOME/.local/bin/aither-flow-memory"
+        echo "=== Self-Build: installed aither-flow-memory to ~/.local/bin/ ==="
+    else
+        echo "=== Self-Build: WARNING: aither-flow-memory not found, session memory won't work ==="
+    fi
+
     # Save project dir so production binary can find us next time
     mkdir -p "$HOME/.config/aither-flow"
     echo "$PROJECT_DIR" > "$HOME/.config/aither-flow/project_dir.txt"

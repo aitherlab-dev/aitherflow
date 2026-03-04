@@ -12,12 +12,14 @@ import {
   Gauge,
   Sparkles,
   Languages,
+  Brain,
 } from "lucide-react";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { ProjectsSection } from "./ProjectsSection";
 import { GeneralSection } from "./GeneralSection";
 import { SkillsSection } from "./SkillsSection";
 import { LanguageSection } from "./LanguageSection";
+import { MemorySection } from "./MemorySection";
 
 const NAV_ITEMS = [
   { id: "general", label: "General", icon: User },
@@ -30,6 +32,7 @@ const NAV_ITEMS = [
   { id: "skills", label: "Skills", icon: Sparkles },
   { id: "projects", label: "Projects", icon: FolderOpen },
   { id: "language", label: "Language", icon: Languages },
+  { id: "memory", label: "Memory", icon: Brain },
   { id: "limits", label: "Limits", icon: Gauge },
 ] as const;
 
@@ -100,6 +103,9 @@ function SectionContent({ section }: { section: string }) {
   }
   if (section === "language") {
     return <LanguageSection />;
+  }
+  if (section === "memory") {
+    return <MemorySection />;
   }
   return (
     <div className="settings-placeholder">

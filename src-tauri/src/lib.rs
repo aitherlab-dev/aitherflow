@@ -77,6 +77,7 @@ pub fn run() {
             memory::memory_search,
             memory::memory_list_sessions,
             memory::memory_get_session,
+            memory::memory_stats,
             memory::memory_index_project,
         ])
         .setup(|_app| {

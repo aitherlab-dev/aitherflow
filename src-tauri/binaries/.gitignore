@@ -1,0 +1,3 @@
+# Sidecar binaries are built by scripts/build-sidecar.sh
+*
+!.gitignore

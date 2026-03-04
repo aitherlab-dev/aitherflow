@@ -69,6 +69,16 @@ pub fn session_exists(conn: &Connection, session_id: &str) -> bool {
     .is_ok()
 }
 
+/// Count how many messages are already indexed for a session.
+pub fn message_count_for_session(conn: &Connection, session_id: &str) -> usize {
+    conn.query_row(
+        "SELECT COUNT(*) FROM messages WHERE session_id = ?1",
+        params![session_id],
+        |row| row.get::<_, i64>(0),
+    )
+    .unwrap_or(0) as usize
+}
+
 /// Insert a session record.
 pub fn insert_session(
     conn: &Connection,
@@ -222,6 +232,41 @@ pub fn get_session_messages(
         results.push(row.map_err(|e| format!("Row read error: {e}"))?);
     }
     Ok(results)
+}
+
+/// Get stats for a project: session count and total message count.
+pub fn get_stats(
+    conn: &Connection,
+    project_path: &str,
+) -> Result<MemoryStats, String> {
+    let session_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sessions WHERE project_path = ?1",
+            params![project_path],
+            |row| row.get(0),
+        )
+        .map_err(|e| format!("Stats query failed: {e}"))?;
+
+    let message_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM messages m
+             JOIN sessions s ON s.session_id = m.session_id
+             WHERE s.project_path = ?1",
+            params![project_path],
+            |row| row.get(0),
+        )
+        .map_err(|e| format!("Stats query failed: {e}"))?;
+
+    Ok(MemoryStats {
+        session_count,
+        message_count,
+    })
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct MemoryStats {
+    pub session_count: i64,
+    pub message_count: i64,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]

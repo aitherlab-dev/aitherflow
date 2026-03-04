@@ -236,37 +236,40 @@ pub fn index_project(conn: &Connection, project_path: &str) -> Result<usize, Str
             None => continue,
         };
 
-        // Skip if already indexed
-        if db::session_exists(conn, &session_id) {
-            continue;
-        }
-
         // Parse the JSONL file
         let messages = parse_session_file(&path, &session_id);
         if messages.is_empty() {
             continue;
         }
 
-        // Get metadata from history index
-        let (first_msg, created_at) = history
-            .get(&session_id)
-            .map(|(d, t)| (Some(d.as_str()), t.as_str()))
-            .unwrap_or_else(|| {
-                // Fallback: use first message text and timestamp from parsed data
-                let first = messages.first().map(|m| m.2.as_str());
-                let ts = messages
-                    .first()
-                    .map(|m| m.3.as_str())
-                    .unwrap_or("unknown");
-                (first, ts)
-            });
+        let already_indexed = db::session_exists(conn, &session_id);
 
-        // Insert session record
-        db::insert_session(conn, &session_id, project_path, first_msg, created_at)?;
+        if !already_indexed {
+            // New session — insert session record + all messages
+            let (first_msg, created_at) = history
+                .get(&session_id)
+                .map(|(d, t)| (Some(d.as_str()), t.as_str()))
+                .unwrap_or_else(|| {
+                    let first = messages.first().map(|m| m.2.as_str());
+                    let ts = messages
+                        .first()
+                        .map(|m| m.3.as_str())
+                        .unwrap_or("unknown");
+                    (first, ts)
+                });
 
-        // Insert messages
-        let count = db::insert_messages(conn, &messages)?;
-        total_messages += count;
+            db::insert_session(conn, &session_id, project_path, first_msg, created_at)?;
+            let count = db::insert_messages(conn, &messages)?;
+            total_messages += count;
+        } else {
+            // Resumed session — only insert new messages (skip already indexed)
+            let existing_count = db::message_count_for_session(conn, &session_id);
+            if messages.len() > existing_count {
+                let new_messages = &messages[existing_count..];
+                let count = db::insert_messages(conn, new_messages)?;
+                total_messages += count;
+            }
+        }
     }
 
     if total_messages > 0 {

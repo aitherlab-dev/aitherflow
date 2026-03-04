@@ -533,6 +533,49 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
 // ── Module-level event listener (singleton, lives for app lifetime) ──
 
+// RAF batching for stream chunks: buffer latest text, flush at ~60fps
+let streamBuffer: string | null = null;
+let streamBufferIsNew = false; // true when buffer holds first chunk (no existing streaming msg)
+let rafId: number | null = null;
+
+function flushStreamBuffer() {
+  rafId = null;
+  if (streamBuffer === null) return;
+
+  const text = streamBuffer;
+  const isNew = streamBufferIsNew;
+  streamBuffer = null;
+  streamBufferIsNew = false;
+
+  const { getState: get, setState: set } = useChatStore;
+  const state = get();
+  const msgs = [...state.messages];
+  const last = msgs[msgs.length - 1];
+
+  if (!isNew && last && last.role === "assistant" && last.isStreaming) {
+    msgs[msgs.length - 1] = { ...last, text };
+  } else if (isNew) {
+    msgs.push({
+      id: crypto.randomUUID(),
+      role: "assistant",
+      text,
+      timestamp: Date.now(),
+      isStreaming: true,
+      tools: [],
+    });
+  }
+  set({ messages: msgs, isThinking: true });
+}
+
+function cancelStreamRaf() {
+  if (rafId !== null) {
+    cancelAnimationFrame(rafId);
+    rafId = null;
+  }
+  streamBuffer = null;
+  streamBufferIsNew = false;
+}
+
 function handleCliEvent(e: CliEvent) {
   // Only process events for the currently active agent
   if (e.agent_id !== useChatStore.getState().agentId) return;
@@ -557,25 +600,18 @@ function handleCliEvent(e: CliEvent) {
     }
 
     case "streamChunk": {
-      const msgs = [...state.messages];
-      const last = msgs[msgs.length - 1];
-      if (last && last.role === "assistant" && last.isStreaming) {
-        msgs[msgs.length - 1] = { ...last, text: e.text };
-      } else {
-        msgs.push({
-          id: crypto.randomUUID(),
-          role: "assistant",
-          text: e.text,
-          timestamp: Date.now(),
-          isStreaming: true,
-          tools: [],
-        });
+      const last = state.messages[state.messages.length - 1];
+      const isNew = !(last && last.role === "assistant" && last.isStreaming);
+      streamBuffer = e.text;
+      if (isNew) streamBufferIsNew = true;
+      if (rafId === null) {
+        rafId = requestAnimationFrame(flushStreamBuffer);
       }
-      set({ messages: msgs, isThinking: true });
       break;
     }
 
     case "messageComplete": {
+      cancelStreamRaf();
       const msgs = [...state.messages];
       const last = msgs[msgs.length - 1];
       if (last && last.role === "assistant" && last.isStreaming) {
@@ -714,6 +750,7 @@ function handleCliEvent(e: CliEvent) {
     }
 
     case "turnComplete":
+      cancelStreamRaf();
       set({ isThinking: false, currentToolActivity: null });
       {
         const msgs = [...state.messages];
@@ -728,6 +765,7 @@ function handleCliEvent(e: CliEvent) {
       break;
 
     case "processExited":
+      cancelStreamRaf();
       set({ hasSession: false, isThinking: false, currentToolActivity: null });
       {
         const msgs = [...state.messages];
