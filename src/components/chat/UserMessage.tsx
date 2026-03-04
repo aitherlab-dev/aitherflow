@@ -2,8 +2,8 @@ import { memo, useState, useRef, useEffect, useMemo } from "react";
 import { FileText } from "lucide-react";
 import type { ChatMessage, Attachment } from "../../types/chat";
 
-/** Max collapsed height in px (~5 lines) */
-const COLLAPSE_HEIGHT = 126;
+/** Number of visible lines when collapsed */
+const COLLAPSE_LINES = 5;
 
 /** Format bytes to human-readable size */
 function formatSize(bytes: number): string {
@@ -39,6 +39,7 @@ export const UserMessage = memo(function UserMessage({ message }: UserMessagePro
   const contentRef = useRef<HTMLDivElement>(null);
   const [isLong, setIsLong] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [collapseHeight, setCollapseHeight] = useState<number>(0);
 
   const images = message.attachments?.filter((a) => a.fileType === "image");
   const textFiles = message.attachments?.filter((a) => a.fileType === "text");
@@ -50,51 +51,55 @@ export const UserMessage = memo(function UserMessage({ message }: UserMessagePro
   );
 
   useEffect(() => {
-    if (contentRef.current) {
-      setIsLong(contentRef.current.scrollHeight > COLLAPSE_HEIGHT);
-    }
+    const el = contentRef.current;
+    if (!el) return;
+    const lineHeight = parseFloat(getComputedStyle(el).lineHeight);
+    const maxH = lineHeight * COLLAPSE_LINES;
+    const tooLong = el.scrollHeight > maxH + 2; // 2px tolerance
+    setIsLong(tooLong);
+    if (tooLong) setCollapseHeight(maxH);
   }, [displayText]);
 
   return (
     <div className="chat-message-user-wrap">
-      <div className="chat-message chat-message-user">
-        {hasAttachments && (
-          <div className="message-attachments">
-            {images?.map((img) => (
-              <div key={img.id} className="attachment-card attachment-card-image">
-                <img
-                  src={img.content}
-                  alt={img.name}
-                  className="attachment-card-thumb"
-                />
+      {hasAttachments && (
+        <div className="message-attachments">
+          {images?.map((img) => (
+            <div key={img.id} className="attachment-card attachment-card-image">
+              <img
+                src={img.content}
+                alt={img.name}
+                className="attachment-card-thumb"
+              />
+            </div>
+          ))}
+          {textFiles?.map((file) => (
+            <div key={file.id} className="attachment-card attachment-card-text">
+              <FileText size={20} className="attachment-card-icon" />
+              <div className="attachment-card-info">
+                <span className="attachment-card-name">{file.name}</span>
+                <span className="attachment-card-meta">{formatSize(file.size)}</span>
+                <pre className="attachment-card-preview">{textPreview(file.content)}</pre>
               </div>
-            ))}
-            {textFiles?.map((file) => (
-              <div key={file.id} className="attachment-card attachment-card-text">
-                <FileText size={20} className="attachment-card-icon" />
-                <div className="attachment-card-info">
-                  <span className="attachment-card-name">{file.name}</span>
-                  <span className="attachment-card-meta">{formatSize(file.size)}</span>
-                  <pre className="attachment-card-preview">{textPreview(file.content)}</pre>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-        {displayText && (
+            </div>
+          ))}
+        </div>
+      )}
+      {displayText && (
+        <div className="chat-message chat-message-user">
           <div
             ref={contentRef}
             className="chat-message-content"
             style={
               isLong && !expanded
-                ? { maxHeight: COLLAPSE_HEIGHT, overflow: "hidden" }
+                ? { maxHeight: collapseHeight, overflow: "hidden" }
                 : undefined
             }
           >
             {displayText}
           </div>
-        )}
-      </div>
+        </div>
+      )}
       {isLong && (
         <button
           className="chat-show-more"

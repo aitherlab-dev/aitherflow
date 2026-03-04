@@ -70,6 +70,7 @@ pub async fn start_session(
     let effort = options.effort.clone();
     let resume_session_id = options.resume_session_id.clone();
     let permission_mode = options.permission_mode.clone();
+    let chrome = options.chrome;
     let image_attachments = options.attachments.clone();
 
     let sessions = state.sessions.clone();
@@ -87,6 +88,7 @@ pub async fn start_session(
             effort,
             resume_session_id,
             permission_mode,
+            chrome,
             image_attachments,
         )
         .await

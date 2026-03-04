@@ -318,13 +318,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const chatMeta = get().chatList.find((c) => c.id === chatId);
         const resumeSessionId = chatMeta?.sessionId ?? undefined;
 
-        // Load settings to check permission mode
+        // Load settings to check permission mode and chrome
         let permissionMode: string | undefined;
+        let enableChrome = true;
         try {
-          const settings = await invoke<{ bypassPermissions: boolean }>("load_settings");
+          const settings = await invoke<{ bypassPermissions: boolean; enableChrome: boolean }>("load_settings");
           if (settings.bypassPermissions) {
             permissionMode = "bypassPermissions";
           }
+          enableChrome = settings.enableChrome;
         } catch (e) {
           console.error("Failed to load settings:", e);
         }
@@ -341,6 +343,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             effort: selectedEffort !== "high" ? selectedEffort : undefined,
             resumeSessionId,
             permissionMode,
+            chrome: enableChrome,
             attachments: attachmentPayloads,
           } satisfies StartSessionOptions,
         });

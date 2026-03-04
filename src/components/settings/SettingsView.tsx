@@ -8,6 +8,7 @@ import {
   Sparkles,
   Languages,
   Brain,
+  Mic,
 } from "lucide-react";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { ProjectsSection } from "./ProjectsSection";
@@ -16,6 +17,7 @@ import { SkillsSection } from "./SkillsSection";
 import { LanguageSection } from "./LanguageSection";
 import { MemorySection } from "./MemorySection";
 import { WebServerSection } from "./WebServerSection";
+import { VoiceSection } from "./VoiceSection";
 
 const NAV_ITEMS = [
   { id: "general", label: "General", icon: User },
@@ -25,6 +27,7 @@ const NAV_ITEMS = [
   { id: "projects", label: "Projects", icon: FolderOpen },
   { id: "language", label: "Language", icon: Languages },
   { id: "memory", label: "Memory", icon: Brain },
+  { id: "voice", label: "Voice", icon: Mic },
 ] as const;
 
 export function SettingsView() {
@@ -100,6 +103,9 @@ function SectionContent({ section }: { section: string }) {
   }
   if (section === "web-server") {
     return <WebServerSection />;
+  }
+  if (section === "voice") {
+    return <VoiceSection />;
   }
   return (
     <div className="settings-placeholder">

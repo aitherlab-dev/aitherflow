@@ -14,6 +14,29 @@ pub struct AppSettings {
     /// Translation language code: "ru", "zh", "ja", "es", "fr", or "" (disabled)
     #[serde(default)]
     pub translation_language: String,
+    /// Enable --chrome flag for browser control
+    #[serde(default = "default_true")]
+    pub enable_chrome: bool,
+    /// Groq API key for voice transcription (Whisper)
+    #[serde(default)]
+    pub groq_api_key: String,
+    /// Language hint for Whisper STT (e.g. "en", "ru"). Empty = auto-detect.
+    #[serde(default)]
+    pub voice_language: String,
+    /// Enable LLM post-processing of STT text
+    #[serde(default = "default_true")]
+    pub voice_post_process: bool,
+    /// Model for post-processing: "llama-3.3-70b-versatile" or "llama-3.1-8b-instant"
+    #[serde(default = "default_post_process_model")]
+    pub voice_post_model: String,
+}
+
+fn default_post_process_model() -> String {
+    "llama-3.3-70b-versatile".to_string()
+}
+
+fn default_true() -> bool {
+    true
 }
 
 /// Path to settings.json

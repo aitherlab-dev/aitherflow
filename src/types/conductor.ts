@@ -45,6 +45,7 @@ export interface StartSessionOptions {
   effort?: string;
   resumeSessionId?: string;
   permissionMode?: string;
+  chrome?: boolean;
   attachments?: AttachmentPayload[];
 }
 

@@ -25,6 +25,7 @@ pub async fn run_cli_session(
     effort: Option<String>,
     resume_session_id: Option<String>,
     permission_mode: Option<String>,
+    chrome: bool,
     image_attachments: Vec<AttachmentPayload>,
 ) -> Result<(), String> {
     // Build command arguments
@@ -56,6 +57,10 @@ pub async fn run_cli_session(
     if let Some(ref pm) = permission_mode {
         args.push("--permission-mode".into());
         args.push(pm.clone());
+    }
+
+    if chrome {
+        args.push("--chrome".into());
     }
 
     // Attach built-in memory MCP server if binary is available
@@ -255,6 +260,7 @@ pub async fn run_cli_session_web(
     effort: Option<String>,
     resume_session_id: Option<String>,
     permission_mode: Option<String>,
+    chrome: bool,
     image_attachments: Vec<AttachmentPayload>,
 ) -> Result<(), String> {
     let mut args: Vec<String> = vec![
@@ -282,6 +288,9 @@ pub async fn run_cli_session_web(
     if let Some(ref pm) = permission_mode {
         args.push("--permission-mode".into());
         args.push(pm.clone());
+    }
+    if chrome {
+        args.push("--chrome".into());
     }
     if let Some(mcp_config) = build_memory_mcp_config(project_path.as_deref()) {
         args.push("--mcp-config".into());

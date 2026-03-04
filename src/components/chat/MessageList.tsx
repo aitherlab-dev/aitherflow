@@ -39,6 +39,19 @@ export const MessageList = memo(function MessageList() {
     el.scrollTo({ top: el.scrollHeight, behavior: "instant" });
   }, [messages]);
 
+  // Scroll to bottom when container resizes (input bar grows/shrinks with attachments)
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => {
+      if (!isUserScrolledUp.current) {
+        el.scrollTo({ top: el.scrollHeight, behavior: "instant" });
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   // Reset scroll lock when user sends a new message
   const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
   const lastUserMsgId = lastUserMsg?.id;

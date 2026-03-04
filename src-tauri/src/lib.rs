@@ -14,6 +14,7 @@ mod projects;
 mod settings;
 mod skills;
 mod translations;
+mod voice;
 mod web_server;
 
 use conductor::session::SessionManager;
@@ -234,6 +235,7 @@ pub fn run() {
         .manage(session_store.clone())
         .manage(web_mgr.clone())
         .manage(file_watcher::WatcherState::new())
+        .manage(voice::VoiceState::new())
         .invoke_handler(tauri::generate_handler![
             conductor::start_session,
             conductor::send_message,
@@ -298,6 +300,9 @@ pub fn run() {
             web_server_manager::start_web_server,
             web_server_manager::stop_web_server,
             web_server_manager::web_server_status,
+            voice::voice_start,
+            voice::voice_stop,
+            voice::voice_transcribe,
         ])
         .setup(move |_app| {
             let cfg_dir = config::config_dir();

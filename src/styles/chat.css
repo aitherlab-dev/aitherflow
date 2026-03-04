@@ -47,7 +47,7 @@
 .message-list-inner {
   max-width: 820px;
   margin: 0 auto;
-  padding: 1.5rem 1.5rem 256px;
+  padding: 1.5rem 1.5rem 1rem;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -143,20 +143,20 @@
 /* ── Chat Bottom (input area) ── */
 
 .chat-bottom {
-  position: absolute;
-  bottom: 64px;
-  left: 50%;
-  transform: translateX(-50%);
+  flex-shrink: 0;
   width: 100%;
   max-width: 825px;
-  padding: 0.5rem 1.5rem;
-  z-index: 10;
-  transition: bottom 0.25s ease-out, transform 0.25s ease-out;
+  margin: 0 auto;
+  padding: 0.5rem 1.5rem 1rem;
 }
 
-.chat-bottom-center {
-  bottom: 50%;
-  transform: translate(-50%, 50%);
+/* Empty state: center input vertically */
+.chat-view--empty {
+  justify-content: center;
+}
+
+.chat-view--empty .message-list {
+  display: none;
 }
 
 .chat-error {
@@ -539,6 +539,25 @@
 
 .input-bar-btn--icon:hover {
   color: var(--accent-icon);
+}
+
+.voice-recording {
+  color: #e74c3c;
+  animation: voice-pulse 1s ease-in-out infinite;
+}
+
+.voice-spinner {
+  animation: voice-spin 1s linear infinite;
+}
+
+@keyframes voice-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes voice-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .input-bar-send {

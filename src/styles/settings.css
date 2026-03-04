@@ -1258,3 +1258,75 @@
   font-size: 0.78rem;
   color: var(--fg-dim);
 }
+
+/* ── Voice settings ── */
+
+.settings-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.settings-input {
+  background: var(--input-bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  width: 260px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.settings-input:focus {
+  border-color: var(--accent);
+}
+
+.settings-input::placeholder {
+  color: var(--fg-dim);
+}
+
+.settings-input-toggle {
+  background: var(--bg-hover);
+  color: var(--fg-muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.settings-input-toggle:hover {
+  background: var(--bg-card);
+  color: var(--fg);
+}
+
+.settings-select {
+  background: var(--input-bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.settings-select:focus {
+  border-color: var(--accent);
+}
+
+.settings-toggle-desc a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.settings-toggle-desc a:hover {
+  text-decoration: underline;
+}

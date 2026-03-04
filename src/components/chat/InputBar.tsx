@@ -1,5 +1,5 @@
 import { memo, useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { Plus, Star, Mic, ArrowUp, Square, X, MessageSquarePlus, Sparkles, Brain, Zap } from "lucide-react";
+import { Plus, Star, Mic, MicOff, ArrowUp, Square, X, MessageSquarePlus, Sparkles, Brain, Zap, Loader2 } from "lucide-react";
 import { openDialog, invoke, getCurrentWindow } from "../../lib/transport";
 import { useChatStore, getToolLabel } from "../../stores/chatStore";
 import { useAttachmentStore } from "../../stores/attachmentStore";
@@ -8,6 +8,7 @@ import { ThinkingIndicator } from "./ThinkingIndicator";
 import { ModelMenu } from "./ModelMenu";
 import { SkillsMenu } from "./SkillsMenu";
 import { useConductorStore } from "../../stores/conductorStore";
+import { useVoice } from "../../hooks/useVoice";
 
 
 /** Max textarea height in px (~6 lines) */
@@ -50,6 +51,12 @@ export const InputBar = memo(function InputBar() {
   const selectedEffort = useConductorStore((s) => s.selectedEffort);
   const activeModel = useConductorStore((s) => s.model);
   const hasSession = useChatStore((s) => s.hasSession);
+
+  // Voice input — always inserts into field for editing before send
+  const handleVoiceInsert = useCallback((transcribed: string) => {
+    setText((prev) => (prev ? prev + " " + transcribed : transcribed));
+  }, []);
+  const { voiceState, toggleVoice } = useVoice(handleVoiceInsert);
 
   // Show actual model from CLI during active session, user's choice otherwise
   const displayModel = useMemo(() => {
@@ -402,8 +409,20 @@ export const InputBar = memo(function InputBar() {
               <ArrowUp size={18} />
             </button>
           )}
-          <button className="input-bar-btn input-bar-btn--icon" title="Voice input" aria-label="Voice input">
-            <Mic size={18} />
+          <button
+            className={`input-bar-btn input-bar-btn--icon${voiceState === "recording" ? " voice-recording" : ""}`}
+            title={voiceState === "recording" ? "Stop recording" : voiceState === "processing" ? "Processing..." : "Voice input"}
+            aria-label="Voice input"
+            onClick={toggleVoice}
+            disabled={voiceState === "processing"}
+          >
+            {voiceState === "processing" ? (
+              <Loader2 size={18} className="voice-spinner" />
+            ) : voiceState === "recording" ? (
+              <MicOff size={18} />
+            ) : (
+              <Mic size={18} />
+            )}
           </button>
         </div>
 

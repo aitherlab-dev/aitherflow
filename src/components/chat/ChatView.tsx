@@ -44,7 +44,7 @@ export function ChatView() {
 
   return (
     <div
-      className="chat-view chat-view-inset"
+      className={`chat-view chat-view-inset ${isEmpty ? "chat-view--empty" : ""}`}
       onDragOver={handleDragOver}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
@@ -57,7 +57,7 @@ export function ChatView() {
       )}
       <MessageList />
 
-      <div className={`chat-bottom ${isEmpty ? "chat-bottom-center" : ""}`}>
+      <div className="chat-bottom">
         {error && (
           <div className="chat-error">{error}</div>
         )}

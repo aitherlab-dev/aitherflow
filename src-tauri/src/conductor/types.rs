@@ -107,6 +107,8 @@ pub struct StartSessionOptions {
     pub resume_session_id: Option<String>,
     pub permission_mode: Option<String>,
     #[serde(default)]
+    pub chrome: bool,
+    #[serde(default)]
     pub attachments: Vec<AttachmentPayload>,
 }
 

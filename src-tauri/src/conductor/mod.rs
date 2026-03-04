@@ -27,6 +27,7 @@ pub async fn start_session(
     let effort = options.effort;
     let resume_session_id = options.resume_session_id;
     let permission_mode = options.permission_mode;
+    let chrome = options.chrome;
     let image_attachments = options.attachments;
 
     // Clone for the spawned task (State<'_> can't cross spawn boundary)
@@ -46,6 +47,7 @@ pub async fn start_session(
             effort,
             resume_session_id,
             permission_mode,
+            chrome,
             image_attachments,
         )
         .await

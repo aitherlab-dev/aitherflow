@@ -4,10 +4,11 @@ import { invoke } from "../../lib/transport";
 interface AppSettings {
   bypassPermissions: boolean;
   translationLanguage: string;
+  enableChrome: boolean;
 }
 
 export function GeneralSection() {
-  const [settings, setSettings] = useState<AppSettings>({ bypassPermissions: false, translationLanguage: "" });
+  const [settings, setSettings] = useState<AppSettings>({ bypassPermissions: false, translationLanguage: "", enableChrome: true });
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -44,6 +45,23 @@ export function GeneralSection() {
             type="checkbox"
             checked={settings.bypassPermissions}
             onChange={() => handleToggle("bypassPermissions")}
+          />
+          <span className="toggle-switch-track" />
+        </label>
+      </div>
+
+      <div className="settings-toggle-row">
+        <div className="settings-toggle-info">
+          <span className="settings-toggle-label">Chrome integration</span>
+          <span className="settings-toggle-desc">
+            Run CLI with --chrome flag. Enables browser control via Chrome extension.
+          </span>
+        </div>
+        <label className="toggle-switch">
+          <input
+            type="checkbox"
+            checked={settings.enableChrome}
+            onChange={() => handleToggle("enableChrome")}
           />
           <span className="toggle-switch-track" />
         </label>
