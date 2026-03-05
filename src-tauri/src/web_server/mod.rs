@@ -33,6 +33,9 @@ pub struct WebState {
 /// Start the embedded web server. Returns `Err` only if binding fails.
 /// Otherwise runs until the task is aborted.
 pub async fn run(state: WebState, port: u16, remote_access: bool) -> Result<(), String> {
+    // Periodically clean up expired auth codes and sessions (every 10 min)
+    state.session_store.spawn_cleanup_task();
+
     let state = Arc::new(state);
 
     let api = Router::new()

@@ -315,18 +315,18 @@ pub fn run() {
             voice::voice_check_anthropic_auth,
             voice::voice_start_stream,
             voice::voice_stop_stream,
-            telegram::load_telegram_config,
-            telegram::save_telegram_config,
-            telegram::get_telegram_status,
-            telegram::start_telegram_bot,
-            telegram::stop_telegram_bot,
-            telegram::poll_telegram_messages,
-            telegram::send_to_telegram,
-            telegram::notify_telegram,
-            telegram::telegram_stream_start,
-            telegram::telegram_stream_update,
-            telegram::telegram_set_project,
-            telegram::telegram_push_message,
+            telegram::commands::load_telegram_config,
+            telegram::commands::save_telegram_config,
+            telegram::commands::get_telegram_status,
+            telegram::commands::start_telegram_bot,
+            telegram::commands::stop_telegram_bot,
+            telegram::commands::poll_telegram_messages,
+            telegram::commands::send_to_telegram,
+            telegram::commands::notify_telegram,
+            telegram::commands::telegram_stream_start,
+            telegram::commands::telegram_stream_update,
+            telegram::commands::telegram_set_project,
+            telegram::commands::telegram_push_message,
             hooks::load_hooks,
             hooks::save_hooks,
             hooks::test_hook_command,
@@ -338,58 +338,64 @@ pub fn run() {
             mcp::reset_mcp_project_choices,
         ])
         .setup(move |_app| {
-            let cfg_dir = config::config_dir();
-            let data_dir = config::data_dir();
-            let workspace = config::workspace_dir();
-            eprintln!("[aitherflow] config:    {}", cfg_dir.display());
-            eprintln!("[aitherflow] data:      {}", data_dir.display());
-            eprintln!("[aitherflow] workspace: {}", workspace.display());
+            // Run all blocking init I/O off the main thread
+            tauri::async_runtime::spawn(async move {
+                let (web_enabled, tg_enabled) = tokio::task::spawn_blocking(|| {
+                    let cfg_dir = config::config_dir();
+                    let data_dir = config::data_dir();
+                    let workspace = config::workspace_dir();
+                    eprintln!("[aitherflow] config:    {}", cfg_dir.display());
+                    eprintln!("[aitherflow] data:      {}", data_dir.display());
+                    eprintln!("[aitherflow] workspace: {}", workspace.display());
 
-            // Create default workspace with CLAUDE.md on first launch
-            if !workspace.exists() {
-                if let Err(e) = std::fs::create_dir_all(&workspace) {
-                    eprintln!("[aitherflow] Failed to create workspace: {e}");
-                } else {
-                    let claude_md = workspace.join("CLAUDE.md");
-                    let content = "# Workspace\n\n\
-                        You are running inside Aither Flow, a custom GUI for Claude Code CLI.\n\
-                        The user may ask you to test things, search the web, automate tasks, etc.\n";
-                    if let Err(e) = file_ops::atomic_write(&claude_md, content.as_bytes()) {
-                        eprintln!("[aitherflow] Failed to write CLAUDE.md: {e}");
+                    // Create default workspace with CLAUDE.md on first launch
+                    if !workspace.exists() {
+                        if let Err(e) = std::fs::create_dir_all(&workspace) {
+                            eprintln!("[aitherflow] Failed to create workspace: {e}");
+                        } else {
+                            let claude_md = workspace.join("CLAUDE.md");
+                            let content = "# Workspace\n\n\
+                                You are running inside Aither Flow, a custom GUI for Claude Code CLI.\n\
+                                The user may ask you to test things, search the web, automate tasks, etc.\n";
+                            if let Err(e) = file_ops::atomic_write(&claude_md, content.as_bytes()) {
+                                eprintln!("[aitherflow] Failed to write CLAUDE.md: {e}");
+                            }
+                        }
                     }
-                }
-            }
 
-            // Initialize session memory database
-            memory::init();
+                    // Initialize session memory database
+                    memory::init();
 
-            // Clean up old temp files from clipboard pastes
-            attachments::cleanup_old_temp(3600);
+                    // Clean up old temp files from clipboard pastes
+                    attachments::cleanup_old_temp(3600);
 
-            // Ensure projects.json exists with Workspace as default
-            projects::ensure_projects_file();
+                    // Ensure projects.json exists with Workspace as default
+                    projects::ensure_projects_file();
 
-            // Reset agents.json to empty (tabs created from welcome screen)
-            agents::ensure_agents_file();
+                    // Reset agents.json to empty (tabs created from welcome screen)
+                    agents::ensure_agents_file();
 
-            // Start web server if enabled
-            if web_config::load().enabled {
-                tauri::async_runtime::spawn(async move {
+                    // Check configs for web server and telegram
+                    let web_enabled = web_config::load().enabled;
+                    let tg_enabled = telegram::is_enabled();
+                    (web_enabled, tg_enabled)
+                }).await.unwrap_or((false, false));
+
+                // Start web server if enabled
+                if web_enabled {
                     if let Err(e) = web_mgr.start().await {
                         eprintln!("[aitherflow] Failed to start web server: {e}");
                     }
-                });
-            }
+                }
 
-            // Auto-start Telegram bot if enabled in config
-            if telegram::is_enabled() {
-                tauri::async_runtime::spawn(async {
-                    match telegram::start_telegram_bot().await {
+                // Auto-start Telegram bot if enabled in config
+                if tg_enabled {
+                    match telegram::commands::start_telegram_bot().await {
                         Ok(st) => eprintln!("[aitherflow] Telegram bot started: @{}", st.bot_username.unwrap_or_default()),
                         Err(e) => eprintln!("[aitherflow] Telegram bot auto-start failed: {e}"),
                     }
-                });
-            }
+                }
+            });
 
             Ok(())
         })

@@ -166,7 +166,9 @@ pub async fn translate_content(
                 Err(e) => {
                     eprintln!("[translations] Batch translation failed: {e}");
                     // Save what we have so far and return error
-                    let _ = save_cache(&cache);
+                    if let Err(e2) = save_cache(&cache) {
+                        eprintln!("[translations] Failed to save partial cache: {e2}");
+                    }
                     return Err(e);
                 }
             }

@@ -47,7 +47,9 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<WebState>) {
                 match msg {
                     Some(Ok(Message::Close(_))) | None => break,
                     Some(Ok(Message::Ping(data))) => {
-                        let _ = socket.send(Message::Pong(data)).await;
+                        if let Err(e) = socket.send(Message::Pong(data)).await {
+                            eprintln!("[ws] Failed to send pong: {e}");
+                        }
                     }
                     _ => {} // Ignore text/binary from client for now
                 }

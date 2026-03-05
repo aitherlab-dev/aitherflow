@@ -5,10 +5,7 @@ import { useTranslationStore } from "../../stores/translationStore";
 import { useSkillStore } from "../../stores/skillStore";
 import { usePluginStore } from "../../stores/pluginStore";
 
-interface AppSettings {
-  bypassPermissions: boolean;
-  translationLanguage: string;
-}
+import type { AppSettings } from "../../types/settings";
 
 const LANGUAGES = [
   { code: "", label: "Disabled (English)" },
@@ -23,7 +20,7 @@ export function LanguageSection() {
   const [settings, setSettings] = useState<AppSettings>({
     bypassPermissions: false,
     translationLanguage: "",
-  });
+  } as AppSettings);
   const [loaded, setLoaded] = useState(false);
 
   const translating = useTranslationStore((s) => s.translating);

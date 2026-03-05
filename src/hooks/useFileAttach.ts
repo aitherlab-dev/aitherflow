@@ -1,13 +1,7 @@
 import { useState, useCallback } from "react";
 import { invoke } from "../lib/transport";
 import type { Attachment } from "../types/chat";
-
-interface ProcessFileResult {
-  name: string;
-  content: string;
-  size: number;
-  fileType: string;
-}
+import type { ProcessFileResult } from "../types/files";
 
 export function useFileAttach() {
   const [attachments, setAttachments] = useState<Attachment[]>([]);

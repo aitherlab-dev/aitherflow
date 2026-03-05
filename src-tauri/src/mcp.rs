@@ -272,7 +272,9 @@ fn test_stdio(config: &McpServerConfig) -> Result<McpTestResult, String> {
                 }
                 Ok(None) => {
                     // Still running after 500ms — good sign
-                    let _ = c.kill();
+                    if let Err(e) = c.kill() {
+                        eprintln!("[mcp] Failed to kill test process: {e}");
+                    }
                     Ok(McpTestResult {
                         ok: true,
                         message: "Process started successfully".into(),

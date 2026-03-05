@@ -32,7 +32,9 @@ pub fn cleanup_old_temp(max_age_secs: u64) {
                 .map(|d| d.as_secs())
                 .unwrap_or(0);
             if now.saturating_sub(modified) > max_age_secs {
-                let _ = fs::remove_file(entry.path());
+                if let Err(e) = fs::remove_file(entry.path()) {
+                    eprintln!("[attachments] Failed to remove expired file {:?}: {e}", entry.path());
+                }
             }
         }
     }

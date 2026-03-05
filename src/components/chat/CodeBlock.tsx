@@ -1,17 +1,6 @@
 import { memo, useState, useCallback, type ReactNode } from "react";
 import { Copy, Check } from "lucide-react";
-
-/** Recursively extract plain text from React node tree */
-function extractText(node: ReactNode): string {
-  if (typeof node === "string") return node;
-  if (typeof node === "number") return String(node);
-  if (!node) return "";
-  if (Array.isArray(node)) return node.map(extractText).join("");
-  if (typeof node === "object" && "props" in node) {
-    return extractText((node as { props: { children?: ReactNode } }).props.children);
-  }
-  return "";
-}
+import { extractText } from "./utils";
 
 interface CodeBlockProps {
   language?: string;

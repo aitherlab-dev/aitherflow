@@ -1,0 +1,159 @@
+/* ═══════════════════════════════════════════
+   Mobile layout (< 768px)
+   Applied via media query — desktop unaffected
+   ═══════════════════════════════════════════ */
+
+@media (max-width: 767px) {
+  /* ── Grid: single column, no header/footer rows ── */
+  .app-layout {
+    grid-template-rows: 1fr;
+    grid-template-columns: 1fr;
+  }
+
+  /* ── Hide desktop-only elements ── */
+  .sidebar-footer,
+  .app-header,
+  .brand-footer,
+  .file-viewer-wrapper,
+  .fv-resize-handle {
+    display: none !important;
+  }
+
+  /* ── Main takes full grid ── */
+  .app-main {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  /* ── No file viewer split on mobile ── */
+  .main-split {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .main-split .file-viewer-wrapper,
+  .main-split .fv-resize-handle {
+    display: none !important;
+  }
+
+  /* ── Sidebar: overlay from left ── */
+  .app-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 1000;
+    width: 85vw !important;
+    max-width: 340px;
+    transition: transform 0.25s ease;
+    border-right: 1px solid var(--border);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4);
+  }
+
+  .app-sidebar[style*="width: 0"] {
+    transform: translateX(-100%);
+    box-shadow: none;
+    pointer-events: none;
+  }
+
+  /* ── Sidebar overlay backdrop ── */
+  .mobile-sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+    background: rgba(0, 0, 0, 0.5);
+    animation: fade-in 0.2s ease;
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  /* Sidebar resize handle not needed on mobile */
+  .app-sidebar .resize-handle {
+    display: none;
+  }
+
+  /* ── Chat: full width ── */
+  .message-list-inner {
+    max-width: 100%;
+    padding: 1rem;
+  }
+
+  .chat-bottom {
+    max-width: 100%;
+    padding: 0.5rem 0.75rem 1rem;
+  }
+
+  /* User messages: wider on mobile */
+  .chat-message-user {
+    max-width: 85%;
+  }
+
+  /* ── InputBar: simplified ── */
+
+  /* Hide second row entirely (New Chat, Model, Skills label buttons) */
+  .input-bar-bottom {
+    grid-template-columns: auto 1fr auto;
+    grid-template-rows: 1fr; /* single row */
+  }
+
+  /* Hide row 2 cells — they are the 4th, 5th, 6th children of the grid */
+  .input-bar-bottom > :nth-child(n+4) {
+    display: none;
+  }
+
+  /* Hide restart button on mobile — session management via sidebar */
+  .input-bar-cell--btns .input-bar-btn[aria-label="Restart session"] {
+    display: none;
+  }
+
+  /* ── Burger button (visible only on mobile) ── */
+  .mobile-burger {
+    position: fixed;
+    bottom: 16px;
+    left: 16px;
+    z-index: 998;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--fg-muted);
+    cursor: pointer;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+    transition: background 0.15s, color 0.15s;
+  }
+
+  .mobile-burger:hover,
+  .mobile-burger:active {
+    background: var(--bg-hover);
+    color: var(--fg);
+  }
+
+  /* ── Settings/Welcome: full screen on mobile ── */
+  .settings-view {
+    padding: 1rem;
+  }
+
+  .welcome-screen {
+    padding: 1rem;
+  }
+
+  /* ── Scroll to bottom button: adjust position ── */
+  .scroll-to-bottom {
+    bottom: 80px;
+  }
+}
+
+/* ── Burger hidden on desktop ── */
+@media (min-width: 768px) {
+  .mobile-burger,
+  .mobile-sidebar-backdrop {
+    display: none !important;
+  }
+}

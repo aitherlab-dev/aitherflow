@@ -187,11 +187,12 @@ fn count_skills(install_path: &Path) -> usize {
     if commands_dir.is_dir() {
         if let Ok(entries) = fs::read_dir(&commands_dir) {
             for entry in entries.flatten() {
+                let ft = entry.file_type();
                 let path = entry.path();
-                let is_md_file = path.is_file()
+                let is_md_file = ft.as_ref().is_ok_and(|t| t.is_file())
                     && path.extension().and_then(|e| e.to_str()) == Some("md");
                 let is_command_dir =
-                    path.is_dir() && path.join("COMMAND.md").exists();
+                    ft.as_ref().is_ok_and(|t| t.is_dir()) && path.join("COMMAND.md").exists();
 
                 if is_md_file || is_command_dir {
                     count += 1;

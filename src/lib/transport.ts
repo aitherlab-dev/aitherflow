@@ -108,7 +108,7 @@ export async function invoke<T = unknown>(
   });
 
   if (!res.ok) {
-    const text = await res.text().catch(() => res.statusText);
+    const text = await res.text().catch((e) => { console.error(e); return res.statusText; });
     throw new Error(text);
   }
 

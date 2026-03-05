@@ -38,7 +38,9 @@ impl SessionManager {
             if let Err(e) = old.child.kill().await {
                 eprintln!("[conductor] Failed to kill old process for {agent_id}: {e}");
             }
-            let _ = old.child.wait().await;
+            if let Err(e) = old.child.wait().await {
+                eprintln!("[conductor] Failed to wait for old process of {agent_id}: {e}");
+            }
         }
         map.insert(agent_id, session);
     }
@@ -65,7 +67,9 @@ impl SessionManager {
             if let Err(e) = session.child.kill().await {
                 eprintln!("[conductor] Failed to kill process for {agent_id}: {e}");
             }
-            let _ = session.child.wait().await;
+            if let Err(e) = session.child.wait().await {
+                eprintln!("[conductor] Failed to wait for process of {agent_id}: {e}");
+            }
         }
     }
 
@@ -111,7 +115,9 @@ impl SessionManager {
                 if let Err(e) = session.child.kill().await {
                     eprintln!("[conductor] Failed to kill process for {id}: {e}");
                 }
-                let _ = session.child.wait().await;
+                if let Err(e) = session.child.wait().await {
+                    eprintln!("[conductor] Failed to wait for process of {id}: {e}");
+                }
             }
         }
     }

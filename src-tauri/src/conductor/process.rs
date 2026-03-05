@@ -25,7 +25,9 @@ impl EventSink {
                 }
             }
             EventSink::Broadcast(tx) => {
-                let _ = tx.send(event.clone());
+                if let Err(e) = tx.send(event.clone()) {
+                    eprintln!("[conductor-web] Failed to broadcast event: {e}");
+                }
             }
         }
     }

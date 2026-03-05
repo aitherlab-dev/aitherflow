@@ -1,5 +1,7 @@
 import { useEffect, useCallback } from "react";
+import { Menu } from "lucide-react";
 import { useTelegramBridge } from "../../hooks/useTelegramBridge";
+import { useIsMobile } from "../../hooks/useIsMobile";
 import { Header } from "./Header";
 import { Sidebar } from "./Sidebar";
 import { ChatView } from "../chat/ChatView";
@@ -13,6 +15,8 @@ import { BrandFooter } from "./BrandFooter";
 
 export function AppLayout() {
   useTelegramBridge();
+  const isMobile = useIsMobile();
+  const sidebarOpen = useLayoutStore((s) => s.sidebarOpen);
   const toggleSidebar = useLayoutStore((s) => s.toggleSidebar);
   const activeView = useLayoutStore((s) => s.activeView);
   const fileViewerVisible = useLayoutStore((s) => s.fileViewerVisible);
@@ -75,6 +79,18 @@ export function AppLayout() {
         {renderMain()}
       </main>
       <BrandFooter />
+
+      {/* Mobile: backdrop when sidebar is open */}
+      {isMobile && sidebarOpen && (
+        <div className="mobile-sidebar-backdrop" onClick={toggleSidebar} />
+      )}
+
+      {/* Mobile: burger button to open sidebar */}
+      {isMobile && !sidebarOpen && (
+        <button className="mobile-burger" onClick={toggleSidebar} aria-label="Open menu">
+          <Menu size={22} />
+        </button>
+      )}
     </div>
   );
 }

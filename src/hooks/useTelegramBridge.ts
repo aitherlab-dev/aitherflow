@@ -3,6 +3,7 @@ import { invoke } from "../lib/transport";
 import { useChatStore } from "../stores/chatStore";
 import { useAgentStore } from "../stores/agentStore";
 import type { Attachment } from "../types/chat";
+import type { ProcessFileResult } from "../types/files";
 
 interface TgIncoming {
   kind: string;
@@ -17,13 +18,6 @@ interface TelegramStatus {
   connected: boolean;
   error: string | null;
   bot_username: string | null;
-}
-
-interface ProcessFileResult {
-  name: string;
-  content: string;
-  size: number;
-  fileType: string;
 }
 
 const TELEGRAM_TAG = "[TG] ";

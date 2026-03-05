@@ -72,7 +72,9 @@ pub async fn watch_directories(
                 }
 
                 for path in changed {
-                    let _ = app_for_cb.emit("fs-change", FsChangeEvent { path });
+                    if let Err(e) = app_for_cb.emit("fs-change", FsChangeEvent { path }) {
+                        eprintln!("[file_watcher] Failed to emit fs-change event: {e}");
+                    }
                 }
             },
         )

@@ -5,14 +5,7 @@ type UnlistenFn = () => void;
 
 export type VoiceState = "idle" | "recording" | "processing" | "streaming";
 
-interface AppSettings {
-  groqApiKey: string;
-  voiceLanguage: string;
-  voicePostProcess: boolean;
-  voicePostModel: string;
-  voiceProvider: string;
-  deepgramApiKey: string;
-}
+import type { AppSettings } from "../types/settings";
 
 /**
  * @param onInsert — append text (Groq final result, Anthropic final on endpoint)

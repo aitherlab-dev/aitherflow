@@ -87,6 +87,16 @@ impl SessionStore {
         Self::default()
     }
 
+    /// Create a new session directly (e.g. when master token is verified).
+    pub async fn create_session(&self) -> String {
+        let session_token = generate_hex(32);
+        self.sessions
+            .lock()
+            .await
+            .insert(session_token.clone(), Instant::now());
+        session_token
+    }
+
     /// Create a one-time auth code (valid for 5 minutes).
     pub async fn create_code(&self) -> String {
         let code = generate_hex(16); // 32 hex chars
@@ -121,6 +131,32 @@ impl SessionStore {
             sessions.remove(token);
         }
         false
+    }
+
+    /// Remove all expired codes and sessions.
+    pub async fn cleanup_expired(&self) {
+        let now = Instant::now();
+        {
+            let mut codes = self.codes.lock().await;
+            codes.retain(|_, created| now.duration_since(*created).as_secs() <= CODE_TTL_SECS);
+        }
+        {
+            let mut sessions = self.sessions.lock().await;
+            sessions
+                .retain(|_, created| now.duration_since(*created).as_secs() <= SESSION_TTL_SECS);
+        }
+    }
+
+    /// Spawn a background task that periodically cleans up expired entries.
+    pub fn spawn_cleanup_task(&self) {
+        let store = self.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(600));
+            loop {
+                interval.tick().await;
+                store.cleanup_expired().await;
+            }
+        });
     }
 }
 
@@ -233,8 +269,26 @@ pub async fn auth_middleware(
 ) -> Result<Response, StatusCode> {
     let path = req.uri().path();
 
-    // Skip auth for static files (frontend) and the /auth exchange endpoint
+    // If a page request (not API) arrives with ?token= in the URL,
+    // validate it, issue a session cookie, and redirect to clean URL.
+    // This prevents the master token from lingering in browser history.
     if !path.starts_with("/api/") && !path.starts_with("/ws") {
+        if let Some(bearer) = extract_bearer(&req) {
+            if bearer.as_bytes().ct_eq(state.auth_token.as_bytes()).into() {
+                let session_token = state.session_store.create_session().await;
+                let secure_flag = if state.remote_access { "; Secure" } else { "" };
+                let cookie = format!(
+                    "af_session={session_token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800{secure_flag}"
+                );
+                let redirect_uri = path.to_string();
+                return Ok(Response::builder()
+                    .status(StatusCode::FOUND)
+                    .header("location", redirect_uri)
+                    .header("set-cookie", cookie)
+                    .body(Body::empty())
+                    .unwrap());
+            }
+        }
         return Ok(next.run(req).await);
     }
 

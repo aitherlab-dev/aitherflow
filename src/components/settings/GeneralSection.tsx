@@ -1,14 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { invoke } from "../../lib/transport";
 
-interface AppSettings {
-  bypassPermissions: boolean;
-  translationLanguage: string;
-  enableChrome: boolean;
-}
+import type { AppSettings } from "../../types/settings";
 
 export function GeneralSection() {
-  const [settings, setSettings] = useState<AppSettings>({ bypassPermissions: false, translationLanguage: "", enableChrome: true });
+  const [settings, setSettings] = useState<AppSettings>({ bypassPermissions: false, translationLanguage: "", enableChrome: true } as AppSettings);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {

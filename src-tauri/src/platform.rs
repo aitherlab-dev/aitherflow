@@ -7,10 +7,12 @@
 pub fn notify(title: &str, body: &str) {
     #[cfg(target_os = "linux")]
     {
-        let _ = std::process::Command::new("notify-send")
+        if let Err(e) = std::process::Command::new("notify-send")
             .args([title, body])
             .spawn()
-            .map_err(|e| eprintln!("[platform] notify-send failed: {e}"));
+        {
+            eprintln!("[platform] notify-send failed: {e}");
+        }
     }
 
     #[cfg(target_os = "macos")]
@@ -19,9 +21,11 @@ pub fn notify(title: &str, body: &str) {
             "display notification \"{}\" with title \"{}\"",
             body, title
         );
-        let _ = std::process::Command::new("osascript")
+        if let Err(e) = std::process::Command::new("osascript")
             .args(["-e", &script])
             .spawn()
-            .map_err(|e| eprintln!("[platform] osascript failed: {e}"));
+        {
+            eprintln!("[platform] osascript failed: {e}");
+        }
     }
 }

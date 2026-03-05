@@ -94,10 +94,12 @@ pub async fn start_session(
         .await
         {
             eprintln!("[web] Session error: {e}");
-            let _ = event_tx.send(CliEvent::Error {
+            if let Err(e2) = event_tx.send(CliEvent::Error {
                 agent_id: agent_id_clone,
                 message: e,
-            });
+            }) {
+                eprintln!("[web] Failed to send error event to broadcast channel: {e2}");
+            }
         }
     });
 

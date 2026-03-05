@@ -17,10 +17,6 @@ pub struct VoiceState {
     stream_state: Arc<Mutex<Option<StreamSession>>>,
 }
 
-// Safety: ActiveRecording only contains Send types (no cpal::Stream).
-// The stream lives on a dedicated std::thread and is stopped via the channel.
-unsafe impl Send for VoiceState {}
-unsafe impl Sync for VoiceState {}
 
 impl VoiceState {
     pub fn new() -> Self {
@@ -128,8 +124,10 @@ pub async fn voice_start(state: tauri::State<'_, VoiceState>) -> Result<(), Stri
             return;
         }
 
-        // Block until stop signal
-        let _ = stop_rx.recv();
+        // Block until stop signal (intentionally ignore: recv returns Err only when sender is dropped, which is our stop condition)
+        if let Err(e) = stop_rx.recv() {
+            eprintln!("[voice] Stop signal recv error: {e}");
+        }
         drop(stream);
     });
 
@@ -150,7 +148,9 @@ pub async fn voice_stop(state: tauri::State<'_, VoiceState>) -> Result<Vec<u8>, 
     let mut recording = guard.take().ok_or("Not recording")?;
 
     // Signal the recording thread to stop
-    let _ = recording.stop_tx.send(());
+    if let Err(e) = recording.stop_tx.send(()) {
+        eprintln!("[voice] Failed to send stop signal: {e}");
+    }
 
     // Wait for the thread to finish
     if let Some(thread) = recording.thread.take() {
@@ -497,7 +497,9 @@ pub async fn voice_stop_stream(state: tauri::State<'_, VoiceState>) -> Result<()
     let session = guard.take().ok_or("Not streaming")?;
 
     // Signal stop
-    let _ = session.stop_tx.send(true);
+    if let Err(e) = session.stop_tx.send(true) {
+        eprintln!("[voice-stream] Failed to send stop signal: {e}");
+    }
 
     // Wait for tasks with timeout
     for task in session.tasks {
@@ -506,7 +508,9 @@ pub async fn voice_stop_stream(state: tauri::State<'_, VoiceState>) -> Result<()
 
     // Wait for audio thread
     if let Some(thread) = session.audio_thread {
-        let _ = thread.join();
+        if thread.join().is_err() {
+            eprintln!("[voice-stream] Audio capture thread panicked");
+        }
     }
 
     Ok(())
@@ -799,10 +803,14 @@ async fn run_websocket(
                     if is_deepgram {
                         // Deepgram: send CloseStream then wait for final
                         let close = serde_json::json!({"type": "CloseStream"}).to_string();
-                        let _ = ws_tx.send(Message::Text(close.into())).await;
+                        if let Err(e) = ws_tx.send(Message::Text(close.into())).await {
+                            eprintln!("[voice-stream] ws send CloseStream error: {e}");
+                        }
                     } else {
                         let close = serde_json::json!({"type": "CloseStream"}).to_string();
-                        let _ = ws_tx.send(Message::Text(close.into())).await;
+                        if let Err(e) = ws_tx.send(Message::Text(close.into())).await {
+                            eprintln!("[voice-stream] ws send CloseStream error: {e}");
+                        }
                     }
                     // Wait briefly for final transcript
                     let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(1);
@@ -839,11 +847,15 @@ fn handle_anthropic_message(text: &str, app: &tauri::AppHandle) {
     match msg_type {
         "TranscriptText" => {
             if let Some(data) = parsed["data"].as_str() {
-                let _ = app.emit("voice-interim", data);
+                if let Err(e) = app.emit("voice-interim", data) {
+                    eprintln!("[voice-stream] Failed to emit voice-interim: {e}");
+                }
             }
         }
         "TranscriptEndpoint" => {
-            let _ = app.emit("voice-final", ());
+            if let Err(e) = app.emit("voice-final", ()) {
+                eprintln!("[voice-stream] Failed to emit voice-final: {e}");
+            }
         }
         "TranscriptError" | "error" => {
             let desc = parsed["description"]
@@ -882,13 +894,19 @@ fn handle_deepgram_message(text: &str, app: &tauri::AppHandle) {
 
             if is_final {
                 // Finalized segment — emit as final text
-                let _ = app.emit("voice-interim", transcript);
+                if let Err(e) = app.emit("voice-interim", transcript) {
+                    eprintln!("[voice-stream] Failed to emit voice-interim: {e}");
+                }
                 if speech_final {
-                    let _ = app.emit("voice-final", ());
+                    if let Err(e) = app.emit("voice-final", ()) {
+                        eprintln!("[voice-stream] Failed to emit voice-final: {e}");
+                    }
                 }
             } else {
                 // Interim — emit for live preview (will be replaced)
-                let _ = app.emit("voice-interim", transcript);
+                if let Err(e) = app.emit("voice-interim", transcript) {
+                    eprintln!("[voice-stream] Failed to emit voice-interim: {e}");
+                }
             }
         }
         "Metadata" => {} // ignore
@@ -905,5 +923,7 @@ fn handle_deepgram_message(text: &str, app: &tauri::AppHandle) {
 
 fn emit_voice_error(app: &tauri::AppHandle, msg: &str) {
     eprintln!("[voice-stream] Error: {msg}");
-    let _ = app.emit("voice-error", msg);
+    if let Err(e) = app.emit("voice-error", msg) {
+        eprintln!("[voice-stream] Failed to emit voice-error: {e}");
+    }
 }

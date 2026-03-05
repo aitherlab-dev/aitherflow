@@ -54,14 +54,16 @@ pub async fn start_session(
         .await
         {
             eprintln!("[conductor] Session error: {e}");
-            let _ = tauri::Emitter::emit(
+            if let Err(e2) = tauri::Emitter::emit(
                 &app_clone,
                 "cli-event",
                 &CliEvent::Error {
                     agent_id: agent_id_clone,
                     message: e,
                 },
-            );
+            ) {
+                eprintln!("[conductor] Failed to emit error event: {e2}");
+            }
         }
     });
 
