@@ -11,6 +11,7 @@ export function App() {
   const initAgents = useAgentStore((s) => s.init);
   const getActiveAgent = useAgentStore((s) => s.getActiveAgent);
   const loadSkills = useSkillStore((s) => s.load);
+  const projectPath = useChatStore((s) => s.projectPath);
 
   useEffect(() => {
     // Agents must init before chat (chat needs agentId and projectPath)
@@ -27,6 +28,13 @@ export function App() {
     // Projects init is independent
     initProjects().catch(console.error);
   }, [initAgents, initChat, initProjects, getActiveAgent, loadSkills]);
+
+  // Reload skills when active project changes (agent switch)
+  useEffect(() => {
+    if (projectPath) {
+      loadSkills(projectPath).catch(console.error);
+    }
+  }, [projectPath, loadSkills]);
 
   return <AppLayout />;
 }

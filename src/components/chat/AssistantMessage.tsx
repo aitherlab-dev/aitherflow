@@ -34,19 +34,10 @@ export const AssistantMessage = memo(function AssistantMessage({
     };
   }, [message.text, message.isStreaming, displayText]);
 
-  // While streaming — lightweight inline markdown with typewriter effect.
+  // While streaming — show only the latest block (previous ones are overwritten)
   if (message.isStreaming) {
     return (
       <div className="chat-message chat-message-assistant">
-        {thinking.length > 0 && (
-          <div className="thinking-blocks">
-            {thinking.map((block, i) => (
-              <div key={i} className="thinking-block">
-                <InlineMarkdown content={block} />
-              </div>
-            ))}
-          </div>
-        )}
         <div className="chat-message-content">
           <InlineMarkdown content={thinking.length > 0 ? finalText : displayText} />
           <span className="streaming-cursor" />
@@ -55,17 +46,9 @@ export const AssistantMessage = memo(function AssistantMessage({
     );
   }
 
+  // Finished — show only the final text, intermediate thinking is discarded
   return (
     <div className="chat-message chat-message-assistant">
-      {thinking.length > 0 && (
-        <div className="thinking-blocks">
-          {thinking.map((block, i) => (
-            <div key={i} className="thinking-block">
-              <MarkdownRenderer content={block} />
-            </div>
-          ))}
-        </div>
-      )}
       {finalText && (
         <div className="chat-message-content">
           <MarkdownRenderer content={finalText} />

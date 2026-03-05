@@ -82,6 +82,7 @@ interface ChatState {
   loadChatList: () => Promise<void>;
   sendMessage: (text: string, allAttachments?: Attachment[]) => Promise<void>;
   stopGeneration: () => Promise<void>;
+  restartSession: () => Promise<void>;
   switchChat: (chatId: string) => Promise<void>;
   newChat: () => Promise<void>;
   deleteChat: (chatId: string) => Promise<void>;
@@ -361,6 +362,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set({ error: String(e) });
     }
     set({ isThinking: false, currentToolActivity: null });
+  },
+
+  restartSession: async () => {
+    const { agentId, hasSession } = get();
+    if (!hasSession) return;
+    try {
+      await invoke("stop_session", { agentId });
+    } catch (e) {
+      console.error("Failed to restart session:", e);
+    }
+    // processExited event will reset hasSession, isThinking, etc.
   },
 
   switchChat: async (chatId: string) => {

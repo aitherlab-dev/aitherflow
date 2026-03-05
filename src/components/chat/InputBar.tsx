@@ -1,5 +1,5 @@
 import { memo, useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { Plus, Star, Mic, MicOff, ArrowUp, Square, X, MessageSquarePlus, Sparkles, Brain, Zap, Loader2 } from "lucide-react";
+import { Plus, RotateCcw, Star, Mic, MicOff, ArrowUp, Square, X, MessageSquarePlus, Sparkles, Brain, Zap, Loader2 } from "lucide-react";
 import { openDialog, invoke, getCurrentWindow } from "../../lib/transport";
 import { useChatStore, getToolLabel } from "../../stores/chatStore";
 import { useAttachmentStore } from "../../stores/attachmentStore";
@@ -47,6 +47,7 @@ export const InputBar = memo(function InputBar() {
   const isThinking = useChatStore((s) => s.isThinking);
   const messages = useChatStore((s) => s.messages);
   const newChat = useChatStore((s) => s.newChat);
+  const restartSession = useChatStore((s) => s.restartSession);
   const selectedModel = useConductorStore((s) => s.selectedModel);
   const selectedEffort = useConductorStore((s) => s.selectedEffort);
   const activeModel = useConductorStore((s) => s.model);
@@ -378,6 +379,16 @@ export const InputBar = memo(function InputBar() {
           >
             <Plus size={18} />
           </button>
+          {hasSession && (
+            <button
+              className="input-bar-btn"
+              title="Restart session"
+              aria-label="Restart session"
+              onClick={() => restartSession().catch(console.error)}
+            >
+              <RotateCcw size={16} />
+            </button>
+          )}
           <ThinkingIndicator />
         </div>
         <div className="input-bar-cell input-bar-cell--status">
