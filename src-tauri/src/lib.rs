@@ -367,8 +367,7 @@ pub fn run() {
             // Ensure projects.json exists with Workspace as default
             projects::ensure_projects_file();
 
-            // Ensure agents.json exists with default Workspace agent
-            // Also migrates old chats without agent_id
+            // Reset agents.json to empty (tabs created from welcome screen)
             agents::ensure_agents_file();
 
             // Start web server if enabled

@@ -15,8 +15,6 @@ export function WelcomeScreen() {
   const removeWelcomeCard = useProjectStore((s) => s.removeWelcomeCard);
   const closeWelcome = useLayoutStore((s) => s.closeWelcome);
   const createAgent = useAgentStore((s) => s.createAgent);
-  const initChat = useChatStore((s) => s.init);
-  const getActiveAgent = useAgentStore((s) => s.getActiveAgent);
   const loadSkills = useSkillStore((s) => s.load);
 
   const [showPicker, setShowPicker] = useState(false);
@@ -54,14 +52,8 @@ export function WelcomeScreen() {
 
   const openWorkspace = useCallback(async () => {
     if (!workspace) return;
-    // For workspace, init with default agent (already created on startup)
-    const agent = getActiveAgent();
-    if (agent) {
-      await initChat(agent.id, agent.projectPath, agent.projectName);
-      loadSkills(agent.projectPath).catch(console.error);
-    }
-    closeWelcome();
-  }, [workspace, getActiveAgent, initChat, loadSkills, closeWelcome]);
+    await openProject(workspace.path, workspace.name);
+  }, [workspace, openProject]);
 
   const openLastProject = useCallback(async () => {
     if (!lastProject) return;

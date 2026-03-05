@@ -1292,6 +1292,7 @@
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
   min-width: 0;
+  min-height: 40px;
 }
 
 .dash-card:hover {

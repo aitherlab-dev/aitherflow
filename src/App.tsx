@@ -12,7 +12,7 @@ export function App() {
   const projectPath = useChatStore((s) => s.projectPath);
 
   useEffect(() => {
-    // Init agents (creates default Workspace agent) — needed for welcome screen
+    // Init agents (empty on startup — tabs created from welcome screen)
     initAgents().catch(console.error);
 
     // Init projects (needed for welcome screen cards)
