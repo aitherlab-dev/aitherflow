@@ -10,6 +10,7 @@ import {
   Brain,
   Mic,
   Send,
+  Cable,
 } from "lucide-react";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { ProjectsSection } from "./ProjectsSection";
@@ -21,11 +22,13 @@ import { WebServerSection } from "./WebServerSection";
 import { VoiceSection } from "./VoiceSection";
 import { TelegramSection } from "./TelegramSection";
 import { HooksSection } from "./hooks";
+import { McpSection } from "./McpSection";
 
 const NAV_ITEMS = [
   { id: "general", label: "General", icon: User },
   { id: "hooks", label: "Hooks", icon: Webhook },
   { id: "web-server", label: "Web Server", icon: Globe },
+  { id: "mcp", label: "MCP Servers", icon: Cable },
   { id: "skills", label: "Skills", icon: Sparkles },
   { id: "projects", label: "Projects", icon: FolderOpen },
   { id: "language", label: "Language", icon: Languages },
@@ -116,6 +119,9 @@ function SectionContent({ section }: { section: string }) {
   }
   if (section === "hooks") {
     return <HooksSection />;
+  }
+  if (section === "mcp") {
+    return <McpSection />;
   }
   return (
     <div className="settings-placeholder">

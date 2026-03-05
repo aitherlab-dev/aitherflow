@@ -8,6 +8,7 @@ mod file_ops;
 mod file_watcher;
 mod files;
 mod hooks;
+mod mcp;
 mod memory;
 mod platform;
 mod plugins;
@@ -326,6 +327,12 @@ pub fn run() {
             hooks::load_hooks,
             hooks::save_hooks,
             hooks::test_hook_command,
+            mcp::list_mcp_servers,
+            mcp::add_global_mcp_server,
+            mcp::remove_global_mcp_server,
+            mcp::save_project_mcp_servers,
+            mcp::test_mcp_server,
+            mcp::reset_mcp_project_choices,
         ])
         .setup(move |_app| {
             let cfg_dir = config::config_dir();
@@ -368,6 +375,16 @@ pub fn run() {
                 tauri::async_runtime::spawn(async move {
                     if let Err(e) = web_mgr.start().await {
                         eprintln!("[aitherflow] Failed to start web server: {e}");
+                    }
+                });
+            }
+
+            // Auto-start Telegram bot if enabled in config
+            if telegram::is_enabled() {
+                tauri::async_runtime::spawn(async {
+                    match telegram::start_telegram_bot().await {
+                        Ok(st) => eprintln!("[aitherflow] Telegram bot started: @{}", st.bot_username.unwrap_or_default()),
+                        Err(e) => eprintln!("[aitherflow] Telegram bot auto-start failed: {e}"),
                     }
                 });
             }

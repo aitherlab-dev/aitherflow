@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronRight, Loader, Plus, Trash2, Settings, X, Sparkles, Cable, FolderOpen, Pin, Pencil } from "lucide-react";
+import { ChevronRight, Loader, Plus, Trash2, Settings, X, Sparkles, FolderOpen, Pin, Pencil, LayoutDashboard } from "lucide-react";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useChatStore, type ChatMeta } from "../../stores/chatStore";
 import { useAgentStore } from "../../stores/agentStore";
@@ -8,6 +8,7 @@ import { useProjectStore } from "../../stores/projectStore";
 import { ResizeHandle } from "./ResizeHandle";
 import { FilesPanel } from "./FilesPanel";
 import { SkillsPanel } from "./SkillsPanel";
+import { DashboardPanel } from "../dashboard/DashboardPanel";
 
 // ── Chat context menu (portal) ──
 
@@ -423,6 +424,7 @@ export const Sidebar = memo(function Sidebar() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [filesOpen, setFilesOpen] = useState(false);
   const [skillsOpen, setSkillsOpen] = useState(false);
+  const [dashboardOpen, setDashboardOpen] = useState(true);
 
   const handleNewAgent = useCallback(() => {
     setDropdownOpen((prev) => !prev);
@@ -497,14 +499,20 @@ export const Sidebar = memo(function Sidebar() {
   const handleFilesClick = useCallback(() => {
     setDropdownOpen(false);
     setFilesOpen((prev) => !prev);
-    if (!filesOpen) setSkillsOpen(false);
+    if (!filesOpen) { setSkillsOpen(false); setDashboardOpen(false); }
   }, [filesOpen]);
 
   const handleSkillsClick = useCallback(() => {
     setDropdownOpen(false);
     setSkillsOpen((prev) => !prev);
-    if (!skillsOpen) setFilesOpen(false);
+    if (!skillsOpen) { setFilesOpen(false); setDashboardOpen(false); }
   }, [skillsOpen]);
+
+  const handleDashboardClick = useCallback(() => {
+    setDropdownOpen(false);
+    setDashboardOpen((prev) => !prev);
+    if (!dashboardOpen) { setFilesOpen(false); setSkillsOpen(false); }
+  }, [dashboardOpen]);
 
   // ── Shift+drag reorder for agent tabs ──
 
@@ -652,10 +660,6 @@ export const Sidebar = memo(function Sidebar() {
               <SkillsPanel />
             </div>
           )}
-          <button className="sidebar-tab sidebar-tab--disabled" disabled>
-            <Cable size={16} />
-            <span>MCP</span>
-          </button>
           <button
             className={`sidebar-tab ${filesOpen ? "sidebar-tab--active" : ""}`}
             onClick={handleFilesClick}
@@ -671,8 +675,20 @@ export const Sidebar = memo(function Sidebar() {
             </div>
           )}
 
-          {/* Settings — always pinned to bottom */}
+          {/* Dashboard + Settings — pinned to bottom */}
           <div className="sidebar-bottom">
+            {dashboardOpen && (
+              <div className="dashboard-accordion">
+                <DashboardPanel />
+              </div>
+            )}
+            <button
+              className={`sidebar-tab ${dashboardOpen ? "sidebar-tab--active" : ""}`}
+              onClick={handleDashboardClick}
+            >
+              <LayoutDashboard size={16} />
+              <span>Dashboard</span>
+            </button>
             <button
               className={`sidebar-tab ${activeView === "settings" ? "sidebar-tab--active" : ""}`}
               onClick={handleSettingsClick}

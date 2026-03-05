@@ -75,6 +75,11 @@ where
 
 // ── Config persistence ──
 
+/// Check if Telegram bot is enabled in config (for auto-start on launch).
+pub fn is_enabled() -> bool {
+    load_config_from_disk().map(|c| c.enabled).unwrap_or(false)
+}
+
 fn config_path() -> std::path::PathBuf {
     config::config_dir().join("telegram.json")
 }
