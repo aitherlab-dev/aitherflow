@@ -34,3 +34,6 @@ devlog/
 
 # Audit reports (internal)
 reports/
+
+# Feature ideas (local only)
+IDEAS.md

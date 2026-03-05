@@ -53,11 +53,14 @@ export const InputBar = memo(function InputBar() {
   const activeModel = useConductorStore((s) => s.model);
   const hasSession = useChatStore((s) => s.hasSession);
 
-  // Voice input — always inserts into field for editing before send
+  // Voice input — insert appends, replace overwrites (for streaming interim)
   const handleVoiceInsert = useCallback((transcribed: string) => {
     setText((prev) => (prev ? prev + " " + transcribed : transcribed));
   }, []);
-  const { voiceState, toggleVoice } = useVoice(handleVoiceInsert);
+  const handleVoiceReplace = useCallback((text: string) => {
+    setText(text);
+  }, []);
+  const { voiceState, toggleVoice } = useVoice(handleVoiceInsert, handleVoiceReplace);
 
   // Show actual model from CLI during active session, user's choice otherwise
   const displayModel = useMemo(() => {
@@ -421,15 +424,15 @@ export const InputBar = memo(function InputBar() {
             </button>
           )}
           <button
-            className={`input-bar-btn input-bar-btn--icon${voiceState === "recording" ? " voice-recording" : ""}`}
-            title={voiceState === "recording" ? "Stop recording" : voiceState === "processing" ? "Processing..." : "Voice input"}
+            className={`input-bar-btn input-bar-btn--icon${voiceState === "recording" || voiceState === "streaming" ? " voice-recording" : ""}`}
+            title={voiceState === "recording" || voiceState === "streaming" ? "Stop recording" : voiceState === "processing" ? "Processing..." : "Voice input"}
             aria-label="Voice input"
             onClick={toggleVoice}
             disabled={voiceState === "processing"}
           >
             {voiceState === "processing" ? (
               <Loader2 size={18} className="voice-spinner" />
-            ) : voiceState === "recording" ? (
+            ) : voiceState === "recording" || voiceState === "streaming" ? (
               <MicOff size={18} />
             ) : (
               <Mic size={18} />

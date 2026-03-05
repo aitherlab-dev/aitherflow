@@ -29,6 +29,16 @@ pub struct AppSettings {
     /// Model for post-processing: "llama-3.3-70b-versatile" or "llama-3.1-8b-instant"
     #[serde(default = "default_post_process_model")]
     pub voice_post_model: String,
+    /// Voice provider: "groq" or "anthropic" or "deepgram"
+    #[serde(default = "default_voice_provider")]
+    pub voice_provider: String,
+    /// Deepgram API key for streaming STT
+    #[serde(default)]
+    pub deepgram_api_key: String,
+}
+
+fn default_voice_provider() -> String {
+    "groq".to_string()
 }
 
 fn default_post_process_model() -> String {
