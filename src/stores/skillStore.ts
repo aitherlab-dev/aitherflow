@@ -25,6 +25,9 @@ interface SkillState {
 
   /** Get favorite skills */
   getFavorites: () => SkillEntry[];
+
+  /** Delete a user skill (global or project) */
+  deleteSkill: (skill: SkillEntry) => Promise<void>;
 }
 
 export const useSkillStore = create<SkillState>((set, get) => ({
@@ -82,5 +85,27 @@ export const useSkillStore = create<SkillState>((set, get) => ({
     return favoriteIds
       .map((id) => all.find((s) => s.id === id))
       .filter((s): s is SkillEntry => s !== undefined);
+  },
+
+  deleteSkill: async (skill) => {
+    try {
+      await invoke("delete_skill", { filePath: skill.filePath });
+      // Remove from local state
+      const { global, project, favoriteIds } = get();
+      if (skill.source.type === "global") {
+        set({ global: global.filter((s) => s.id !== skill.id) });
+      } else if (skill.source.type === "project") {
+        set({ project: project.filter((s) => s.id !== skill.id) });
+      }
+      // Remove from favorites if needed
+      if (favoriteIds.includes(skill.id)) {
+        const next = favoriteIds.filter((id) => id !== skill.id);
+        set({ favoriteIds: next });
+        await invoke("save_skill_favorites", { ids: next });
+      }
+    } catch (e) {
+      console.error("Failed to delete skill:", e);
+      throw e;
+    }
   },
 }));

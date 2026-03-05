@@ -251,6 +251,30 @@ fn scan_plugin_skills() -> Vec<PluginSkillGroup> {
 
         let mut skills: Vec<SkillEntry> = Vec::new();
 
+        // Check for SKILL.md at plugin root (single-skill plugins)
+        let root_skill = install_path.join("SKILL.md");
+        if root_skill.exists() {
+            if let Ok(content) = fs::read_to_string(&root_skill) {
+                let (name, description) = parse_frontmatter(&content);
+                let display_name = if name.is_empty() {
+                    plugin_name.clone()
+                } else {
+                    name
+                };
+                skills.push(SkillEntry {
+                    id: plugin_name.clone(),
+                    name: display_name,
+                    description,
+                    command: format!("/{}", plugin_name),
+                    source: SkillSource::Plugin {
+                        plugin_name: plugin_name.clone(),
+                        marketplace: marketplace.clone(),
+                    },
+                    file_path: root_skill.to_string_lossy().to_string(),
+                });
+            }
+        }
+
         // Scan skills/ directory
         let skills_dir = install_path.join("skills");
         for (dir_name, name, description, file_path) in scan_skills_dir(&skills_dir) {
@@ -381,6 +405,39 @@ pub async fn load_skill_favorites() -> Result<SkillFavorites, String> {
             .map_err(|e| format!("Failed to read skill-favorites.json: {e}"))?;
         serde_json::from_str(&data)
             .map_err(|e| format!("Failed to parse skill-favorites.json: {e}"))
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// Delete a user skill (global or project) by removing its directory
+#[tauri::command]
+pub async fn delete_skill(file_path: String) -> Result<(), String> {
+    use crate::files::validate_path_safe;
+
+    tokio::task::spawn_blocking(move || {
+        let skill_file = PathBuf::from(&file_path);
+        validate_path_safe(&skill_file)?;
+
+        // SKILL.md must exist
+        if !skill_file.exists() || skill_file.file_name().and_then(|n| n.to_str()) != Some("SKILL.md")
+        {
+            return Err(format!("Invalid skill path: {}", file_path));
+        }
+
+        // Only allow deleting from ~/.claude/skills/ or <project>/.claude/skills/
+        let parent = skill_file
+            .parent()
+            .ok_or_else(|| "Cannot determine skill directory".to_string())?;
+        let grandparent = parent
+            .parent()
+            .ok_or_else(|| "Cannot determine skills root".to_string())?;
+        if grandparent.file_name().and_then(|n| n.to_str()) != Some("skills") {
+            return Err("Can only delete skills from a skills/ directory".to_string());
+        }
+
+        fs::remove_dir_all(parent)
+            .map_err(|e| format!("Failed to delete skill directory: {e}"))
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?

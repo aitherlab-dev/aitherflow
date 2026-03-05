@@ -18,6 +18,41 @@ import { useTranslationStore } from "../../stores/translationStore";
 import type { InstalledPlugin, AvailablePlugin, MarketplaceSource } from "../../types/plugins";
 import type { SkillEntry } from "../../types/skills";
 
+// ── Collapsible group with chevron ──
+
+const CollapsibleGroup = memo(function CollapsibleGroup({
+  label,
+  count,
+  icon,
+  defaultOpen = false,
+  children,
+}: {
+  label: string;
+  count: number;
+  icon?: React.ReactNode;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <div className="skills-section-block">
+      <h4
+        className="skills-section-subtitle skills-section-subtitle--clickable"
+        onClick={() => setOpen((p) => !p)}
+      >
+        <ChevronRight
+          size={14}
+          className={`skills-section-chevron ${open ? "skills-section-chevron--open" : ""}`}
+        />
+        {icon}
+        {label} ({count})
+      </h4>
+      {open && children}
+    </div>
+  );
+});
+
 // ── Sub-tab selector ──
 
 type SubTab = "installed" | "available" | "sources";
@@ -89,13 +124,22 @@ const PluginCard = memo(function PluginCard({
 
 const UserSkillRow = memo(function UserSkillRow({
   skill,
+  onDelete,
 }: {
   skill: SkillEntry;
+  onDelete: (skill: SkillEntry) => void;
 }) {
   return (
     <div className="plugin-skill-row">
       <span className="plugin-skill-row__name">{skill.name}</span>
       <span className="plugin-skill-row__command">{skill.command}</span>
+      <button
+        className="plugin-skill-row__delete"
+        onClick={() => onDelete(skill)}
+        title="Delete skill"
+      >
+        <Trash2 size={14} />
+      </button>
     </div>
   );
 });
@@ -109,12 +153,20 @@ function InstalledTab() {
 
   const globalSkills = useSkillStore((s) => s.global);
   const projectSkills = useSkillStore((s) => s.project);
+  const deleteSkill = useSkillStore((s) => s.deleteSkill);
 
   const handleUninstall = useCallback(
     (name: string, marketplace: string) => {
       uninstall(name, marketplace).catch(console.error);
     },
     [uninstall],
+  );
+
+  const handleDeleteSkill = useCallback(
+    (skill: SkillEntry) => {
+      deleteSkill(skill).catch(console.error);
+    },
+    [deleteSkill],
   );
 
   return (
@@ -127,7 +179,7 @@ function InstalledTab() {
               <h4 className="skills-section-subtitle">Global Skills</h4>
               <div className="skills-section-list">
                 {globalSkills.map((s) => (
-                  <UserSkillRow key={s.id} skill={s} />
+                  <UserSkillRow key={s.id} skill={s} onDelete={handleDeleteSkill} />
                 ))}
               </div>
             </>
@@ -137,7 +189,7 @@ function InstalledTab() {
               <h4 className="skills-section-subtitle">Project Skills</h4>
               <div className="skills-section-list">
                 {projectSkills.map((s) => (
-                  <UserSkillRow key={s.id} skill={s} />
+                  <UserSkillRow key={s.id} skill={s} onDelete={handleDeleteSkill} />
                 ))}
               </div>
             </>
@@ -282,11 +334,12 @@ function AvailableTab() {
         </div>
       ) : (
         grouped.map(([marketplace, plugins]) => (
-          <div key={marketplace} className="skills-section-block">
-            <h4 className="skills-section-subtitle">
-              <Globe size={14} />
-              {marketplace} ({plugins.length})
-            </h4>
+          <CollapsibleGroup
+            key={marketplace}
+            label={marketplace}
+            count={plugins.length}
+            icon={<Globe size={14} />}
+          >
             <div className="skills-section-list">
               {plugins.map((p) => {
                 const key = `${p.name}@${p.marketplace}`;
@@ -300,7 +353,7 @@ function AvailableTab() {
                 );
               })}
             </div>
-          </div>
+          </CollapsibleGroup>
         ))
       )}
     </div>

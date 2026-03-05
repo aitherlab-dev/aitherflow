@@ -449,6 +449,28 @@
   letter-spacing: 0.03em;
 }
 
+.skills-section-subtitle--clickable {
+  cursor: pointer;
+  user-select: none;
+  border-radius: 4px;
+  padding: 4px 6px;
+  margin: 0 -6px 4px;
+  transition: background 0.15s;
+}
+
+.skills-section-subtitle--clickable:hover {
+  background: var(--bg-hover);
+}
+
+.skills-section-chevron {
+  flex-shrink: 0;
+  transition: transform 0.15s;
+}
+
+.skills-section-chevron--open {
+  transform: rotate(90deg);
+}
+
 .skills-section-list {
   display: flex;
   flex-direction: column;
@@ -652,6 +674,26 @@
   font-size: 0.78rem;
   color: var(--fg-dim);
   font-family: monospace;
+}
+
+.plugin-skill-row__delete {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.plugin-skill-row:hover .plugin-skill-row__delete {
+  opacity: 1;
+}
+
+.plugin-skill-row__delete:hover {
+  color: var(--error, #e55);
 }
 
 /* ── Available plugin row ── */

@@ -117,6 +117,36 @@ struct MarketplacePluginEntry {
     category: String,
     #[serde(default)]
     author: Option<AuthorField>,
+    #[serde(default)]
+    source: Option<PluginSourceField>,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(untagged)]
+enum PluginSourceField {
+    /// Local path like "./plugins/feature-dev"
+    Path(String),
+    /// Remote source like { "source": "url", "url": "https://..." }
+    Remote {
+        #[allow(dead_code)]
+        url: Option<String>,
+    },
+}
+
+impl PluginSourceField {
+    fn as_local_path(&self) -> Option<&str> {
+        match self {
+            PluginSourceField::Path(s) => Some(s),
+            PluginSourceField::Remote { .. } => None,
+        }
+    }
+
+    fn as_remote_url(&self) -> Option<&str> {
+        match self {
+            PluginSourceField::Remote { url } => url.as_deref(),
+            PluginSourceField::Path(_) => None,
+        }
+    }
 }
 
 #[derive(Deserialize, Debug)]
@@ -419,23 +449,98 @@ pub async fn load_plugins() -> Result<PluginsData, String> {
     .map_err(|e| format!("Task join error: {e}"))?
 }
 
+/// Resolve the actual directory of a plugin inside a marketplace using the `source` field
+fn resolve_plugin_source(base: &Path, marketplace: &str, plugin_name: &str) -> Option<PathBuf> {
+    let mkt_dir = base.join("marketplaces").join(marketplace);
+    let manifest_path = mkt_dir.join(".claude-plugin/marketplace.json");
+    let data = fs::read_to_string(&manifest_path).ok()?;
+    let manifest: MarketplaceManifest = serde_json::from_str(&data).ok()?;
+
+    for plugin in &manifest.plugins {
+        if plugin.name == plugin_name {
+            if let Some(src) = plugin.source.as_ref().and_then(|s| s.as_local_path()) {
+                let resolved = mkt_dir.join(src.trim_start_matches("./"));
+                if resolved.exists() {
+                    return Some(resolved);
+                }
+            }
+            break;
+        }
+    }
+
+    // Fallback: try common directory layouts
+    for subdir in &["plugins", "external_plugins", ""] {
+        let candidate = if subdir.is_empty() {
+            mkt_dir.join(plugin_name)
+        } else {
+            mkt_dir.join(subdir).join(plugin_name)
+        };
+        if candidate.exists() {
+            return Some(candidate);
+        }
+    }
+
+    None
+}
+
+/// Get the remote URL for a plugin from marketplace.json (if it's a remote-source plugin)
+fn get_plugin_remote_url(base: &Path, marketplace: &str, plugin_name: &str) -> Option<String> {
+    let mkt_dir = base.join("marketplaces").join(marketplace);
+    let manifest_path = mkt_dir.join(".claude-plugin/marketplace.json");
+    let data = fs::read_to_string(&manifest_path).ok()?;
+    let manifest: MarketplaceManifest = serde_json::from_str(&data).ok()?;
+
+    manifest
+        .plugins
+        .iter()
+        .find(|p| p.name == plugin_name)
+        .and_then(|p| p.source.as_ref())
+        .and_then(|s| s.as_remote_url())
+        .map(|s| s.to_string())
+}
+
 /// Install a plugin from a marketplace
 #[tauri::command]
 pub async fn install_plugin(name: String, marketplace: String) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
         let base = plugins_dir();
-        let marketplace_plugin_dir = base
-            .join("marketplaces")
-            .join(&marketplace)
-            .join("plugins")
-            .join(&name);
 
-        if !marketplace_plugin_dir.exists() {
-            return Err(format!(
-                "Plugin '{}' not found in marketplace '{}'",
-                name, marketplace
-            ));
-        }
+        // Try to find plugin locally first; if not found, try cloning from remote URL
+        let marketplace_plugin_dir = match resolve_plugin_source(&base, &marketplace, &name) {
+            Some(dir) => dir,
+            None => {
+                // Check if plugin has a remote URL — clone it to cache directly
+                let remote_url =
+                    get_plugin_remote_url(&base, &marketplace, &name).ok_or_else(|| {
+                        format!(
+                            "Plugin '{}' not found in marketplace '{}'",
+                            name, marketplace
+                        )
+                    })?;
+
+                let clone_dir = base.join("cache").join(&marketplace).join(&name).join("repo");
+                if clone_dir.exists() {
+                    // Already cloned, use it
+                    clone_dir
+                } else {
+                    fs::create_dir_all(&clone_dir)
+                        .map_err(|e| format!("Failed to create dir: {e}"))?;
+
+                    let output = Command::new("git")
+                        .args(["clone", "--depth", "1", &remote_url, "."])
+                        .current_dir(&clone_dir)
+                        .output()
+                        .map_err(|e| format!("Failed to run git clone: {e}"))?;
+
+                    if !output.status.success() {
+                        let _ = fs::remove_dir_all(&clone_dir);
+                        let stderr = String::from_utf8_lossy(&output.stderr);
+                        return Err(format!("Failed to clone plugin: {}", stderr.trim()));
+                    }
+                    clone_dir
+                }
+            }
+        };
 
         // Read plugin version from marketplace.json
         let manifest_path = base
