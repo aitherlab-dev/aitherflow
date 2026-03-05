@@ -15,6 +15,7 @@ let toolActivityTimer: ReturnType<typeof setTimeout> | null = null;
 /** State for each agent (active uses Zustand as truth, background uses this Map) */
 interface AgentChatState {
   messages: ChatMessage[];
+  streamingMessage: ChatMessage | null;
   chatId: string | null;
   hasSession: boolean;
   isThinking: boolean;
@@ -32,6 +33,7 @@ function getOrCreateAgentState(agentId: string): AgentChatState {
   if (!state) {
     state = {
       messages: [],
+      streamingMessage: null,
       chatId: null,
       hasSession: false,
       isThinking: false,
@@ -71,6 +73,7 @@ interface ChatState {
 
   // Current chat data
   messages: ChatMessage[];
+  streamingMessage: ChatMessage | null;
   hasSession: boolean;
   isThinking: boolean;
   planMode: boolean;
@@ -237,6 +240,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   chatList: [],
   currentChatId: null,
   messages: [],
+  streamingMessage: null,
   hasSession: false,
   isThinking: false,
   planMode: false,
@@ -558,6 +562,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // Snapshot current Zustand state → Map for the outgoing agent
     agentStates.set(state.agentId, {
       messages: state.messages,
+      streamingMessage: state.streamingMessage,
       chatId: state.currentChatId,
       hasSession: state.hasSession,
       isThinking: state.isThinking,
@@ -592,6 +597,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         projectName,
         currentChatId: target.chatId,
         messages: target.messages,
+        streamingMessage: target.streamingMessage,
         chatList: [],
         hasSession: target.hasSession,
         isThinking: target.isThinking,
@@ -610,6 +616,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         projectName,
         currentChatId: null,
         messages: [],
+        streamingMessage: null,
         chatList: [],
         hasSession: false,
         isThinking: false,
@@ -686,7 +693,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // Build control_response payload
     let controlResponse: Record<string, unknown>;
     if (response.startsWith("__deny__")) {
-      const reason = response.slice(7).trim() || "User declined";
+      const reason = response.slice(8).trim() || "User declined";
       controlResponse = { error: reason };
     } else if (toolName === "AskUserQuestion") {
       // Build updatedInput with answers
@@ -734,23 +741,23 @@ function flushStreamBuffer() {
   streamBufferIsNew = false;
 
   const { getState: get, setState: set } = useChatStore;
-  const state = get();
-  const msgs = [...state.messages];
-  const last = msgs[msgs.length - 1];
+  const existing = get().streamingMessage;
 
-  if (!isNew && last && last.role === "assistant" && last.isStreaming) {
-    msgs[msgs.length - 1] = { ...last, text };
+  if (!isNew && existing) {
+    set({ streamingMessage: { ...existing, text }, isThinking: true });
   } else if (isNew) {
-    msgs.push({
-      id: crypto.randomUUID(),
-      role: "assistant",
-      text,
-      timestamp: Date.now(),
-      isStreaming: true,
-      tools: [],
+    set({
+      streamingMessage: {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        text,
+        timestamp: Date.now(),
+        isStreaming: true,
+        tools: [],
+      },
+      isThinking: true,
     });
   }
-  set({ messages: msgs, isThinking: true });
 }
 
 function cancelStreamRaf() {
@@ -814,39 +821,29 @@ function processBackgroundEvent(agentState: AgentChatState, e: CliEvent) {
       break;
 
     case "streamChunk": {
-      const msgs = [...agentState.messages];
-      const last = msgs[msgs.length - 1];
-      if (last && last.role === "assistant" && last.isStreaming) {
-        msgs[msgs.length - 1] = { ...last, text: e.text };
+      const sm = agentState.streamingMessage;
+      if (sm) {
+        agentState.streamingMessage = { ...sm, text: e.text };
       } else {
-        msgs.push({
+        agentState.streamingMessage = {
           id: crypto.randomUUID(),
           role: "assistant",
           text: e.text,
           timestamp: Date.now(),
           isStreaming: true,
           tools: [],
-        });
+        };
       }
-      agentState.messages = msgs;
       break;
     }
 
     case "messageComplete": {
-      const msgs = [...agentState.messages];
-      const last = msgs[msgs.length - 1];
-      if (last && last.role === "assistant" && last.isStreaming) {
-        msgs[msgs.length - 1] = { ...last, text: e.text, isStreaming: false };
-      } else {
-        msgs.push({
-          id: crypto.randomUUID(),
-          role: "assistant",
-          text: e.text,
-          timestamp: Date.now(),
-          isStreaming: false,
-        });
-      }
-      agentState.messages = msgs;
+      const sm = agentState.streamingMessage;
+      const completed: ChatMessage = sm
+        ? { ...sm, text: e.text, isStreaming: false }
+        : { id: crypto.randomUUID(), role: "assistant", text: e.text, timestamp: Date.now(), isStreaming: false };
+      agentState.messages = [...agentState.messages, completed];
+      agentState.streamingMessage = null;
       break;
     }
 
@@ -856,24 +853,21 @@ function processBackgroundEvent(agentState: AgentChatState, e: CliEvent) {
         toolName: e.tool_name,
         toolInput: e.tool_input,
       };
-      const msgs = [...agentState.messages];
-      const last = msgs[msgs.length - 1];
-      if (last && last.role === "assistant") {
-        const existing = last.tools ?? [];
+      let sm = agentState.streamingMessage;
+      if (sm) {
+        const existing = sm.tools ?? [];
         if (existing.some((t) => t.toolUseId === activity.toolUseId)) break;
-        const tools = [...existing, activity];
-        msgs[msgs.length - 1] = { ...last, tools };
+        agentState.streamingMessage = { ...sm, tools: [...existing, activity] };
       } else {
-        msgs.push({
+        agentState.streamingMessage = {
           id: crypto.randomUUID(),
           role: "assistant",
           text: "",
           timestamp: Date.now(),
           isStreaming: true,
           tools: [activity],
-        });
+        };
       }
-      agentState.messages = msgs;
 
       // Track plan mode transitions
       if (e.tool_name === "EnterPlanMode") agentState.planMode = true;
@@ -882,45 +876,49 @@ function processBackgroundEvent(agentState: AgentChatState, e: CliEvent) {
     }
 
     case "toolResult": {
-      const msgs = [...agentState.messages];
-      const last = msgs[msgs.length - 1];
-      if (last && last.role === "assistant" && last.tools) {
-        const tools = last.tools.map((t) =>
+      const sm = agentState.streamingMessage;
+      if (sm?.tools) {
+        const tools = sm.tools.map((t) =>
           t.toolUseId === e.tool_use_id
             ? { ...t, result: e.output_preview, isError: e.is_error }
             : t,
         );
-        msgs[msgs.length - 1] = { ...last, tools };
+        agentState.streamingMessage = { ...sm, tools };
       }
-      agentState.messages = msgs;
       break;
     }
 
     case "controlRequest": {
-      // Store request_id on the matching tool activity
-      const msgs = [...agentState.messages];
-      for (let i = msgs.length - 1; i >= 0; i--) {
-        const msg = msgs[i];
-        if (msg.role === "assistant" && msg.tools?.some((t) => t.toolUseId === e.tool_use_id)) {
-          const tools = msg.tools.map((t) =>
-            t.toolUseId === e.tool_use_id ? { ...t, requestId: e.request_id } : t,
-          );
-          msgs[i] = { ...msg, tools };
-          break;
+      const sm = agentState.streamingMessage;
+      if (sm?.tools?.some((t) => t.toolUseId === e.tool_use_id)) {
+        const tools = sm.tools.map((t) =>
+          t.toolUseId === e.tool_use_id ? { ...t, requestId: e.request_id } : t,
+        );
+        agentState.streamingMessage = { ...sm, tools };
+      } else {
+        // Tool already merged into messages (interactive tools)
+        const msgs = [...agentState.messages];
+        for (let i = msgs.length - 1; i >= 0; i--) {
+          const msg = msgs[i];
+          if (msg.role === "assistant" && msg.tools?.some((t) => t.toolUseId === e.tool_use_id)) {
+            const tools = msg.tools.map((t) =>
+              t.toolUseId === e.tool_use_id ? { ...t, requestId: e.request_id } : t,
+            );
+            msgs[i] = { ...msg, tools };
+            agentState.messages = msgs;
+            break;
+          }
         }
       }
-      agentState.messages = msgs;
       break;
     }
 
     case "turnComplete": {
       agentState.isThinking = false;
       agentState.currentToolActivity = null;
-      const msgs = [...agentState.messages];
-      const last = msgs[msgs.length - 1];
-      if (last && last.role === "assistant" && last.isStreaming) {
-        msgs[msgs.length - 1] = { ...last, isStreaming: false };
-        agentState.messages = msgs;
+      if (agentState.streamingMessage) {
+        agentState.messages = [...agentState.messages, { ...agentState.streamingMessage, isStreaming: false }];
+        agentState.streamingMessage = null;
       }
       persistAgentMessages(e.agent_id).catch(console.error);
       break;
@@ -930,11 +928,9 @@ function processBackgroundEvent(agentState: AgentChatState, e: CliEvent) {
       agentState.hasSession = false;
       agentState.isThinking = false;
       agentState.currentToolActivity = null;
-      const msgs = [...agentState.messages];
-      const last = msgs[msgs.length - 1];
-      if (last && last.role === "assistant" && last.isStreaming) {
-        msgs[msgs.length - 1] = { ...last, isStreaming: false };
-        agentState.messages = msgs;
+      if (agentState.streamingMessage) {
+        agentState.messages = [...agentState.messages, { ...agentState.streamingMessage, isStreaming: false }];
+        agentState.streamingMessage = null;
       }
       persistAgentMessages(e.agent_id).catch(console.error);
       break;
@@ -984,8 +980,7 @@ function handleCliEvent(e: CliEvent) {
     }
 
     case "streamChunk": {
-      const last = state.messages[state.messages.length - 1];
-      const isNew = !(last && last.role === "assistant" && last.isStreaming);
+      const isNew = !state.streamingMessage;
       streamBuffer = e.text;
       if (isNew) streamBufferIsNew = true;
       if (rafId === null) {
@@ -996,20 +991,17 @@ function handleCliEvent(e: CliEvent) {
 
     case "messageComplete": {
       cancelStreamRaf();
-      const msgs = [...state.messages];
-      const last = msgs[msgs.length - 1];
-      if (last && last.role === "assistant" && last.isStreaming) {
-        msgs[msgs.length - 1] = { ...last, text: e.text, isStreaming: false };
-      } else {
-        msgs.push({
-          id: crypto.randomUUID(),
-          role: "assistant",
-          text: e.text,
-          timestamp: Date.now(),
-          isStreaming: false,
-        });
-      }
-      set({ messages: msgs });
+      const sm = state.streamingMessage;
+      const completed: ChatMessage = sm
+        ? { ...sm, text: e.text, isStreaming: false }
+        : {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            text: e.text,
+            timestamp: Date.now(),
+            isStreaming: false,
+          };
+      set({ messages: [...state.messages, completed], streamingMessage: null });
       break;
     }
 
@@ -1019,22 +1011,22 @@ function handleCliEvent(e: CliEvent) {
         toolName: e.tool_name,
         toolInput: e.tool_input,
       };
-      const msgs = [...state.messages];
-      const last = msgs[msgs.length - 1];
-      if (last && last.role === "assistant") {
-        const existing = last.tools ?? [];
+
+      // Add tool to streamingMessage
+      let sm = state.streamingMessage;
+      if (sm) {
+        const existing = sm.tools ?? [];
         if (existing.some((t) => t.toolUseId === activity.toolUseId)) break;
-        const tools = [...existing, activity];
-        msgs[msgs.length - 1] = { ...last, tools };
+        sm = { ...sm, tools: [...existing, activity] };
       } else {
-        msgs.push({
+        sm = {
           id: crypto.randomUUID(),
           role: "assistant",
           text: "",
           timestamp: Date.now(),
           isStreaming: true,
           tools: [activity],
-        });
+        };
       }
 
       // Bridge to file viewer for file-editing tools
@@ -1074,32 +1066,30 @@ function handleCliEvent(e: CliEvent) {
           clearTimeout(toolActivityTimer);
           toolActivityTimer = null;
         }
-        set({ messages: msgs, currentToolActivity: activity });
+        set({ streamingMessage: sm, currentToolActivity: activity });
       } else {
-        // CLI is paused waiting for user input — stop streaming so cards render
-        // requestId will be set when controlRequest arrives
-        const lastMsg = msgs[msgs.length - 1];
-        if (lastMsg && lastMsg.role === "assistant" && lastMsg.isStreaming) {
-          msgs[msgs.length - 1] = { ...lastMsg, isStreaming: false };
-        }
-        set({ messages: msgs, isThinking: false });
+        // CLI is paused waiting for user input — merge into messages so cards render
+        set({
+          messages: [...state.messages, { ...sm, isStreaming: false }],
+          streamingMessage: null,
+          isThinking: false,
+        });
         syncThinkingIds();
       }
       break;
     }
 
     case "toolResult": {
-      const msgs = [...state.messages];
-      const last = msgs[msgs.length - 1];
-      if (last && last.role === "assistant" && last.tools) {
-        const tools = last.tools.map((t) =>
+      // Update tool result in streamingMessage
+      const sm = state.streamingMessage;
+      if (sm?.tools) {
+        const tools = sm.tools.map((t) =>
           t.toolUseId === e.tool_use_id
             ? { ...t, result: e.output_preview, isError: e.is_error }
             : t,
         );
-        msgs[msgs.length - 1] = { ...last, tools };
+        set({ streamingMessage: { ...sm, tools } });
       }
-      set({ messages: msgs });
 
       // Refresh file viewer after file-editing tool completes
       import("./fileViewerStore").then(({ useFileViewerStore }) => {
@@ -1121,52 +1111,55 @@ function handleCliEvent(e: CliEvent) {
 
     case "controlRequest": {
       // CLI is asking for permission or user input — store request_id on the matching tool
-      const msgs = [...state.messages];
-      for (let i = msgs.length - 1; i >= 0; i--) {
-        const msg = msgs[i];
-        if (msg.role === "assistant" && msg.tools?.some((t) => t.toolUseId === e.tool_use_id)) {
-          const tools = msg.tools.map((t) =>
-            t.toolUseId === e.tool_use_id ? { ...t, requestId: e.request_id } : t,
-          );
-          msgs[i] = { ...msg, tools };
-          break;
+      // Check streamingMessage first, then messages (interactive tools get merged into messages)
+      const sm = state.streamingMessage;
+      if (sm?.tools?.some((t) => t.toolUseId === e.tool_use_id)) {
+        const tools = sm.tools.map((t) =>
+          t.toolUseId === e.tool_use_id ? { ...t, requestId: e.request_id } : t,
+        );
+        set({ streamingMessage: { ...sm, tools } });
+      } else {
+        const msgs = [...state.messages];
+        for (let i = msgs.length - 1; i >= 0; i--) {
+          const msg = msgs[i];
+          if (msg.role === "assistant" && msg.tools?.some((t) => t.toolUseId === e.tool_use_id)) {
+            const tools = msg.tools.map((t) =>
+              t.toolUseId === e.tool_use_id ? { ...t, requestId: e.request_id } : t,
+            );
+            msgs[i] = { ...msg, tools };
+            set({ messages: msgs });
+            break;
+          }
         }
       }
-      set({ messages: msgs });
       break;
     }
 
-    case "turnComplete":
+    case "turnComplete": {
       cancelStreamRaf();
-      set({ isThinking: false, currentToolActivity: null });
-      {
-        const msgs = [...state.messages];
-        const last = msgs[msgs.length - 1];
-        if (last && last.role === "assistant" && last.isStreaming) {
-          msgs[msgs.length - 1] = { ...last, isStreaming: false };
-          set({ messages: msgs });
-        }
-      }
+      const sm = state.streamingMessage;
+      const msgs = sm
+        ? [...state.messages, { ...sm, isStreaming: false }]
+        : state.messages;
+      set({ messages: msgs, streamingMessage: null, isThinking: false, currentToolActivity: null });
       // Save messages to disk after each complete turn
       persistMessages().catch(console.error);
       syncThinkingIds();
       break;
+    }
 
-    case "processExited":
+    case "processExited": {
       cancelStreamRaf();
-      set({ hasSession: false, isThinking: false, planMode: false, currentToolActivity: null });
-      {
-        const msgs = [...state.messages];
-        const last = msgs[msgs.length - 1];
-        if (last && last.role === "assistant" && last.isStreaming) {
-          msgs[msgs.length - 1] = { ...last, isStreaming: false };
-          set({ messages: msgs });
-        }
-      }
+      const sm = state.streamingMessage;
+      const msgs = sm
+        ? [...state.messages, { ...sm, isStreaming: false }]
+        : state.messages;
+      set({ messages: msgs, streamingMessage: null, hasSession: false, isThinking: false, planMode: false, currentToolActivity: null });
       // Save messages when process exits
       persistMessages().catch(console.error);
       syncThinkingIds();
       break;
+    }
 
     case "error":
       set({ error: e.message, isThinking: false });
@@ -1178,3 +1171,43 @@ function handleCliEvent(e: CliEvent) {
 listen<CliEvent>("cli-event", (event) => handleCliEvent(event.payload)).catch(
   console.error,
 );
+
+// ── Derived selectors (memoized outside components) ──
+
+/** All tool activities across messages + streaming message. Use with useShallow. */
+export function selectToolActivities(s: ChatState): ToolActivity[] {
+  const all: ToolActivity[] = [];
+  for (const msg of s.messages) {
+    if (msg.tools) for (const t of msg.tools) all.push(t);
+  }
+  if (s.streamingMessage?.tools) {
+    for (const t of s.streamingMessage.tools) all.push(t);
+  }
+  return all;
+}
+
+/** Total tool count across all messages + streaming. */
+export function selectToolCount(s: ChatState): number {
+  let count = 0;
+  for (const msg of s.messages) {
+    if (msg.tools) count += msg.tools.length;
+  }
+  if (s.streamingMessage?.tools) count += s.streamingMessage.tools.length;
+  return count;
+}
+
+/** Last 2 tool activities from the latest assistant message (for InputBar). */
+export function selectRecentTools(s: ChatState): ToolActivity[] {
+  if (!s.isThinking) return [];
+  // Check streaming message first
+  if (s.streamingMessage?.role === "assistant" && s.streamingMessage.tools && s.streamingMessage.tools.length > 0) {
+    return s.streamingMessage.tools.slice(-2);
+  }
+  for (let i = s.messages.length - 1; i >= 0; i--) {
+    const msg = s.messages[i];
+    if (msg.role === "assistant" && msg.tools && msg.tools.length > 0) {
+      return msg.tools.slice(-2);
+    }
+  }
+  return [];
+}

@@ -245,14 +245,18 @@ pub async fn cleanup_temp_file(path: String) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
         let file_path = Path::new(&path);
         let dir = temp_dir();
-        // Safety: only allow deleting files within our temp dir
-        if !file_path.starts_with(&dir) {
+        // Safety: canonicalize to resolve symlinks and ".." before checking prefix
+        let canonical = file_path
+            .canonicalize()
+            .map_err(|e| format!("Cannot resolve path: {e}"))?;
+        let canonical_dir = dir
+            .canonicalize()
+            .map_err(|e| format!("Cannot resolve temp dir: {e}"))?;
+        if !canonical.starts_with(&canonical_dir) {
             return Err("Path is outside temp directory".into());
         }
-        if file_path.exists() {
-            fs::remove_file(file_path)
-                .map_err(|e| format!("Failed to delete temp file: {e}"))?;
-        }
+        fs::remove_file(&canonical)
+            .map_err(|e| format!("Failed to delete temp file: {e}"))?;
         Ok(())
     })
     .await

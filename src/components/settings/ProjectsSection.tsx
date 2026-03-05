@@ -51,8 +51,8 @@ const ProjectItem = memo(function ProjectItem({
 
   const handleRenameKey = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === "Enter") handleRenameConfirm();
-      if (e.key === "Escape") setEditing(false);
+      if (e.code === "Enter") handleRenameConfirm();
+      if (e.code === "Escape") setEditing(false);
     },
     [handleRenameConfirm],
   );

@@ -27,6 +27,7 @@ pub struct WebState {
     pub auth_token: String,
     pub rate_limiter: auth::RateLimiter,
     pub session_store: auth::SessionStore,
+    pub remote_access: bool,
 }
 
 /// Start the embedded web server. Returns `Err` only if binding fails.
@@ -77,7 +78,7 @@ pub async fn run(state: WebState, port: u16, remote_access: bool) -> Result<(), 
         // ── Hooks ──
         .route("/api/load_hooks", post(handlers::load_hooks))
         .route("/api/save_hooks", post(handlers::save_hooks))
-        .route("/api/test_hook_command", post(handlers::test_hook_command))
+        // test_hook_command intentionally excluded — executes arbitrary shell commands
         // ── Web Config ──
         .route("/api/load_web_config", post(handlers::load_web_config))
         .route("/api/save_web_config", post(handlers::save_web_config))

@@ -1,4 +1,4 @@
-import { memo, useRef, useEffect, useCallback, useState } from "react";
+import { memo, useRef, useEffect, useCallback, useState, useMemo } from "react";
 import { ArrowDown } from "lucide-react";
 import { MessageBubble } from "./MessageBubble";
 import { useChatStore } from "../../stores/chatStore";
@@ -8,6 +8,7 @@ const BOTTOM_THRESHOLD = 50;
 
 export const MessageList = memo(function MessageList() {
   const messages = useChatStore((s) => s.messages);
+  const streamingMessage = useChatStore((s) => s.streamingMessage);
   const containerRef = useRef<HTMLDivElement>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const scrolledUp = useRef(false);
@@ -43,13 +44,13 @@ export const MessageList = memo(function MessageList() {
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, []);
 
-  // Auto-scroll when messages change (unless user scrolled up)
+  // Auto-scroll when messages or streaming message change (unless user scrolled up)
   useEffect(() => {
     const el = containerRef.current;
     if (!el || scrolledUp.current) return;
 
     el.scrollTo({ top: el.scrollHeight, behavior: "instant" });
-  }, [messages]);
+  }, [messages, streamingMessage]);
 
   // Scroll to bottom when container resizes (input bar grows/shrinks with attachments)
   useEffect(() => {
@@ -65,8 +66,12 @@ export const MessageList = memo(function MessageList() {
   }, []);
 
   // Reset scroll lock when user sends a new message
-  const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
-  const lastUserMsgId = lastUserMsg?.id;
+  const lastUserMsgId = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "user") return messages[i].id;
+    }
+    return undefined;
+  }, [messages]);
   useEffect(() => {
     scrolledUp.current = false;
     setShowScrollBtn(false);
@@ -83,12 +88,15 @@ export const MessageList = memo(function MessageList() {
       onScroll={handleScroll}
     >
       <div className="message-list-inner">
-        {messages.length === 0 ? (
+        {messages.length === 0 && !streamingMessage ? (
           <div className="message-list-empty">
             <p>Start a conversation</p>
           </div>
         ) : (
-          messages.map((msg) => <MessageBubble key={msg.id} message={msg} />)
+          <>
+            {messages.map((msg) => <MessageBubble key={msg.id} message={msg} />)}
+            {streamingMessage && <MessageBubble key={streamingMessage.id} message={streamingMessage} />}
+          </>
         )}
       </div>
       {showScrollBtn && (

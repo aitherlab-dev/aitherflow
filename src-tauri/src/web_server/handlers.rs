@@ -336,11 +336,23 @@ pub async fn save_projects(Json(body): Json<serde_json::Value>) -> Response {
 // ── Settings ───────────────────────────────────────────────────────
 
 pub async fn load_settings() -> Response {
-    ok_json(crate::settings::load_settings().await)
+    ok_json(crate::settings::load_settings().await.map(|mut s| {
+        s.groq_api_key = mask_key(&s.groq_api_key);
+        s.deepgram_api_key = mask_key(&s.deepgram_api_key);
+        s
+    }))
+}
+
+fn mask_key(key: &str) -> String {
+    if key.len() <= 8 {
+        if key.is_empty() { String::new() } else { "••••••••".to_string() }
+    } else {
+        format!("{}••••••••", &key[..4])
+    }
 }
 
 pub async fn save_settings(Json(body): Json<serde_json::Value>) -> Response {
-    let settings: crate::settings::AppSettings = match body.get("settings") {
+    let mut settings: crate::settings::AppSettings = match body.get("settings") {
         Some(s) => match serde_json::from_value(s.clone()) {
             Ok(v) => v,
             Err(e) => return (StatusCode::BAD_REQUEST, format!("Invalid settings: {e}")).into_response(),
@@ -350,6 +362,15 @@ pub async fn save_settings(Json(body): Json<serde_json::Value>) -> Response {
             Err(e) => return (StatusCode::BAD_REQUEST, format!("Invalid settings: {e}")).into_response(),
         },
     };
+    // Don't overwrite real keys with masked values from web UI
+    if let Ok(existing) = crate::settings::load_settings().await {
+        if settings.groq_api_key.contains('•') {
+            settings.groq_api_key = existing.groq_api_key;
+        }
+        if settings.deepgram_api_key.contains('•') {
+            settings.deepgram_api_key = existing.deepgram_api_key;
+        }
+    }
     ok_empty(crate::settings::save_settings(settings).await)
 }
 
@@ -483,9 +504,10 @@ pub async fn exchange_auth_code(
         return (StatusCode::UNAUTHORIZED, "Invalid or expired code").into_response();
     };
 
-    // Set HttpOnly, Secure, SameSite=Strict cookie
+    // Set HttpOnly cookie; add Secure flag when remote_access is enabled
+    let secure = if state.remote_access { "; Secure" } else { "" };
     let cookie = format!(
-        "af_session={session_token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800"
+        "af_session={session_token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800{secure}"
     );
 
     // Redirect to app root
@@ -524,15 +546,7 @@ pub async fn save_hooks(Json(p): Json<HooksSaveParam>) -> Response {
     ok_empty(crate::hooks::save_hooks(p.scope, p.project_path, p.hooks).await)
 }
 
-#[derive(Deserialize)]
-pub struct HookTestParam {
-    command: String,
-    cwd: Option<String>,
-}
-
-pub async fn test_hook_command(Json(p): Json<HookTestParam>) -> Response {
-    ok_json(crate::hooks::test_hook_command(p.command, p.cwd).await)
-}
+// test_hook_command excluded from web server — executes arbitrary shell commands
 
 // ── Memory ─────────────────────────────────────────────────────────
 

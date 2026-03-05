@@ -380,8 +380,8 @@ function SourcesTab() {
 
   const handleAddKey = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === "Enter") handleAdd().catch(console.error);
-      if (e.key === "Escape") setAdding(false);
+      if (e.code === "Enter") handleAdd().catch(console.error);
+      if (e.code === "Escape") setAdding(false);
     },
     [handleAdd],
   );

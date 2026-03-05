@@ -72,6 +72,7 @@ mod web_server_manager {
                 auth_token: cfg.token.clone(),
                 rate_limiter: web_server::auth::RateLimiter::new(),
                 session_store: self.session_store.clone(),
+                remote_access: cfg.remote_access,
             };
 
             let port = cfg.port;
@@ -83,11 +84,7 @@ mod web_server_manager {
                 }
             });
 
-            eprintln!(
-                "[aitherflow] Web server started on port {}, token: {}…",
-                cfg.port,
-                &cfg.token[..8.min(cfg.token.len())]
-            );
+            eprintln!("[aitherflow] Web server started on port {}", cfg.port);
 
             *guard = Some(h);
             Ok(())
@@ -357,7 +354,7 @@ pub fn run() {
                     let content = "# Workspace\n\n\
                         You are running inside Aither Flow, a custom GUI for Claude Code CLI.\n\
                         The user may ask you to test things, search the web, automate tasks, etc.\n";
-                    if let Err(e) = std::fs::write(&claude_md, content) {
+                    if let Err(e) = file_ops::atomic_write(&claude_md, content.as_bytes()) {
                         eprintln!("[aitherflow] Failed to write CLAUDE.md: {e}");
                     }
                 }

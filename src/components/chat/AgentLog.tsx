@@ -1,22 +1,12 @@
-import { memo, useRef, useEffect, useMemo } from "react";
-import { useChatStore } from "../../stores/chatStore";
+import { memo, useRef, useEffect } from "react";
+import { useChatStore, selectToolActivities } from "../../stores/chatStore";
+import { useShallow } from "zustand/react/shallow";
 import { ToolCard } from "./ToolCard";
-import type { ToolActivity } from "../../types/chat";
 
 export const AgentLog = memo(function AgentLog({ height }: { height?: number }) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const messages = useChatStore((s) => s.messages);
+  const activities = useChatStore(useShallow(selectToolActivities));
   const runningId = useChatStore((s) => s.currentToolActivity?.toolUseId ?? null);
-
-  const activities: ToolActivity[] = useMemo(() => {
-    const all: ToolActivity[] = [];
-    for (const msg of messages) {
-      if (msg.tools) {
-        for (const t of msg.tools) all.push(t);
-      }
-    }
-    return all;
-  }, [messages]);
 
   const count = activities.length;
 

@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { invoke } from "../lib/transport";
-import { listen, UnlistenFn } from "@tauri-apps/api/event";
+import { invoke, listen } from "../lib/transport";
+
+type UnlistenFn = () => void;
 
 export type VoiceState = "idle" | "recording" | "processing" | "streaming";
 

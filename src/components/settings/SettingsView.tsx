@@ -47,7 +47,7 @@ export function SettingsView() {
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.code === "Escape") {
         e.preventDefault();
         close();
       }

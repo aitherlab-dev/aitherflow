@@ -1,8 +1,8 @@
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useRef, useState } from "react";
 import { useFileViewerStore } from "../../stores/fileViewerStore";
 import { useShallow } from "zustand/react/shallow";
 import { useLayoutStore } from "../../stores/layoutStore";
-import { useChatStore } from "../../stores/chatStore";
+import { useChatStore, selectToolCount } from "../../stores/chatStore";
 import { TabBar } from "./TabBar";
 import { CodeViewer } from "./CodeViewer";
 import { ImageViewer } from "./ImageViewer";
@@ -21,23 +21,9 @@ export const FileViewerPanel = memo(function FileViewerPanel() {
   const saveFile = useFileViewerStore((s) => s.saveFile);
   const agentLogOpen = useLayoutStore((s) => s.agentLogOpen);
   const toggleAgentLog = useLayoutStore((s) => s.toggleAgentLog);
-  const messages = useChatStore((s) => s.messages);
+  const toolCount = useChatStore(selectToolCount);
 
-  let toolCount = 0;
-  for (const msg of messages) {
-    if (msg.tools) toolCount += msg.tools.length;
-  }
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.altKey && e.code === "KeyA") {
-        e.preventDefault();
-        toggleAgentLog();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [toggleAgentLog]);
+  // Alt+A hotkey handled by StatusBar to avoid double-toggle
 
   const activeTab = tabs.find((t) => t.id === activeTabId);
 

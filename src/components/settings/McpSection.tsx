@@ -252,7 +252,7 @@ function McpEditForm({
 
   const handleKey = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === "Escape") onCancel();
+      if (e.code === "Escape") onCancel();
     },
     [onCancel],
   );

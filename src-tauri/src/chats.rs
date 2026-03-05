@@ -1,9 +1,22 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::{Arc, LazyLock, Mutex};
 
 use crate::config;
 use crate::file_ops::atomic_write;
+
+/// Per-chat-id lock to prevent concurrent read-modify-write races.
+static CHAT_LOCKS: LazyLock<Mutex<HashMap<String, Arc<Mutex<()>>>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+fn chat_lock(chat_id: &str) -> Arc<Mutex<()>> {
+    let mut map = CHAT_LOCKS.lock().expect("CHAT_LOCKS poisoned");
+    map.entry(chat_id.to_string())
+        .or_insert_with(|| Arc::new(Mutex::new(())))
+        .clone()
+}
 
 /// Stored tool activity (mirrors frontend ToolActivity)
 #[derive(Serialize, Deserialize, Clone)]
@@ -191,6 +204,8 @@ pub async fn save_chat_messages(
     messages: Vec<ChatMessageStored>,
 ) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
+        let lock = chat_lock(&chat_id);
+        let _guard = lock.lock().map_err(|e| format!("Chat lock poisoned: {e}"))?;
         let mut chat = read_chat_file(&chat_id)
             .ok_or_else(|| format!("Chat {chat_id} not found"))?;
         chat.messages = messages;
@@ -206,6 +221,8 @@ pub async fn save_chat_messages(
 #[tauri::command]
 pub async fn update_chat_session(chat_id: String, session_id: String) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
+        let lock = chat_lock(&chat_id);
+        let _guard = lock.lock().map_err(|e| format!("Chat lock poisoned: {e}"))?;
         let mut chat = read_chat_file(&chat_id)
             .ok_or_else(|| format!("Chat {chat_id} not found"))?;
         chat.session_id = Some(session_id);
@@ -236,6 +253,8 @@ pub async fn delete_chat(chat_id: String) -> Result<(), String> {
 #[tauri::command]
 pub async fn rename_chat(chat_id: String, custom_title: String) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
+        let lock = chat_lock(&chat_id);
+        let _guard = lock.lock().map_err(|e| format!("Chat lock poisoned: {e}"))?;
         let mut chat = read_chat_file(&chat_id)
             .ok_or_else(|| format!("Chat {chat_id} not found"))?;
         let trimmed = custom_title.trim();
@@ -256,6 +275,8 @@ pub async fn rename_chat(chat_id: String, custom_title: String) -> Result<(), St
 #[tauri::command]
 pub async fn toggle_chat_pin(chat_id: String, pinned: bool) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
+        let lock = chat_lock(&chat_id);
+        let _guard = lock.lock().map_err(|e| format!("Chat lock poisoned: {e}"))?;
         let mut chat = read_chat_file(&chat_id)
             .ok_or_else(|| format!("Chat {chat_id} not found"))?;
         chat.pinned = if pinned { Some(true) } else { None };

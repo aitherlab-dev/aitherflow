@@ -1,7 +1,8 @@
 import { memo, useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { Plus, RotateCcw, Star, Mic, MicOff, ArrowUp, Square, X, MessageSquarePlus, Sparkles, Brain, Zap, Loader2 } from "lucide-react";
 import { openDialog, invoke, getCurrentWindow } from "../../lib/transport";
-import { useChatStore, getToolLabel } from "../../stores/chatStore";
+import { useChatStore, getToolLabel, selectRecentTools } from "../../stores/chatStore";
+import { useShallow } from "zustand/react/shallow";
 import { useAttachmentStore } from "../../stores/attachmentStore";
 import { useFileAttach } from "../../hooks/useFileAttach";
 import { ThinkingIndicator } from "./ThinkingIndicator";
@@ -45,7 +46,6 @@ export const InputBar = memo(function InputBar() {
   const sendMessage = useChatStore((s) => s.sendMessage);
   const stopGeneration = useChatStore((s) => s.stopGeneration);
   const isThinking = useChatStore((s) => s.isThinking);
-  const messages = useChatStore((s) => s.messages);
   const newChat = useChatStore((s) => s.newChat);
   const restartSession = useChatStore((s) => s.restartSession);
   const selectedModel = useConductorStore((s) => s.selectedModel);
@@ -83,16 +83,7 @@ export const InputBar = memo(function InputBar() {
   }, [hasSession, activeModel, selectedModel]);
 
   // Last 2 tool activities from the latest assistant message
-  const recentTools = useMemo(() => {
-    if (!isThinking) return [];
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const msg = messages[i];
-      if (msg.role === "assistant" && msg.tools && msg.tools.length > 0) {
-        return msg.tools.slice(-2);
-      }
-    }
-    return [];
-  }, [isThinking, messages]);
+  const recentTools = useChatStore(useShallow(selectRecentTools));
 
   // Auto-resize textarea
   useEffect(() => {

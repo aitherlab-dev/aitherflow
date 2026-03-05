@@ -677,8 +677,7 @@ fn save_to_tmp(bytes: &[u8], filename: &str) -> Result<String, String> {
     std::fs::create_dir_all(&tmp_dir)
         .map_err(|e| format!("Failed to create tmp dir: {e}"))?;
     let tmp_path = tmp_dir.join(filename);
-    std::fs::write(&tmp_path, bytes)
-        .map_err(|e| format!("Failed to write tmp file: {e}"))?;
+    atomic_write(&tmp_path, bytes)?;
     Ok(tmp_path.to_string_lossy().to_string())
 }
 

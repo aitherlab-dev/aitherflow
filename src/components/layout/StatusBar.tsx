@@ -1,17 +1,12 @@
 import { memo, useEffect, useCallback } from "react";
 import { List } from "lucide-react";
 import { useLayoutStore } from "../../stores/layoutStore";
-import { useChatStore } from "../../stores/chatStore";
+import { useChatStore, selectToolCount } from "../../stores/chatStore";
 
 export const StatusBar = memo(function StatusBar() {
   const agentLogOpen = useLayoutStore((s) => s.agentLogOpen);
   const toggleAgentLog = useLayoutStore((s) => s.toggleAgentLog);
-  const messages = useChatStore((s) => s.messages);
-
-  let toolCount = 0;
-  for (const msg of messages) {
-    if (msg.tools) toolCount += msg.tools.length;
-  }
+  const toolCount = useChatStore(selectToolCount);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {

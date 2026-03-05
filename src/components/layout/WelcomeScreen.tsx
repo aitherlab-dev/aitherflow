@@ -134,7 +134,7 @@ export function WelcomeScreen() {
                 removeWelcomeCard(card.projectPath);
               }}
               onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
+                if (e.code === "Enter" || e.code === "Space") {
                   e.stopPropagation();
                   removeWelcomeCard(card.projectPath);
                 }

@@ -132,10 +132,15 @@ fn load_disk_cache() -> DiskCache {
 fn save_disk_cache(cache: &DiskCache) {
     let Some(path) = cache_path() else { return };
     if let Some(parent) = path.parent() {
-        let _ = std::fs::create_dir_all(parent);
+        if let Err(e) = std::fs::create_dir_all(parent) {
+            eprintln!("[stats] Failed to create cache dir: {e}");
+            return;
+        }
     }
     if let Ok(json) = serde_json::to_string(cache) {
-        let _ = std::fs::write(&path, json);
+        if let Err(e) = crate::file_ops::atomic_write(&path, json.as_bytes()) {
+            eprintln!("[stats] Failed to write cache: {e}");
+        }
     }
 }
 

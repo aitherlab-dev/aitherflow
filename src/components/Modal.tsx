@@ -16,7 +16,7 @@ export function Modal({ isOpen, onClose, title, children, width = "480px" }: Mod
     if (!isOpen) return;
 
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
+      if (e.code === "Escape") {
         onClose();
       }
     }
