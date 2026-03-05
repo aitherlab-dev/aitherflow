@@ -15,6 +15,14 @@ pub struct ProjectBookmark {
     pub additional_dirs: Vec<String>,
 }
 
+/// A welcome screen card (user-pinned project)
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct WelcomeCard {
+    pub project_path: String,
+    pub project_name: String,
+}
+
 /// Full projects config on disk
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -22,6 +30,10 @@ pub struct ProjectsConfig {
     pub projects: Vec<ProjectBookmark>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_opened_project: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_opened_chat_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub welcome_cards: Vec<WelcomeCard>,
 }
 
 /// Path to projects.json
@@ -44,6 +56,8 @@ pub async fn load_projects() -> Result<ProjectsConfig, String> {
                     additional_dirs: Vec::new(),
                 }],
                 last_opened_project: None,
+                last_opened_chat_id: None,
+                welcome_cards: Vec::new(),
             });
         }
 
@@ -76,11 +90,15 @@ pub async fn load_projects() -> Result<ProjectsConfig, String> {
 pub async fn save_projects(
     projects: Vec<ProjectBookmark>,
     last_opened_project: Option<String>,
+    last_opened_chat_id: Option<String>,
+    welcome_cards: Vec<WelcomeCard>,
 ) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
         let config = ProjectsConfig {
             projects,
             last_opened_project,
+            last_opened_chat_id,
+            welcome_cards,
         };
         let data = serde_json::to_string_pretty(&config)
             .map_err(|e| format!("Failed to serialize projects: {e}"))?;
@@ -105,6 +123,8 @@ pub fn ensure_projects_file() {
             additional_dirs: Vec::new(),
         }],
         last_opened_project: None,
+        last_opened_chat_id: None,
+        welcome_cards: Vec::new(),
     };
     match serde_json::to_string_pretty(&config) {
         Ok(data) => {

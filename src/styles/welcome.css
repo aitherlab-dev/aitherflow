@@ -1,0 +1,199 @@
+/* ── Welcome Screen ── */
+
+.welcome-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 40px 20px;
+  gap: 40px;
+}
+
+.welcome-header {
+  text-align: center;
+}
+
+.welcome-title {
+  font-family: "Oswald", sans-serif;
+  font-size: 2.4rem;
+  letter-spacing: 0.05em;
+  margin: 0;
+  line-height: 1;
+}
+
+.welcome-title-aither {
+  font-weight: 700;
+  color: var(--fg);
+}
+
+.welcome-title-flow {
+  font-weight: 200;
+  color: var(--accent-icon);
+}
+
+/* Grid: 2 columns, scrollable */
+.welcome-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  max-width: 440px;
+  width: 100%;
+  max-height: calc(100vh - 240px);
+  overflow-y: auto;
+}
+
+/* Card base */
+.welcome-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+  color: var(--fg);
+  font-family: inherit;
+  font-size: inherit;
+  text-align: center;
+  min-height: 110px;
+}
+
+.welcome-card:hover {
+  background: var(--bg-hover);
+  border-color: var(--fg-dim);
+  transform: translateY(-2px);
+}
+
+.welcome-card--fixed {
+  border-color: var(--accent);
+  border-width: 1px;
+}
+
+.welcome-card--fixed:hover {
+  border-color: var(--accent-icon);
+}
+
+.welcome-card--disabled {
+  opacity: 0.4;
+  cursor: default;
+  pointer-events: none;
+}
+
+.welcome-card--add {
+  border-style: dashed;
+  color: var(--fg-muted);
+}
+
+.welcome-card--add:hover {
+  color: var(--fg);
+}
+
+.welcome-card-icon {
+  color: var(--accent-icon);
+}
+
+.welcome-card-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.welcome-card-desc {
+  font-size: 0.78rem;
+  color: var(--fg-muted);
+}
+
+/* Remove button on user cards */
+.welcome-card-remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.welcome-card:hover .welcome-card-remove {
+  opacity: 1;
+}
+
+.welcome-card-remove:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+/* Project picker popup */
+.welcome-picker-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.welcome-picker {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  min-width: 280px;
+  max-width: 380px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.welcome-picker-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--fg);
+  margin-bottom: 12px;
+}
+
+.welcome-picker-empty {
+  font-size: 0.82rem;
+  color: var(--fg-muted);
+  padding: 8px 0;
+}
+
+.welcome-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--fg);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s;
+  font-family: inherit;
+  text-align: left;
+}
+
+.welcome-picker-item:hover {
+  background: var(--bg-hover);
+  border-color: var(--border);
+}

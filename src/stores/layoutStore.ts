@@ -9,7 +9,7 @@ const FV_RIGHT_DEFAULT = 480;
 const FV_BOTTOM_MIN = 150;
 const FV_BOTTOM_DEFAULT = 300;
 
-export type ActiveView = "chat" | "settings";
+export type ActiveView = "welcome" | "chat" | "settings";
 export type SidebarPanel = "agents" | "files";
 export type FileViewerPosition = "right" | "bottom";
 
@@ -31,6 +31,8 @@ interface LayoutState {
 
   toggleSidebar: () => void;
   setSidebarWidth: (width: number) => void;
+  openWelcome: () => void;
+  closeWelcome: () => void;
   openSettings: (section?: string) => void;
   closeSettings: () => void;
   setSettingsSection: (section: string) => void;
@@ -83,7 +85,7 @@ const prefs = loadFileViewerPrefs();
 export const useLayoutStore = create<LayoutState>((set, get) => ({
   sidebarOpen: true,
   sidebarWidth: SIDEBAR_DEFAULT,
-  activeView: "chat",
+  activeView: "welcome",
   settingsSection: "projects",
   sidebarPanel: "agents",
 
@@ -99,6 +101,10 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
 
   setSidebarWidth: (width: number) =>
     set({ sidebarWidth: Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, width)) }),
+
+  openWelcome: () => set({ activeView: "welcome" }),
+
+  closeWelcome: () => set({ activeView: "chat" }),
 
   openSettings: (section?: string) =>
     set({

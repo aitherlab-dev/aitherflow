@@ -5,6 +5,7 @@ import { Sidebar } from "./Sidebar";
 import { StatusBar } from "./StatusBar";
 import { ChatView } from "../chat/ChatView";
 import { SettingsView } from "../settings/SettingsView";
+import { WelcomeScreen } from "./WelcomeScreen";
 import { AgentLog } from "../chat/AgentLog";
 import { FileViewerPanel } from "../fileviewer/FileViewerPanel";
 import { FileViewerResizeHandle } from "../fileviewer/FileViewerResizeHandle";
@@ -44,30 +45,38 @@ export function AppLayout() {
       ? { width: fileViewerSize, minWidth: 250 }
       : { height: fileViewerSize, minHeight: 150 };
 
+  const renderMain = () => {
+    if (activeView === "welcome") {
+      return <WelcomeScreen />;
+    }
+    if (activeView === "settings") {
+      return <SettingsView />;
+    }
+    return (
+      <>
+        <div className={`main-split main-split--${fileViewerPosition}`}>
+          <ChatView />
+          {showPanel && (
+            <>
+              <FileViewerResizeHandle />
+              <div className="file-viewer-wrapper" style={panelStyle}>
+                <FileViewerPanel />
+              </div>
+            </>
+          )}
+        </div>
+        {agentLogOpen && <AgentLog />}
+      </>
+    );
+  };
+
   return (
     <div className="app-layout">
       <DevToolsBar />
       <Header />
       <Sidebar />
       <main className="app-main">
-        {activeView === "settings" ? (
-          <SettingsView />
-        ) : (
-          <>
-            <div className={`main-split main-split--${fileViewerPosition}`}>
-              <ChatView />
-              {showPanel && (
-                <>
-                  <FileViewerResizeHandle />
-                  <div className="file-viewer-wrapper" style={panelStyle}>
-                    <FileViewerPanel />
-                  </div>
-                </>
-              )}
-            </div>
-            {agentLogOpen && <AgentLog />}
-          </>
-        )}
+        {renderMain()}
       </main>
       <BrandFooter />
       <StatusBar />

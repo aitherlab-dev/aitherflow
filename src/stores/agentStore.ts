@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { invoke } from "../lib/transport";
 import type { AgentEntry, AgentsConfig } from "../types/agents";
 import { useChatStore } from "./chatStore";
+import { useProjectStore } from "./projectStore";
 
 interface AgentState {
   agents: AgentEntry[];
@@ -87,6 +88,9 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     await useChatStore
       .getState()
       .switchAgent(newAgent.id, newAgent.projectPath, newAgent.projectName, null);
+
+    // Track last opened project
+    useProjectStore.getState().setLastOpened(projectPath, null).catch(console.error);
   },
 
   removeAgent: async (agentId) => {
@@ -155,6 +159,9 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     await useChatStore
       .getState()
       .switchAgent(agent.id, agent.projectPath, agent.projectName, savedChatId);
+
+    // Track last opened project
+    useProjectStore.getState().setLastOpened(agent.projectPath, savedChatId).catch(console.error);
   },
 
   getActiveAgent: () => {

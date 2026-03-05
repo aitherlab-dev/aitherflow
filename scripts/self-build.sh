@@ -13,8 +13,15 @@ mkdir -p "$(dirname "$LOG_FILE")"
 # Redirect all output to log file
 exec > "$LOG_FILE" 2>&1
 
-# Wait for the app to close and unlock the binary
-sleep 2
+# Kill all running instances and wait for the binary to be unlocked
+BIN_PATH="$HOME/.local/bin/$BIN_NAME"
+pkill -f "$BIN_PATH" 2>/dev/null || true
+for i in $(seq 1 30); do
+    if ! fuser "$BIN_PATH" >/dev/null 2>&1; then
+        break
+    fi
+    sleep 1
+done
 
 echo "=== Self-Build: building $APP_NAME ==="
 echo "=== $(date) ==="

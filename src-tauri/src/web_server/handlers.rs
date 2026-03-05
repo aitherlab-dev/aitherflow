@@ -278,11 +278,14 @@ pub async fn load_projects() -> Response {
 pub async fn save_projects(Json(body): Json<serde_json::Value>) -> Response {
     let projects = body.get("projects").cloned().unwrap_or(serde_json::json!([]));
     let last = body.get("lastOpenedProject").and_then(|v| v.as_str()).map(|s| s.to_string());
+    let last_chat = body.get("lastOpenedChatId").and_then(|v| v.as_str()).map(|s| s.to_string());
+    let cards_val = body.get("welcomeCards").cloned().unwrap_or(serde_json::json!([]));
     let projects: Vec<crate::projects::ProjectBookmark> = match serde_json::from_value(projects) {
         Ok(p) => p,
         Err(e) => return (StatusCode::BAD_REQUEST, format!("Invalid projects: {e}")).into_response(),
     };
-    ok_empty(crate::projects::save_projects(projects, last).await)
+    let welcome_cards: Vec<crate::projects::WelcomeCard> = serde_json::from_value(cards_val).unwrap_or_default();
+    ok_empty(crate::projects::save_projects(projects, last, last_chat, welcome_cards).await)
 }
 
 // ── Settings ───────────────────────────────────────────────────────

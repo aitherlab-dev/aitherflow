@@ -6,28 +6,18 @@ import { useAgentStore } from "./stores/agentStore";
 import { useSkillStore } from "./stores/skillStore";
 
 export function App() {
-  const initChat = useChatStore((s) => s.init);
   const initProjects = useProjectStore((s) => s.init);
   const initAgents = useAgentStore((s) => s.init);
-  const getActiveAgent = useAgentStore((s) => s.getActiveAgent);
   const loadSkills = useSkillStore((s) => s.load);
   const projectPath = useChatStore((s) => s.projectPath);
 
   useEffect(() => {
-    // Agents must init before chat (chat needs agentId and projectPath)
-    initAgents()
-      .then(() => {
-        const agent = getActiveAgent();
-        if (agent) {
-          loadSkills(agent.projectPath).catch(console.error);
-          return initChat(agent.id, agent.projectPath, agent.projectName);
-        }
-      })
-      .catch(console.error);
+    // Init agents (creates default Workspace agent) — needed for welcome screen
+    initAgents().catch(console.error);
 
-    // Projects init is independent
+    // Init projects (needed for welcome screen cards)
     initProjects().catch(console.error);
-  }, [initAgents, initChat, initProjects, getActiveAgent, loadSkills]);
+  }, [initAgents, initProjects]);
 
   // Reload skills when active project changes (agent switch)
   useEffect(() => {

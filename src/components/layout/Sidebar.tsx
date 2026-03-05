@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronRight, Loader, Plus, Trash2, Settings, X, Sparkles, FolderOpen, Pin, Pencil, LayoutDashboard } from "lucide-react";
+import { ChevronRight, Home, Loader, Plus, Trash2, Settings, X, Sparkles, FolderOpen, Pin, Pencil, LayoutDashboard } from "lucide-react";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useChatStore, type ChatMeta } from "../../stores/chatStore";
 import { useAgentStore } from "../../stores/agentStore";
@@ -402,6 +402,8 @@ export const Sidebar = memo(function Sidebar() {
   const activeView = useLayoutStore((s) => s.activeView);
   const openSettings = useLayoutStore((s) => s.openSettings);
   const closeSettings = useLayoutStore((s) => s.closeSettings);
+  const openWelcome = useLayoutStore((s) => s.openWelcome);
+  const closeWelcome = useLayoutStore((s) => s.closeWelcome);
 
   const agents = useAgentStore((s) => s.agents);
   const activeAgentId = useAgentStore((s) => s.activeAgentId);
@@ -496,6 +498,15 @@ export const Sidebar = memo(function Sidebar() {
     }
   }, [activeView, closeSettings, openSettings]);
 
+
+  const handleWelcomeClick = useCallback(() => {
+    setDropdownOpen(false);
+    if (activeView === "welcome") {
+      closeWelcome();
+    } else {
+      openWelcome();
+    }
+  }, [activeView, closeWelcome, openWelcome]);
   const handleFilesClick = useCallback(() => {
     setDropdownOpen(false);
     setFilesOpen((prev) => !prev);
@@ -600,6 +611,14 @@ export const Sidebar = memo(function Sidebar() {
         <>
           {/* Agent block */}
           <div className="sidebar-content">
+            {/* Welcome — project switcher */}
+            <button
+              className={`sidebar-tab ${activeView === "welcome" ? "sidebar-tab--active" : ""}`}
+              onClick={handleWelcomeClick}
+            >
+              <Home size={16} />
+              <span>Welcome</span>
+            </button>
             {/* New Agent — pinned to top */}
             <div className="sidebar-agent-top">
               <button
