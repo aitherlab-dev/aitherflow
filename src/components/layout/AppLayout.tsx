@@ -2,11 +2,9 @@ import { useEffect, useCallback } from "react";
 import { useTelegramBridge } from "../../hooks/useTelegramBridge";
 import { Header } from "./Header";
 import { Sidebar } from "./Sidebar";
-import { StatusBar } from "./StatusBar";
 import { ChatView } from "../chat/ChatView";
 import { SettingsView } from "../settings/SettingsView";
 import { WelcomeScreen } from "./WelcomeScreen";
-import { AgentLog } from "../chat/AgentLog";
 import { FileViewerPanel } from "../fileviewer/FileViewerPanel";
 import { FileViewerResizeHandle } from "../fileviewer/FileViewerResizeHandle";
 import { useLayoutStore } from "../../stores/layoutStore";
@@ -17,7 +15,6 @@ export function AppLayout() {
   useTelegramBridge();
   const toggleSidebar = useLayoutStore((s) => s.toggleSidebar);
   const activeView = useLayoutStore((s) => s.activeView);
-  const agentLogOpen = useLayoutStore((s) => s.agentLogOpen);
   const fileViewerVisible = useLayoutStore((s) => s.fileViewerVisible);
   const fileViewerHasContent = useLayoutStore((s) => s.fileViewerHasContent);
   const fileViewerPosition = useLayoutStore((s) => s.fileViewerPosition);
@@ -65,7 +62,6 @@ export function AppLayout() {
             </>
           )}
         </div>
-        {agentLogOpen && <AgentLog />}
       </>
     );
   };
@@ -79,7 +75,6 @@ export function AppLayout() {
         {renderMain()}
       </main>
       <BrandFooter />
-      <StatusBar />
     </div>
   );
 }

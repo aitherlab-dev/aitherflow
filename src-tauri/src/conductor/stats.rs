@@ -1,6 +1,13 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Mutex;
+use std::time::Instant;
+
+/// In-memory cache: (days, computed_at, stats).
+static STATS_CACHE: Mutex<Option<(u32, Instant, AggregatedStats)>> = Mutex::new(None);
+
+const CACHE_TTL_SECS: u64 = 300; // 5 minutes
 
 /// Model pricing per million tokens (USD).
 /// Prices as of 2025 for Claude models.
@@ -79,7 +86,7 @@ pub struct ProjectStats {
     pub output_tokens: u64,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct AggregatedStats {
     pub total_cost: f64,
     pub total_input_tokens: u64,
@@ -90,9 +97,79 @@ pub struct AggregatedStats {
     pub by_project: Vec<ProjectStats>,
 }
 
-/// Scan all JSONL files in ~/.claude/projects/ and aggregate stats.
-/// `days` limits to the last N days.
+/// Per-session parsed stats, cached to disk keyed by file path + mtime.
+#[derive(Serialize, Deserialize, Clone)]
+struct CachedSession {
+    mtime_secs: u64,
+    date: String,
+    model: String,
+    project: String,
+    cost: f64,
+    input_tokens: u64,
+    output_tokens: u64,
+    cache_read_tokens: u64,
+    cache_creation_tokens: u64,
+}
+
+/// Disk cache: path → CachedSession.
+type DiskCache = HashMap<String, CachedSession>;
+
+fn cache_path() -> Option<PathBuf> {
+    let cache_dir = dirs::cache_dir()?.join("aither-flow");
+    Some(cache_dir.join("cli-stats-cache.json"))
+}
+
+fn load_disk_cache() -> DiskCache {
+    let Some(path) = cache_path() else {
+        return HashMap::new();
+    };
+    std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+fn save_disk_cache(cache: &DiskCache) {
+    let Some(path) = cache_path() else { return };
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    if let Ok(json) = serde_json::to_string(cache) {
+        let _ = std::fs::write(&path, json);
+    }
+}
+
+fn file_mtime_secs(path: &std::path::Path) -> u64 {
+    path.metadata()
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+/// Return cached stats if fresh, otherwise compute and cache.
 pub fn aggregate_cli_stats(days: u32) -> Result<AggregatedStats, String> {
+    if let Ok(guard) = STATS_CACHE.lock() {
+        if let Some((cached_days, computed_at, ref stats)) = *guard {
+            if cached_days == days && computed_at.elapsed().as_secs() < CACHE_TTL_SECS {
+                return Ok(stats.clone());
+            }
+        }
+    }
+
+    let stats = aggregate_cli_stats_inner(days)?;
+
+    if let Ok(mut guard) = STATS_CACHE.lock() {
+        *guard = Some((days, Instant::now(), stats.clone()));
+    }
+
+    Ok(stats)
+}
+
+/// Scan all JSONL files in ~/.claude/projects/ and aggregate stats.
+/// Uses disk cache to avoid re-parsing unchanged files.
+fn aggregate_cli_stats_inner(days: u32) -> Result<AggregatedStats, String> {
     let home = dirs::home_dir().ok_or("No home directory")?;
     let projects_dir = home.join(".claude").join("projects");
 
@@ -101,7 +178,11 @@ pub fn aggregate_cli_stats(days: u32) -> Result<AggregatedStats, String> {
     }
 
     let cutoff = chrono::Utc::now() - chrono::Duration::days(i64::from(days));
+    let cutoff_secs = cutoff.timestamp() as u64;
     let cutoff_str = cutoff.format("%Y-%m-%d").to_string();
+
+    let mut disk_cache = load_disk_cache();
+    let mut cache_dirty = false;
 
     let mut by_day: HashMap<String, DayStats> = HashMap::new();
     let mut by_model: HashMap<String, ModelStats> = HashMap::new();
@@ -120,48 +201,84 @@ pub fn aggregate_cli_stats(days: u32) -> Result<AggregatedStats, String> {
         let jsonl_files = collect_jsonl_recursive(&proj_entry.path());
 
         for jsonl_path in &jsonl_files {
-            // Quick date filter: check file mtime
-            if let Ok(meta) = jsonl_path.metadata() {
-                if let Ok(modified) = meta.modified() {
-                    let mtime: chrono::DateTime<chrono::Utc> = modified.into();
-                    if mtime < cutoff {
-                        continue;
+            let mtime = file_mtime_secs(jsonl_path);
+
+            // Skip files older than cutoff by mtime
+            if mtime < cutoff_secs {
+                continue;
+            }
+
+            let path_key = jsonl_path.to_string_lossy().to_string();
+
+            // Try disk cache first
+            let session = if let Some(cached) = disk_cache.get(&path_key) {
+                if cached.mtime_secs == mtime {
+                    // File unchanged, use cached
+                    if cached.date < cutoff_str {
+                        continue; // Session before cutoff
+                    }
+                    cached.clone()
+                } else {
+                    // File changed, re-parse
+                    match parse_and_cache(jsonl_path, &display_name, mtime, &cutoff_str) {
+                        Some(s) => {
+                            disk_cache.insert(path_key, s.clone());
+                            cache_dirty = true;
+                            s
+                        }
+                        None => {
+                            disk_cache.remove(&path_key);
+                            cache_dirty = true;
+                            continue;
+                        }
                     }
                 }
-            }
+            } else {
+                // Not in cache, parse
+                match parse_and_cache(jsonl_path, &display_name, mtime, &cutoff_str) {
+                    Some(s) => {
+                        disk_cache.insert(path_key, s.clone());
+                        cache_dirty = true;
+                        s
+                    }
+                    None => continue,
+                }
+            };
 
-            if let Some(session) = parse_session_stats(jsonl_path, &cutoff_str) {
-                // Aggregate by day
-                let day = by_day.entry(session.date.clone()).or_insert_with(|| DayStats {
-                    date: session.date.clone(),
-                    ..Default::default()
-                });
-                day.cost += session.cost;
-                day.input_tokens += session.input_tokens;
-                day.output_tokens += session.output_tokens;
-                day.cache_read_tokens += session.cache_read_tokens;
-                day.cache_creation_tokens += session.cache_creation_tokens;
-                day.sessions += 1;
+            // Aggregate by day
+            let day = by_day.entry(session.date.clone()).or_insert_with(|| DayStats {
+                date: session.date.clone(),
+                ..Default::default()
+            });
+            day.cost += session.cost;
+            day.input_tokens += session.input_tokens;
+            day.output_tokens += session.output_tokens;
+            day.cache_read_tokens += session.cache_read_tokens;
+            day.cache_creation_tokens += session.cache_creation_tokens;
+            day.sessions += 1;
 
-                // Aggregate by model
-                let model = by_model.entry(session.model.clone()).or_insert_with(|| ModelStats {
-                    model: session.model.clone(),
-                    ..Default::default()
-                });
-                model.cost += session.cost;
-                model.input_tokens += session.input_tokens;
-                model.output_tokens += session.output_tokens;
+            // Aggregate by model
+            let model = by_model.entry(session.model.clone()).or_insert_with(|| ModelStats {
+                model: session.model.clone(),
+                ..Default::default()
+            });
+            model.cost += session.cost;
+            model.input_tokens += session.input_tokens;
+            model.output_tokens += session.output_tokens;
 
-                // Aggregate by project
-                let proj = by_project.entry(display_name.clone()).or_insert_with(|| ProjectStats {
-                    project: display_name.clone(),
-                    ..Default::default()
-                });
-                proj.cost += session.cost;
-                proj.sessions += 1;
-                proj.output_tokens += session.output_tokens;
-            }
+            // Aggregate by project
+            let proj = by_project.entry(session.project.clone()).or_insert_with(|| ProjectStats {
+                project: session.project.clone(),
+                ..Default::default()
+            });
+            proj.cost += session.cost;
+            proj.sessions += 1;
+            proj.output_tokens += session.output_tokens;
         }
+    }
+
+    if cache_dirty {
+        save_disk_cache(&disk_cache);
     }
 
     // Sort and collect
@@ -190,24 +307,17 @@ pub fn aggregate_cli_stats(days: u32) -> Result<AggregatedStats, String> {
     })
 }
 
-struct SessionStats {
-    date: String,
-    model: String,
-    cost: f64,
-    input_tokens: u64,
-    output_tokens: u64,
-    cache_read_tokens: u64,
-    cache_creation_tokens: u64,
-}
-
-/// Parse a single JSONL file and extract session-level stats.
-/// Returns None if the session has no assistant events or is before cutoff.
-fn parse_session_stats(path: &PathBuf, cutoff_date: &str) -> Option<SessionStats> {
+/// Parse a JSONL file and return a CachedSession (with project name baked in).
+fn parse_and_cache(
+    path: &PathBuf,
+    project: &str,
+    mtime: u64,
+    cutoff_date: &str,
+) -> Option<CachedSession> {
     let content = std::fs::read_to_string(path).ok()?;
 
     let mut model = String::new();
     let mut date = String::new();
-    // Sum across ALL turns for accurate cost
     let mut sum_input: u64 = 0;
     let mut sum_output: u64 = 0;
     let mut sum_cache_creation: u64 = 0;
@@ -220,13 +330,11 @@ fn parse_session_stats(path: &PathBuf, cutoff_date: &str) -> Option<SessionStats
             Err(_) => continue,
         };
 
-        // Get session date from first event with timestamp
         if date.is_empty() {
             if let Some(ts) = parsed.get("timestamp").and_then(|t| t.as_str()) {
-                // "2026-03-04T08:01:10.977Z" → "2026-03-04"
                 if let Some(d) = ts.get(..10) {
                     if d < cutoff_date {
-                        return None; // Session is before cutoff
+                        return None;
                     }
                     date = d.to_string();
                 }
@@ -252,7 +360,6 @@ fn parse_session_stats(path: &PathBuf, cutoff_date: &str) -> Option<SessionStats
             model = m.to_string();
         }
 
-        // Each API call bills for its full input context + output
         sum_input += usage.get("input_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
         sum_output += usage.get("output_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
         sum_cache_creation += usage
@@ -271,9 +378,11 @@ fn parse_session_stats(path: &PathBuf, cutoff_date: &str) -> Option<SessionStats
 
     let cost = estimate_cost(&model, sum_input, sum_cache_creation, sum_cache_read, sum_output);
 
-    Some(SessionStats {
+    Some(CachedSession {
+        mtime_secs: mtime,
         date,
         model,
+        project: project.to_string(),
         cost,
         input_tokens: sum_input + sum_cache_creation + sum_cache_read,
         output_tokens: sum_output,

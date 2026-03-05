@@ -3,7 +3,7 @@ import { useChatStore } from "../../stores/chatStore";
 import { ToolCard } from "./ToolCard";
 import type { ToolActivity } from "../../types/chat";
 
-export const AgentLog = memo(function AgentLog() {
+export const AgentLog = memo(function AgentLog({ height }: { height?: number }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const messages = useChatStore((s) => s.messages);
   const runningId = useChatStore((s) => s.currentToolActivity?.toolUseId ?? null);
@@ -26,7 +26,7 @@ export const AgentLog = memo(function AgentLog() {
   }, [count]);
 
   return (
-    <div className="agent-log">
+    <div className="agent-log" style={height ? { height } : undefined}>
       <div className="agent-log-header">
         <span className={`agent-log-dot ${runningId ? "agent-log-dot--active" : ""}`} />
         <span className="agent-log-title">Agent Log</span>

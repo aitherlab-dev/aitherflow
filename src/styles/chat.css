@@ -42,6 +42,32 @@
 .message-list {
   flex: 1;
   overflow-y: auto;
+  position: relative;
+}
+
+.scroll-to-bottom {
+  position: sticky;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--fg-muted);
+  cursor: pointer;
+  z-index: 10;
+  transition: color 0.15s, background 0.15s;
+  margin: 0 auto;
+}
+
+.scroll-to-bottom:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
 }
 
 .message-list-inner {
@@ -168,7 +194,7 @@
   width: 100%;
   max-width: 825px;
   margin: 0 auto;
-  padding: 0.5rem 1.5rem 1rem;
+  padding: 0.5rem 1.5rem 44px;
 }
 
 /* Empty state: center input vertically */
@@ -231,7 +257,7 @@
   gap: 6px;
   padding: 0.25rem 0;
   font-size: 0.75rem;
-  color: var(--fg-muted);
+  color: var(--fg);
   min-width: 0;
   overflow: hidden;
 }
@@ -263,7 +289,7 @@
 }
 
 .tool-status--done .tool-status-text {
-  color: var(--fg-dim);
+  color: var(--fg-muted);
 }
 
 /* ── Input Bar ── */
@@ -737,8 +763,12 @@
    Agent Log Panel
    ═══════════════════════════════════════════ */
 
+/* ── Agent Log Panel ── */
+
 .agent-log {
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
   border-top: 1px solid var(--border);
   background: var(--bg-hard);
   overflow: hidden;
@@ -777,7 +807,8 @@
 }
 
 .agent-log-body {
-  max-height: 180px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   scrollbar-width: thin;
 }

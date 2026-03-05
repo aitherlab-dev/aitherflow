@@ -553,18 +553,6 @@
   min-width: 0;
 }
 
-/* ── Status Bar ── */
-
-.app-statusbar {
-  grid-column: 2;
-  display: flex;
-  align-items: center;
-  padding: 0 12px;
-  background: var(--header-bg);
-  border-top: 1px solid var(--border);
-  user-select: none;
-}
-
 /* Sidebar header — Build/Dev buttons (top-left) */
 .sidebar-footer {
   grid-column: 1;
@@ -586,46 +574,6 @@
   background: var(--bg-soft);
   border-right: 1px solid var(--border);
   border-top: 1px solid var(--border);
-}
-
-.statusbar-text {
-  font-size: 0.7rem;
-  color: var(--fg-dim);
-}
-
-.statusbar-btn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0;
-  background: none;
-  border: none;
-  font-size: 0.7rem;
-  color: var(--fg-muted);
-  cursor: pointer;
-  transition: color 0.15s;
-}
-
-.statusbar-btn:hover {
-  color: var(--fg);
-}
-
-.statusbar-btn--active {
-  color: var(--fg);
-}
-
-.statusbar-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 16px;
-  height: 14px;
-  padding: 0 4px;
-  border-radius: 7px;
-  background: var(--bg-hover);
-  font-size: 0.6rem;
-  font-weight: 600;
-  color: var(--fg);
 }
 
 /* ── Functional tab chevron (New Agent accordion) ── */

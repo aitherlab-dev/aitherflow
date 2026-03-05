@@ -1,4 +1,5 @@
-import { memo, useRef, useEffect, useCallback } from "react";
+import { memo, useRef, useEffect, useCallback, useState } from "react";
+import { ArrowDown } from "lucide-react";
 import { MessageBubble } from "./MessageBubble";
 import { useChatStore } from "../../stores/chatStore";
 
@@ -8,7 +9,8 @@ const BOTTOM_THRESHOLD = 50;
 export const MessageList = memo(function MessageList() {
   const messages = useChatStore((s) => s.messages);
   const containerRef = useRef<HTMLDivElement>(null);
-  const isUserScrolledUp = useRef(false);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const scrolledUp = useRef(false);
   const lastScrollTop = useRef(0);
 
   const handleScroll = useCallback(() => {
@@ -20,21 +22,31 @@ export const MessageList = memo(function MessageList() {
 
     // User scrolled up
     if (scrollTop < lastScrollTop.current && !isAtBottom) {
-      isUserScrolledUp.current = true;
+      scrolledUp.current = true;
+      setShowScrollBtn(true);
     }
 
     // User scrolled back to bottom
     if (isAtBottom) {
-      isUserScrolledUp.current = false;
+      scrolledUp.current = false;
+      setShowScrollBtn(false);
     }
 
     lastScrollTop.current = scrollTop;
   }, []);
 
+  const scrollToBottom = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    scrolledUp.current = false;
+    setShowScrollBtn(false);
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }, []);
+
   // Auto-scroll when messages change (unless user scrolled up)
   useEffect(() => {
     const el = containerRef.current;
-    if (!el || isUserScrolledUp.current) return;
+    if (!el || scrolledUp.current) return;
 
     el.scrollTo({ top: el.scrollHeight, behavior: "instant" });
   }, [messages]);
@@ -44,7 +56,7 @@ export const MessageList = memo(function MessageList() {
     const el = containerRef.current;
     if (!el) return;
     const observer = new ResizeObserver(() => {
-      if (!isUserScrolledUp.current) {
+      if (!scrolledUp.current) {
         el.scrollTo({ top: el.scrollHeight, behavior: "instant" });
       }
     });
@@ -56,7 +68,8 @@ export const MessageList = memo(function MessageList() {
   const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
   const lastUserMsgId = lastUserMsg?.id;
   useEffect(() => {
-    isUserScrolledUp.current = false;
+    scrolledUp.current = false;
+    setShowScrollBtn(false);
     const el = containerRef.current;
     if (el) {
       el.scrollTo({ top: el.scrollHeight, behavior: "instant" });
@@ -78,6 +91,15 @@ export const MessageList = memo(function MessageList() {
           messages.map((msg) => <MessageBubble key={msg.id} message={msg} />)
         )}
       </div>
+      {showScrollBtn && (
+        <button
+          className="scroll-to-bottom"
+          onClick={scrollToBottom}
+          title="Scroll to bottom"
+        >
+          <ArrowDown size={16} />
+        </button>
+      )}
     </div>
   );
 });

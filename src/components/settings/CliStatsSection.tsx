@@ -54,6 +54,7 @@ function shortModel(model: string): string {
 }
 
 const PERIODS = [
+  { label: "1d", days: 1 },
   { label: "7d", days: 7 },
   { label: "14d", days: 14 },
   { label: "30d", days: 30 },
