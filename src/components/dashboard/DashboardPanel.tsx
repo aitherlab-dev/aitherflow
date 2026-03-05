@@ -12,19 +12,20 @@ import { TokensCard } from "./cards/TokensCard";
 export const DashboardPanel = memo(function DashboardPanel() {
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
 
-  const mcpLoaded = useMcpStore((s) => s.loaded);
+  const mcpNeedsReload = useMcpStore((s) => s.needsReload);
   const mcpLoad = useMcpStore((s) => s.load);
   const skillsLoaded = useSkillStore((s) => s.loaded);
   const skillsLoad = useSkillStore((s) => s.load);
+  const activeProjectPath = useAgentStore(
+    (s) => s.agents.find((a) => a.id === s.activeAgentId)?.projectPath,
+  );
 
-  // Ensure MCP and Skills data is loaded
+  // Load/reload MCP data when project changes
   useEffect(() => {
-    if (!mcpLoaded) {
-      const agent = useAgentStore.getState();
-      const projectPath = agent.agents.find((a) => a.id === agent.activeAgentId)?.projectPath;
-      mcpLoad(projectPath).catch(console.error);
+    if (mcpNeedsReload(activeProjectPath)) {
+      mcpLoad(activeProjectPath).catch(console.error);
     }
-  }, [mcpLoaded, mcpLoad]);
+  }, [activeProjectPath, mcpNeedsReload, mcpLoad]);
 
   useEffect(() => {
     if (!skillsLoaded) {

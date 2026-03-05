@@ -628,6 +628,44 @@
   color: var(--fg);
 }
 
+/* ── Context Indicator ── */
+
+.context-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  font-size: 0.65rem;
+  color: var(--fg-muted);
+  user-select: none;
+}
+
+.context-indicator__text {
+  white-space: nowrap;
+}
+
+.context-bar {
+  width: 52px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--bg-hover);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.context-bar__fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease, background-color 0.3s ease;
+}
+
+.context-indicator__pct {
+  font-weight: 600;
+  font-size: 0.6rem;
+  min-width: 26px;
+  text-align: right;
+}
+
 /* ── Functional tab chevron (New Agent accordion) ── */
 
 .sidebar-tab__chevron {

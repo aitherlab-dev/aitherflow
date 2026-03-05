@@ -547,6 +547,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       error: state.error,
     });
 
+    // Save usage data for outgoing agent
+    useConductorStore.getState().saveUsageForAgent(state.agentId);
+
     // Clear tool activity timer
     if (toolActivityTimer) {
       clearTimeout(toolActivityTimer);
@@ -605,6 +608,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
       }
     }
+
+    // Restore usage data for incoming agent
+    useConductorStore.getState().restoreUsageForAgent(agentId);
 
     // Update thinking indicators
     syncThinkingIds();

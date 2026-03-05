@@ -2,6 +2,7 @@ import { memo, useEffect, useCallback } from "react";
 import { List } from "lucide-react";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useChatStore } from "../../stores/chatStore";
+import { ContextIndicator } from "./ContextIndicator";
 
 export const StatusBar = memo(function StatusBar() {
   const agentLogOpen = useLayoutStore((s) => s.agentLogOpen);
@@ -42,6 +43,7 @@ export const StatusBar = memo(function StatusBar() {
           <span className="statusbar-badge">{toolCount}</span>
         )}
       </button>
+      <ContextIndicator />
     </footer>
   );
 });

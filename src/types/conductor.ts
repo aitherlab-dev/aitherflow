@@ -9,7 +9,10 @@ export type CliEvent =
       agent_id: string;
       input_tokens: number;
       output_tokens: number;
+      cache_creation_input_tokens: number;
+      cache_read_input_tokens: number;
       cost_usd: number;
+      context_window: number;
     }
   | {
       type: "toolUse";

@@ -35,7 +35,11 @@ pub enum CliEvent {
         agent_id: String,
         input_tokens: u64,
         output_tokens: u64,
+        cache_creation_input_tokens: u64,
+        cache_read_input_tokens: u64,
         cost_usd: f64,
+        /// Context window size from modelUsage (0 = not available)
+        context_window: u64,
     },
 
     /// Tool invocation (from assistant message)

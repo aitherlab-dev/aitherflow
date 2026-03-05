@@ -14,11 +14,14 @@ interface McpState {
   project: McpServer[];
   globalPath: string;
   projectPath: string | null;
-  loaded: boolean;
+  /** Which project path data was loaded for (null = never loaded) */
+  loadedForProject: string | null | undefined;
   testing: Set<string>;
   testResults: Map<string, McpTestResult>;
 
   load: (projectPath?: string) => Promise<void>;
+  /** Check if data needs reload for the given project path */
+  needsReload: (projectPath?: string) => boolean;
   addServer: (scope: McpScope, name: string, config: McpServerConfig, projectDir?: string) => Promise<void>;
   removeServer: (scope: McpScope, name: string, projectDir?: string) => Promise<void>;
   testServer: (name: string, config: McpServerConfig) => Promise<void>;
@@ -30,21 +33,30 @@ export const useMcpStore = create<McpState>((set, get) => ({
   project: [],
   globalPath: "",
   projectPath: null,
-  loaded: false,
+  loadedForProject: undefined,
   testing: new Set(),
   testResults: new Map(),
 
+  needsReload: (projectPath) => {
+    const { loadedForProject } = get();
+    if (loadedForProject === undefined) return true; // never loaded
+    return (projectPath ?? null) !== loadedForProject;
+  },
+
   load: async (projectPath) => {
     try {
+      const normalized = projectPath ?? null;
       const data = await invoke<McpData>("list_mcp_servers", {
-        projectPath: projectPath ?? null,
+        projectPath: normalized,
       });
       set({
         global: data.global,
         project: data.project,
         globalPath: data.globalPath,
         projectPath: data.projectPath,
-        loaded: true,
+        loadedForProject: normalized,
+        testing: new Set(),
+        testResults: new Map(),
       });
     } catch (e) {
       console.error("Failed to load MCP servers:", e);

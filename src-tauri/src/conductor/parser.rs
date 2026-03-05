@@ -200,18 +200,38 @@ pub fn parse_line(
                 .pointer("/usage/output_tokens")
                 .and_then(|v| v.as_u64())
                 .unwrap_or(0);
+            let cache_creation_input_tokens = parsed
+                .pointer("/usage/cache_creation_input_tokens")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+            let cache_read_input_tokens = parsed
+                .pointer("/usage/cache_read_input_tokens")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
             let cost_usd = parsed
                 .get("total_cost_usd")
                 .and_then(|v| v.as_f64())
                 .or_else(|| parsed.get("cost_usd").and_then(|v| v.as_f64()))
                 .unwrap_or(0.0);
 
+            // Extract context window from modelUsage (first model entry)
+            let context_window = parsed
+                .get("modelUsage")
+                .and_then(|mu| mu.as_object())
+                .and_then(|obj| obj.values().next())
+                .and_then(|entry| entry.get("contextWindow"))
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+
             if input_tokens > 0 || output_tokens > 0 {
                 events.push(CliEvent::UsageInfo {
                     agent_id: aid.clone(),
                     input_tokens,
                     output_tokens,
+                    cache_creation_input_tokens,
+                    cache_read_input_tokens,
                     cost_usd,
+                    context_window,
                 });
             }
 
@@ -359,12 +379,18 @@ mod tests {
             CliEvent::UsageInfo {
                 input_tokens,
                 output_tokens,
+                cache_creation_input_tokens,
+                cache_read_input_tokens,
                 cost_usd,
+                context_window,
                 ..
             } => {
                 assert_eq!(*input_tokens, 100);
                 assert_eq!(*output_tokens, 50);
+                assert_eq!(*cache_creation_input_tokens, 0);
+                assert_eq!(*cache_read_input_tokens, 0);
                 assert!((cost_usd - 0.015).abs() < f64::EPSILON);
+                assert_eq!(*context_window, 0); // not present in this JSON
             }
             other => panic!("Expected UsageInfo, got {other:?}"),
         }
@@ -376,6 +402,34 @@ mod tests {
         // Accumulators should be reset
         assert!(completed.is_empty());
         assert!(delta.is_empty());
+    }
+
+    #[test]
+    fn parse_result_with_cache_tokens_and_context_window() {
+        let line = r#"{"type":"result","is_error":false,"result":"OK","usage":{"input_tokens":5000,"output_tokens":1200,"cache_creation_input_tokens":20000,"cache_read_input_tokens":40000},"total_cost_usd":0.42,"modelUsage":{"claude-opus-4-20250514":{"contextWindow":200000}}}"#;
+        let mut completed = String::new();
+        let mut delta = "Done".to_string();
+        let events = parse_line(line, "a1", &mut completed, &mut delta).unwrap();
+
+        let usage = events.iter().find(|e| matches!(e, CliEvent::UsageInfo { .. }));
+        assert!(usage.is_some(), "Should have UsageInfo event");
+        match usage.unwrap() {
+            CliEvent::UsageInfo {
+                input_tokens,
+                output_tokens,
+                cache_creation_input_tokens,
+                cache_read_input_tokens,
+                context_window,
+                ..
+            } => {
+                assert_eq!(*input_tokens, 5000);
+                assert_eq!(*output_tokens, 1200);
+                assert_eq!(*cache_creation_input_tokens, 20000);
+                assert_eq!(*cache_read_input_tokens, 40000);
+                assert_eq!(*context_window, 200000);
+            }
+            _ => unreachable!(),
+        }
     }
 
     #[test]

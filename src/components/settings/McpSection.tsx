@@ -434,7 +434,7 @@ export function McpSection() {
   const projectServers = useMcpStore((s) => s.project);
   const globalPath = useMcpStore((s) => s.globalPath);
   const projectPath = useMcpStore((s) => s.projectPath);
-  const loaded = useMcpStore((s) => s.loaded);
+  const needsReload = useMcpStore((s) => s.needsReload);
   const load = useMcpStore((s) => s.load);
   const removeServer = useMcpStore((s) => s.removeServer);
   const testServer = useMcpStore((s) => s.testServer);
@@ -449,10 +449,10 @@ export function McpSection() {
   }, [getActiveAgent]);
 
   useEffect(() => {
-    if (!loaded) {
+    if (needsReload(projectDir)) {
       load(projectDir).catch(console.error);
     }
-  }, [loaded, load, projectDir]);
+  }, [needsReload, load, projectDir]);
 
   const servers = scope === "global" ? globalServers : projectServers;
   const configPath = scope === "global" ? globalPath : projectPath;
