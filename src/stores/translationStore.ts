@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { invoke } from "../lib/transport";
 import { useSkillStore } from "./skillStore";
 import { usePluginStore } from "./pluginStore";
+import { useAgentStore } from "./agentStore";
+import type { HooksConfig, HookEntry } from "../types/hooks";
 
 interface TranslationCache {
   language: string;
@@ -32,8 +34,27 @@ interface TranslationState {
   get: (key: string) => string | undefined;
 }
 
-/** Collect all translatable descriptions from skill and plugin stores */
-function collectItems(): TranslationItem[] {
+/** Extract translatable descriptions from a hooks config */
+function collectHookItems(items: TranslationItem[], hooks: HooksConfig, prefix: string) {
+  for (const [event, entries] of Object.entries(hooks)) {
+    if (!entries) continue;
+    for (let ei = 0; ei < entries.length; ei++) {
+      const entry = entries[ei] as HookEntry;
+      for (let hi = 0; hi < entry.hooks.length; hi++) {
+        const handler = entry.hooks[hi];
+        if (handler.statusMessage) {
+          items.push({
+            key: `hook:${prefix}:${event}:${ei}:${hi}`,
+            text: handler.statusMessage,
+          });
+        }
+      }
+    }
+  }
+}
+
+/** Collect all translatable descriptions from skill, plugin, and hook stores */
+async function collectItems(): Promise<TranslationItem[]> {
   const items: TranslationItem[] = [];
 
   const skills = useSkillStore.getState().allSkills();
@@ -56,6 +77,20 @@ function collectItems(): TranslationItem[] {
         text: p.description,
       });
     }
+  }
+
+  // Collect hook descriptions
+  try {
+    const globalHooks = await invoke<HooksConfig>("load_hooks", { scope: "global" });
+    if (globalHooks) collectHookItems(items, globalHooks, "global");
+
+    const projectPath = useAgentStore.getState().getActiveAgent()?.projectPath;
+    if (projectPath) {
+      const projectHooks = await invoke<HooksConfig>("load_hooks", { scope: "project", projectPath });
+      if (projectHooks) collectHookItems(items, projectHooks, "project");
+    }
+  } catch (e) {
+    console.error("Failed to collect hook translations:", e);
   }
 
   return items;
@@ -82,7 +117,7 @@ export const useTranslationStore = create<TranslationState>((set, get) => ({
     set({ translating: true, error: null });
 
     try {
-      const items = collectItems();
+      const items = await collectItems();
       const cache = await invoke<TranslationCache>("translate_content", {
         language,
         items,
@@ -104,7 +139,7 @@ export const useTranslationStore = create<TranslationState>((set, get) => ({
     set({ translating: true, error: null });
 
     try {
-      const items = collectItems();
+      const items = await collectItems();
       const cache = await invoke<TranslationCache>("translate_content", {
         language,
         items,

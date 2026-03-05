@@ -451,6 +451,41 @@ pub async fn exchange_auth_code(
         .into_response()
 }
 
+// ── Hooks ──────────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+pub struct HooksLoadParam {
+    scope: String,
+    #[serde(rename = "projectPath")]
+    project_path: Option<String>,
+}
+
+pub async fn load_hooks(Json(p): Json<HooksLoadParam>) -> Response {
+    ok_json(crate::hooks::load_hooks(p.scope, p.project_path).await)
+}
+
+#[derive(Deserialize)]
+pub struct HooksSaveParam {
+    scope: String,
+    #[serde(rename = "projectPath")]
+    project_path: Option<String>,
+    hooks: serde_json::Value,
+}
+
+pub async fn save_hooks(Json(p): Json<HooksSaveParam>) -> Response {
+    ok_empty(crate::hooks::save_hooks(p.scope, p.project_path, p.hooks).await)
+}
+
+#[derive(Deserialize)]
+pub struct HookTestParam {
+    command: String,
+    cwd: Option<String>,
+}
+
+pub async fn test_hook_command(Json(p): Json<HookTestParam>) -> Response {
+    ok_json(crate::hooks::test_hook_command(p.command, p.cwd).await)
+}
+
 // ── Memory ─────────────────────────────────────────────────────────
 
 pub async fn memory_stats(Json(p): Json<ProjectPathParam>) -> Response {

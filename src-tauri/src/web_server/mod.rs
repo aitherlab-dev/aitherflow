@@ -73,6 +73,10 @@ pub async fn run(state: WebState, port: u16, remote_access: bool) -> Result<(), 
         .route("/api/load_translations", post(handlers::load_translations))
         .route("/api/translate_content", post(handlers::translate_content))
         .route("/api/clear_translations", post(handlers::clear_translations))
+        // ── Hooks ──
+        .route("/api/load_hooks", post(handlers::load_hooks))
+        .route("/api/save_hooks", post(handlers::save_hooks))
+        .route("/api/test_hook_command", post(handlers::test_hook_command))
         // ── Web Config ──
         .route("/api/load_web_config", post(handlers::load_web_config))
         .route("/api/save_web_config", post(handlers::save_web_config))

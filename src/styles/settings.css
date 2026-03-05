@@ -1330,3 +1330,747 @@
 .settings-toggle-desc a:hover {
   text-decoration: underline;
 }
+
+/* ═══════════════════════════════════════════
+   Hooks Section
+   ═══════════════════════════════════════════ */
+
+.hooks-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Info banner ── */
+
+.hooks-info-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 6px;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+}
+
+.hooks-info-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--fg-dim);
+}
+
+.hooks-info-banner p {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  color: var(--fg-muted);
+}
+
+.hooks-info-banner strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+/* ── Scope toggle ── */
+
+.hooks-scope-toggle {
+  display: flex;
+  gap: 4px;
+}
+
+.hooks-scope-btn {
+  padding: 6px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.hooks-scope-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.hooks-scope-btn--active {
+  background: var(--bg-card);
+  color: var(--fg);
+  border-color: var(--fg-dim);
+}
+
+.hooks-scope-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.hooks-scope-path {
+  font-size: 0.75rem;
+  color: var(--fg-dim);
+  font-family: monospace;
+  margin: -8px 0 0;
+}
+
+/* ── Toolbar ── */
+
+.hooks-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.hooks-toolbar-left,
+.hooks-toolbar-right {
+  display: flex;
+  gap: 6px;
+}
+
+.hooks-toolbar-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-card);
+  color: var(--fg-muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.hooks-toolbar-btn:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.hooks-template-wrapper {
+  position: relative;
+}
+
+/* ── Templates dropdown ── */
+
+.hooks-templates-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 100;
+  min-width: 320px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+
+.hooks-template-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.hooks-template-item:hover {
+  background: var(--bg-hover);
+}
+
+.hooks-template-item + .hooks-template-item {
+  border-top: 1px solid var(--border);
+}
+
+.hooks-template-icon {
+  flex-shrink: 0;
+  color: var(--accent-icon);
+  margin-top: 2px;
+}
+
+.hooks-template-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hooks-template-label {
+  font-size: 0.84rem;
+  font-weight: 500;
+}
+
+.hooks-template-desc {
+  font-size: 0.75rem;
+  color: var(--fg-dim);
+}
+
+/* ── Event list ── */
+
+.hooks-event-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hooks-empty {
+  color: var(--fg-dim);
+  font-size: 0.85rem;
+  padding: 24px 0;
+  text-align: center;
+}
+
+/* ── Event card ── */
+
+.hooks-event-card {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-card);
+  overflow: hidden;
+}
+
+.hooks-event-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.hooks-event-header:hover {
+  background: var(--bg-hover);
+}
+
+.hooks-chevron {
+  flex-shrink: 0;
+  color: var(--fg-dim);
+  transition: transform 0.15s;
+}
+
+.hooks-chevron--open {
+  transform: rotate(90deg);
+}
+
+.hooks-event-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.hooks-event-header .hooks-event-desc {
+  flex: 1;
+  font-size: 0.75rem;
+  color: var(--fg-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hooks-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent-icon);
+  flex-shrink: 0;
+}
+
+.hooks-delete-btn {
+  display: flex;
+  align-items: center;
+  padding: 3px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fg-dim);
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.hooks-event-header:hover .hooks-delete-btn,
+.hooks-entry-header:hover .hooks-delete-btn,
+.hooks-handler-top-row:hover .hooks-delete-btn {
+  opacity: 1;
+}
+
+.hooks-delete-btn:hover {
+  color: var(--red);
+}
+
+/* ── Event body ── */
+
+.hooks-event-body {
+  padding: 8px 12px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── Entry card ── */
+
+.hooks-entry-card {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-card);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hooks-entry-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.hooks-entry-header .hooks-delete-btn {
+  opacity: 0.4;
+  margin-top: 20px;
+}
+
+.hooks-entry-header:hover .hooks-delete-btn {
+  opacity: 1;
+}
+
+/* ── Matcher field ── */
+
+.hooks-matcher-field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ── Common form fields ── */
+
+.hooks-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hooks-field-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.hooks-field--small {
+  max-width: 120px;
+}
+
+.hooks-field-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--fg-dim);
+}
+
+.hooks-input {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--input-bg);
+  color: var(--fg);
+  font-size: 0.84rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.hooks-input:focus {
+  border-color: var(--accent);
+}
+
+.hooks-input-mono {
+  font-family: monospace;
+}
+
+.hooks-input--error {
+  border-color: var(--red);
+}
+
+.hooks-input--warning {
+  border-color: var(--yellow, #e2b93d);
+}
+
+.hooks-textarea {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--input-bg);
+  color: var(--fg);
+  font-size: 0.84rem;
+  font-family: monospace;
+  outline: none;
+  resize: vertical;
+  min-height: 60px;
+  transition: border-color 0.15s;
+}
+
+.hooks-textarea:focus {
+  border-color: var(--accent);
+}
+
+.hooks-select {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--input-bg);
+  color: var(--fg);
+  font-size: 0.84rem;
+  outline: none;
+  cursor: pointer;
+}
+
+.hooks-type-select {
+  width: 110px;
+}
+
+/* ── Validation ── */
+
+.hooks-validation-error {
+  font-size: 0.75rem;
+  color: var(--red);
+}
+
+.hooks-validation-warning {
+  font-size: 0.75rem;
+  color: var(--yellow, #e2b93d);
+}
+
+/* ── Handler list & drag ── */
+
+.hooks-handler-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hooks-handler-wrapper {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  border-radius: 5px;
+  transition: box-shadow 0.15s;
+}
+
+.hooks-handler-wrapper--drag-over {
+  box-shadow: 0 -2px 0 0 var(--accent);
+}
+
+.hooks-drag-handle {
+  display: flex;
+  align-items: center;
+  padding: 4px 0;
+  color: var(--fg-dim);
+  cursor: grab;
+  opacity: 0.4;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+  margin-top: 6px;
+}
+
+.hooks-handler-wrapper:hover .hooks-drag-handle {
+  opacity: 1;
+}
+
+/* ── Handler form ── */
+
+.hooks-handler-form {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg-soft);
+}
+
+.hooks-handler-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.hooks-description-input {
+  font-size: 0.8rem;
+  color: var(--fg-muted);
+  font-style: italic;
+  border-style: dashed;
+}
+
+.hooks-description-input::placeholder {
+  font-style: italic;
+  color: var(--fg-dim);
+}
+
+.hooks-translated-desc {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--fg-dim);
+  font-style: italic;
+  padding: 2px 4px;
+}
+
+.hooks-handler-top-row .hooks-delete-btn {
+  opacity: 0.4;
+}
+
+.hooks-handler-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+/* ── Test button & result ── */
+
+.hooks-test-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.hooks-test-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.hooks-test-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.hooks-test-result {
+  margin-top: 4px;
+  padding: 8px 10px;
+  border-radius: 5px;
+  font-size: 0.75rem;
+  font-family: monospace;
+  overflow-x: auto;
+}
+
+.hooks-test-result--ok {
+  background: color-mix(in srgb, var(--green) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--green) 25%, transparent);
+  color: var(--fg-muted);
+}
+
+.hooks-test-result--error {
+  background: color-mix(in srgb, var(--red) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--red) 25%, transparent);
+  color: var(--fg-muted);
+}
+
+.hooks-test-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.hooks-test-edit-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 0.7rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.hooks-test-edit-btn:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.hooks-test-output {
+  margin-top: 4px;
+}
+
+.hooks-test-label {
+  color: var(--fg-dim);
+  font-weight: 500;
+}
+
+.hooks-test-result pre {
+  margin: 2px 0 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+/* ── Advanced toggle ── */
+
+.hooks-advanced-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--fg-dim);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.hooks-advanced-toggle:hover {
+  color: var(--fg-muted);
+}
+
+.hooks-advanced {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--border);
+}
+
+.hooks-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+
+.hooks-checkbox-label input[type="checkbox"] {
+  accent-color: var(--accent);
+}
+
+/* ── Add buttons ── */
+
+.hooks-add-entry-btn,
+.hooks-add-handler-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border: 1px dashed var(--border);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--fg-dim);
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  align-self: flex-start;
+}
+
+.hooks-add-entry-btn:hover,
+.hooks-add-handler-btn:hover {
+  color: var(--fg-muted);
+  border-color: var(--fg-dim);
+}
+
+/* ── Add event ── */
+
+.hooks-add-event-wrapper {
+  position: relative;
+}
+
+.hooks-add-event-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px;
+  width: 100%;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg-dim);
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.hooks-add-event-btn:hover {
+  color: var(--fg-muted);
+  border-color: var(--fg-dim);
+}
+
+.hooks-add-event-dropdown {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 100;
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.hooks-add-event-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 14px;
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.hooks-add-event-option:hover {
+  background: var(--bg-hover);
+}
+
+.hooks-add-event-option + .hooks-add-event-option {
+  border-top: 1px solid var(--border);
+}
+
+.hooks-add-event-option--disabled {
+  color: var(--fg-dim);
+  cursor: default;
+}
+
+.hooks-add-event-option .hooks-event-name {
+  font-size: 0.84rem;
+  font-weight: 500;
+}
+
+.hooks-add-event-option .hooks-event-desc {
+  font-size: 0.72rem;
+  color: var(--fg-dim);
+}

@@ -20,6 +20,7 @@ import { MemorySection } from "./MemorySection";
 import { WebServerSection } from "./WebServerSection";
 import { VoiceSection } from "./VoiceSection";
 import { TelegramSection } from "./TelegramSection";
+import { HooksSection } from "./hooks";
 
 const NAV_ITEMS = [
   { id: "general", label: "General", icon: User },
@@ -112,6 +113,9 @@ function SectionContent({ section }: { section: string }) {
   }
   if (section === "telegram") {
     return <TelegramSection />;
+  }
+  if (section === "hooks") {
+    return <HooksSection />;
   }
   return (
     <div className="settings-placeholder">

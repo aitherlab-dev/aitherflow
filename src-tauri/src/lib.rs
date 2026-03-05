@@ -7,6 +7,7 @@ mod devtools;
 mod file_ops;
 mod file_watcher;
 mod files;
+mod hooks;
 mod memory;
 mod platform;
 mod plugins;
@@ -322,6 +323,9 @@ pub fn run() {
             telegram::telegram_stream_update,
             telegram::telegram_set_project,
             telegram::telegram_push_message,
+            hooks::load_hooks,
+            hooks::save_hooks,
+            hooks::test_hook_command,
         ])
         .setup(move |_app| {
             let cfg_dir = config::config_dir();

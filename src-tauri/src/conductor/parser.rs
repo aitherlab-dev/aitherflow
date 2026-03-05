@@ -67,18 +67,30 @@ pub fn parse_line(
         "assistant" => {
             // Full assistant message — extract text blocks
             let text = extract_text_from_content(&parsed);
-            if !text.is_empty() {
-                let had_deltas = !delta_text.is_empty();
-                delta_text.clear();
+            let had_deltas = !delta_text.is_empty();
 
-                // If no streaming deltas came, send the text as a chunk
-                if !had_deltas {
-                    let full = combine_text(completed_text, &text);
-                    events.push(CliEvent::StreamChunk {
-                        agent_id: aid.clone(),
-                        text: full,
-                    });
+            // Commit current turn's text to completed_text so it persists
+            // across turns (intermediate "thinking" blocks).
+            let turn_text = if had_deltas {
+                std::mem::take(delta_text)
+            } else {
+                text.clone()
+            };
+
+            if !turn_text.is_empty() {
+                if !completed_text.is_empty() {
+                    // Separator so frontend can split intermediate vs final blocks
+                    completed_text.push_str("\n<!-- turn -->\n");
                 }
+                completed_text.push_str(&turn_text);
+            }
+
+            // If no streaming deltas came, send the text as a chunk
+            if !had_deltas && !text.is_empty() {
+                events.push(CliEvent::StreamChunk {
+                    agent_id: aid.clone(),
+                    text: completed_text.clone(),
+                });
             }
 
             // Extract tool_use events
@@ -112,15 +124,9 @@ pub fn parse_line(
         }
 
         "user" => {
-            // User event = previous assistant turn done.
-            // Commit delta to completed text.
-            if !delta_text.is_empty() {
-                if !completed_text.is_empty() {
-                    completed_text.push_str("\n\n");
-                }
-                completed_text.push_str(delta_text);
-                delta_text.clear();
-            }
+            // Delta is already committed in "assistant" handler.
+            // Clear any leftover just in case.
+            delta_text.clear();
 
             // Parse tool_result events
             if let Some(arr) = parsed
@@ -226,15 +232,17 @@ pub fn parse_line(
 }
 
 /// Combine completed text and current delta into one string.
+/// Uses `<!-- turn -->` separator so the frontend can distinguish thinking blocks.
 fn combine_text(completed: &str, current: &str) -> String {
     if completed.is_empty() {
         current.to_string()
     } else if current.is_empty() {
         completed.to_string()
     } else {
-        let mut s = String::with_capacity(completed.len() + 2 + current.len());
+        let sep = "\n<!-- turn -->\n";
+        let mut s = String::with_capacity(completed.len() + sep.len() + current.len());
         s.push_str(completed);
-        s.push_str("\n\n");
+        s.push_str(sep);
         s.push_str(current);
         s
     }
@@ -416,6 +424,44 @@ mod tests {
                 assert_eq!(tool_use_id, "tu_1");
             }
             other => panic!("Expected ToolUse, got {other:?}"),
+        }
+        // Text should be committed to completed_text
+        assert_eq!(completed, "Let me check.");
+    }
+
+    #[test]
+    fn thinking_blocks_preserved_across_turns() {
+        let mut completed = String::new();
+        let mut delta = String::new();
+
+        // Turn 1: streaming deltas → assistant → user
+        let d1 = r#"{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"Looking..."}}}"#;
+        parse_line(d1, "a", &mut completed, &mut delta).unwrap();
+        assert_eq!(delta, "Looking...");
+
+        let a1 = r#"{"type":"assistant","message":{"content":[{"type":"text","text":"Looking..."},{"type":"tool_use","id":"t1","name":"Read","input":{}}]}}"#;
+        parse_line(a1, "a", &mut completed, &mut delta).unwrap();
+        assert_eq!(completed, "Looking...");
+        assert!(delta.is_empty());
+
+        let u1 = r#"{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"ok"}]}}"#;
+        parse_line(u1, "a", &mut completed, &mut delta).unwrap();
+
+        // Turn 2: new streaming text
+        let d2 = r#"{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"Found it."}}}"#;
+        let events = parse_line(d2, "a", &mut completed, &mut delta).unwrap();
+
+        // StreamChunk should contain both turns separated by turn marker
+        match &events[0] {
+            CliEvent::StreamChunk { text, .. } => {
+                assert!(text.contains("Looking..."), "should contain turn 1 text");
+                assert!(text.contains("Found it."), "should contain turn 2 text");
+                assert!(
+                    text.contains("<!-- turn -->"),
+                    "should contain turn separator"
+                );
+            }
+            other => panic!("Expected StreamChunk, got {other:?}"),
         }
     }
 
