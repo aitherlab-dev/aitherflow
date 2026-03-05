@@ -38,6 +38,7 @@ pub async fn run(state: WebState, port: u16, remote_access: bool) -> Result<(), 
         // ── Conductor ──
         .route("/api/start_session", post(handlers::start_session))
         .route("/api/send_message", post(handlers::send_message))
+        .route("/api/respond_to_tool", post(handlers::respond_to_tool))
         .route("/api/stop_session", post(handlers::stop_session))
         .route("/api/has_active_session", post(handlers::has_active_session))
         // ── Chats ──

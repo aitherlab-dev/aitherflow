@@ -34,6 +34,15 @@ export type CliEvent =
       output_preview: string;
       is_error: boolean;
     }
+  | {
+      type: "controlRequest";
+      agent_id: string;
+      request_id: string;
+      tool_name: string;
+      tool_use_id: string;
+      input: Record<string, unknown>;
+      description: string | null;
+    }
   | { type: "turnComplete"; agent_id: string }
   | { type: "processExited"; agent_id: string; exit_code: number | null }
   | { type: "error"; agent_id: string; message: string };

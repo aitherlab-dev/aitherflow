@@ -100,6 +100,41 @@ pub async fn send_message(
     result.map_err(|e| format!("Failed to send message: {e}"))
 }
 
+/// Respond to a control_request (permission or interactive tool) via control_response.
+///
+/// `response` is a JSON value:
+/// - `{ "behavior": "allow", ... }` → success (allow tool execution)
+/// - `{ "error": "reason" }` → deny (reject tool execution)
+#[tauri::command]
+pub async fn respond_to_tool(
+    sessions: State<'_, SessionManager>,
+    agent_id: Option<String>,
+    request_id: String,
+    response: serde_json::Value,
+) -> Result<(), String> {
+    let agent_id = agent_id.unwrap_or_else(|| DEFAULT_AGENT_ID.to_string());
+
+    let mut stdin = sessions
+        .take_stdin(&agent_id)
+        .await
+        .ok_or_else(|| "No active session for this agent".to_string())?;
+
+    let ndjson = process::build_control_response(&request_id, &response)?;
+
+    let write_result = async {
+        use tokio::io::AsyncWriteExt;
+        stdin.write_all(ndjson.as_bytes()).await?;
+        stdin.write_all(b"\n").await?;
+        stdin.flush().await?;
+        Ok::<(), std::io::Error>(())
+    }
+    .await;
+
+    sessions.return_stdin(&agent_id, stdin).await;
+
+    write_result.map_err(|e| format!("Failed to send control_response: {e}"))
+}
+
 /// Stop (kill) an agent's CLI process.
 #[tauri::command]
 pub async fn stop_session(

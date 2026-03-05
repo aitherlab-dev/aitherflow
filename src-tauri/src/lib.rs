@@ -248,6 +248,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             conductor::start_session,
             conductor::send_message,
+            conductor::respond_to_tool,
             conductor::stop_session,
             conductor::has_active_session,
             conductor::get_session_usage,

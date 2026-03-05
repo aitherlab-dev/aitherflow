@@ -786,11 +786,7 @@ async fn run_websocket(
 
             // Keepalive
             _ = keepalive.tick() => {
-                let ka = if is_deepgram {
-                    serde_json::json!({"type": "KeepAlive"}).to_string()
-                } else {
-                    serde_json::json!({"type": "KeepAlive"}).to_string()
-                };
+                let ka = serde_json::json!({"type": "KeepAlive"}).to_string();
                 if let Err(e) = ws_tx.send(Message::Text(ka.into())).await {
                     eprintln!("[voice-stream] Keepalive error: {e}");
                     break;

@@ -20,6 +20,8 @@ export interface ToolActivity {
   isError?: boolean;
   /** User's response to an interactive card (set after clicking) */
   userResponse?: string;
+  /** control_request ID from CLI — needed to send control_response */
+  requestId?: string;
 }
 
 /** A single message in the chat */

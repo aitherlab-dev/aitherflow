@@ -17,16 +17,20 @@ function textPreview(content: string, lines = 3): string {
   return content.split("\n").slice(0, lines).join("\n");
 }
 
-/** Strip inlined code blocks that match text attachments from message text */
+/** Strip inlined code blocks that match text attachments from message text.
+ *  Uses exact content matching instead of regex to handle files containing backticks. */
 function extractUserText(text: string, attachments?: Attachment[]): string {
   if (!attachments) return text;
   let result = text;
   for (const att of attachments) {
     if (att.fileType !== "text") continue;
-    // Match ```filename\n...content...\n```
-    const escaped = att.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const pattern = new RegExp("```" + escaped + "\\n[\\s\\S]*?```\\n*", "g");
-    result = result.replace(pattern, "");
+    const block = "```" + att.name + "\n" + att.content + "\n```";
+    const idx = result.indexOf(block);
+    if (idx === -1) continue;
+    // Remove the block and any trailing newlines
+    let end = idx + block.length;
+    while (end < result.length && result[end] === "\n") end++;
+    result = result.slice(0, idx) + result.slice(end);
   }
   return result.trim();
 }

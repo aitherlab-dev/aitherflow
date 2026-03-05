@@ -320,6 +320,36 @@ pub fn build_stdin_message(prompt: &str, images: &[AttachmentPayload]) -> Result
     serde_json::to_string(&msg).map_err(|e| format!("Failed to serialize message: {e}"))
 }
 
+/// Build NDJSON control_response for stdin (reply to a control_request).
+///
+/// If `response` contains a `"behavior"` key, it's a success response.
+/// If `response` contains an `"error"` key, it's an error/deny response.
+pub fn build_control_response(
+    request_id: &str,
+    response: &serde_json::Value,
+) -> Result<String, String> {
+    let msg = if response.get("error").is_some() {
+        serde_json::json!({
+            "type": "control_response",
+            "response": {
+                "subtype": "error",
+                "request_id": request_id,
+                "error": response["error"]
+            }
+        })
+    } else {
+        serde_json::json!({
+            "type": "control_response",
+            "response": {
+                "subtype": "success",
+                "request_id": request_id,
+                "response": response
+            }
+        })
+    };
+    serde_json::to_string(&msg).map_err(|e| format!("Failed to serialize control_response: {e}"))
+}
+
 /// Try to find the aither-flow-memory binary.
 /// Checks: next to the current executable (with and without target triple), then in PATH.
 fn find_memory_binary() -> Option<String> {

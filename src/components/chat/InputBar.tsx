@@ -60,7 +60,16 @@ export const InputBar = memo(function InputBar() {
   const handleVoiceReplace = useCallback((text: string) => {
     setText(text);
   }, []);
-  const { voiceState, toggleVoice } = useVoice(handleVoiceInsert, handleVoiceReplace);
+  const { voiceState, toggleVoice, resetStream } = useVoice(handleVoiceInsert, handleVoiceReplace);
+
+  // Focus textarea when voice recording stops (so user can hit Enter immediately)
+  const prevVoiceRef = useRef(voiceState);
+  useEffect(() => {
+    if (prevVoiceRef.current !== "idle" && voiceState === "idle") {
+      textareaRef.current?.focus();
+    }
+    prevVoiceRef.current = voiceState;
+  }, [voiceState]);
 
   // Show actual model from CLI during active session, user's choice otherwise
   const displayModel = useMemo(() => {
@@ -283,8 +292,9 @@ export const InputBar = memo(function InputBar() {
 
     setText("");
     clearAttachments();
+    resetStream(); // Clear accumulated voice text so stream doesn't refill textarea
     sendMessage(finalPrompt.trim(), attachments.length > 0 ? [...attachments] : undefined).catch(console.error);
-  }, [text, attachments, isThinking, sendMessage, clearAttachments]);
+  }, [text, attachments, isThinking, sendMessage, clearAttachments, resetStream]);
 
   const handleStop = useCallback(() => {
     stopGeneration().catch(console.error);

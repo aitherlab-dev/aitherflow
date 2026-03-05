@@ -149,6 +149,51 @@ pub async fn send_message(
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RespondToToolRequest {
+    agent_id: Option<String>,
+    request_id: String,
+    response: serde_json::Value,
+}
+
+pub async fn respond_to_tool(
+    State(state): State<Arc<WebState>>,
+    Json(req): Json<RespondToToolRequest>,
+) -> Response {
+    let agent_id = req
+        .agent_id
+        .unwrap_or_else(|| DEFAULT_AGENT_ID.to_string());
+
+    let Some(mut stdin) = state.sessions.take_stdin(&agent_id).await else {
+        return (StatusCode::BAD_REQUEST, "No active session for this agent").into_response();
+    };
+
+    let ndjson = match process::build_control_response(&req.request_id, &req.response) {
+        Ok(n) => n,
+        Err(e) => {
+            state.sessions.return_stdin(&agent_id, stdin).await;
+            return (StatusCode::BAD_REQUEST, e).into_response();
+        }
+    };
+
+    let write_result = async {
+        use tokio::io::AsyncWriteExt;
+        stdin.write_all(ndjson.as_bytes()).await?;
+        stdin.write_all(b"\n").await?;
+        stdin.flush().await?;
+        Ok::<(), std::io::Error>(())
+    }
+    .await;
+
+    state.sessions.return_stdin(&agent_id, stdin).await;
+
+    match write_result {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to send control_response: {e}")).into_response(),
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AgentIdParam {
     agent_id: Option<String>,
 }

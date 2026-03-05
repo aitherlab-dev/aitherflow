@@ -69,6 +69,17 @@ pub enum CliEvent {
         is_error: bool,
     },
 
+    /// CLI requests permission or user input (control_request protocol)
+    #[serde(rename = "controlRequest")]
+    ControlRequest {
+        agent_id: String,
+        request_id: String,
+        tool_name: String,
+        tool_use_id: String,
+        input: Value,
+        description: Option<String>,
+    },
+
     /// One CLI turn completed — process still alive, awaiting input
     #[serde(rename = "turnComplete")]
     TurnComplete { agent_id: String },

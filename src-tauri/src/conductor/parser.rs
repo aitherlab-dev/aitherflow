@@ -271,6 +271,45 @@ pub fn parse_line(
             events.push(CliEvent::TurnComplete { agent_id: aid });
         }
 
+        "control_request" => {
+            eprintln!("[conductor] Got control_request: {line}");
+            let request_id = parsed
+                .get("request_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let request = parsed.get("request").unwrap_or(&Value::Null);
+            let tool_name = request
+                .get("tool_name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let tool_use_id = request
+                .get("tool_use_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let input = request
+                .get("input")
+                .cloned()
+                .unwrap_or(Value::Null);
+            let description = request
+                .get("description")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+
+            if !request_id.is_empty() {
+                events.push(CliEvent::ControlRequest {
+                    agent_id: aid,
+                    request_id,
+                    tool_name,
+                    tool_use_id,
+                    input,
+                    description,
+                });
+            }
+        }
+
         other => {
             eprintln!("[conductor] Unknown event type: {other}");
         }

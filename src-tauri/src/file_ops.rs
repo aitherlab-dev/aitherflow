@@ -50,7 +50,13 @@ pub fn atomic_write(path: &Path, data: &[u8]) -> Result<(), String> {
         fs::create_dir_all(parent)
             .map_err(|e| format!("Failed to create dir {}: {e}", parent.display()))?;
     }
-    let tmp = path.with_extension("aither_tmp");
+    let tmp = path.with_extension(format!(
+        "aither_tmp_{:x}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64
+    ));
     let mut file =
         fs::File::create(&tmp).map_err(|e| format!("Failed to create temp file: {e}"))?;
     file.write_all(data)

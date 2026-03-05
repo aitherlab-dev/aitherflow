@@ -125,15 +125,23 @@ export function WelcomeScreen() {
             className="welcome-card"
             onClick={() => openProject(card.projectPath, card.projectName)}
           >
-            <button
+            <div
+              role="button"
+              tabIndex={0}
               className="welcome-card-remove"
               onClick={(e) => {
                 e.stopPropagation();
                 removeWelcomeCard(card.projectPath);
               }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.stopPropagation();
+                  removeWelcomeCard(card.projectPath);
+                }
+              }}
             >
               <X size={14} />
-            </button>
+            </div>
             <div className="welcome-card-icon">
               <FolderOpen size={20} />
             </div>

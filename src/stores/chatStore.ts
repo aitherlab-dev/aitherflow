@@ -648,24 +648,68 @@ export const useChatStore = create<ChatState>((set, get) => ({
   respondToCard: async (toolUseId: string, response: string) => {
     const state = get();
 
-    // Mark the tool as answered (search all messages, not just the last one)
+    // Find the tool and its requestId
+    let requestId: string | undefined;
+    let toolName: string | undefined;
+    let toolInput: Record<string, unknown> | undefined;
     const msgs = [...state.messages];
     for (let i = msgs.length - 1; i >= 0; i--) {
       const msg = msgs[i];
       if (msg.role === "assistant" && msg.tools?.some((t) => t.toolUseId === toolUseId)) {
-        const tools = msg.tools.map((t) =>
-          t.toolUseId === toolUseId ? { ...t, userResponse: response } : t,
-        );
+        const tools = msg.tools.map((t) => {
+          if (t.toolUseId === toolUseId) {
+            requestId = t.requestId;
+            toolName = t.toolName;
+            toolInput = t.toolInput;
+            return { ...t, userResponse: response };
+          }
+          return t;
+        });
         msgs[i] = { ...msg, tools };
         break;
       }
     }
     set({ messages: msgs, isThinking: true });
 
-    // Send response to CLI via stdin
+    if (!requestId) {
+      // Fallback: CLI didn't send control_request (e.g. permissive mode) — send as text
+      try {
+        await invoke("send_message", {
+          options: { agentId: state.agentId, prompt: response } satisfies SendMessageOptions,
+        });
+      } catch (e) {
+        set({ error: String(e), isThinking: false });
+      }
+      return;
+    }
+
+    // Build control_response payload
+    let controlResponse: Record<string, unknown>;
+    if (response.startsWith("__deny__")) {
+      const reason = response.slice(7).trim() || "User declined";
+      controlResponse = { error: reason };
+    } else if (toolName === "AskUserQuestion") {
+      // Build updatedInput with answers
+      const input = toolInput as { questions?: Array<{ question: string }> } | undefined;
+      const questions = input?.questions ?? [];
+      const answers: Record<string, string> = {};
+      if (questions.length > 0) {
+        answers[questions[0].question] = response;
+      }
+      controlResponse = {
+        behavior: "allow",
+        updatedInput: { ...input, answers },
+      };
+    } else {
+      // ExitPlanMode and other tools — simple allow
+      controlResponse = { behavior: "allow" };
+    }
+
     try {
-      await invoke("send_message", {
-        options: { agentId: state.agentId, prompt: response } satisfies SendMessageOptions,
+      await invoke("respond_to_tool", {
+        agentId: state.agentId,
+        requestId,
+        response: controlResponse,
       });
     } catch (e) {
       set({ error: String(e), isThinking: false });
@@ -834,21 +878,6 @@ function processBackgroundEvent(agentState: AgentChatState, e: CliEvent) {
       // Track plan mode transitions
       if (e.tool_name === "EnterPlanMode") agentState.planMode = true;
       if (e.tool_name === "ExitPlanMode") agentState.planMode = false;
-
-      // Auto-approve ExitPlanMode in background (otherwise CLI hangs)
-      if (e.tool_name === "ExitPlanMode") {
-        const lm = msgs[msgs.length - 1];
-        if (lm && lm.role === "assistant" && lm.tools) {
-          const tools = lm.tools.map((t) =>
-            t.toolUseId === e.tool_use_id ? { ...t, userResponse: "Auto-approved" } : t,
-          );
-          msgs[msgs.length - 1] = { ...lm, tools };
-          agentState.messages = msgs;
-        }
-        invoke("send_message", {
-          options: { agentId: e.agent_id, prompt: "yes" } satisfies SendMessageOptions,
-        }).catch(console.error);
-      }
       break;
     }
 
@@ -862,6 +891,23 @@ function processBackgroundEvent(agentState: AgentChatState, e: CliEvent) {
             : t,
         );
         msgs[msgs.length - 1] = { ...last, tools };
+      }
+      agentState.messages = msgs;
+      break;
+    }
+
+    case "controlRequest": {
+      // Store request_id on the matching tool activity
+      const msgs = [...agentState.messages];
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        const msg = msgs[i];
+        if (msg.role === "assistant" && msg.tools?.some((t) => t.toolUseId === e.tool_use_id)) {
+          const tools = msg.tools.map((t) =>
+            t.toolUseId === e.tool_use_id ? { ...t, requestId: e.request_id } : t,
+          );
+          msgs[i] = { ...msg, tools };
+          break;
+        }
       }
       agentState.messages = msgs;
       break;
@@ -1031,32 +1077,13 @@ function handleCliEvent(e: CliEvent) {
         set({ messages: msgs, currentToolActivity: activity });
       } else {
         // CLI is paused waiting for user input — stop streaming so cards render
+        // requestId will be set when controlRequest arrives
         const lastMsg = msgs[msgs.length - 1];
         if (lastMsg && lastMsg.role === "assistant" && lastMsg.isStreaming) {
           msgs[msgs.length - 1] = { ...lastMsg, isStreaming: false };
         }
-
-        // Auto-approve ExitPlanMode (workaround for CLI bug #16712 —
-        // can't send tool_result, so CLI hangs waiting. Auto-send "yes"
-        // and show card as already approved. Remove when #16712 is fixed.)
-        if (e.tool_name === "ExitPlanMode") {
-          // Mark as auto-approved in the message
-          const lm = msgs[msgs.length - 1];
-          if (lm && lm.role === "assistant" && lm.tools) {
-            const tools = lm.tools.map((t) =>
-              t.toolUseId === e.tool_use_id ? { ...t, userResponse: "Auto-approved" } : t,
-            );
-            msgs[msgs.length - 1] = { ...lm, tools };
-          }
-          set({ messages: msgs, isThinking: true });
-          // Send "yes" to CLI
-          invoke("send_message", {
-            options: { agentId: state.agentId, prompt: "yes" } satisfies SendMessageOptions,
-          }).catch(console.error);
-        } else {
-          set({ messages: msgs, isThinking: false });
-          syncThinkingIds();
-        }
+        set({ messages: msgs, isThinking: false });
+        syncThinkingIds();
       }
       break;
     }
@@ -1089,6 +1116,23 @@ function handleCliEvent(e: CliEvent) {
           set({ currentToolActivity: null });
         }
       }, 1500);
+      break;
+    }
+
+    case "controlRequest": {
+      // CLI is asking for permission or user input — store request_id on the matching tool
+      const msgs = [...state.messages];
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        const msg = msgs[i];
+        if (msg.role === "assistant" && msg.tools?.some((t) => t.toolUseId === e.tool_use_id)) {
+          const tools = msg.tools.map((t) =>
+            t.toolUseId === e.tool_use_id ? { ...t, requestId: e.request_id } : t,
+          );
+          msgs[i] = { ...msg, tools };
+          break;
+        }
+      }
+      set({ messages: msgs });
       break;
     }
 

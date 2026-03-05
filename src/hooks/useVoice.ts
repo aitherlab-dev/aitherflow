@@ -25,6 +25,8 @@ export function useVoice(
   const accumulatedRef = useRef("");
   const prefixRef = useRef(""); // text that was in the field before streaming started
   const providerRef = useRef("");
+  const finalizedRef = useRef(""); // Deepgram finalized text
+  const interimRef = useRef(""); // Deepgram current interim
   const unlistenersRef = useRef<UnlistenFn[]>([]);
 
   // Clean up event listeners on unmount
@@ -80,24 +82,24 @@ export function useVoice(
 
       if (provider === "deepgram") {
         // Deepgram sends full transcript per segment — replace, don't accumulate
-        let finalizedText = "";
-        let currentInterim = "";
+        finalizedRef.current = "";
+        interimRef.current = "";
 
         unlisteners.push(
           await listen<string>("voice-interim", (event) => {
-            currentInterim = event.payload;
+            interimRef.current = event.payload;
             const combined = prefixRef.current
-              ? prefixRef.current + " " + finalizedText + currentInterim
-              : finalizedText + currentInterim;
+              ? prefixRef.current + " " + finalizedRef.current + interimRef.current
+              : finalizedRef.current + interimRef.current;
             onReplace(combined);
-            accumulatedRef.current = finalizedText + currentInterim;
+            accumulatedRef.current = finalizedRef.current + interimRef.current;
           })
         );
 
         unlisteners.push(
           await listen<void>("voice-final", () => {
-            finalizedText += currentInterim + " ";
-            currentInterim = "";
+            finalizedRef.current += interimRef.current + " ";
+            interimRef.current = "";
           })
         );
       } else {
@@ -189,5 +191,13 @@ export function useVoice(
     return () => window.removeEventListener("keydown", handleKey);
   }, [voiceState, toggleVoice]);
 
-  return { voiceState, toggleVoice };
+  // Reset accumulated text (call on send to avoid re-filling textarea)
+  const resetStream = useCallback(() => {
+    accumulatedRef.current = "";
+    prefixRef.current = "";
+    finalizedRef.current = "";
+    interimRef.current = "";
+  }, []);
+
+  return { voiceState, toggleVoice, resetStream };
 }

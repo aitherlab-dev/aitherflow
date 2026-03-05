@@ -146,7 +146,7 @@ function ExitPlanModeCard({ tool }: { tool: ToolActivity }) {
       return;
     }
     const reason = rejectReason.trim() || "Rejected by user";
-    respondToCard(tool.toolUseId, reason).catch(console.error);
+    respondToCard(tool.toolUseId, `__deny__${reason}`).catch(console.error);
   }, [answered, rejecting, rejectReason, respondToCard, tool.toolUseId]);
 
   const prompts = input?.allowedPrompts;
