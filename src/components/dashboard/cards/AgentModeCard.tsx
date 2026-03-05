@@ -1,16 +1,7 @@
-import { memo, useEffect, useState } from "react";
-import { Shield } from "lucide-react";
-import { invoke } from "../../../lib/transport";
+import { memo } from "react";
+import { Activity } from "lucide-react";
+import { useChatStore } from "../../../stores/chatStore";
 import { DashboardCard } from "../DashboardCard";
-
-interface AppSettings {
-  bypassPermissions: boolean;
-}
-
-const MODE_LABELS: Record<string, string> = {
-  default: "Default",
-  bypassPermissions: "Bypass",
-};
 
 export const AgentModeCard = memo(function AgentModeCard({
   expanded,
@@ -19,24 +10,19 @@ export const AgentModeCard = memo(function AgentModeCard({
   expanded: boolean;
   onToggle: (id: string) => void;
 }) {
-  const [bypass, setBypass] = useState(false);
+  const planMode = useChatStore((s) => s.planMode);
+  const hasSession = useChatStore((s) => s.hasSession);
 
-  useEffect(() => {
-    invoke<AppSettings>("load_settings")
-      .then((s) => setBypass(s.bypassPermissions))
-      .catch(console.error);
-  }, []);
-
-  const mode = bypass ? "bypassPermissions" : "default";
-  const label = MODE_LABELS[mode];
+  const label = !hasSession ? "Idle" : planMode ? "Plan" : "Edit";
+  const color = !hasSession ? "dim" : planMode ? "blue" : "green";
 
   return (
     <DashboardCard
       id="agentmode"
-      icon={Shield}
-      title="Perms"
+      icon={Activity}
+      title="Mode"
       statusText={label}
-      statusColor={bypass ? "orange" : "green"}
+      statusColor={color}
       expanded={expanded}
       onToggle={onToggle}
     >
@@ -44,10 +30,6 @@ export const AgentModeCard = memo(function AgentModeCard({
         <div className="dash-card__row">
           <span className="dash-card__label">Mode</span>
           <span>{label}</span>
-        </div>
-        <div className="dash-card__row">
-          <span className="dash-card__label">Bypass</span>
-          <span>{bypass ? "Yes" : "No"}</span>
         </div>
       </div>
     </DashboardCard>

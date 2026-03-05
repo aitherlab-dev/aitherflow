@@ -11,6 +11,7 @@ import {
   Mic,
   Send,
   Cable,
+  BarChart3,
 } from "lucide-react";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { ProjectsSection } from "./ProjectsSection";
@@ -23,6 +24,7 @@ import { VoiceSection } from "./VoiceSection";
 import { TelegramSection } from "./TelegramSection";
 import { HooksSection } from "./hooks";
 import { McpSection } from "./McpSection";
+import { CliStatsSection } from "./CliStatsSection";
 
 const NAV_ITEMS = [
   { id: "general", label: "General", icon: User },
@@ -35,6 +37,7 @@ const NAV_ITEMS = [
   { id: "memory", label: "Memory", icon: Brain },
   { id: "voice", label: "Voice", icon: Mic },
   { id: "telegram", label: "Telegram", icon: Send },
+  { id: "cli-stats", label: "CLI Stats", icon: BarChart3 },
 ] as const;
 
 export function SettingsView() {
@@ -122,6 +125,9 @@ function SectionContent({ section }: { section: string }) {
   }
   if (section === "mcp") {
     return <McpSection />;
+  }
+  if (section === "cli-stats") {
+    return <CliStatsSection />;
   }
   return (
     <div className="settings-placeholder">

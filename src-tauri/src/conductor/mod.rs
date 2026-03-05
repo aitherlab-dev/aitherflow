@@ -1,6 +1,7 @@
 pub mod parser;
 pub mod process;
 pub mod session;
+pub mod stats;
 pub mod types;
 
 use tauri::State;
@@ -120,8 +121,16 @@ pub async fn has_active_session(
     Ok(sessions.is_alive(&agent_id).await)
 }
 
-/// Read usage from the last assistant event in a CLI session JSONL file.
-/// Returns the saved context usage so the indicator can show data before any new messages.
+/// Aggregate CLI usage statistics from all JSONL session files.
+#[tauri::command]
+pub async fn get_cli_stats(days: u32) -> Result<stats::AggregatedStats, String> {
+    tokio::task::spawn_blocking(move || stats::aggregate_cli_stats(days))
+        .await
+        .map_err(|e| format!("Task failed: {e}"))?
+}
+
+/// Read usage from the last assistant + result events in a CLI session JSONL file.
+/// Returns context usage, cost, and context window so the UI can show data before new messages.
 #[tauri::command]
 pub async fn get_session_usage(
     session_id: String,
@@ -140,49 +149,90 @@ pub async fn get_session_usage(
             return Ok(serde_json::json!(null));
         }
 
-        // Read file and find last assistant event with usage
         let content = std::fs::read_to_string(&jsonl_path)
             .map_err(|e| format!("Failed to read JSONL: {e}"))?;
 
-        let mut last_usage: Option<serde_json::Value> = None;
+        let mut context_usage: Option<serde_json::Value> = None;
+        let mut cost_usd: f64 = 0.0;
+        let mut context_window: u64 = 0;
+
+        // Iterate in reverse: find last assistant (context) and last result (cost/window)
         for line in content.lines().rev() {
+            // Stop early if we have everything
+            if context_usage.is_some() && (cost_usd > 0.0 || context_window > 0) {
+                break;
+            }
+
             let parsed: serde_json::Value = match serde_json::from_str(line) {
                 Ok(v) => v,
                 Err(_) => continue,
             };
-            if parsed.get("type").and_then(|t| t.as_str()) != Some("assistant") {
-                continue;
-            }
-            if let Some(usage) = parsed.pointer("/message/usage") {
-                let input = usage
-                    .get("input_tokens")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(0);
-                let cache_creation = usage
-                    .get("cache_creation_input_tokens")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(0);
-                let cache_read = usage
-                    .get("cache_read_input_tokens")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(0);
-                let output = usage
-                    .get("output_tokens")
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(0);
 
-                last_usage = Some(serde_json::json!({
-                    "input_tokens": input,
-                    "output_tokens": output,
-                    "cache_creation_input_tokens": cache_creation,
-                    "cache_read_input_tokens": cache_read,
-                    "context_used": input + cache_creation + cache_read,
-                }));
-                break;
+            let event_type = parsed.get("type").and_then(|t| t.as_str()).unwrap_or("");
+
+            // Last assistant event → context usage (per-turn = real context size)
+            if event_type == "assistant" && context_usage.is_none() {
+                if let Some(usage) = parsed.pointer("/message/usage") {
+                    let input = usage
+                        .get("input_tokens")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0);
+                    let cache_creation = usage
+                        .get("cache_creation_input_tokens")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0);
+                    let cache_read = usage
+                        .get("cache_read_input_tokens")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0);
+                    let output = usage
+                        .get("output_tokens")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(0);
+
+                    context_usage = Some(serde_json::json!({
+                        "input_tokens": input,
+                        "output_tokens": output,
+                        "cache_creation_input_tokens": cache_creation,
+                        "cache_read_input_tokens": cache_read,
+                        "context_used": input + cache_creation + cache_read,
+                    }));
+                }
+            }
+
+            // Last result event → cost and context window
+            if event_type == "result" && cost_usd == 0.0 {
+                cost_usd = parsed
+                    .get("total_cost_usd")
+                    .and_then(|v| v.as_f64())
+                    .or_else(|| parsed.get("cost_usd").and_then(|v| v.as_f64()))
+                    .unwrap_or(0.0);
+
+                context_window = parsed
+                    .get("modelUsage")
+                    .and_then(|mu| mu.as_object())
+                    .and_then(|obj| obj.values().next())
+                    .and_then(|entry| entry.get("contextWindow"))
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
             }
         }
 
-        Ok(last_usage.unwrap_or(serde_json::json!(null)))
+        match context_usage {
+            Some(mut usage) => {
+                if let Some(obj) = usage.as_object_mut() {
+                    obj.insert("cost_usd".into(), serde_json::json!(cost_usd));
+                    if context_window > 0 {
+                        obj.insert(
+                            "context_window".into(),
+                            serde_json::json!(context_window),
+                        );
+                    }
+                }
+                Ok(usage)
+            }
+            None => Ok(serde_json::json!(null)),
+        }
     })
     .await
     .map_err(|e| format!("Task failed: {e}"))?

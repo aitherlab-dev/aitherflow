@@ -7,8 +7,8 @@ export interface DashboardCardProps {
   title: string;
   /** Short status text shown in compact mode */
   statusText: string;
-  /** Status dot color: "green" | "red" | "gray" | "orange" */
-  statusColor?: "green" | "red" | "gray" | "orange";
+  /** Status dot color */
+  statusColor?: "green" | "red" | "gray" | "orange" | "blue" | "dim";
   expanded: boolean;
   onToggle: (id: string) => void;
   /** Expanded content */

@@ -18,6 +18,7 @@ interface AgentChatState {
   chatId: string | null;
   hasSession: boolean;
   isThinking: boolean;
+  planMode: boolean;
   currentToolActivity: ToolActivity | null;
   error: string | null;
 }
@@ -34,6 +35,7 @@ function getOrCreateAgentState(agentId: string): AgentChatState {
       chatId: null,
       hasSession: false,
       isThinking: false,
+      planMode: false,
       currentToolActivity: null,
       error: null,
     };
@@ -71,6 +73,7 @@ interface ChatState {
   messages: ChatMessage[];
   hasSession: boolean;
   isThinking: boolean;
+  planMode: boolean;
   currentToolActivity: ToolActivity | null;
   error: string | null;
 
@@ -236,6 +239,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   hasSession: false,
   isThinking: false,
+  planMode: false,
   currentToolActivity: null,
   error: null,
   thinkingAgentIds: [],
@@ -361,7 +365,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     } catch (e) {
       set({ error: String(e) });
     }
-    set({ isThinking: false, currentToolActivity: null });
+    set({ isThinking: false, planMode: false, currentToolActivity: null });
   },
 
   restartSession: async () => {
@@ -442,6 +446,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         messages,
         hasSession: false,
         isThinking: false,
+        planMode: false,
         currentToolActivity: null,
         error: null,
       });
@@ -486,6 +491,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messages: [],
       hasSession: false,
       isThinking: false,
+      planMode: false,
       currentToolActivity: null,
       error: null,
     });
@@ -555,6 +561,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       chatId: state.currentChatId,
       hasSession: state.hasSession,
       isThinking: state.isThinking,
+      planMode: state.planMode,
       currentToolActivity: state.currentToolActivity,
       error: state.error,
     });
@@ -588,6 +595,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         chatList: [],
         hasSession: target.hasSession,
         isThinking: target.isThinking,
+        planMode: target.planMode,
         currentToolActivity: target.currentToolActivity,
         error: null,
       });
@@ -605,6 +613,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         chatList: [],
         hasSession: false,
         isThinking: false,
+        planMode: false,
         currentToolActivity: null,
         error: null,
       });
@@ -822,6 +831,10 @@ function processBackgroundEvent(agentState: AgentChatState, e: CliEvent) {
       }
       agentState.messages = msgs;
 
+      // Track plan mode transitions
+      if (e.tool_name === "EnterPlanMode") agentState.planMode = true;
+      if (e.tool_name === "ExitPlanMode") agentState.planMode = false;
+
       // Auto-approve ExitPlanMode in background (otherwise CLI hangs)
       if (e.tool_name === "ExitPlanMode") {
         const lm = msgs[msgs.length - 1];
@@ -1005,6 +1018,10 @@ function handleCliEvent(e: CliEvent) {
         }
       }
 
+      // Track plan mode transitions
+      if (e.tool_name === "EnterPlanMode") set({ planMode: true });
+      if (e.tool_name === "ExitPlanMode") set({ planMode: false });
+
       // Interactive tools (AskUserQuestion, ExitPlanMode) don't show as "running" status
       if (!isInteractiveTool(e.tool_name)) {
         if (toolActivityTimer) {
@@ -1093,7 +1110,7 @@ function handleCliEvent(e: CliEvent) {
 
     case "processExited":
       cancelStreamRaf();
-      set({ hasSession: false, isThinking: false, currentToolActivity: null });
+      set({ hasSession: false, isThinking: false, planMode: false, currentToolActivity: null });
       {
         const msgs = [...state.messages];
         const last = msgs[msgs.length - 1];

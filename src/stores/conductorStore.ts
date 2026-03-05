@@ -195,6 +195,8 @@ export const useConductorStore = create<ConductorState>((set, get) => ({
           cacheCreationTokens: data.cache_creation_input_tokens,
           cacheReadTokens: data.cache_read_input_tokens,
           contextUsed: data.context_used,
+          costUsd: data.cost_usd ?? 0,
+          ...(data.context_window ? { contextMax: data.context_window } : {}),
         });
       }
     } catch (e) {
