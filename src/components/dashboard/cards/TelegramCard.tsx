@@ -33,11 +33,7 @@ export const TelegramCard = memo(function TelegramCard({
   }, [refresh]);
 
   const running = status?.running && status?.connected;
-  const statusText = !status
-    ? "..."
-    : running
-      ? status.bot_username ?? "Online"
-      : "Off";
+  const statusText = !status ? "..." : running ? "On" : "Off";
 
   const handleToggle = useCallback(() => {
     setToggling(true);

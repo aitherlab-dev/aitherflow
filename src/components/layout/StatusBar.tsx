@@ -43,6 +43,7 @@ export const StatusBar = memo(function StatusBar() {
           <span className="statusbar-badge">{toolCount}</span>
         )}
       </button>
+      <span className="statusbar-sep" />
       <ContextIndicator />
     </footer>
   );

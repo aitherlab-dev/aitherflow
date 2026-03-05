@@ -15,6 +15,12 @@ export type CliEvent =
       context_window: number;
     }
   | {
+      type: "contextInfo";
+      agent_id: string;
+      context_used: number;
+      output_tokens: number;
+    }
+  | {
       type: "toolUse";
       agent_id: string;
       tool_use_id: string;

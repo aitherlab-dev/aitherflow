@@ -29,7 +29,7 @@ pub enum CliEvent {
     #[serde(rename = "modelInfo")]
     ModelInfo { agent_id: String, model: String },
 
-    /// Token usage and cost from result event
+    /// Token usage and cost from result event (cumulative over session)
     #[serde(rename = "usageInfo")]
     UsageInfo {
         agent_id: String,
@@ -40,6 +40,15 @@ pub enum CliEvent {
         cost_usd: f64,
         /// Context window size from modelUsage (0 = not available)
         context_window: u64,
+    },
+
+    /// Context window usage from assistant event (per-turn = actual context size)
+    #[serde(rename = "contextInfo")]
+    ContextInfo {
+        agent_id: String,
+        /// input + cache_creation + cache_read = how much context is used
+        context_used: u64,
+        output_tokens: u64,
     },
 
     /// Tool invocation (from assistant message)

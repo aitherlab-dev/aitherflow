@@ -630,11 +630,18 @@
 
 /* ── Context Indicator ── */
 
+.statusbar-sep {
+  width: 1px;
+  height: 10px;
+  background: var(--border);
+  margin: 0 6px;
+  flex-shrink: 0;
+}
+
 .context-indicator {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-left: auto;
   font-size: 0.65rem;
   color: var(--fg-muted);
   user-select: none;

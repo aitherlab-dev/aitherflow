@@ -250,6 +250,7 @@ pub fn run() {
             conductor::send_message,
             conductor::stop_session,
             conductor::has_active_session,
+            conductor::get_session_usage,
             config::get_workspace_path,
             chats::list_chats,
             chats::create_chat,

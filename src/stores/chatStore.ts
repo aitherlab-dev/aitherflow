@@ -448,6 +448,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       // Update chat lock in agentStore
       useAgentStore.getState().updateChatLock(get().agentId, chatId);
+
+      // Load saved usage from CLI session JSONL (so context indicator works before new messages)
+      const chatMeta = get().chatList.find((c) => c.id === chatId);
+      if (chatMeta?.sessionId) {
+        useConductorStore
+          .getState()
+          .loadSavedUsage(chatMeta.sessionId, get().projectPath)
+          .catch(console.error);
+      } else {
+        // No session — reset usage
+        useConductorStore.getState().restoreUsageForAgent(get().agentId);
+      }
     } catch (e) {
       set({ error: String(e) });
     }

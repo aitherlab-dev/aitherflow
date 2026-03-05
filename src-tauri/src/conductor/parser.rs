@@ -93,6 +93,34 @@ pub fn parse_line(
                 });
             }
 
+            // Extract context usage from assistant.message.usage (per-turn = real context size)
+            if let Some(usage) = parsed.pointer("/message/usage") {
+                let input = usage
+                    .get("input_tokens")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+                let cache_creation = usage
+                    .get("cache_creation_input_tokens")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+                let cache_read = usage
+                    .get("cache_read_input_tokens")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+                let output = usage
+                    .get("output_tokens")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+                let context_used = input + cache_creation + cache_read;
+                if context_used > 0 {
+                    events.push(CliEvent::ContextInfo {
+                        agent_id: aid.clone(),
+                        context_used,
+                        output_tokens: output,
+                    });
+                }
+            }
+
             // Extract tool_use events
             if let Some(arr) = parsed
                 .get("message")

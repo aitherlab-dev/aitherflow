@@ -119,3 +119,71 @@ pub async fn has_active_session(
     let agent_id = agent_id.unwrap_or_else(|| DEFAULT_AGENT_ID.to_string());
     Ok(sessions.is_alive(&agent_id).await)
 }
+
+/// Read usage from the last assistant event in a CLI session JSONL file.
+/// Returns the saved context usage so the indicator can show data before any new messages.
+#[tauri::command]
+pub async fn get_session_usage(
+    session_id: String,
+    project_path: String,
+) -> Result<serde_json::Value, String> {
+    tokio::task::spawn_blocking(move || {
+        let home = dirs::home_dir().ok_or("No home directory")?;
+        let encoded = project_path.replace(['/', '.', '_'], "-");
+        let jsonl_path = home
+            .join(".claude")
+            .join("projects")
+            .join(encoded)
+            .join(format!("{session_id}.jsonl"));
+
+        if !jsonl_path.exists() {
+            return Ok(serde_json::json!(null));
+        }
+
+        // Read file and find last assistant event with usage
+        let content = std::fs::read_to_string(&jsonl_path)
+            .map_err(|e| format!("Failed to read JSONL: {e}"))?;
+
+        let mut last_usage: Option<serde_json::Value> = None;
+        for line in content.lines().rev() {
+            let parsed: serde_json::Value = match serde_json::from_str(line) {
+                Ok(v) => v,
+                Err(_) => continue,
+            };
+            if parsed.get("type").and_then(|t| t.as_str()) != Some("assistant") {
+                continue;
+            }
+            if let Some(usage) = parsed.pointer("/message/usage") {
+                let input = usage
+                    .get("input_tokens")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+                let cache_creation = usage
+                    .get("cache_creation_input_tokens")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+                let cache_read = usage
+                    .get("cache_read_input_tokens")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+                let output = usage
+                    .get("output_tokens")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0);
+
+                last_usage = Some(serde_json::json!({
+                    "input_tokens": input,
+                    "output_tokens": output,
+                    "cache_creation_input_tokens": cache_creation,
+                    "cache_read_input_tokens": cache_read,
+                    "context_used": input + cache_creation + cache_read,
+                }));
+                break;
+            }
+        }
+
+        Ok(last_usage.unwrap_or(serde_json::json!(null)))
+    })
+    .await
+    .map_err(|e| format!("Task failed: {e}"))?
+}

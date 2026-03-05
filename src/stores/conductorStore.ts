@@ -73,6 +73,7 @@ interface ConductorState {
   reset: () => void;
   saveUsageForAgent: (agentId: string) => void;
   restoreUsageForAgent: (agentId: string) => void;
+  loadSavedUsage: (sessionId: string, projectPath: string) => Promise<void>;
 }
 
 export const useConductorStore = create<ConductorState>((set, get) => ({
@@ -178,6 +179,28 @@ export const useConductorStore = create<ConductorState>((set, get) => ({
       set({ ...fresh });
     }
   },
+
+  loadSavedUsage: async (sessionId: string, projectPath: string) => {
+    // Skip if we already have usage data
+    if (get().contextUsed > 0) return;
+    try {
+      const data = await invoke<Record<string, number> | null>(
+        "get_session_usage",
+        { sessionId, projectPath },
+      );
+      if (data && data.context_used > 0) {
+        set({
+          inputTokens: data.input_tokens,
+          outputTokens: data.output_tokens,
+          cacheCreationTokens: data.cache_creation_input_tokens,
+          cacheReadTokens: data.cache_read_input_tokens,
+          contextUsed: data.context_used,
+        });
+      }
+    } catch (e) {
+      console.error("Failed to load saved usage:", e);
+    }
+  },
 }));
 
 // ── Module-level event listener (singleton, lives for app lifetime) ──
@@ -186,30 +209,45 @@ listen<CliEvent>("cli-event", (event) => {
   const e = event.payload;
   const activeAgentId = useChatStore.getState().agentId;
 
-  // For usageInfo: always update the per-agent Map (even for background agents)
+  // contextInfo: real context size from assistant event (per-turn)
+  if (e.type === "contextInfo") {
+    const existing = agentUsage.get(e.agent_id) ?? emptyUsage();
+    existing.contextUsed = e.context_used;
+    existing.outputTokens = e.output_tokens;
+    agentUsage.set(e.agent_id, { ...existing });
+
+    if (e.agent_id === activeAgentId) {
+      useConductorStore.setState({
+        contextUsed: e.context_used,
+        outputTokens: e.output_tokens,
+      });
+    }
+    return;
+  }
+
+  // usageInfo: cumulative session totals from result event (for cost tracking, context window size)
   if (e.type === "usageInfo") {
-    const contextUsed =
-      e.input_tokens + e.cache_creation_input_tokens + e.cache_read_input_tokens;
-    const existing = agentUsage.get(e.agent_id);
+    const existing = agentUsage.get(e.agent_id) ?? emptyUsage();
     const contextMax =
       e.context_window > 0
         ? e.context_window
-        : existing?.contextMax ?? DEFAULT_CONTEXT_WINDOW;
+        : existing.contextMax;
 
-    const usage: AgentUsageState = {
-      inputTokens: e.input_tokens,
-      outputTokens: e.output_tokens,
-      cacheCreationTokens: e.cache_creation_input_tokens,
-      cacheReadTokens: e.cache_read_input_tokens,
-      contextUsed,
-      contextMax,
-      costUsd: e.cost_usd,
-    };
-    agentUsage.set(e.agent_id, usage);
+    existing.inputTokens = e.input_tokens;
+    existing.cacheCreationTokens = e.cache_creation_input_tokens;
+    existing.cacheReadTokens = e.cache_read_input_tokens;
+    existing.contextMax = contextMax;
+    existing.costUsd = e.cost_usd;
+    agentUsage.set(e.agent_id, { ...existing });
 
-    // Update Zustand only if this is the active agent
     if (e.agent_id === activeAgentId) {
-      useConductorStore.setState(usage);
+      useConductorStore.setState({
+        inputTokens: e.input_tokens,
+        cacheCreationTokens: e.cache_creation_input_tokens,
+        cacheReadTokens: e.cache_read_input_tokens,
+        contextMax,
+        costUsd: e.cost_usd,
+      });
     }
     return;
   }
