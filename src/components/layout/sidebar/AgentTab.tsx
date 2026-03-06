@@ -20,6 +20,7 @@ export const AgentTab = memo(function AgentTab({
   onDeleteChat,
   onRenameChat,
   onToggleChatPin,
+  onToggleExpand,
 }: {
   agentId: string;
   projectName: string;
@@ -36,6 +37,7 @@ export const AgentTab = memo(function AgentTab({
   onDeleteChat: (id: string) => void;
   onRenameChat: (id: string, newTitle: string) => void;
   onToggleChatPin: (id: string, pinned: boolean) => void;
+  onToggleExpand?: (expanded: boolean) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [editingChatId, setEditingChatId] = useState<string | null>(null);
@@ -43,16 +45,23 @@ export const AgentTab = memo(function AgentTab({
 
   // Collapse chat list when agent becomes inactive
   useEffect(() => {
-    if (!isActive) setExpanded(false);
-  }, [isActive]);
+    if (!isActive) {
+      setExpanded(false);
+      onToggleExpand?.(false);
+    }
+  }, [isActive, onToggleExpand]);
 
   const handleClick = useCallback(() => {
     if (isActive) {
-      setExpanded((prev) => !prev);
+      setExpanded((prev) => {
+        const next = !prev;
+        onToggleExpand?.(next);
+        return next;
+      });
     } else {
       onActivate(agentId);
     }
-  }, [isActive, agentId, onActivate]);
+  }, [isActive, agentId, onActivate, onToggleExpand]);
 
   const handleClose = useCallback(
     (e: React.MouseEvent) => {

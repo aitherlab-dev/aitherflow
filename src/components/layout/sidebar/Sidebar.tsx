@@ -45,6 +45,7 @@ export const Sidebar = memo(function Sidebar() {
 
   const [filesOpen, setFilesOpen] = useState(false);
   const [dashboardOpen, setDashboardOpen] = useState(true);
+  const filesOpenBeforeChats = useRef(false);
 
   const handleActivateAgent = useCallback(
     (agentId: string) => {
@@ -123,6 +124,18 @@ export const Sidebar = memo(function Sidebar() {
   const handleDashboardClick = useCallback(() => {
     setDashboardOpen((prev) => !prev);
   }, []);
+
+  const handleChatExpand = useCallback((expanded: boolean) => {
+    if (expanded) {
+      filesOpenBeforeChats.current = filesOpen;
+      if (filesOpen) setFilesOpen(false);
+    } else {
+      if (filesOpenBeforeChats.current) {
+        setFilesOpen(true);
+        filesOpenBeforeChats.current = false;
+      }
+    }
+  }, [filesOpen]);
 
   // ── Shift+drag reorder for agent tabs ──
 
@@ -242,45 +255,47 @@ export const Sidebar = memo(function Sidebar() {
                   onDeleteChat={handleDeleteChat}
                   onRenameChat={handleRenameChat}
                   onToggleChatPin={handleToggleChatPin}
+                  onToggleExpand={handleChatExpand}
                 />
               </div>
             ))}
           </div>
 
-          {/* Bottom panel: Files, Dashboard, Settings */}
-          <div className="sidebar-bottom">
-            {filesOpen && (
-              <div className="files-accordion">
-                <FilesPanel />
-              </div>
-            )}
-            <button
-              className={`sidebar-tab ${filesOpen ? "sidebar-tab--active" : ""}`}
-              onClick={handleFilesClick}
-            >
-              <FolderOpen size={16} />
-              <span>Files</span>
-            </button>
-            {dashboardOpen && (
-              <div className="dashboard-accordion">
-                <DashboardPanel />
-              </div>
-            )}
-            <button
-              className="sidebar-tab"
-              onClick={handleDashboardClick}
-            >
-              <LayoutDashboard size={16} />
-              <span>Dashboard</span>
-            </button>
-            <button
-              className={`sidebar-tab ${activeView === "settings" ? "sidebar-tab--active" : ""}`}
-              onClick={handleSettingsClick}
-            >
-              <Settings size={16} />
-              <span>Settings</span>
-            </button>
-          </div>
+          {/* Spacer — absorbs free space between agents and bottom items */}
+          <div className="sidebar-spacer" />
+
+          {/* Bottom items: Files, Dashboard, Settings — pinned to bottom */}
+          {filesOpen && (
+            <div className="files-accordion">
+              <FilesPanel />
+            </div>
+          )}
+          <button
+            className={`sidebar-tab ${filesOpen ? "sidebar-tab--active" : ""}`}
+            onClick={handleFilesClick}
+          >
+            <FolderOpen size={16} />
+            <span>Files</span>
+          </button>
+          {dashboardOpen && (
+            <div className="dashboard-accordion">
+              <DashboardPanel />
+            </div>
+          )}
+          <button
+            className="sidebar-tab"
+            onClick={handleDashboardClick}
+          >
+            <LayoutDashboard size={16} />
+            <span>Dashboard</span>
+          </button>
+          <button
+            className={`sidebar-tab ${activeView === "settings" ? "sidebar-tab--active" : ""}`}
+            onClick={handleSettingsClick}
+          >
+            <Settings size={16} />
+            <span>Settings</span>
+          </button>
 
           <ResizeHandle />
         </>

@@ -231,7 +231,7 @@
 }
 
 .sidebar-content:has(.sidebar-project-body) {
-  flex: 1 1 0;
+  flex: 1 1 auto;
 }
 
 
@@ -641,14 +641,13 @@
   cursor: default;
 }
 
-/* Bottom group spacing — always pinned to bottom */
-.sidebar-bottom {
-  margin-top: auto;
-  padding: 8px 0 12px;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
+/* Spacer between agents and bottom items */
+.sidebar-spacer {
+  flex: 1;
+}
+
+.sidebar-content:has(.sidebar-project-body) ~ .sidebar-spacer {
+  flex: 0;
 }
 
 /* ═══════════════════════════════════════════
@@ -887,9 +886,9 @@
 
 /* Accordion wrapper in sidebar */
 .files-accordion {
-  flex: 1;
+  flex: 0 1 auto;
   min-height: 0;
-  overflow: hidden;
+  overflow-y: auto;
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
 }
