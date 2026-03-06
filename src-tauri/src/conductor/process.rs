@@ -155,27 +155,29 @@ pub async fn run_cli_session(
         )
         .await;
 
-    // Write first message
-    let ndjson = build_stdin_message(&prompt, &image_attachments)?;
-    {
-        let mut process_stdin = sessions
-            .take_stdin(&agent_id)
-            .await
-            .ok_or_else(|| "Session lost before first write".to_string())?;
+    // Write first message (skip if resuming with empty prompt — e.g. permission mode switch)
+    if !prompt.trim().is_empty() || !image_attachments.is_empty() {
+        let ndjson = build_stdin_message(&prompt, &image_attachments)?;
+        {
+            let mut process_stdin = sessions
+                .take_stdin(&agent_id)
+                .await
+                .ok_or_else(|| "Session lost before first write".to_string())?;
 
-        let write_result = async {
-            process_stdin.write_all(ndjson.as_bytes()).await?;
-            process_stdin.write_all(b"\n").await?;
-            process_stdin.flush().await?;
-            Ok::<(), std::io::Error>(())
-        }
-        .await;
+            let write_result = async {
+                process_stdin.write_all(ndjson.as_bytes()).await?;
+                process_stdin.write_all(b"\n").await?;
+                process_stdin.flush().await?;
+                Ok::<(), std::io::Error>(())
+            }
+            .await;
 
-        // Always return stdin, even on write error
-        sessions.return_stdin(&agent_id, process_stdin).await;
+            // Always return stdin, even on write error
+            sessions.return_stdin(&agent_id, process_stdin).await;
 
-        if let Err(e) = write_result {
-            return Err(format!("Failed to write first message: {e}"));
+            if let Err(e) = write_result {
+                return Err(format!("Failed to write first message: {e}"));
+            }
         }
     }
 

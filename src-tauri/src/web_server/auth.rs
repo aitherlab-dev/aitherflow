@@ -278,7 +278,7 @@ pub async fn auth_middleware(
                 let session_token = state.session_store.create_session().await;
                 let secure_flag = if state.remote_access { "; Secure" } else { "" };
                 let cookie = format!(
-                    "af_session={session_token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800{secure_flag}"
+                    "af_session={session_token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800{secure_flag}"
                 );
                 let redirect_uri = path.to_string();
                 return Ok(Response::builder()

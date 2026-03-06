@@ -98,6 +98,7 @@ interface ChatState {
   switchAgent: (agentId: string, projectPath: string, projectName: string, savedChatId: string | null) => Promise<void>;
   respondToCard: (toolUseId: string, response: string) => Promise<void>;
   clearAgentState: (agentId: string) => void;
+  switchPermissionMode: (mode: "default" | "plan") => Promise<void>;
 }
 
 // ── Helpers ──
@@ -331,20 +332,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const resumeSessionId = chatMeta?.sessionId ?? undefined;
 
         // Load settings to check permission mode and chrome
-        let permissionMode: string | undefined;
         let enableChrome = true;
+        let settingsPermMode: string | undefined;
         try {
           const settings = await invoke<{ bypassPermissions: boolean; enableChrome: boolean }>("load_settings");
           if (settings.bypassPermissions) {
-            permissionMode = "bypassPermissions";
+            settingsPermMode = "bypassPermissions";
           }
           enableChrome = settings.enableChrome;
         } catch (e) {
           console.error("Failed to load settings:", e);
         }
 
-        // Get selected model and effort from conductor store
-        const { selectedModel, selectedEffort } = useConductorStore.getState();
+        // Get selected model, effort and permission mode from conductor store
+        // bypassPermissions from settings overrides the UI toggle
+        const { selectedModel, selectedEffort, selectedPermissionMode } = useConductorStore.getState();
+        const permissionMode = settingsPermMode ?? (selectedPermissionMode !== "default" ? selectedPermissionMode : undefined);
 
         await invoke("start_session", {
           options: {
@@ -384,6 +387,60 @@ export const useChatStore = create<ChatState>((set, get) => ({
       console.error("Failed to restart session:", e);
     }
     // processExited event will reset hasSession, isThinking, etc.
+  },
+
+  switchPermissionMode: async (mode: "default" | "plan") => {
+    const conductor = useConductorStore.getState();
+    conductor.setSelectedPermissionMode(mode);
+
+    const { agentId, hasSession } = get();
+    if (!hasSession) return;
+
+    // Remember current session for resume
+    const sessionId = conductor.sessionId;
+
+    // Stop current session and wait for processExited to reset hasSession
+    try {
+      await invoke("stop_session", { agentId });
+    } catch (e) {
+      console.error("Failed to stop session for mode switch:", e);
+    }
+
+    // Wait for hasSession to become false (processExited), max 2s
+    for (let i = 0; i < 20 && get().hasSession; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+
+    // Restart with resume and new permission mode
+    const state = get();
+    let enableChrome = true;
+    try {
+      const settings = await invoke<{ enableChrome: boolean }>("load_settings");
+      enableChrome = settings.enableChrome;
+    } catch { /* use default */ }
+
+    const permissionMode = mode !== "default" ? mode : undefined;
+
+    set({ planMode: mode === "plan" });
+
+    try {
+      await invoke("start_session", {
+        options: {
+          agentId: state.agentId,
+          prompt: "",
+          projectPath: state.projectPath,
+          model: conductor.selectedModel,
+          effort: conductor.selectedEffort !== "high" ? conductor.selectedEffort : undefined,
+          resumeSessionId: sessionId ?? undefined,
+          permissionMode,
+          chrome: enableChrome,
+        } satisfies StartSessionOptions,
+      });
+      // Session resumed — mark as alive (no message sent, so no "thinking")
+      set({ hasSession: true });
+    } catch (e) {
+      set({ error: String(e) });
+    }
   },
 
   switchChat: async (chatId: string) => {
@@ -1062,9 +1119,15 @@ function handleCliEvent(e: CliEvent) {
         }
       }
 
-      // Track plan mode transitions
-      if (e.tool_name === "EnterPlanMode") set({ planMode: true });
-      if (e.tool_name === "ExitPlanMode") set({ planMode: false });
+      // Track plan mode transitions (sync button state with CLI)
+      if (e.tool_name === "EnterPlanMode") {
+        set({ planMode: true });
+        useConductorStore.getState().setSelectedPermissionMode("plan");
+      }
+      if (e.tool_name === "ExitPlanMode") {
+        set({ planMode: false });
+        useConductorStore.getState().setSelectedPermissionMode("default");
+      }
 
       // Interactive tools (AskUserQuestion, ExitPlanMode) don't show as "running" status
       if (!isInteractiveTool(e.tool_name)) {

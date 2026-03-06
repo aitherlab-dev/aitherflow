@@ -213,6 +213,23 @@ pub mod web_config {
     }
 
     #[tauri::command]
+    pub async fn get_local_ip() -> Result<String, String> {
+        tokio::task::spawn_blocking(|| {
+            let socket = std::net::UdpSocket::bind("0.0.0.0:0")
+                .map_err(|e| format!("Failed to bind socket: {e}"))?;
+            socket
+                .connect("8.8.8.8:80")
+                .map_err(|e| format!("Failed to connect: {e}"))?;
+            let addr = socket
+                .local_addr()
+                .map_err(|e| format!("Failed to get local addr: {e}"))?;
+            Ok(addr.ip().to_string())
+        })
+        .await
+        .map_err(|e| format!("Task join error: {e}"))?
+    }
+
+    #[tauri::command]
     pub async fn create_auth_code(
         store: tauri::State<'_, crate::web_server::auth::SessionStore>,
     ) -> Result<serde_json::Value, String> {
@@ -307,6 +324,7 @@ pub fn run() {
             web_config::save_web_config,
             web_config::generate_web_token,
             web_config::create_auth_code,
+            web_config::get_local_ip,
             web_server_manager::start_web_server,
             web_server_manager::stop_web_server,
             web_server_manager::web_server_status,

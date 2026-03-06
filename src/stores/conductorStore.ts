@@ -52,6 +52,7 @@ interface ConductorState {
   model: string | null;
   selectedModel: string;
   selectedEffort: string;
+  selectedPermissionMode: "default" | "plan";
   isThinking: boolean;
   error: string | null;
   inputTokens: number;
@@ -67,6 +68,7 @@ interface ConductorState {
   // Actions
   setSelectedModel: (model: string) => void;
   setSelectedEffort: (effort: string) => void;
+  setSelectedPermissionMode: (mode: "default" | "plan") => void;
   startSession: (prompt: string) => Promise<void>;
   sendFollowup: (prompt: string) => Promise<void>;
   stopSession: () => Promise<void>;
@@ -84,6 +86,7 @@ export const useConductorStore = create<ConductorState>((set, get) => ({
   model: null,
   selectedModel: "opus",
   selectedEffort: "high",
+  selectedPermissionMode: "default",
   isThinking: false,
   error: null,
   inputTokens: 0,
@@ -98,6 +101,7 @@ export const useConductorStore = create<ConductorState>((set, get) => ({
 
   setSelectedModel: (model: string) => set({ selectedModel: model }),
   setSelectedEffort: (effort: string) => set({ selectedEffort: effort }),
+  setSelectedPermissionMode: (mode: "default" | "plan") => set({ selectedPermissionMode: mode }),
 
   startSession: async (prompt: string) => {
     set({

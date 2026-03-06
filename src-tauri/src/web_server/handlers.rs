@@ -509,7 +509,7 @@ pub async fn exchange_auth_code(
     // Set HttpOnly cookie; add Secure flag when remote_access is enabled
     let secure = if state.remote_access { "; Secure" } else { "" };
     let cookie = format!(
-        "af_session={session_token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800{secure}"
+        "af_session={session_token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800{secure}"
     );
 
     // Redirect to app root

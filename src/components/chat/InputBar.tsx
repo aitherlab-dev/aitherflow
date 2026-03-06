@@ -53,8 +53,11 @@ export const InputBar = memo(function InputBar() {
   const restartSession = useChatStore((s) => s.restartSession);
   const selectedModel = useConductorStore((s) => s.selectedModel);
   const selectedEffort = useConductorStore((s) => s.selectedEffort);
+  const selectedPermissionMode = useConductorStore((s) => s.selectedPermissionMode);
   const activeModel = useConductorStore((s) => s.model);
   const hasSession = useChatStore((s) => s.hasSession);
+  const planMode = useChatStore((s) => s.planMode);
+  const switchPermissionMode = useChatStore((s) => s.switchPermissionMode);
 
   // Voice input — insert appends, replace overwrites (for streaming interim)
   const handleVoiceInsert = useCallback((transcribed: string) => {
@@ -503,6 +506,26 @@ export const InputBar = memo(function InputBar() {
             {selectedEffort !== "high" && (
               <span className="model-effort-badge">{selectedEffort}</span>
             )}
+          </button>
+          <button
+            className="input-bar-label-btn"
+            title={hasSession
+              ? (planMode ? "Switch to Edit mode (restarts session)" : "Switch to Plan mode (restarts session)")
+              : (selectedPermissionMode === "plan" ? "Will start in Plan mode" : "Will start in Edit mode")}
+            aria-label="Toggle plan/edit mode"
+            disabled={isThinking}
+            onClick={() => {
+              const newMode = (planMode || selectedPermissionMode === "plan") ? "default" : "plan";
+              if (hasSession) {
+                switchPermissionMode(newMode).catch(console.error);
+              } else {
+                useConductorStore.getState().setSelectedPermissionMode(newMode);
+              }
+            }}
+          >
+            <span style={planMode || selectedPermissionMode === "plan" ? { color: "var(--accent-icon)" } : undefined}>
+              {planMode || selectedPermissionMode === "plan" ? "Plan" : "Edit"}
+            </span>
           </button>
         </div>
         <div className="input-bar-cell input-bar-cell--status">

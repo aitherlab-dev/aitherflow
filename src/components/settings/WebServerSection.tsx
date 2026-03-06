@@ -99,12 +99,21 @@ export function WebServerSection() {
 
   const handleCopyAuthUrl = useCallback(() => {
     if (!authCode) return;
-    const url = `http://localhost:${config.port}/auth?code=${authCode}`;
-    navigator.clipboard.writeText(url).then(() => {
-      setCodeCopied(true);
-      setTimeout(() => setCodeCopied(false), 2000);
-    }).catch(console.error);
-  }, [config.port, authCode]);
+    const buildAndCopy = (host: string) => {
+      const url = `http://${host}:${config.port}/auth?code=${authCode}`;
+      navigator.clipboard.writeText(url).then(() => {
+        setCodeCopied(true);
+        setTimeout(() => setCodeCopied(false), 2000);
+      }).catch(console.error);
+    };
+    if (config.remote_access) {
+      invoke<string>("get_local_ip")
+        .then((ip) => buildAndCopy(ip))
+        .catch(() => buildAndCopy("localhost"));
+    } else {
+      buildAndCopy("localhost");
+    }
+  }, [config.port, config.remote_access, authCode]);
 
   if (!loaded) return null;
 
