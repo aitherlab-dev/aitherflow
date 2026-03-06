@@ -276,9 +276,8 @@ pub async fn auth_middleware(
         if let Some(bearer) = extract_bearer(&req) {
             if bearer.as_bytes().ct_eq(state.auth_token.as_bytes()).into() {
                 let session_token = state.session_store.create_session().await;
-                let secure_flag = if state.remote_access { "; Secure" } else { "" };
                 let cookie = format!(
-                    "af_session={session_token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800{secure_flag}"
+                    "af_session={session_token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800"
                 );
                 let redirect_uri = path.to_string();
                 return Ok(Response::builder()

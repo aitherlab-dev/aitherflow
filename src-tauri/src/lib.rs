@@ -72,7 +72,6 @@ mod web_server_manager {
                 auth_token: cfg.token.clone(),
                 rate_limiter: web_server::auth::RateLimiter::new(),
                 session_store: self.session_store.clone(),
-                remote_access: cfg.remote_access,
             };
 
             let port = cfg.port;

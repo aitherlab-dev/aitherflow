@@ -27,7 +27,6 @@ pub struct WebState {
     pub auth_token: String,
     pub rate_limiter: auth::RateLimiter,
     pub session_store: auth::SessionStore,
-    pub remote_access: bool,
 }
 
 /// Start the embedded web server. Returns `Err` only if binding fails.
@@ -45,6 +44,8 @@ pub async fn run(state: WebState, port: u16, remote_access: bool) -> Result<(), 
         .route("/api/respond_to_tool", post(handlers::respond_to_tool))
         .route("/api/stop_session", post(handlers::stop_session))
         .route("/api/has_active_session", post(handlers::has_active_session))
+        .route("/api/get_session_usage", post(handlers::get_session_usage))
+        .route("/api/get_cli_stats", post(handlers::get_cli_stats))
         // ── Chats ──
         .route("/api/list_chats", post(handlers::list_chats))
         .route("/api/create_chat", post(handlers::create_chat))
@@ -145,9 +146,10 @@ pub async fn run(state: WebState, port: u16, remote_access: bool) -> Result<(), 
 async fn serve_embedded(uri: Uri) -> Response {
     let path = uri.path().trim_start_matches('/');
 
-    // Never serve index.html for unregistered /api/ or /ws paths
+    // Unregistered /api/ commands return null JSON instead of 404
+    // so the browser frontend doesn't break on missing endpoints
     if path.starts_with("api/") || path == "ws" {
-        return (StatusCode::NOT_FOUND, "Not found").into_response();
+        return ([(header::CONTENT_TYPE, "application/json")], "null").into_response();
     }
 
     let path = if path.is_empty() { "index.html" } else { path };

@@ -1,13 +1,7 @@
 import { memo, useCallback, useEffect, useState } from "react";
 import { Globe } from "lucide-react";
-import { invoke } from "../../../lib/transport";
+import { useWebServerStore } from "../../../stores/webServerStore";
 import { DashboardCard } from "../DashboardCard";
-
-interface WebConfig {
-  enabled: boolean;
-  port: number;
-  remote_access: boolean;
-}
 
 export const WebServerCard = memo(function WebServerCard({
   expanded,
@@ -16,14 +10,8 @@ export const WebServerCard = memo(function WebServerCard({
   expanded: boolean;
   onToggle: (id: string) => void;
 }) {
-  const [running, setRunning] = useState<boolean | null>(null);
-  const [config, setConfig] = useState<WebConfig | null>(null);
+  const { running, config, loaded, refresh, start, stop } = useWebServerStore();
   const [toggling, setToggling] = useState(false);
-
-  const refresh = useCallback(() => {
-    invoke<boolean>("web_server_status").then(setRunning).catch(console.error);
-    invoke<WebConfig>("load_web_config").then(setConfig).catch(console.error);
-  }, []);
 
   useEffect(() => {
     refresh();
@@ -31,17 +19,21 @@ export const WebServerCard = memo(function WebServerCard({
     return () => clearInterval(id);
   }, [refresh]);
 
-  const statusText =
-    running === null ? "..." : running ? `Port ${config?.port ?? "?"}` : "Off";
+  const statusText = !loaded ? "..." : running ? `Port ${config.port}` : "Off";
 
-  const handleToggle = useCallback(() => {
+  const handleToggle = useCallback(async () => {
     setToggling(true);
-    const cmd = running ? "stop_web_server" : "start_web_server";
-    invoke(cmd)
-      .then(() => refresh())
-      .catch(console.error)
-      .finally(() => setToggling(false));
-  }, [running, refresh]);
+    try {
+      if (running) {
+        await stop();
+      } else {
+        await start();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    setToggling(false);
+  }, [running, start, stop]);
 
   return (
     <DashboardCard
@@ -49,7 +41,7 @@ export const WebServerCard = memo(function WebServerCard({
       icon={Globe}
       title="Web"
       statusText={statusText}
-      statusColor={running === null ? "gray" : running ? "green" : "gray"}
+      statusColor={!loaded ? "gray" : running ? "green" : "gray"}
       expanded={expanded}
       onToggle={onToggle}
     >
@@ -64,7 +56,7 @@ export const WebServerCard = memo(function WebServerCard({
             <span className="dash-card__toggle-knob" />
           </button>
         </div>
-        {config && (
+        {loaded && (
           <>
             <div className="dash-card__row">
               <span className="dash-card__label">Port</span>

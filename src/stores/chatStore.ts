@@ -1180,7 +1180,6 @@ function handleCliEvent(e: CliEvent) {
 
     case "controlRequest": {
       // CLI is asking for permission or user input — store request_id on the matching tool
-      // Check streamingMessage first, then messages (interactive tools get merged into messages)
       const sm = state.streamingMessage;
       if (sm?.tools?.some((t) => t.toolUseId === e.tool_use_id)) {
         const tools = sm.tools.map((t) =>

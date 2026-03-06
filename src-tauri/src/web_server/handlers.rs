@@ -218,6 +218,27 @@ pub async fn has_active_session(
     Json(alive).into_response()
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionUsageParams {
+    session_id: String,
+    project_path: String,
+}
+
+pub async fn get_session_usage(Json(params): Json<SessionUsageParams>) -> Response {
+    ok_json(
+        crate::conductor::get_session_usage(params.session_id, params.project_path).await,
+    )
+}
+
+pub async fn get_cli_stats(Json(params): Json<serde_json::Value>) -> Response {
+    let days = params
+        .get("days")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(30) as u32;
+    ok_json(crate::conductor::get_cli_stats(days).await)
+}
+
 // ── Chats ──────────────────────────────────────────────────────────
 
 #[derive(Deserialize)]
@@ -506,10 +527,8 @@ pub async fn exchange_auth_code(
         return (StatusCode::UNAUTHORIZED, "Invalid or expired code").into_response();
     };
 
-    // Set HttpOnly cookie; add Secure flag when remote_access is enabled
-    let secure = if state.remote_access { "; Secure" } else { "" };
     let cookie = format!(
-        "af_session={session_token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800{secure}"
+        "af_session={session_token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800"
     );
 
     // Redirect to app root

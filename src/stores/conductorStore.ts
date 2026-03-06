@@ -218,6 +218,7 @@ listen<CliEvent>("cli-event", (event) => {
   const e = event.payload;
   const activeAgentId = useChatStore.getState().agentId;
 
+
   // contextInfo: real context size from assistant event (per-turn)
   if (e.type === "contextInfo") {
     const existing = agentUsage.get(e.agent_id) ?? emptyUsage();

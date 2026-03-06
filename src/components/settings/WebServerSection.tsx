@@ -1,119 +1,75 @@
 import { useState, useEffect, useCallback } from "react";
 import { Copy, RefreshCw, Eye, EyeOff, Link } from "lucide-react";
 import { invoke } from "../../lib/transport";
-
-interface WebServerConfig {
-  enabled: boolean;
-  port: number;
-  token: string;
-  remote_access: boolean;
-}
+import { useWebServerStore } from "../../stores/webServerStore";
 
 export function WebServerSection() {
-  const [config, setConfig] = useState<WebServerConfig>({ enabled: false, port: 3080, token: "", remote_access: false });
-  const [loaded, setLoaded] = useState(false);
+  const { config, running, loaded, refresh, saveConfig, start, stop } = useWebServerStore();
   const [showToken, setShowToken] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [authCode, setAuthCode] = useState<string | null>(null);
+  const [authUrl, setAuthUrl] = useState<string | null>(null);
   const [codeCopied, setCodeCopied] = useState(false);
-  const [serverRunning, setServerRunning] = useState(false);
 
   useEffect(() => {
-    Promise.all([
-      invoke<WebServerConfig>("load_web_config"),
-      invoke<boolean>("web_server_status"),
-    ])
-      .then(([c, running]) => {
-        setConfig(c);
-        setServerRunning(running);
-        setLoaded(true);
-      })
-      .catch(console.error);
-  }, []);
+    refresh();
+  }, [refresh]);
 
-  const save = useCallback(
-    (updated: WebServerConfig) => {
-      setConfig(updated);
-      invoke("save_web_config", { config: updated }).catch(console.error);
-    },
-    [],
-  );
-
-  const handleToggle = useCallback(() => {
+  const handleToggle = useCallback(async () => {
     if (!config.enabled) {
-      const start = (updated: WebServerConfig) => {
-        save(updated);
-        invoke("start_web_server")
-          .then(() => setServerRunning(true))
-          .catch(console.error);
-      };
-      if (!config.token) {
-        invoke<string>("generate_web_token")
-          .then((token) => start({ ...config, enabled: true, token }))
-          .catch(console.error);
-      } else {
-        start({ ...config, enabled: true });
+      let token = config.token;
+      if (!token) {
+        token = await invoke<string>("generate_web_token");
       }
+      saveConfig({ ...config, enabled: true, token });
+      start().catch(console.error);
     } else {
-      invoke("stop_web_server")
-        .then(() => {
-          setServerRunning(false);
-          save({ ...config, enabled: false });
-        })
-        .catch(console.error);
+      stop().catch(console.error);
+      saveConfig({ ...config, enabled: false });
     }
-  }, [config, save]);
+  }, [config, saveConfig, start, stop]);
 
   const handlePortChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const port = parseInt(e.target.value, 10);
       if (!isNaN(port) && port > 0 && port <= 65535) {
-        save({ ...config, port });
+        saveConfig({ ...config, port });
       }
     },
-    [config, save],
+    [config, saveConfig],
   );
 
   const handleRegenerate = useCallback(() => {
     invoke<string>("generate_web_token")
-      .then((token) => save({ ...config, token }))
+      .then((token) => saveConfig({ ...config, token }))
       .catch(console.error);
-  }, [config, save]);
+  }, [config, saveConfig]);
 
   const handleCopyToken = useCallback(() => {
     navigator.clipboard.writeText(config.token).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }).catch(console.error);
-  }, [config]);
+  }, [config.token]);
 
-  const handleGenerateAuthCode = useCallback(() => {
+  const handleGenerateAndCopy = useCallback(() => {
     invoke<{ code: string }>("create_auth_code")
-      .then(({ code }) => {
-        setAuthCode(code);
-        // Auto-expire the displayed code after 5 minutes
-        setTimeout(() => setAuthCode(null), 5 * 60 * 1000);
+      .then(async ({ code }) => {
+        let host = "localhost";
+        if (config.remote_access) {
+          try {
+            host = await invoke<string>("get_local_ip");
+          } catch { /* fallback to localhost */ }
+        }
+        const url = `http://${host}:${config.port}/auth?code=${code}`;
+        setAuthUrl(url);
+        return navigator.clipboard.writeText(url);
+      })
+      .then(() => {
+        setCodeCopied(true);
+        setTimeout(() => setCodeCopied(false), 3000);
       })
       .catch(console.error);
-  }, []);
-
-  const handleCopyAuthUrl = useCallback(() => {
-    if (!authCode) return;
-    const buildAndCopy = (host: string) => {
-      const url = `http://${host}:${config.port}/auth?code=${authCode}`;
-      navigator.clipboard.writeText(url).then(() => {
-        setCodeCopied(true);
-        setTimeout(() => setCodeCopied(false), 2000);
-      }).catch(console.error);
-    };
-    if (config.remote_access) {
-      invoke<string>("get_local_ip")
-        .then((ip) => buildAndCopy(ip))
-        .catch(() => buildAndCopy("localhost"));
-    } else {
-      buildAndCopy("localhost");
-    }
-  }, [config.port, config.remote_access, authCode]);
+  }, [config.port, config.remote_access]);
 
   if (!loaded) return null;
 
@@ -125,7 +81,7 @@ export function WebServerSection() {
           <span className="settings-toggle-label">Enable web server</span>
           <span className="settings-toggle-desc">
             Access the app from a browser on any device.
-            {serverRunning && " Server is running."}
+            {running && " Server is running."}
           </span>
         </div>
         <label className="toggle-switch">
@@ -161,7 +117,7 @@ export function WebServerSection() {
               <input
                 type="checkbox"
                 checked={config.remote_access}
-                onChange={() => save({ ...config, remote_access: !config.remote_access })}
+                onChange={() => saveConfig({ ...config, remote_access: !config.remote_access })}
               />
               <span className="toggle-switch-track" />
             </label>
@@ -206,20 +162,14 @@ export function WebServerSection() {
           <div className="webserver-field">
             <label className="webserver-field-label">Browser access</label>
             <div className="webserver-auth-row">
-              <button className="webserver-copy-btn" onClick={handleGenerateAuthCode}>
+              <button className="webserver-copy-btn" onClick={handleGenerateAndCopy}>
                 <Link size={14} />
-                Generate one-time link
+                {codeCopied ? "Copied to clipboard!" : "Generate one-time link"}
               </button>
-              {authCode && (
-                <button className="webserver-copy-btn" onClick={handleCopyAuthUrl}>
-                  <Copy size={14} />
-                  {codeCopied ? "Copied!" : "Copy link"}
-                </button>
-              )}
             </div>
-            {authCode && (
-              <span className="webserver-note">
-                Link expires in 5 minutes and can only be used once.
+            {authUrl && (
+              <span className="webserver-note" style={{ wordBreak: "break-all" }}>
+                {authUrl}
               </span>
             )}
           </div>
