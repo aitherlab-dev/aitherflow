@@ -10,7 +10,7 @@ use super::types::SessionStatus;
 /// State for a single agent's CLI session.
 pub struct AgentSession {
     pub child: Child,
-    pub stdin: Option<ChildStdin>,
+    pub stdin: Arc<Mutex<ChildStdin>>,
     pub status: SessionStatus,
 }
 
@@ -34,7 +34,7 @@ impl SessionManager {
     pub async fn insert(&self, agent_id: String, session: AgentSession) {
         let mut map = self.sessions.lock().await;
         if let Some(mut old) = map.remove(&agent_id) {
-            drop(old.stdin.take());
+            drop(old.stdin);
             if let Err(e) = old.child.kill().await {
                 eprintln!("[conductor] Failed to kill old process for {agent_id}: {e}");
             }
@@ -45,25 +45,18 @@ impl SessionManager {
         map.insert(agent_id, session);
     }
 
-    /// Take stdin from session (for writing). Returns None if unavailable.
-    pub async fn take_stdin(&self, agent_id: &str) -> Option<ChildStdin> {
-        let mut map = self.sessions.lock().await;
-        map.get_mut(agent_id)?.stdin.take()
-    }
-
-    /// Return stdin to session after writing.
-    pub async fn return_stdin(&self, agent_id: &str, stdin: ChildStdin) {
-        let mut map = self.sessions.lock().await;
-        if let Some(session) = map.get_mut(agent_id) {
-            session.stdin = Some(stdin);
-        }
+    /// Get a cloned Arc handle to session's stdin for writing.
+    /// The caller locks the inner Mutex independently of the session map.
+    pub async fn get_stdin(&self, agent_id: &str) -> Option<Arc<Mutex<ChildStdin>>> {
+        let map = self.sessions.lock().await;
+        map.get(agent_id).map(|s| Arc::clone(&s.stdin))
     }
 
     /// Remove and kill a session.
     pub async fn kill(&self, agent_id: &str) {
         let mut map = self.sessions.lock().await;
         if let Some(mut session) = map.remove(agent_id) {
-            drop(session.stdin.take());
+            drop(session.stdin);
             if let Err(e) = session.child.kill().await {
                 eprintln!("[conductor] Failed to kill process for {agent_id}: {e}");
             }
@@ -77,11 +70,6 @@ impl SessionManager {
     pub async fn is_alive(&self, agent_id: &str) -> bool {
         let mut map = self.sessions.lock().await;
         if let Some(session) = map.get_mut(agent_id) {
-            // stdin gone = process finishing
-            if session.stdin.is_none() {
-                return false;
-            }
-            // Check if process actually exited
             match session.child.try_wait() {
                 Ok(Some(_)) => {
                     // Process exited — clean up
@@ -111,7 +99,7 @@ impl SessionManager {
         let ids: Vec<String> = map.keys().cloned().collect();
         for id in ids {
             if let Some(mut session) = map.remove(&id) {
-                drop(session.stdin.take());
+                drop(session.stdin);
                 if let Err(e) = session.child.kill().await {
                     eprintln!("[conductor] Failed to kill process for {id}: {e}");
                 }

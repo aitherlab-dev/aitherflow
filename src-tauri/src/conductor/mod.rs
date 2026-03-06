@@ -39,7 +39,7 @@ pub async fn start_session(
     // Spawn session in background — command returns immediately
     tokio::spawn(async move {
         if let Err(e) = process::run_cli_session(
-            process::EventSink::Tauri(app_clone.clone()),
+            process::EventSink::new(app_clone.clone()),
             sessions_owned,
             agent_id_clone.clone(),
             prompt,
@@ -80,13 +80,14 @@ pub async fn send_message(
         .agent_id
         .unwrap_or_else(|| DEFAULT_AGENT_ID.to_string());
 
-    let mut stdin = sessions
-        .take_stdin(&agent_id)
+    let stdin_handle = sessions
+        .get_stdin(&agent_id)
         .await
         .ok_or_else(|| "No active session for this agent".to_string())?;
 
     let ndjson = process::build_stdin_message(&options.prompt, &options.attachments)?;
 
+    let mut stdin = stdin_handle.lock().await;
     let result = async {
         use tokio::io::AsyncWriteExt;
         stdin.write_all(ndjson.as_bytes()).await?;
@@ -95,9 +96,6 @@ pub async fn send_message(
         Ok::<(), std::io::Error>(())
     }
     .await;
-
-    // Always return stdin, even on error
-    sessions.return_stdin(&agent_id, stdin).await;
 
     result.map_err(|e| format!("Failed to send message: {e}"))
 }
@@ -116,13 +114,14 @@ pub async fn respond_to_tool(
 ) -> Result<(), String> {
     let agent_id = agent_id.unwrap_or_else(|| DEFAULT_AGENT_ID.to_string());
 
-    let mut stdin = sessions
-        .take_stdin(&agent_id)
+    let stdin_handle = sessions
+        .get_stdin(&agent_id)
         .await
         .ok_or_else(|| "No active session for this agent".to_string())?;
 
     let ndjson = process::build_control_response(&request_id, &response)?;
 
+    let mut stdin = stdin_handle.lock().await;
     let write_result = async {
         use tokio::io::AsyncWriteExt;
         stdin.write_all(ndjson.as_bytes()).await?;
@@ -131,8 +130,6 @@ pub async fn respond_to_tool(
         Ok::<(), std::io::Error>(())
     }
     .await;
-
-    sessions.return_stdin(&agent_id, stdin).await;
 
     write_result.map_err(|e| format!("Failed to send control_response: {e}"))
 }

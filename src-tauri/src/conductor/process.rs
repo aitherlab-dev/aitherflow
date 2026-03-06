@@ -10,33 +10,22 @@ use crate::attachments;
 /// Maximum stderr buffer size (64 KB) to prevent memory issues.
 const MAX_STDERR_BYTES: usize = 64 * 1024;
 
-/// Abstraction over event delivery — Tauri emit vs broadcast channel.
-pub enum EventSink {
-    Tauri(AppHandle),
-    Broadcast(tokio::sync::broadcast::Sender<CliEvent>),
-}
+/// Delivers CLI events to the Tauri frontend via emit.
+pub struct EventSink(AppHandle);
 
 impl EventSink {
+    pub fn new(app: AppHandle) -> Self {
+        Self(app)
+    }
+
     fn emit(&self, event: &CliEvent) {
-        match self {
-            EventSink::Tauri(app) => {
-                if let Err(e) = app.emit("cli-event", event) {
-                    eprintln!("[conductor] Failed to emit event: {e}");
-                }
-            }
-            EventSink::Broadcast(tx) => {
-                if let Err(e) = tx.send(event.clone()) {
-                    eprintln!("[conductor-web] Failed to broadcast event: {e}");
-                }
-            }
+        if let Err(e) = self.0.emit("cli-event", event) {
+            eprintln!("[conductor] Failed to emit event: {e}");
         }
     }
 
     fn tag(&self) -> &str {
-        match self {
-            EventSink::Tauri(_) => "conductor",
-            EventSink::Broadcast(_) => "conductor-web",
-        }
+        "conductor"
     }
 }
 
@@ -149,7 +138,7 @@ pub async fn run_cli_session(
             agent_id.clone(),
             AgentSession {
                 child,
-                stdin: Some(stdin),
+                stdin: std::sync::Arc::new(tokio::sync::Mutex::new(stdin)),
                 status: SessionStatus::Thinking,
             },
         )
@@ -159,10 +148,11 @@ pub async fn run_cli_session(
     if !prompt.trim().is_empty() || !image_attachments.is_empty() {
         let ndjson = build_stdin_message(&prompt, &image_attachments)?;
         {
-            let mut process_stdin = sessions
-                .take_stdin(&agent_id)
+            let stdin_handle = sessions
+                .get_stdin(&agent_id)
                 .await
                 .ok_or_else(|| "Session lost before first write".to_string())?;
+            let mut process_stdin = stdin_handle.lock().await;
 
             let write_result = async {
                 process_stdin.write_all(ndjson.as_bytes()).await?;
@@ -171,9 +161,6 @@ pub async fn run_cli_session(
                 Ok::<(), std::io::Error>(())
             }
             .await;
-
-            // Always return stdin, even on write error
-            sessions.return_stdin(&agent_id, process_stdin).await;
 
             if let Err(e) = write_result {
                 return Err(format!("Failed to write first message: {e}"));

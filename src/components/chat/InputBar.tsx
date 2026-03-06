@@ -431,6 +431,11 @@ export const InputBar = memo(function InputBar() {
               </button>
             </>
           )}
+          {hasSession && (
+            <span className="input-bar-mode-badge" style={planMode ? { color: "var(--accent-icon)" } : undefined}>
+              {planMode ? "Plan" : "Edit"}
+            </span>
+          )}
           <ThinkingIndicator />
         </div>
         <div className="input-bar-cell input-bar-cell--status">

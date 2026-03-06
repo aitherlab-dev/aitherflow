@@ -3,7 +3,7 @@ import {
   X,
   User,
   Webhook,
-  Globe,
+
   FolderOpen,
   Sparkles,
   Languages,
@@ -20,7 +20,6 @@ import { GeneralSection } from "./GeneralSection";
 import { SkillsSection } from "./SkillsSection";
 import { LanguageSection } from "./LanguageSection";
 import { MemorySection } from "./MemorySection";
-import { WebServerSection } from "./WebServerSection";
 import { VoiceSection } from "./VoiceSection";
 import { TelegramSection } from "./TelegramSection";
 import { HooksSection } from "./hooks";
@@ -32,7 +31,6 @@ const NAV_ITEMS = [
   { id: "general", label: "General", icon: User },
   { id: "hotkeys", label: "Hotkeys", icon: Keyboard },
   { id: "hooks", label: "Hooks", icon: Webhook },
-  { id: "web-server", label: "Web Server", icon: Globe },
   { id: "mcp", label: "MCP Servers", icon: Cable },
   { id: "skills", label: "Skills", icon: Sparkles },
   { id: "projects", label: "Projects", icon: FolderOpen },
@@ -113,9 +111,6 @@ function SectionContent({ section }: { section: string }) {
   }
   if (section === "memory") {
     return <MemorySection />;
-  }
-  if (section === "web-server") {
-    return <WebServerSection />;
   }
   if (section === "voice") {
     return <VoiceSection />;

@@ -1107,6 +1107,12 @@
 }
 
 /* Effort badge on model button */
+.input-bar-mode-badge {
+  font-size: 0.7rem;
+  color: var(--fg-muted);
+  user-select: none;
+}
+
 .model-effort-badge {
   font-size: 0.6rem;
   padding: 1px 4px;

@@ -3,23 +3,19 @@ import { useMcpStore } from "../../stores/mcpStore";
 import { useSkillStore } from "../../stores/skillStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { TelegramCard } from "./cards/TelegramCard";
-import { WebServerCard } from "./cards/WebServerCard";
 import { McpCard } from "./cards/McpCard";
 import { SkillsCard } from "./cards/SkillsCard";
-import { AgentModeCard } from "./cards/AgentModeCard";
 import { TokensCard } from "./cards/TokensCard";
 
 const EXPANDED_KEY = "aitherflow:dashboard:expanded";
 const ORDER_KEY = "aitherflow:dashboard:order";
 
-const DEFAULT_ORDER = ["telegram", "webserver", "mcp", "skills", "agentmode", "tokens"];
+const DEFAULT_ORDER = ["telegram", "mcp", "skills", "tokens"];
 
 const CARD_COMPONENTS: Record<string, React.ComponentType<{ expanded: boolean; onToggle: (id: string) => void }>> = {
   telegram: TelegramCard,
-  webserver: WebServerCard,
   mcp: McpCard,
   skills: SkillsCard,
-  agentmode: AgentModeCard,
   tokens: TokensCard,
 };
 

@@ -11,7 +11,8 @@ export function useTypewriter(targetText: string, isActive: boolean): string {
   const visibleLenRef = useRef(0);
   const rafRef = useRef<number | null>(null);
 
-  targetLenRef.current = targetText.length;
+  const targetLen = targetText.length;
+  targetLenRef.current = targetLen;
 
   useEffect(() => {
     if (!isActive) {
@@ -25,6 +26,9 @@ export function useTypewriter(targetText: string, isActive: boolean): string {
       return;
     }
 
+    // RAF already running — it will pick up new targetLen via ref
+    if (rafRef.current !== null) return;
+
     function tick() {
       const target = targetLenRef.current;
       const current = visibleLenRef.current;
@@ -36,9 +40,11 @@ export function useTypewriter(targetText: string, isActive: boolean): string {
         const next = Math.min(current + speed, target);
         visibleLenRef.current = next;
         setVisibleLen(next);
+        rafRef.current = requestAnimationFrame(tick);
+      } else {
+        // Nothing to animate — pause until new content arrives
+        rafRef.current = null;
       }
-
-      rafRef.current = requestAnimationFrame(tick);
     }
 
     rafRef.current = requestAnimationFrame(tick);
@@ -49,7 +55,7 @@ export function useTypewriter(targetText: string, isActive: boolean): string {
         rafRef.current = null;
       }
     };
-  }, [isActive]);
+  }, [isActive, targetLen]);
 
   if (!isActive) return targetText;
   return targetText.slice(0, visibleLen);

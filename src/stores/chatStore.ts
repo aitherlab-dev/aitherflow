@@ -1064,7 +1064,7 @@ function handleCliEvent(e: CliEvent) {
             timestamp: Date.now(),
             isStreaming: false,
           };
-      set({ messages: [...state.messages, completed], streamingMessage: null });
+      set((prev) => ({ messages: [...prev.messages, completed], streamingMessage: null }));
       break;
     }
 
@@ -1138,11 +1138,11 @@ function handleCliEvent(e: CliEvent) {
         set({ streamingMessage: sm, currentToolActivity: activity });
       } else {
         // CLI is paused waiting for user input — merge into messages so cards render
-        set({
-          messages: [...state.messages, { ...sm, isStreaming: false }],
+        set((prev) => ({
+          messages: [...prev.messages, { ...sm, isStreaming: false }],
           streamingMessage: null,
           isThinking: false,
-        });
+        }));
         syncThinkingIds();
       }
       break;
@@ -1187,29 +1187,32 @@ function handleCliEvent(e: CliEvent) {
         );
         set({ streamingMessage: { ...sm, tools } });
       } else {
-        const msgs = [...state.messages];
-        for (let i = msgs.length - 1; i >= 0; i--) {
-          const msg = msgs[i];
-          if (msg.role === "assistant" && msg.tools?.some((t) => t.toolUseId === e.tool_use_id)) {
-            const tools = msg.tools.map((t) =>
-              t.toolUseId === e.tool_use_id ? { ...t, requestId: e.request_id } : t,
-            );
-            msgs[i] = { ...msg, tools };
-            set({ messages: msgs });
-            break;
+        set((prev) => {
+          const msgs = [...prev.messages];
+          for (let i = msgs.length - 1; i >= 0; i--) {
+            const msg = msgs[i];
+            if (msg.role === "assistant" && msg.tools?.some((t) => t.toolUseId === e.tool_use_id)) {
+              const tools = msg.tools.map((t) =>
+                t.toolUseId === e.tool_use_id ? { ...t, requestId: e.request_id } : t,
+              );
+              msgs[i] = { ...msg, tools };
+              return { messages: msgs };
+            }
           }
-        }
+          return {};
+        });
       }
       break;
     }
 
     case "turnComplete": {
       cancelStreamRaf();
-      const sm = state.streamingMessage;
-      const msgs = sm
-        ? [...state.messages, { ...sm, isStreaming: false }]
-        : state.messages;
-      set({ messages: msgs, streamingMessage: null, isThinking: false, currentToolActivity: null });
+      set((prev) => {
+        const msgs = prev.streamingMessage
+          ? [...prev.messages, { ...prev.streamingMessage, isStreaming: false }]
+          : prev.messages;
+        return { messages: msgs, streamingMessage: null, isThinking: false, currentToolActivity: null };
+      });
       // Save messages to disk after each complete turn
       persistMessages().catch(console.error);
       syncThinkingIds();
@@ -1218,11 +1221,12 @@ function handleCliEvent(e: CliEvent) {
 
     case "processExited": {
       cancelStreamRaf();
-      const sm = state.streamingMessage;
-      const msgs = sm
-        ? [...state.messages, { ...sm, isStreaming: false }]
-        : state.messages;
-      set({ messages: msgs, streamingMessage: null, hasSession: false, isThinking: false, planMode: false, currentToolActivity: null });
+      set((prev) => {
+        const msgs = prev.streamingMessage
+          ? [...prev.messages, { ...prev.streamingMessage, isStreaming: false }]
+          : prev.messages;
+        return { messages: msgs, streamingMessage: null, hasSession: false, isThinking: false, planMode: false, currentToolActivity: null };
+      });
       // Save messages when process exits
       persistMessages().catch(console.error);
       syncThinkingIds();
