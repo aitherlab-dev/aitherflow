@@ -35,6 +35,11 @@ const SkillRow = memo(function SkillRow({
       className="skills-row"
       onClick={() => onInvoke(skill.command)}
       data-tooltip={desc}
+      onMouseEnter={(e) => {
+        const r = e.currentTarget.getBoundingClientRect();
+        e.currentTarget.style.setProperty("--tt-top", `${r.top + r.height / 2}px`);
+        e.currentTarget.style.setProperty("--tt-left", `${r.right + 8}px`);
+      }}
     >
       <span className="skills-row__name">{skill.name}</span>
       <span className="skills-row__command">{skill.command}</span>

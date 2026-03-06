@@ -33,6 +33,11 @@ const SkillRowMini = memo(function SkillRowMini({
       className={`skills-row ${disabled ? "skills-row--disabled" : ""}`}
       onClick={() => { if (!disabled) onInvoke(skill.command); }}
       data-tooltip={disabled ? "" : desc}
+      onMouseEnter={(e) => {
+        const r = e.currentTarget.getBoundingClientRect();
+        e.currentTarget.style.setProperty("--tt-top", `${r.top + r.height / 2}px`);
+        e.currentTarget.style.setProperty("--tt-left", `${r.right + 8}px`);
+      }}
     >
       <span className="skills-row__name">{skill.name}</span>
       <span className="skills-row__command">{skill.command}</span>

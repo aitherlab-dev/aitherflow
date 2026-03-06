@@ -892,31 +892,28 @@
    Custom tooltip (CSS-only, universal)
    ═══════════════════════════════════════════ */
 
-[data-tooltip] {
-  position: relative;
-}
-
 [data-tooltip]::after {
   content: attr(data-tooltip);
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
-  max-width: 240px;
-  padding: 6px 10px;
+  position: fixed;
+  top: var(--tt-top, 0);
+  left: var(--tt-left, 0);
+  transform: translateY(-50%);
+  width: max-content;
+  max-width: 360px;
+  padding: 8px 12px;
   border-radius: 6px;
   background: var(--bg-card);
   border: 1px solid var(--border);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   color: var(--fg);
-  font-size: 0.72rem;
-  line-height: 1.4;
+  font-size: 0.75rem;
+  line-height: 1.45;
   white-space: normal;
   word-wrap: break-word;
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.15s 0.4s;
-  z-index: 100;
+  z-index: 9999;
 }
 
 [data-tooltip]:hover::after {
