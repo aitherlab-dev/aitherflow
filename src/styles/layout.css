@@ -576,18 +576,6 @@
   border-top: 1px solid var(--border);
 }
 
-/* ── Functional tab chevron (New Agent accordion) ── */
-
-.sidebar-tab__chevron {
-  flex-shrink: 0;
-  color: var(--accent-stroke);
-  transition: transform 0.15s;
-}
-
-.sidebar-tab__chevron--open {
-  transform: rotate(90deg);
-}
-
 /* ── Functional tab accordion body ── */
 
 .sidebar-tab-body {
@@ -638,73 +626,6 @@
 
 .sidebar-tab--disabled {
   cursor: default;
-}
-
-.sidebar-tab--expanded {
-  border-radius: 6px 6px 0 0;
-  margin-bottom: 0;
-}
-
-/* New Agent — pinned to top of agent block */
-.sidebar-agent-top {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  background: var(--bg-soft);
-}
-
-.sidebar-agent-top .sidebar-tab {
-  width: 100%;
-  margin: 0;
-}
-
-/* Project dropdown (inline, like chat list) */
-.project-dropdown {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  padding: 4px 8px 4px 12px;
-  background: var(--tab-bg-hover);
-  border-radius: 0 0 6px 6px;
-}
-
-.project-dropdown__item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  padding: 5px 4px;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  color: var(--fg-muted);
-  font-size: 0.8rem;
-  cursor: pointer;
-  transition: color 0.12s;
-}
-
-.project-dropdown__item:hover {
-  color: var(--fg);
-}
-
-.project-dropdown__dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--accent-stroke);
-  flex-shrink: 0;
-}
-
-.project-dropdown__name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.project-dropdown__empty {
-  padding: 8px 4px;
-  color: var(--fg-dim);
-  font-size: 0.8rem;
 }
 
 /* Bottom group spacing — always pinned to bottom */

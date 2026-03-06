@@ -1,7 +1,7 @@
-import { useEffect, useCallback } from "react";
 import { Menu } from "lucide-react";
 import { useTelegramBridge } from "../../hooks/useTelegramBridge";
 import { useIsMobile } from "../../hooks/useIsMobile";
+import { useHotkeys } from "../../hooks/useHotkeys";
 import { Header } from "./Header";
 import { Sidebar } from "./Sidebar";
 import { ChatView } from "../chat/ChatView";
@@ -15,6 +15,7 @@ import { BrandFooter } from "./BrandFooter";
 
 export function AppLayout() {
   useTelegramBridge();
+  useHotkeys();
   const isMobile = useIsMobile();
   const sidebarOpen = useLayoutStore((s) => s.sidebarOpen);
   const toggleSidebar = useLayoutStore((s) => s.toggleSidebar);
@@ -25,21 +26,6 @@ export function AppLayout() {
   const fileViewerSize = useLayoutStore((s) => s.fileViewerSize);
 
   const showPanel = fileViewerVisible && fileViewerHasContent;
-
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.altKey && e.code === "KeyB") {
-        e.preventDefault();
-        toggleSidebar();
-      }
-    },
-    [toggleSidebar],
-  );
-
-  useEffect(() => {
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleKeyDown]);
 
   const panelStyle =
     fileViewerPosition === "right"

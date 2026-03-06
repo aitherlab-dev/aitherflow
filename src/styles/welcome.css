@@ -1,5 +1,23 @@
 /* ── Welcome Screen ── */
 
+/* Stagger entrance animation */
+@keyframes welcome-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.welcome-stagger {
+  opacity: 0;
+  animation: welcome-enter 0.35s ease-out forwards;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+
 .welcome-screen {
   display: flex;
   flex-direction: column;
@@ -7,7 +25,7 @@
   justify-content: center;
   height: 100%;
   padding: 40px 20px;
-  gap: 40px;
+  gap: 32px;
 }
 
 .welcome-header {
@@ -32,15 +50,51 @@
   color: var(--accent-icon);
 }
 
+/* New Project button — wide and slim */
+.welcome-new-project {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 420px;
+  padding: 10px 24px;
+  background: var(--bg-card);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  color: var(--fg-muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, color 0.2s, transform 0.2s, box-shadow 0.2s;
+}
+
+.welcome-new-project:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent-stroke);
+  color: var(--fg);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+.welcome-new-project:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
 /* Grid: 2 columns, scrollable */
 .welcome-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  max-width: 440px;
+  gap: 16px;
+  max-width: 420px;
   width: 100%;
-  max-height: calc(100vh - 240px);
+  max-height: calc(100vh - 280px);
   overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.welcome-grid::-webkit-scrollbar {
+  display: none;
 }
 
 /* Card base */
@@ -50,24 +104,30 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 24px 16px;
+  gap: 6px;
+  padding: 20px 16px;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 10px;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+  transition: background 0.2s, border-color 0.2s, transform 0.2s, box-shadow 0.2s;
   color: var(--fg);
   font-family: inherit;
   font-size: inherit;
   text-align: center;
-  min-height: 110px;
+  height: 150px;
 }
 
 .welcome-card:hover {
   background: var(--bg-hover);
   border-color: var(--fg-dim);
-  transform: translateY(-2px);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+}
+
+.welcome-card:active {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .welcome-card--fixed {
@@ -77,6 +137,7 @@
 
 .welcome-card--fixed:hover {
   border-color: var(--accent-icon);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
 .welcome-card--disabled {

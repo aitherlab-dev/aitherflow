@@ -71,6 +71,13 @@ export const InputBar = memo(function InputBar() {
     prevVoiceRef.current = voiceState;
   }, [voiceState]);
 
+  // Listen for hotkey:focusInput custom event from central hotkey handler
+  useEffect(() => {
+    const handler = () => textareaRef.current?.focus();
+    window.addEventListener("hotkey:focusInput", handler);
+    return () => window.removeEventListener("hotkey:focusInput", handler);
+  }, []);
+
   // Show actual model from CLI during active session, user's choice otherwise
   const displayModel = useMemo(() => {
     if (hasSession && activeModel) {

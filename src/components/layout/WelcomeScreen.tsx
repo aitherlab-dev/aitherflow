@@ -1,13 +1,15 @@
 import { useState, useCallback } from "react";
-import { FolderOpen, Plus, X, Sparkles } from "lucide-react";
+import { FolderOpen, FolderPlus, Plus, X, Sparkles } from "lucide-react";
 import { useProjectStore } from "../../stores/projectStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { useChatStore } from "../../stores/chatStore";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useSkillStore } from "../../stores/skillStore";
+import { openDialog } from "../../lib/transport";
 
 export function WelcomeScreen() {
   const projects = useProjectStore((s) => s.projects);
+  const addProject = useProjectStore((s) => s.addProject);
   const lastOpenedProject = useProjectStore((s) => s.lastOpenedProject);
   const lastOpenedChatId = useProjectStore((s) => s.lastOpenedChatId);
   const welcomeCards = useProjectStore((s) => s.welcomeCards);
@@ -68,6 +70,15 @@ export function WelcomeScreen() {
     [addWelcomeCard],
   );
 
+  const handleNewProject = useCallback(async () => {
+    const selected = await openDialog({ directory: true, multiple: false });
+    if (selected) {
+      const path = selected as string;
+      const name = path.split("/").pop() ?? path;
+      await addProject(path, name);
+    }
+  }, [addProject]);
+
   // Projects available for adding (not already pinned, not workspace)
   const availableProjects = projects.filter(
     (p) =>
@@ -77,17 +88,27 @@ export function WelcomeScreen() {
 
   return (
     <div className="welcome-screen">
-      <div className="welcome-header">
+      <div className="welcome-header welcome-stagger" style={{ "--i": 0 } as React.CSSProperties}>
         <h1 className="welcome-title">
           <span className="welcome-title-aither">aither</span>
           <span className="welcome-title-flow">flow</span>
         </h1>
       </div>
 
+      <button
+        className="welcome-new-project welcome-stagger"
+        style={{ "--i": 1 } as React.CSSProperties}
+        onClick={handleNewProject}
+      >
+        <FolderPlus size={16} />
+        <span>New Project</span>
+      </button>
+
       <div className="welcome-grid">
         {/* Card 1: Workspace — new chat */}
         <button
-          className="welcome-card welcome-card--fixed"
+          className="welcome-card welcome-card--fixed welcome-stagger"
+          style={{ "--i": 2 } as React.CSSProperties}
           onClick={openWorkspace}
         >
           <div className="welcome-card-icon">
@@ -100,7 +121,8 @@ export function WelcomeScreen() {
         {/* Card 2: Last project + last chat */}
         {lastProject ? (
           <button
-            className="welcome-card welcome-card--fixed"
+            className="welcome-card welcome-card--fixed welcome-stagger"
+            style={{ "--i": 3 } as React.CSSProperties}
             onClick={openLastProject}
           >
             <div className="welcome-card-icon">
@@ -110,7 +132,10 @@ export function WelcomeScreen() {
             <div className="welcome-card-desc">Continue</div>
           </button>
         ) : (
-          <div className="welcome-card welcome-card--empty welcome-card--disabled">
+          <div
+            className="welcome-card welcome-card--empty welcome-card--disabled welcome-stagger"
+            style={{ "--i": 3 } as React.CSSProperties}
+          >
             <div className="welcome-card-icon">
               <FolderOpen size={20} />
             </div>
@@ -119,10 +144,11 @@ export function WelcomeScreen() {
         )}
 
         {/* User-pinned cards */}
-        {welcomeCards.map((card) => (
+        {welcomeCards.map((card, idx) => (
           <button
             key={card.projectPath}
-            className="welcome-card"
+            className="welcome-card welcome-stagger"
+            style={{ "--i": 4 + idx } as React.CSSProperties}
             onClick={() => openProject(card.projectPath, card.projectName)}
           >
             <div
@@ -152,7 +178,8 @@ export function WelcomeScreen() {
         {/* Add project button */}
         {availableProjects.length > 0 && (
           <button
-            className="welcome-card welcome-card--add"
+            className="welcome-card welcome-card--add welcome-stagger"
+            style={{ "--i": 4 + welcomeCards.length } as React.CSSProperties}
             onClick={() => setShowPicker(true)}
           >
             <Plus size={24} />

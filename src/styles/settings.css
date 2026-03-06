@@ -2611,3 +2611,130 @@
   font-size: 0.75rem;
   color: var(--fg-dim);
 }
+
+/* ═══════════════════════════════════════════
+   Hotkeys Section
+   ═══════════════════════════════════════════ */
+
+.settings-section-hotkeys {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.hotkeys-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hotkeys-reset-all {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+
+.hotkeys-reset-all:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.hotkeys-table {
+  display: flex;
+  flex-direction: column;
+}
+
+.hotkeys-table-header {
+  display: grid;
+  grid-template-columns: 1fr 160px 32px;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--fg-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.hotkeys-row {
+  display: grid;
+  grid-template-columns: 1fr 160px 32px;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
+}
+
+.hotkeys-row--recording {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.hotkeys-row-label {
+  font-size: 0.88rem;
+  color: var(--fg);
+}
+
+.hotkeys-row-binding {
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--input-bg);
+  color: var(--fg);
+  font-size: 0.82rem;
+  font-family: monospace;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.hotkeys-row-binding:hover {
+  border-color: var(--fg-dim);
+}
+
+.hotkeys-row-binding--active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--input-bg));
+  color: var(--accent);
+  animation: hotkey-pulse 1s infinite;
+}
+
+@keyframes hotkey-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.hotkeys-row-reset {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fg-dim);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.hotkeys-row-reset:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.hotkeys-row-reset:disabled {
+  opacity: 0.2;
+  cursor: default;
+}

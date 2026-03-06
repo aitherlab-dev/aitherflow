@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { Home, Plus, Settings, FolderOpen, LayoutDashboard } from "lucide-react";
+import { Home, Settings, FolderOpen, LayoutDashboard } from "lucide-react";
 import { useIsMobile } from "../../../hooks/useIsMobile";
 import { useLayoutStore } from "../../../stores/layoutStore";
 import { useChatStore } from "../../../stores/chatStore";
@@ -9,7 +9,6 @@ import { ResizeHandle } from "../ResizeHandle";
 import { FilesPanel } from "../FilesPanel";
 import { DashboardPanel } from "../../dashboard/DashboardPanel";
 import { AgentTab } from "./AgentTab";
-import { ProjectDropdown } from "./ProjectDropdown";
 
 export const Sidebar = memo(function Sidebar() {
   const isMobile = useIsMobile();
@@ -29,7 +28,6 @@ export const Sidebar = memo(function Sidebar() {
 
   const agents = useAgentStore((s) => s.agents);
   const activeAgentId = useAgentStore((s) => s.activeAgentId);
-  const createAgent = useAgentStore((s) => s.createAgent);
   const removeAgent = useAgentStore((s) => s.removeAgent);
   const setActiveAgent = useAgentStore((s) => s.setActiveAgent);
   const getLockedChatIds = useAgentStore((s) => s.getLockedChatIds);
@@ -45,26 +43,11 @@ export const Sidebar = memo(function Sidebar() {
   const renameChat = useChatStore((s) => s.renameChat);
   const toggleChatPin = useChatStore((s) => s.toggleChatPin);
 
-  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [filesOpen, setFilesOpen] = useState(false);
   const [dashboardOpen, setDashboardOpen] = useState(true);
 
-  const handleNewAgent = useCallback(() => {
-    setDropdownOpen((prev) => !prev);
-  }, []);
-
-  const handleProjectSelect = useCallback(
-    (projectPath: string, projectName: string) => {
-      setDropdownOpen(false);
-      createAgent(projectPath, projectName).catch(console.error);
-      closeMobile();
-    },
-    [createAgent, closeMobile],
-  );
-
   const handleActivateAgent = useCallback(
     (agentId: string) => {
-      setDropdownOpen(false);
       if (activeView === "settings") closeSettings();
       setActiveAgent(agentId).catch(console.error);
       closeMobile();
@@ -114,7 +97,6 @@ export const Sidebar = memo(function Sidebar() {
   );
 
   const handleSettingsClick = useCallback(() => {
-    setDropdownOpen(false);
     if (activeView === "settings") {
       closeSettings();
     } else {
@@ -124,7 +106,6 @@ export const Sidebar = memo(function Sidebar() {
   }, [activeView, closeSettings, openSettings, closeMobile]);
 
   const handleWelcomeClick = useCallback(() => {
-    setDropdownOpen(false);
     if (activeView === "welcome") {
       closeWelcome();
     } else {
@@ -134,12 +115,10 @@ export const Sidebar = memo(function Sidebar() {
   }, [activeView, closeWelcome, openWelcome, closeMobile]);
 
   const handleFilesClick = useCallback(() => {
-    setDropdownOpen(false);
     setFilesOpen((prev) => !prev);
   }, []);
 
   const handleDashboardClick = useCallback(() => {
-    setDropdownOpen(false);
     setDashboardOpen((prev) => !prev);
   }, []);
 
@@ -237,22 +216,6 @@ export const Sidebar = memo(function Sidebar() {
               <Home size={16} />
               <span>Home</span>
             </button>
-            {/* New Agent — pinned to top */}
-            <div className="sidebar-agent-top">
-              <button
-                className={`sidebar-tab ${dropdownOpen ? "sidebar-tab--expanded" : ""}`}
-                onClick={handleNewAgent}
-              >
-                <Plus size={16} />
-                <span>New Agent</span>
-              </button>
-              {dropdownOpen && (
-                <ProjectDropdown
-                  onSelect={handleProjectSelect}
-                />
-              )}
-            </div>
-
             {agents.map((agent, index) => (
               <div
                 key={agent.id}

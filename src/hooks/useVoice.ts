@@ -173,17 +173,12 @@ export function useVoice(
     }
   }, [voiceState, startGroq, stopGroq, startStream, stopStream]);
 
-  // Ctrl+` hotkey — toggle voice on/off
+  // Listen for hotkey:toggleVoice custom event from central hotkey handler
   useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.code === "Backquote") {
-        e.preventDefault();
-        toggleVoice();
-      }
-    };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [voiceState, toggleVoice]);
+    const handler = () => toggleVoice();
+    window.addEventListener("hotkey:toggleVoice", handler);
+    return () => window.removeEventListener("hotkey:toggleVoice", handler);
+  }, [toggleVoice]);
 
   // Reset accumulated text (call on send to avoid re-filling textarea)
   const resetStream = useCallback(() => {

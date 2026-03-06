@@ -12,6 +12,7 @@ import {
   Send,
   Cable,
   BarChart3,
+  Keyboard,
 } from "lucide-react";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { ProjectsSection } from "./ProjectsSection";
@@ -25,9 +26,11 @@ import { TelegramSection } from "./TelegramSection";
 import { HooksSection } from "./hooks";
 import { McpSection } from "./McpSection";
 import { CliStatsSection } from "./CliStatsSection";
+import { HotkeysSection } from "./HotkeysSection";
 
 const NAV_ITEMS = [
   { id: "general", label: "General", icon: User },
+  { id: "hotkeys", label: "Hotkeys", icon: Keyboard },
   { id: "hooks", label: "Hooks", icon: Webhook },
   { id: "web-server", label: "Web Server", icon: Globe },
   { id: "mcp", label: "MCP Servers", icon: Cable },
@@ -119,6 +122,9 @@ function SectionContent({ section }: { section: string }) {
   }
   if (section === "telegram") {
     return <TelegramSection />;
+  }
+  if (section === "hotkeys") {
+    return <HotkeysSection />;
   }
   if (section === "hooks") {
     return <HooksSection />;
