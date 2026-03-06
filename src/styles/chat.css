@@ -540,7 +540,7 @@
 .input-bar-textarea {
   flex: 1;
   min-height: 24px;
-  max-height: 168px;
+  max-height: 210px;
   padding: 4px 0;
   background: transparent;
   border: none;

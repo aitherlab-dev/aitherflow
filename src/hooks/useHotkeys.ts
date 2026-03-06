@@ -10,13 +10,15 @@ import { useChatStore } from "../stores/chatStore";
  */
 export function useHotkeys() {
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      // Skip if user is typing in an input/textarea (except for our global hotkeys)
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.repeat) return;
+
       const tag = (e.target as HTMLElement)?.tagName;
       const isInput = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
 
-      // Only modifiers (Alt/Ctrl) combos work in inputs
-      if (isInput && !e.altKey && !e.ctrlKey) return;
+      // F-keys work without modifiers anywhere (non-typeable)
+      const isFKey = /^F\d{1,2}$/.test(e.code);
+      if (isInput && !e.altKey && !e.ctrlKey && !isFKey) return;
 
       const action = useHotkeyStore.getState().findAction(e);
       if (!action) return;
@@ -25,8 +27,21 @@ export function useHotkeys() {
       dispatch(action);
     };
 
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    const onKeyUp = (e: KeyboardEvent) => {
+      // Push-to-talk: release voice hotkey → stop recording (only in PTT mode)
+      const store = useHotkeyStore.getState();
+      if (!store.voicePushToTalk) return;
+      if (!store.matches("toggleVoice", e)) return;
+      e.preventDefault();
+      window.dispatchEvent(new CustomEvent("hotkey:voiceStop"));
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+    };
   }, []);
 }
 
@@ -42,10 +57,17 @@ function dispatch(action: HotkeyAction) {
       layout.toggleAgentLog();
       break;
 
-    case "toggleVoice":
-      // Dispatch custom event that useVoice listens to
-      window.dispatchEvent(new CustomEvent("hotkey:toggleVoice"));
+    case "toggleVoice": {
+      const ptt = useHotkeyStore.getState().voicePushToTalk;
+      if (ptt) {
+        // Push-to-talk: keydown starts, keyup stops (see onKeyUp above)
+        window.dispatchEvent(new CustomEvent("hotkey:voiceStart"));
+      } else {
+        // Toggle mode: press to start, press again to stop
+        window.dispatchEvent(new CustomEvent("hotkey:toggleVoice"));
+      }
       break;
+    }
 
     case "openSettings":
       if (layout.activeView === "settings") {

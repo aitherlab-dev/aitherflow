@@ -12,8 +12,8 @@ import { useConductorStore } from "../../stores/conductorStore";
 import { useVoice } from "../../hooks/useVoice";
 
 
-/** Max textarea height in px (~6 lines) */
-const MAX_HEIGHT = 168;
+/** Max textarea height in px (8 full lines) */
+const MAX_HEIGHT = 210;
 
 /** Image extensions for file picker filter */
 const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "gif", "webp", "svg"];
@@ -57,10 +57,14 @@ export const InputBar = memo(function InputBar() {
   const handleVoiceInsert = useCallback((transcribed: string) => {
     setText((prev) => (prev ? prev + " " + transcribed : transcribed));
   }, []);
-  const handleVoiceReplace = useCallback((text: string) => {
-    setText(text);
+  const handleVoiceReplace = useCallback((newText: string) => {
+    setText(newText);
   }, []);
-  const { voiceState, toggleVoice, resetStream } = useVoice(handleVoiceInsert, handleVoiceReplace);
+  // Ref to always have current text for voice prefix (avoids stale closure)
+  const textRef = useRef("");
+  textRef.current = text;
+  const getVoicePrefix = useCallback(() => textRef.current, []);
+  const { voiceState, toggleVoice, resetStream } = useVoice(handleVoiceInsert, handleVoiceReplace, getVoicePrefix);
 
   // Focus textarea when voice recording stops (so user can hit Enter immediately)
   const prevVoiceRef = useRef(voiceState);
@@ -92,12 +96,16 @@ export const InputBar = memo(function InputBar() {
   // Last 2 tool activities from the latest assistant message
   const recentTools = useChatStore(useShallow(selectRecentTools));
 
-  // Auto-resize textarea
+  // Auto-resize textarea and keep cursor visible
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = "auto";
     el.style.height = Math.min(el.scrollHeight, MAX_HEIGHT) + "px";
+    // Scroll to caret so the typing line is always visible
+    if (el.scrollHeight > MAX_HEIGHT) {
+      el.scrollTop = el.scrollHeight;
+    }
   }, [text]);
 
   // Listen for Tauri drag-drop events (gives real file paths)

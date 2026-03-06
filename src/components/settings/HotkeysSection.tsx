@@ -15,6 +15,8 @@ export function HotkeysSection() {
   const setBinding = useHotkeyStore((s) => s.setBinding);
   const resetBinding = useHotkeyStore((s) => s.resetBinding);
   const resetAll = useHotkeyStore((s) => s.resetAll);
+  const voicePushToTalk = useHotkeyStore((s) => s.voicePushToTalk);
+  const setVoicePushToTalk = useHotkeyStore((s) => s.setVoicePushToTalk);
 
   const [recording, setRecording] = useState<HotkeyAction | null>(null);
 
@@ -28,6 +30,26 @@ export function HotkeysSection() {
           <RotateCcw size={14} />
           <span>Reset all</span>
         </button>
+      </div>
+
+      {/* Voice mode toggle */}
+      <div className="settings-toggle-row">
+        <div className="settings-toggle-info">
+          <span className="settings-toggle-label">Voice hotkey mode</span>
+          <span className="settings-toggle-desc">
+            {voicePushToTalk
+              ? "Push to talk — hold key to record, release to stop"
+              : "Toggle — press to start recording, press again to stop"}
+          </span>
+        </div>
+        <select
+          className="settings-select"
+          value={voicePushToTalk ? "ptt" : "toggle"}
+          onChange={(e) => setVoicePushToTalk(e.target.value === "ptt")}
+        >
+          <option value="ptt">Push to talk</option>
+          <option value="toggle">Toggle</option>
+        </select>
       </div>
 
       <div className="hotkeys-table">
@@ -98,8 +120,9 @@ function HotkeyRow({
       // Skip pure modifier presses
       if (["Control", "Alt", "Shift", "Meta"].includes(e.key)) return;
 
-      // Must have at least one modifier
-      if (!e.ctrlKey && !e.altKey) return;
+      // F-keys and Backquote can work without modifiers; everything else needs Alt or Ctrl
+      const allowBare = /^F\d{1,2}$/.test(e.code);
+      if (!allowBare && !e.ctrlKey && !e.altKey) return;
 
       onSetBinding({
         ctrl: e.ctrlKey,

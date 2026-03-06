@@ -86,7 +86,7 @@ function codeToLabel(code: string): string {
 const DEFAULT_BINDINGS: Record<HotkeyAction, HotkeyBinding> = {
   toggleSidebar: { ctrl: false, alt: true, shift: false, code: "KeyB" },
   toggleAgentLog: { ctrl: false, alt: true, shift: false, code: "KeyA" },
-  toggleVoice: { ctrl: true, alt: false, shift: false, code: "Backquote" },
+  toggleVoice: { ctrl: false, alt: false, shift: false, code: "F1" },
   openSettings: { ctrl: false, alt: true, shift: false, code: "Comma" },
   focusInput: { ctrl: false, alt: true, shift: false, code: "KeyI" },
   newChat: { ctrl: false, alt: true, shift: false, code: "KeyN" },
@@ -102,6 +102,7 @@ const DEFAULT_BINDINGS: Record<HotkeyAction, HotkeyBinding> = {
 };
 
 const STORAGE_KEY = "aitherflow:hotkeys";
+const PTT_KEY = "aitherflow:voicePushToTalk";
 
 // ── Persistence ─────────────────────────────────────────────────────
 type SerializedBindings = Partial<Record<HotkeyAction, HotkeyBinding>>;
@@ -144,6 +145,9 @@ function saveBindings(bindings: Record<HotkeyAction, HotkeyBinding>) {
 interface HotkeyState {
   bindings: Record<HotkeyAction, HotkeyBinding>;
 
+  /** Push-to-talk mode: hold key to record, release to stop. Toggle mode: press to start/stop */
+  voicePushToTalk: boolean;
+
   /** Check if a keyboard event matches a given action */
   matches: (action: HotkeyAction, e: KeyboardEvent) => boolean;
 
@@ -158,10 +162,14 @@ interface HotkeyState {
 
   /** Reset all bindings to defaults */
   resetAll: () => void;
+
+  /** Toggle voice hotkey mode */
+  setVoicePushToTalk: (ptt: boolean) => void;
 }
 
 export const useHotkeyStore = create<HotkeyState>((set, get) => ({
   bindings: loadBindings(),
+  voicePushToTalk: localStorage.getItem(PTT_KEY) !== "false",
 
   matches: (action, e) => {
     const b = get().bindings[action];
@@ -204,6 +212,15 @@ export const useHotkeyStore = create<HotkeyState>((set, get) => ({
     const next = { ...DEFAULT_BINDINGS };
     set({ bindings: next });
     localStorage.removeItem(STORAGE_KEY);
+  },
+
+  setVoicePushToTalk: (ptt) => {
+    set({ voicePushToTalk: ptt });
+    if (ptt) {
+      localStorage.removeItem(PTT_KEY);
+    } else {
+      localStorage.setItem(PTT_KEY, "false");
+    }
   },
 }));
 

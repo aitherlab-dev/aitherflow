@@ -14,6 +14,7 @@ import type { AppSettings } from "../types/settings";
 export function useVoice(
   onInsert: (text: string) => void,
   onReplace: (text: string) => void,
+  getPrefix?: () => string,
 ) {
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const accumulatedRef = useRef("");
@@ -69,6 +70,7 @@ export function useVoice(
     try {
       const settings = await invoke<AppSettings>("load_settings");
       accumulatedRef.current = "";
+      prefixRef.current = getPrefix?.() ?? "";
       providerRef.current = provider;
 
       // Set up event listeners before starting stream
@@ -173,12 +175,41 @@ export function useVoice(
     }
   }, [voiceState, startGroq, stopGroq, startStream, stopStream]);
 
-  // Listen for hotkey:toggleVoice custom event from central hotkey handler
+  // Start voice (called on hotkey press)
+  const startVoice = useCallback(async () => {
+    if (voiceState !== "idle") return;
+    const settings = await invoke<AppSettings>("load_settings");
+    const provider = settings.voiceProvider || "groq";
+    if (provider === "anthropic" || provider === "deepgram") {
+      await startStream(provider);
+    } else {
+      await startGroq();
+    }
+  }, [voiceState, startGroq, startStream]);
+
+  // Stop voice (called on hotkey release)
+  const stopVoice = useCallback(async () => {
+    if (voiceState === "recording") {
+      await stopGroq();
+    } else if (voiceState === "streaming") {
+      await stopStream();
+    }
+  }, [voiceState, stopGroq, stopStream]);
+
+  // Hotkey events: push-to-talk (start/stop) and toggle mode
   useEffect(() => {
-    const handler = () => toggleVoice();
-    window.addEventListener("hotkey:toggleVoice", handler);
-    return () => window.removeEventListener("hotkey:toggleVoice", handler);
-  }, [toggleVoice]);
+    const onStart = () => { startVoice().catch(console.error); };
+    const onStop = () => { stopVoice().catch(console.error); };
+    const onToggle = () => { toggleVoice().catch(console.error); };
+    window.addEventListener("hotkey:voiceStart", onStart);
+    window.addEventListener("hotkey:voiceStop", onStop);
+    window.addEventListener("hotkey:toggleVoice", onToggle);
+    return () => {
+      window.removeEventListener("hotkey:voiceStart", onStart);
+      window.removeEventListener("hotkey:voiceStop", onStop);
+      window.removeEventListener("hotkey:toggleVoice", onToggle);
+    };
+  }, [startVoice, stopVoice, toggleVoice]);
 
   // Reset accumulated text (call on send to avoid re-filling textarea)
   const resetStream = useCallback(() => {
