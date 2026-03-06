@@ -210,10 +210,13 @@
 /* ── Sidebar ── */
 
 .app-sidebar {
+  grid-column: 1;
+  grid-row: 2;
   position: relative;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  padding-top: 8px;
   background: var(--bg-soft);
   border-right: 1px solid var(--border);
   transition: width 0.2s ease;

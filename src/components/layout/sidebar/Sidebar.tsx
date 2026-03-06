@@ -47,6 +47,13 @@ export const Sidebar = memo(function Sidebar() {
   const [dashboardOpen, setDashboardOpen] = useState(true);
   const filesOpenBeforeChats = useRef(false);
 
+  // Listen for hotkey:toggleDashboard custom event
+  useEffect(() => {
+    const handler = () => setDashboardOpen((prev) => !prev);
+    window.addEventListener("hotkey:toggleDashboard", handler);
+    return () => window.removeEventListener("hotkey:toggleDashboard", handler);
+  }, []);
+
   const handleActivateAgent = useCallback(
     (agentId: string) => {
       if (activeView === "settings") closeSettings();

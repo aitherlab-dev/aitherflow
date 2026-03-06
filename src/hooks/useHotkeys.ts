@@ -3,6 +3,8 @@ import { useHotkeyStore, type HotkeyAction } from "../stores/hotkeyStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import { useAgentStore } from "../stores/agentStore";
 import { useChatStore } from "../stores/chatStore";
+import { useProjectStore } from "../stores/projectStore";
+import { useSkillStore } from "../stores/skillStore";
 
 /**
  * Central hotkey handler — mount once in AppLayout.
@@ -16,9 +18,10 @@ export function useHotkeys() {
       const tag = (e.target as HTMLElement)?.tagName;
       const isInput = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
 
-      // F-keys work without modifiers anywhere (non-typeable)
+      // F-keys and Escape work without modifiers anywhere (non-typeable)
       const isFKey = /^F\d{1,2}$/.test(e.code);
-      if (isInput && !e.altKey && !e.ctrlKey && !isFKey) return;
+      const isEscape = e.code === "Escape";
+      if (isInput && !e.altKey && !e.ctrlKey && !isFKey && !isEscape) return;
 
       const action = useHotkeyStore.getState().findAction(e);
       if (!action) return;
@@ -77,6 +80,14 @@ function dispatch(action: HotkeyAction) {
       }
       break;
 
+    case "openHome":
+      if (layout.activeView === "welcome") {
+        layout.closeWelcome();
+      } else {
+        layout.openWelcome();
+      }
+      break;
+
     case "focusInput":
       window.dispatchEvent(new CustomEvent("hotkey:focusInput"));
       break;
@@ -84,6 +95,43 @@ function dispatch(action: HotkeyAction) {
     case "newChat":
       useChatStore.getState().newChat().catch(console.error);
       break;
+
+    case "newAgent": {
+      const workspace = useProjectStore.getState().projects[0];
+      if (workspace) {
+        useAgentStore.getState().createAgent(workspace.path, workspace.name).catch(console.error);
+        useSkillStore.getState().load(workspace.path).catch(console.error);
+        if (layout.activeView !== "chat") {
+          layout.closeSettings();
+          layout.closeWelcome();
+        }
+      }
+      break;
+    }
+
+    case "restartSession":
+      useChatStore.getState().restartSession().catch(console.error);
+      break;
+
+    case "stopGeneration":
+      if (useChatStore.getState().isThinking) {
+        useChatStore.getState().stopGeneration().catch(console.error);
+      }
+      break;
+
+    case "toggleDashboard":
+      window.dispatchEvent(new CustomEvent("hotkey:toggleDashboard"));
+      break;
+
+    case "toggleFileViewer":
+      layout.toggleFileViewer();
+      break;
+
+    case "toggleFileViewerLayout": {
+      const pos = layout.fileViewerPosition === "right" ? "bottom" : "right";
+      layout.setFileViewerPosition(pos);
+      break;
+    }
 
     default: {
       // switchAgent1..9

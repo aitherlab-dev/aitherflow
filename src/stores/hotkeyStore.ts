@@ -6,8 +6,15 @@ export type HotkeyAction =
   | "toggleAgentLog"
   | "toggleVoice"
   | "openSettings"
+  | "openHome"
   | "focusInput"
   | "newChat"
+  | "newAgent"
+  | "restartSession"
+  | "stopGeneration"
+  | "toggleDashboard"
+  | "toggleFileViewer"
+  | "toggleFileViewerLayout"
   | "switchAgent1"
   | "switchAgent2"
   | "switchAgent3"
@@ -24,8 +31,15 @@ export const HOTKEY_LABELS: Record<HotkeyAction, string> = {
   toggleAgentLog: "Toggle Agent Log",
   toggleVoice: "Toggle Voice Input",
   openSettings: "Open Settings",
+  openHome: "Open Home",
   focusInput: "Focus Chat Input",
   newChat: "New Chat",
+  newAgent: "New Agent",
+  restartSession: "Restart Session",
+  stopGeneration: "Stop Generation",
+  toggleDashboard: "Toggle Dashboard",
+  toggleFileViewer: "Toggle File Viewer",
+  toggleFileViewerLayout: "Toggle File Viewer Layout",
   switchAgent1: "Switch to Agent 1",
   switchAgent2: "Switch to Agent 2",
   switchAgent3: "Switch to Agent 3",
@@ -85,11 +99,18 @@ function codeToLabel(code: string): string {
 // ── Defaults ────────────────────────────────────────────────────────
 const DEFAULT_BINDINGS: Record<HotkeyAction, HotkeyBinding> = {
   toggleSidebar: { ctrl: false, alt: true, shift: false, code: "KeyB" },
-  toggleAgentLog: { ctrl: false, alt: true, shift: false, code: "KeyA" },
+  toggleAgentLog: { ctrl: false, alt: true, shift: false, code: "KeyL" },
   toggleVoice: { ctrl: false, alt: false, shift: false, code: "F1" },
   openSettings: { ctrl: false, alt: true, shift: false, code: "Comma" },
+  openHome: { ctrl: false, alt: true, shift: false, code: "KeyH" },
   focusInput: { ctrl: false, alt: true, shift: false, code: "KeyI" },
   newChat: { ctrl: false, alt: true, shift: false, code: "KeyN" },
+  newAgent: { ctrl: false, alt: true, shift: false, code: "KeyA" },
+  restartSession: { ctrl: false, alt: true, shift: false, code: "KeyR" },
+  stopGeneration: { ctrl: false, alt: false, shift: false, code: "Escape" },
+  toggleDashboard: { ctrl: false, alt: true, shift: false, code: "KeyD" },
+  toggleFileViewer: { ctrl: false, alt: true, shift: false, code: "KeyE" },
+  toggleFileViewerLayout: { ctrl: false, alt: true, shift: false, code: "KeyW" },
   switchAgent1: { ctrl: false, alt: true, shift: false, code: "Digit1" },
   switchAgent2: { ctrl: false, alt: true, shift: false, code: "Digit2" },
   switchAgent3: { ctrl: false, alt: true, shift: false, code: "Digit3" },
@@ -230,8 +251,15 @@ export const HOTKEY_ACTION_ORDER: HotkeyAction[] = [
   "toggleAgentLog",
   "toggleVoice",
   "openSettings",
+  "openHome",
   "focusInput",
   "newChat",
+  "newAgent",
+  "restartSession",
+  "stopGeneration",
+  "toggleDashboard",
+  "toggleFileViewer",
+  "toggleFileViewerLayout",
   "switchAgent1",
   "switchAgent2",
   "switchAgent3",

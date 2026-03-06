@@ -6,6 +6,7 @@ import type { AttachmentPayload } from "../types/conductor";
 import { isInteractiveTool } from "../types/chat";
 import { useAgentStore } from "./agentStore";
 import { useConductorStore } from "./conductorStore";
+import { useProjectStore } from "./projectStore";
 
 /** Timer for delayed tool activity reset (keeps status visible briefly) */
 let toolActivityTimer: ReturnType<typeof setTimeout> | null = null;
@@ -298,6 +299,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set({ currentChatId: chatId });
         // Update chat lock
         useAgentStore.getState().updateChatLock(state.agentId, chatId);
+        // Track last opened chat for welcome screen "Continue"
+        useProjectStore.getState().setLastOpened(state.projectPath, chatId).catch(console.error);
         // Refresh sidebar
         get().loadChatList().catch(console.error);
       }
@@ -457,6 +460,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       // Update chat lock in agentStore
       useAgentStore.getState().updateChatLock(get().agentId, chatId);
+
+      // Track last opened chat for welcome screen "Continue"
+      useProjectStore.getState().setLastOpened(get().projectPath, chatId).catch(console.error);
 
       // Load saved usage from CLI session JSONL (so context indicator works before new messages)
       const chatMeta = get().chatList.find((c) => c.id === chatId);
