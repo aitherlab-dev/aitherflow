@@ -1133,13 +1133,13 @@
 }
 
 .dash-panel {
-  padding: 8px;
+  padding: 10px;
 }
 
 .dash-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 6px;
+  gap: 8px;
 }
 
 /* ── Dashboard card ── */
@@ -1147,10 +1147,10 @@
 .dash-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 8px 10px;
+  border-radius: 8px;
+  padding: 10px 12px;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background 0.2s ease, border-color 0.3s ease, box-shadow 0.3s ease;
   min-width: 0;
   min-height: 40px;
 }
@@ -1160,9 +1160,77 @@
 }
 
 .dash-card--expanded {
-  grid-column: 1 / -1;
   background: var(--bg-hover);
   border-color: var(--accent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+/* ── Collapse animation ── */
+
+.dash-card__collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.dash-card__collapse--open {
+  grid-template-rows: 1fr;
+}
+
+.dash-card__collapse > .dash-card__body {
+  overflow: hidden;
+}
+
+/* ── Content area (above buttons) ── */
+
+.dash-content-area {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.dash-content-item .dash-card {
+  cursor: default;
+  background: var(--bg-soft);
+  border-color: var(--accent);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.14);
+}
+
+/* collapse animation handled by --open class from DashboardCard */
+
+/* ── Button grid (always in place) ── */
+
+.dash-btn-wrapper .dash-card__collapse {
+  display: none;
+}
+
+.dash-btn-wrapper {
+  touch-action: none;
+}
+
+.dash-btn-wrapper--active .dash-card {
+  border-color: var(--accent);
+  background: var(--bg-hover);
+}
+
+.dash-btn-wrapper--dragging {
+  opacity: 0.3;
+}
+
+.dash-btn-wrapper--drop-target .dash-card {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.dash-card-ghost {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.85;
+  transform: rotate(2deg);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  border-radius: 6px;
 }
 
 .dash-card__header {

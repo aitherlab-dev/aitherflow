@@ -42,9 +42,11 @@ export const DashboardCard = memo(function DashboardCard({
         </span>
         {headerExtra}
       </div>
-      {expanded && children && (
-        <div className="dash-card__body" onClick={(e) => e.stopPropagation()}>
-          {children}
+      {children && (
+        <div className={`dash-card__collapse ${expanded ? "dash-card__collapse--open" : ""}`}>
+          <div className="dash-card__body" onClick={(e) => e.stopPropagation()}>
+            {children}
+          </div>
         </div>
       )}
     </div>

@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMcpStore } from "../../stores/mcpStore";
 import { useSkillStore } from "../../stores/skillStore";
 import { useAgentStore } from "../../stores/agentStore";
@@ -9,22 +9,99 @@ import { SkillsCard } from "./cards/SkillsCard";
 import { AgentModeCard } from "./cards/AgentModeCard";
 import { TokensCard } from "./cards/TokensCard";
 
-const STORAGE_KEY = "aitherflow:dashboard:expanded";
+const EXPANDED_KEY = "aitherflow:dashboard:expanded";
+const ORDER_KEY = "aitherflow:dashboard:order";
+
+const DEFAULT_ORDER = ["telegram", "webserver", "mcp", "skills", "agentmode", "tokens"];
+
+const CARD_COMPONENTS: Record<string, React.ComponentType<{ expanded: boolean; onToggle: (id: string) => void }>> = {
+  telegram: TelegramCard,
+  webserver: WebServerCard,
+  mcp: McpCard,
+  skills: SkillsCard,
+  agentmode: AgentModeCard,
+  tokens: TokensCard,
+};
 
 function loadExpandedCards(): Set<string> {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(EXPANDED_KEY);
     if (raw) return new Set(JSON.parse(raw));
   } catch { /* ignore */ }
   return new Set();
 }
 
 function saveExpandedCards(cards: Set<string>) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify([...cards]));
+  localStorage.setItem(EXPANDED_KEY, JSON.stringify([...cards]));
 }
+
+function loadOrder(): string[] {
+  try {
+    const raw = localStorage.getItem(ORDER_KEY);
+    if (raw) {
+      const order = JSON.parse(raw) as string[];
+      const missing = DEFAULT_ORDER.filter((id) => !order.includes(id));
+      return [...order.filter((id) => DEFAULT_ORDER.includes(id)), ...missing];
+    }
+  } catch { /* ignore */ }
+  return [...DEFAULT_ORDER];
+}
+
+function saveOrder(order: string[]) {
+  localStorage.setItem(ORDER_KEY, JSON.stringify(order));
+}
+
+/** Find which card element the pointer is currently over */
+function findCardAtPoint(
+  container: HTMLElement,
+  x: number,
+  y: number,
+  excludeId: string,
+): string | null {
+  const cards = container.querySelectorAll<HTMLElement>("[data-card-id]");
+  for (const card of cards) {
+    if (card.dataset.cardId === excludeId) continue;
+    const rect = card.getBoundingClientRect();
+    if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+      return card.dataset.cardId ?? null;
+    }
+  }
+  return null;
+}
+
+/** Mounts children with expanded=false, then flips to true on next frame for animation */
+const AnimatedContentItem = memo(function AnimatedContentItem({
+  Component,
+  onToggle,
+}: {
+  Component: React.ComponentType<{ expanded: boolean; onToggle: (id: string) => void }>;
+  onToggle: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  useLayoutEffect(() => {
+    requestAnimationFrame(() => setOpen(true));
+  }, []);
+
+  return (
+    <div className="dash-content-item">
+      <Component expanded={open} onToggle={onToggle} />
+    </div>
+  );
+});
 
 export const DashboardPanel = memo(function DashboardPanel() {
   const [expandedCards, setExpandedCards] = useState<Set<string>>(loadExpandedCards);
+  const [cardOrder, setCardOrder] = useState<string[]>(loadOrder);
+
+  // Pointer-based drag state
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const dragElRef = useRef<HTMLElement | null>(null);
+  const [dragging, setDragging] = useState(false);
 
   const mcpNeedsReload = useMcpStore((s) => s.needsReload);
   const mcpLoad = useMcpStore((s) => s.load);
@@ -34,7 +111,6 @@ export const DashboardPanel = memo(function DashboardPanel() {
     (s) => s.agents.find((a) => a.id === s.activeAgentId)?.projectPath,
   );
 
-  // Load/reload MCP data when project changes
   useEffect(() => {
     if (mcpNeedsReload(activeProjectPath)) {
       mcpLoad(activeProjectPath).catch(console.error);
@@ -49,6 +125,12 @@ export const DashboardPanel = memo(function DashboardPanel() {
     }
   }, [skillsLoaded, skillsLoad]);
 
+  // Expanded cards in cardOrder order (for content area)
+  const expandedList = useMemo(
+    () => cardOrder.filter((id) => expandedCards.has(id)),
+    [cardOrder, expandedCards],
+  );
+
   const handleToggle = useCallback((id: string) => {
     setExpandedCards((prev) => {
       const next = new Set(prev);
@@ -59,16 +141,120 @@ export const DashboardPanel = memo(function DashboardPanel() {
     });
   }, []);
 
+  // Pointer down: if Shift held, start drag
+  const handlePointerDown = useCallback((e: React.PointerEvent, id: string) => {
+    if (!e.shiftKey) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const target = (e.currentTarget as HTMLElement);
+    const rect = target.getBoundingClientRect();
+
+    dragElRef.current = target;
+    setDragging(false);
+    setDragId(id);
+    setDragOffset({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    setDragPos({ x: e.clientX, y: e.clientY });
+
+    target.setPointerCapture(e.pointerId);
+  }, []);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (!dragId) return;
+    setDragging(true);
+    setDragPos({ x: e.clientX, y: e.clientY });
+
+    if (gridRef.current) {
+      const target = findCardAtPoint(gridRef.current, e.clientX, e.clientY, dragId);
+      setDropTargetId(target);
+    }
+  }, [dragId]);
+
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    if (!dragId) return;
+
+    if (dragElRef.current) {
+      dragElRef.current.releasePointerCapture(e.pointerId);
+    }
+
+    if (dragging && dropTargetId) {
+      setCardOrder((prev) => {
+        const next = [...prev];
+        const fromIdx = next.indexOf(dragId);
+        const toIdx = next.indexOf(dropTargetId);
+        if (fromIdx === -1 || toIdx === -1) return prev;
+        next.splice(fromIdx, 1);
+        next.splice(toIdx, 0, dragId);
+        saveOrder(next);
+        return next;
+      });
+    }
+
+    setDragId(null);
+    setDropTargetId(null);
+    dragElRef.current = null;
+    setDragging(false);
+  }, [dragId, dragging, dropTargetId]);
+
   return (
     <div className="dash-panel">
-      <div className="dash-grid">
-        <TelegramCard expanded={expandedCards.has("telegram")} onToggle={handleToggle} />
-        <WebServerCard expanded={expandedCards.has("webserver")} onToggle={handleToggle} />
-        <McpCard expanded={expandedCards.has("mcp")} onToggle={handleToggle} />
-        <SkillsCard expanded={expandedCards.has("skills")} onToggle={handleToggle} />
-        <AgentModeCard expanded={expandedCards.has("agentmode")} onToggle={handleToggle} />
-        <TokensCard expanded={expandedCards.has("tokens")} onToggle={handleToggle} />
+      {/* Expanded content area — above the button grid */}
+      {expandedList.length > 0 && (
+        <div className="dash-content-area">
+          {expandedList.map((id) => {
+            const Component = CARD_COMPONENTS[id];
+            if (!Component) return null;
+            return (
+              <AnimatedContentItem
+                key={id}
+                Component={Component}
+                onToggle={handleToggle}
+              />
+            );
+          })}
+        </div>
+      )}
+
+      {/* Button grid — always stays in place */}
+      <div className="dash-grid" ref={gridRef}>
+        {cardOrder.map((id) => {
+          const Component = CARD_COMPONENTS[id];
+          if (!Component) return null;
+          const isActive = expandedCards.has(id);
+          const isDragging = dragId === id && dragging;
+          const isDropTarget = dropTargetId === id;
+          return (
+            <div
+              key={id}
+              data-card-id={id}
+              onPointerDown={(e) => handlePointerDown(e, id)}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              className={`dash-btn-wrapper${isActive ? " dash-btn-wrapper--active" : ""}${isDragging ? " dash-btn-wrapper--dragging" : ""}${isDropTarget ? " dash-btn-wrapper--drop-target" : ""}`}
+            >
+              <Component expanded={false} onToggle={handleToggle} />
+            </div>
+          );
+        })}
       </div>
+
+      {/* Drag ghost */}
+      {dragId && dragging && dragElRef.current && (
+        <div
+          className="dash-card-ghost"
+          style={{
+            left: dragPos.x - dragOffset.x,
+            top: dragPos.y - dragOffset.y,
+            width: dragElRef.current.offsetWidth,
+          }}
+        >
+          {(() => {
+            const Component = CARD_COMPONENTS[dragId];
+            if (!Component) return null;
+            return <Component expanded={false} onToggle={() => {}} />;
+          })()}
+        </div>
+      )}
     </div>
   );
 });
