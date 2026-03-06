@@ -1,5 +1,5 @@
 import { memo, useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { Plus, RotateCcw, Star, Mic, MicOff, ArrowUp, Square, X, MessageSquarePlus, Sparkles, Brain, Zap, Loader2 } from "lucide-react";
+import { Plus, RotateCcw, Star, Mic, MicOff, ArrowUp, Square, X, MessageSquarePlus, Sparkles, Brain, Zap, Loader2, Slash } from "lucide-react";
 import { openDialog, invoke, getCurrentWindow } from "../../lib/transport";
 import { useChatStore, getToolLabel, selectRecentTools } from "../../stores/chatStore";
 import { useShallow } from "zustand/react/shallow";
@@ -8,6 +8,7 @@ import { useFileAttach } from "../../hooks/useFileAttach";
 import { ThinkingIndicator } from "./ThinkingIndicator";
 import { ModelMenu } from "./ModelMenu";
 import { SkillsMenu } from "./SkillsMenu";
+import { CommandsMenu } from "./CommandsMenu";
 import { useConductorStore } from "../../stores/conductorStore";
 import { useVoice } from "../../hooks/useVoice";
 
@@ -39,8 +40,10 @@ export const InputBar = memo(function InputBar() {
   const [isDragOver, setIsDragOver] = useState(false);
   const [modelMenuRect, setModelMenuRect] = useState<DOMRect | null>(null);
   const [skillsMenuRect, setSkillsMenuRect] = useState<DOMRect | null>(null);
+  const [commandsMenuRect, setCommandsMenuRect] = useState<DOMRect | null>(null);
   const modelBtnRef = useRef<HTMLButtonElement>(null);
   const skillsBtnRef = useRef<HTMLButtonElement>(null);
+  const commandsBtnRef = useRef<HTMLButtonElement>(null);
   const { attachments, processFromPaths, addAttachment, removeAttachment, clearAttachments } = useFileAttach();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const sendMessage = useChatStore((s) => s.sendMessage);
@@ -399,14 +402,31 @@ export const InputBar = memo(function InputBar() {
             <Plus size={18} />
           </button>
           {hasSession && (
-            <button
-              className="input-bar-btn"
-              title="Restart session"
-              aria-label="Restart session"
-              onClick={() => restartSession().catch(console.error)}
-            >
-              <RotateCcw size={16} />
-            </button>
+            <>
+              <button
+                className="input-bar-btn"
+                title="Restart session"
+                aria-label="Restart session"
+                onClick={() => restartSession().catch(console.error)}
+              >
+                <RotateCcw size={16} />
+              </button>
+              <button
+                ref={commandsBtnRef}
+                className="input-bar-btn"
+                title="CLI commands"
+                aria-label="CLI commands"
+                onClick={() => {
+                  if (commandsMenuRect) {
+                    setCommandsMenuRect(null);
+                  } else if (commandsBtnRef.current) {
+                    setCommandsMenuRect(commandsBtnRef.current.getBoundingClientRect());
+                  }
+                }}
+              >
+                <Slash size={16} />
+              </button>
+            </>
           )}
           <ThinkingIndicator />
         </div>
@@ -522,6 +542,12 @@ export const InputBar = memo(function InputBar() {
         <SkillsMenu
           anchorRect={skillsMenuRect}
           onClose={() => setSkillsMenuRect(null)}
+        />
+      )}
+      {commandsMenuRect && (
+        <CommandsMenu
+          anchorRect={commandsMenuRect}
+          onClose={() => setCommandsMenuRect(null)}
         />
       )}
     </div>

@@ -61,6 +61,7 @@ interface ConductorState {
   contextUsed: number;
   contextMax: number;
   costUsd: number;
+  slashCommands: string[];
   events: CliEvent[];
 
   // Actions
@@ -92,6 +93,7 @@ export const useConductorStore = create<ConductorState>((set, get) => ({
   contextUsed: 0,
   contextMax: DEFAULT_CONTEXT_WINDOW,
   costUsd: 0,
+  slashCommands: [],
   events: [],
 
   setSelectedModel: (model: string) => set({ selectedModel: model }),
@@ -154,6 +156,7 @@ export const useConductorStore = create<ConductorState>((set, get) => ({
       contextUsed: 0,
       contextMax: DEFAULT_CONTEXT_WINDOW,
       costUsd: 0,
+      slashCommands: [],
       events: [],
     }),
 
@@ -274,6 +277,9 @@ listen<CliEvent>("cli-event", (event) => {
       break;
     case "modelInfo":
       set({ model: e.model });
+      break;
+    case "slashCommands":
+      set({ slashCommands: e.commands });
       break;
     case "turnComplete":
       set({ isThinking: false });

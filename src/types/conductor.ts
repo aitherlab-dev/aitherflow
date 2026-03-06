@@ -43,6 +43,7 @@ export type CliEvent =
       input: Record<string, unknown>;
       description: string | null;
     }
+  | { type: "slashCommands"; agent_id: string; commands: string[] }
   | { type: "turnComplete"; agent_id: string }
   | { type: "processExited"; agent_id: string; exit_code: number | null }
   | { type: "error"; agent_id: string; message: string };

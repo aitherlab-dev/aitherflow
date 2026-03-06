@@ -3,6 +3,8 @@ import { invoke } from "../lib/transport";
 import { useSkillStore } from "./skillStore";
 import { usePluginStore } from "./pluginStore";
 import { useAgentStore } from "./agentStore";
+import { useConductorStore } from "./conductorStore";
+import { COMMAND_DESCRIPTIONS } from "../components/chat/CommandsMenu";
 import type { HooksConfig, HookEntry } from "../types/hooks";
 
 interface TranslationCache {
@@ -76,6 +78,15 @@ async function collectItems(): Promise<TranslationItem[]> {
         key: `available-plugin:${p.name}@${p.marketplace}`,
         text: p.description,
       });
+    }
+  }
+
+  // Collect CLI command descriptions
+  const slashCommands = useConductorStore.getState().slashCommands;
+  for (const cmd of slashCommands) {
+    const desc = COMMAND_DESCRIPTIONS[cmd];
+    if (desc) {
+      items.push({ key: `cmd:${cmd}`, text: desc });
     }
   }
 

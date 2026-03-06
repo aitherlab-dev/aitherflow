@@ -34,9 +34,21 @@ pub fn parse_line(
             }
             if let Some(m) = parsed.get("model").and_then(|v| v.as_str()) {
                 events.push(CliEvent::ModelInfo {
-                    agent_id: aid,
+                    agent_id: aid.clone(),
                     model: m.to_string(),
                 });
+            }
+            if let Some(cmds) = parsed.get("slash_commands").and_then(|v| v.as_array()) {
+                let commands: Vec<String> = cmds
+                    .iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect();
+                if !commands.is_empty() {
+                    events.push(CliEvent::SlashCommands {
+                        agent_id: aid,
+                        commands,
+                    });
+                }
             }
         }
 

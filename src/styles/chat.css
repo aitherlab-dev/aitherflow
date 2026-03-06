@@ -1057,6 +1057,55 @@
   flex-shrink: 0;
 }
 
+/* ── Commands menu (slash commands popup) ── */
+.commands-menu {
+  min-width: 200px;
+  max-width: 320px;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.commands-menu__empty {
+  padding: 10px 12px;
+  color: var(--fg-dim);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.commands-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 5px 10px;
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  font-size: 0.78rem;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+}
+
+.commands-menu__item:hover {
+  background: var(--bg-hover);
+}
+
+.commands-menu__icon {
+  color: var(--fg-dim);
+  flex-shrink: 0;
+}
+
+.commands-menu__name {
+  flex: 1;
+  white-space: nowrap;
+}
+
 /* Effort badge on model button */
 .model-effort-badge {
   font-size: 0.6rem;

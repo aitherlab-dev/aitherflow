@@ -29,6 +29,13 @@ pub enum CliEvent {
     #[serde(rename = "modelInfo")]
     ModelInfo { agent_id: String, model: String },
 
+    /// Slash commands available in this CLI session
+    #[serde(rename = "slashCommands")]
+    SlashCommands {
+        agent_id: String,
+        commands: Vec<String>,
+    },
+
     /// Token usage and cost from result event (cumulative over session)
     #[serde(rename = "usageInfo")]
     UsageInfo {
