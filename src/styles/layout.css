@@ -225,10 +225,10 @@
   padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  border-top: 1px solid #555250;
-  border-bottom: 1px solid #555250;
-  margin: 8px 0;
+  gap: 12px;
+  margin: 8px 0 16px;
+  min-height: 0;
+  flex: 1;
 }
 
 
@@ -246,8 +246,8 @@
   gap: 8px;
   width: 100%;
   padding: 16px 8px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
   background: var(--tab-bg-hover);
   color: var(--fg);
   font-size: 0.85rem;
@@ -257,8 +257,7 @@
 }
 
 .sidebar-project--active {
-  border-color: var(--fg-dim);
-  background: var(--tab-bg);
+  background: var(--tab-bg-active);
 }
 
 .sidebar-project:hover {
@@ -315,7 +314,6 @@
 
 .sidebar-project-body {
   margin-top: 4px;
-  background: var(--tab-bg);
   border-radius: 6px;
 }
 
@@ -355,11 +353,11 @@
   align-items: center;
   gap: 6px;
   width: 100%;
-  padding: 8px;
+  padding: 10px 12px;
   border: none;
   border-bottom: 1px solid var(--border);
   border-radius: 0;
-  background: var(--tab-bg);
+  background: transparent;
   color: var(--fg);
   font-size: 0.8rem;
   cursor: pointer;
@@ -602,8 +600,8 @@
   width: calc(100% - 24px);
   margin: 0 12px 8px;
   padding: 14px 8px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
   background: var(--tab-bg-hover);
   color: var(--fg-muted);
   font-size: 0.85rem;
@@ -632,7 +630,10 @@
 .sidebar-bottom {
   margin-top: auto;
   padding: 8px 0 12px;
-  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* ═══════════════════════════════════════════
@@ -871,17 +872,18 @@
 
 /* Accordion wrapper in sidebar */
 .files-accordion {
-  max-height: 45vh;
-  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
 }
 
 .files-panel {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  height: 100%;
 }
 
 .files-panel--empty {
@@ -1125,11 +1127,9 @@
 /* ── Dashboard panel ── */
 
 .dashboard-accordion {
-  max-height: 50vh;
-  overflow-y: auto;
+  flex-shrink: 0;
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
 }
 
 .dash-panel {

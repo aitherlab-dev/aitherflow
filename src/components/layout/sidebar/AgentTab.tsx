@@ -8,7 +8,6 @@ export const AgentTab = memo(function AgentTab({
   agentId,
   projectName,
   isActive,
-  isOnly,
   chatList,
   currentChatId,
   isThinking,
@@ -25,7 +24,6 @@ export const AgentTab = memo(function AgentTab({
   agentId: string;
   projectName: string;
   isActive: boolean;
-  isOnly: boolean;
   chatList: ChatMeta[];
   currentChatId: string | null;
   isThinking: boolean;
@@ -121,9 +119,8 @@ export const AgentTab = memo(function AgentTab({
           )}
         </button>
         <button
-          className={`sidebar-project__close ${isOnly ? "sidebar-project__close--disabled" : ""}`}
+          className="sidebar-project__close"
           onClick={handleClose}
-          disabled={isOnly}
           title="Close agent"
         >
           <X size={14} />

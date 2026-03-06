@@ -49,17 +49,19 @@ export const Sidebar = memo(function Sidebar() {
   const handleActivateAgent = useCallback(
     (agentId: string) => {
       if (activeView === "settings") closeSettings();
+      if (activeView === "welcome") closeWelcome();
       setActiveAgent(agentId).catch(console.error);
       closeMobile();
     },
-    [activeView, closeSettings, setActiveAgent, closeMobile],
+    [activeView, closeSettings, closeWelcome, setActiveAgent, closeMobile],
   );
 
   const handleCloseAgent = useCallback(
     (agentId: string) => {
+      if (agents.length === 1) openWelcome();
       removeAgent(agentId).catch(console.error);
     },
-    [removeAgent],
+    [agents.length, openWelcome, removeAgent],
   );
 
   const handleNewChat = useCallback(() => {
@@ -206,16 +208,17 @@ export const Sidebar = memo(function Sidebar() {
     >
       {open && (
         <>
+          {/* Home — pinned to top */}
+          <button
+            className="sidebar-tab sidebar-tab--active"
+            onClick={handleWelcomeClick}
+          >
+            <Home size={16} />
+            <span>Home</span>
+          </button>
+
           {/* Agent block */}
           <div className="sidebar-content">
-            {/* Welcome — project switcher */}
-            <button
-              className={`sidebar-tab ${activeView === "welcome" ? "sidebar-tab--active" : ""}`}
-              onClick={handleWelcomeClick}
-            >
-              <Home size={16} />
-              <span>Home</span>
-            </button>
             {agents.map((agent, index) => (
               <div
                 key={agent.id}
@@ -227,7 +230,6 @@ export const Sidebar = memo(function Sidebar() {
                   agentId={agent.id}
                   projectName={agent.projectName}
                   isActive={agent.id === activeAgentId}
-                  isOnly={agents.length === 1}
                   chatList={agent.id === activeAgentId ? chatList : []}
                   currentChatId={agent.id === activeAgentId ? currentChatId : null}
                   isThinking={agent.id === activeAgentId && isThinking}
@@ -245,31 +247,27 @@ export const Sidebar = memo(function Sidebar() {
             ))}
           </div>
 
-          {/* Functional tabs */}
-          <button
-            className={`sidebar-tab ${filesOpen ? "sidebar-tab--active" : ""}`}
-            onClick={handleFilesClick}
-          >
-            <FolderOpen size={16} />
-            <span>Files</span>
-          </button>
-
-          {/* Files accordion */}
-          {filesOpen && (
-            <div className="files-accordion">
-              <FilesPanel />
-            </div>
-          )}
-
-          {/* Dashboard + Settings — pinned to bottom */}
+          {/* Bottom panel: Files, Dashboard, Settings */}
           <div className="sidebar-bottom">
+            {filesOpen && (
+              <div className="files-accordion">
+                <FilesPanel />
+              </div>
+            )}
+            <button
+              className={`sidebar-tab ${filesOpen ? "sidebar-tab--active" : ""}`}
+              onClick={handleFilesClick}
+            >
+              <FolderOpen size={16} />
+              <span>Files</span>
+            </button>
             {dashboardOpen && (
               <div className="dashboard-accordion">
                 <DashboardPanel />
               </div>
             )}
             <button
-              className={`sidebar-tab ${dashboardOpen ? "sidebar-tab--active" : ""}`}
+              className="sidebar-tab"
               onClick={handleDashboardClick}
             >
               <LayoutDashboard size={16} />

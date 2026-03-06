@@ -96,9 +96,6 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   removeAgent: async (agentId) => {
     const { agents, activeAgentId, chatLocks } = get();
 
-    // Don't remove the last agent
-    if (agents.length <= 1) return;
-
     // Stop CLI for this agent and clean up background buffer
     try {
       await invoke("stop_session", { agentId });

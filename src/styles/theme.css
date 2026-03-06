@@ -30,6 +30,7 @@
   --chat-list-bg: #1f1d1a;
 
   --tab-bg: #504e4b;
+  --tab-bg-active: #5c564e;
   --tab-bg-hover: #3c3a37;
 
   --red: #fb4934;
@@ -77,6 +78,7 @@
   --chat-list-bg: #e2d9c8;
 
   --tab-bg: #f2ece4;
+  --tab-bg-active: #f7f0e6;
   --tab-bg-hover: #e8e2d8;
   --accent-stroke: #5a5248;
 
