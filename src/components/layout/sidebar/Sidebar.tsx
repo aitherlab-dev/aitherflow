@@ -1,13 +1,12 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { Home, Plus, Settings, Sparkles, FolderOpen, LayoutDashboard } from "lucide-react";
+import { Home, Plus, Settings, FolderOpen, LayoutDashboard } from "lucide-react";
 import { useIsMobile } from "../../../hooks/useIsMobile";
 import { useLayoutStore } from "../../../stores/layoutStore";
 import { useChatStore } from "../../../stores/chatStore";
 import { useAgentStore } from "../../../stores/agentStore";
 import { ResizeHandle } from "../ResizeHandle";
 import { FilesPanel } from "../FilesPanel";
-import { SkillsPanel } from "../SkillsPanel";
 import { DashboardPanel } from "../../dashboard/DashboardPanel";
 import { AgentTab } from "./AgentTab";
 import { ProjectDropdown } from "./ProjectDropdown";
@@ -48,7 +47,6 @@ export const Sidebar = memo(function Sidebar() {
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [filesOpen, setFilesOpen] = useState(false);
-  const [skillsOpen, setSkillsOpen] = useState(false);
   const [dashboardOpen, setDashboardOpen] = useState(true);
 
   const handleNewAgent = useCallback(() => {
@@ -138,20 +136,12 @@ export const Sidebar = memo(function Sidebar() {
   const handleFilesClick = useCallback(() => {
     setDropdownOpen(false);
     setFilesOpen((prev) => !prev);
-    if (!filesOpen) { setSkillsOpen(false); setDashboardOpen(false); }
-  }, [filesOpen]);
-
-  const handleSkillsClick = useCallback(() => {
-    setDropdownOpen(false);
-    setSkillsOpen((prev) => !prev);
-    if (!skillsOpen) { setFilesOpen(false); setDashboardOpen(false); }
-  }, [skillsOpen]);
+  }, []);
 
   const handleDashboardClick = useCallback(() => {
     setDropdownOpen(false);
     setDashboardOpen((prev) => !prev);
-    if (!dashboardOpen) { setFilesOpen(false); setSkillsOpen(false); }
-  }, [dashboardOpen]);
+  }, []);
 
   // ── Shift+drag reorder for agent tabs ──
 
@@ -245,7 +235,7 @@ export const Sidebar = memo(function Sidebar() {
               onClick={handleWelcomeClick}
             >
               <Home size={16} />
-              <span>Welcome</span>
+              <span>Home</span>
             </button>
             {/* New Agent — pinned to top */}
             <div className="sidebar-agent-top">
@@ -293,20 +283,6 @@ export const Sidebar = memo(function Sidebar() {
           </div>
 
           {/* Functional tabs */}
-          <button
-            className={`sidebar-tab ${skillsOpen ? "sidebar-tab--active" : ""}`}
-            onClick={handleSkillsClick}
-          >
-            <Sparkles size={16} />
-            <span>Skills</span>
-          </button>
-
-          {/* Skills accordion */}
-          {skillsOpen && (
-            <div className="skills-accordion">
-              <SkillsPanel />
-            </div>
-          )}
           <button
             className={`sidebar-tab ${filesOpen ? "sidebar-tab--active" : ""}`}
             onClick={handleFilesClick}

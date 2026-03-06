@@ -34,7 +34,7 @@ const SkillRow = memo(function SkillRow({
     <div
       className="skills-row"
       onClick={() => onInvoke(skill.command)}
-      title={desc}
+      data-tooltip={desc}
     >
       <span className="skills-row__name">{skill.name}</span>
       <span className="skills-row__command">{skill.command}</span>

@@ -83,7 +83,7 @@ function saveFileViewerPrefs(visible: boolean, position: FileViewerPosition) {
 const prefs = loadFileViewerPrefs();
 
 export const useLayoutStore = create<LayoutState>((set, get) => ({
-  sidebarOpen: true,
+  sidebarOpen: window.innerWidth >= 768,
   sidebarWidth: SIDEBAR_DEFAULT,
   activeView: "welcome",
   settingsSection: "projects",

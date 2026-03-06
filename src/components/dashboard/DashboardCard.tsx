@@ -11,6 +11,8 @@ export interface DashboardCardProps {
   statusColor?: "green" | "red" | "gray" | "orange" | "blue" | "dim";
   expanded: boolean;
   onToggle: (id: string) => void;
+  /** Extra element in header (e.g. settings button) */
+  headerExtra?: ReactNode;
   /** Expanded content */
   children?: ReactNode;
 }
@@ -23,6 +25,7 @@ export const DashboardCard = memo(function DashboardCard({
   statusColor,
   expanded,
   onToggle,
+  headerExtra,
   children,
 }: DashboardCardProps) {
   return (
@@ -37,6 +40,7 @@ export const DashboardCard = memo(function DashboardCard({
           {statusColor && <span className={`dash-card__dot dash-card__dot--${statusColor}`} />}
           <span className="dash-card__status-text">{statusText}</span>
         </span>
+        {headerExtra}
       </div>
       {expanded && children && (
         <div className="dash-card__body" onClick={(e) => e.stopPropagation()}>

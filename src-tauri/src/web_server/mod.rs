@@ -141,8 +141,15 @@ pub async fn run(state: WebState, port: u16, remote_access: bool) -> Result<(), 
 
 /// Serve static files from the embedded dist/ directory.
 /// Falls back to index.html for SPA client-side routing.
+/// API paths that don't match a registered route get a proper 404.
 async fn serve_embedded(uri: Uri) -> Response {
     let path = uri.path().trim_start_matches('/');
+
+    // Never serve index.html for unregistered /api/ or /ws paths
+    if path.starts_with("api/") || path == "ws" {
+        return (StatusCode::NOT_FOUND, "Not found").into_response();
+    }
+
     let path = if path.is_empty() { "index.html" } else { path };
 
     // Try exact file match first

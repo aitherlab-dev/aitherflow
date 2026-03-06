@@ -9,8 +9,22 @@ import { SkillsCard } from "./cards/SkillsCard";
 import { AgentModeCard } from "./cards/AgentModeCard";
 import { TokensCard } from "./cards/TokensCard";
 
+const STORAGE_KEY = "aitherflow:dashboard:expanded";
+
+function loadExpandedCards(): Set<string> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return new Set(JSON.parse(raw));
+  } catch { /* ignore */ }
+  return new Set();
+}
+
+function saveExpandedCards(cards: Set<string>) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify([...cards]));
+}
+
 export const DashboardPanel = memo(function DashboardPanel() {
-  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(loadExpandedCards);
 
   const mcpNeedsReload = useMcpStore((s) => s.needsReload);
   const mcpLoad = useMcpStore((s) => s.load);
@@ -40,6 +54,7 @@ export const DashboardPanel = memo(function DashboardPanel() {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
+      saveExpandedCards(next);
       return next;
     });
   }, []);
