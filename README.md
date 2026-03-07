@@ -1,18 +1,45 @@
 # aitherflow
 
-Desktop GUI for [Claude Code](https://claude.ai/code) CLI.
+Desktop GUI for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI.
 
 Not a replacement — a visual interface on top of the CLI. Claude Code remains the sole engine; aitherflow manages processes and displays results.
 
-## Features (planned)
+## Features
 
 - Multi-agent tabs with full isolation (each agent = own CLI process)
-- Chat interface with streaming responses
-- Skill, hook, and MCP server management through the GUI
-- Interactive permission prompts (native desktop dialogs)
-- Gruvbox dark/light theme
-- SQLite-backed memory with full-text search
-- File viewer, web preview, and more
+- Chat with streaming markdown responses
+- Model selector (Sonnet / Opus / Haiku) and reasoning effort control
+- Interactive permission prompts and plan/edit mode toggle
+- Skill browser with favorites, plugin management
+- Session memory — SQLite + FTS5 search across past sessions
+- Telegram bot integration
+- Voice input (Groq)
+- Dark and light themes (warm palette)
+
+## Prerequisites
+
+- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) — installed and authenticated
+- [Rust](https://rustup.rs/) (stable)
+- [Node.js](https://nodejs.org/) 20+
+- [pnpm](https://pnpm.io/)
+- Tauri 2 system dependencies — see [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/)
+
+## Build from source
+
+```bash
+git clone https://github.com/aitherlab-dev/aitherflow.git
+cd aitherflow
+pnpm install
+pnpm tauri build
+```
+
+Packages (`.deb`, `.rpm`) will be in `src-tauri/target/release/bundle/`.
+
+For development:
+
+```bash
+pnpm tauri dev
+```
 
 ## Stack
 
@@ -20,23 +47,15 @@ Not a replacement — a visual interface on top of the CLI. Claude Code remains 
 |-------|------|
 | Backend | Rust, Tauri 2 |
 | Frontend | React 19, TypeScript, Vite |
-| Styling | Tailwind CSS v4, Gruvbox palette |
+| Styling | Tailwind CSS v4 |
 | State | Zustand |
 | Icons | Lucide React |
 | Data | SQLite + FTS5, JSON |
 
 ## Platforms
 
-- **Linux** — primary target
-- **macOS** — secondary
-- Windows is not supported
-
-## Development
-
-```bash
-pnpm install
-pnpm tauri dev
-```
+- **Linux** — deb, rpm
+- **macOS** — planned
 
 ## License
 

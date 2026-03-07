@@ -138,7 +138,11 @@ async fn handle_callback(
     data: &str,
     incoming_tx: &mpsc::UnboundedSender<TgIncoming>,
 ) {
-    if let Some(agent_id) = data.strip_prefix("agent:") {
+    if let Some(payload) = data.strip_prefix("agent:") {
+        let (agent_id, agent_name) = match payload.split_once('|') {
+            Some((id, name)) => (id, name),
+            None => (payload, payload),
+        };
         if let Err(e) = incoming_tx.send(TgIncoming {
             kind: "switch_agent".into(),
             text: agent_id.to_string(),
@@ -147,6 +151,9 @@ async fn handle_callback(
             attachment_path: None,
         }) {
             eprintln!("[TG] send switch_agent: {e}");
+        }
+        if let Err(e) = tg_send_message(client, token, chat_id, &format!("Switched to: {agent_name}")).await {
+            eprintln!("[TG] confirm switch_agent: {e}");
         }
     } else if let Some(path) = data.strip_prefix("project:") {
         let name = path.rsplit('/').next().unwrap_or(path);
@@ -617,7 +624,7 @@ pub async fn telegram_send_menu(
             let name = agent["projectName"].as_str().unwrap_or("Agent");
             buttons.push(vec![serde_json::json!({
                 "text": format!("-> {name}"),
-                "callback_data": format!("agent:{id}"),
+                "callback_data": format!("agent:{id}|{name}"),
             })]);
         }
         tg_send_inline_keyboard(&client, &token, chat_id, "Switch agent:", buttons).await?;
@@ -644,7 +651,7 @@ pub async fn telegram_send_agents(agents: Vec<serde_json::Value>) -> Result<(), 
         let prefix = if active { ">> " } else { "" };
         buttons.push(vec![serde_json::json!({
             "text": format!("{prefix}{name}"),
-            "callback_data": format!("agent:{id}"),
+            "callback_data": format!("agent:{id}|{name}"),
         })]);
     }
     tg_send_inline_keyboard(&client, &token, chat_id, "Active agents:", buttons).await

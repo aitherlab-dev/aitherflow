@@ -10,7 +10,7 @@ Aither Flow — десктопная GUI-обёртка для Claude Code CLI. 
 - **Фронтенд:** React 19 + TypeScript + Vite + Tailwind CSS v4
 - **Тема:** тёплая палитра (dark: кофейные тона, light: aitherlab.org), CSS-переменные
 - **Данные:** JSON (чаты, настройки), SQLite+FTS5 (session memory)
-- **Платформы:** Linux (основная), macOS (вторичная)
+- **Платформы:** Linux (macOS планируется)
 
 ## Структура
 
