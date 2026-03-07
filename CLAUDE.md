@@ -16,7 +16,7 @@ Aither Flow — десктопная GUI-обёртка для Claude Code CLI. 
 
 - `src/components/` — React: `chat/`, `layout/`, `settings/`, `fileviewer/`, `dashboard/`
 - `src/stores/` — Zustand-сторы, `src/types/` — TypeScript-типы
-- `src-tauri/src/` — Tauri-команды + модули: `conductor/` (ядро), `memory/`, `web_server/`, `telegram/`
+- `src-tauri/src/` — Tauri-команды + модули: `conductor/` (ядро), `memory/`, `telegram/`, `voice/`
 - `src-tauri/crates/` — крейты: `memory-mcp`, `aither-flow-perms`
 
 ## Команды
