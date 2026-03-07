@@ -27,11 +27,9 @@ export const Header = memo(function Header() {
   const toggleTheme = useCallback(() => {
     const currentlyDark = document.documentElement.getAttribute("data-theme") !== "light";
     document.documentElement.classList.add("theme-transition");
-    if (currentlyDark) {
-      document.documentElement.setAttribute("data-theme", "light");
-    } else {
-      document.documentElement.setAttribute("data-theme", "dark");
-    }
+    const next = currentlyDark ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    localStorage.setItem("theme", next);
     setIsDark(!currentlyDark);
     setTimeout(() => {
       document.documentElement.classList.remove("theme-transition");

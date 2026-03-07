@@ -57,12 +57,12 @@
 [data-theme="light"] {
   --bg: #c4b49a;
   --bg-hard: #f0e8db;
-  --bg-soft: #ccc2b0;
+  --bg-soft: #ece4d5;
   --bg-card: #d6cdbf;
   --bg-hover: #ccc2b3;
 
   --fg: #2a2a2a;
-  font-weight: 500;
+  font-weight: 700;
   --fg-muted: #5a5248;
   --fg-dim: #8a7e72;
 
@@ -73,7 +73,7 @@
 
   --border: #c4b9a8;
   --input-bg: #e5ddd0;
-  --bubble-ai: #e2d9c8;
+  --bubble-ai: #ece4d5;
   --header-bg: #e2d9c8;
   --chat-list-bg: #e2d9c8;
 
@@ -96,3 +96,65 @@
 
   color-scheme: light;
 }
+
+[data-theme="light"] .chat-view,
+[data-theme="light"] .welcome-screen {
+  background: var(--bg-card);
+}
+
+[data-theme="light"] .app-sidebar {
+  box-shadow: 8px 0 32px rgba(0, 0, 0, 0.15);
+  z-index: 2;
+}
+
+[data-theme="light"] .app-header {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  z-index: 3;
+}
+
+[data-theme="light"] .sidebar-tab,
+[data-theme="light"] .sidebar-project,
+[data-theme="light"] .dash-card,
+[data-theme="light"] .devtools-btn,
+[data-theme="light"] .welcome-card,
+[data-theme="light"] .welcome-new-project,
+[data-theme="light"] .input-bar,
+[data-theme="light"] .chat-message {
+  box-shadow: -6px 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+
+[data-theme="light"] .input-bar-row {
+  background: var(--tab-bg);
+}
+
+[data-theme="light"] .input-bar,
+[data-theme="light"] .input-bar-row,
+[data-theme="light"] .input-bar-btn,
+[data-theme="light"] .input-bar-label-btn {
+  border-color: var(--accent);
+}
+
+[data-theme="light"] .input-bar-btn,
+[data-theme="light"] .input-bar-label-btn {
+  background: var(--tab-bg);
+}
+
+[data-theme="light"] .chat-message {
+  font-weight: 500;
+}
+
+[data-theme="light"] .file-viewer-panel {
+  background: var(--bg-soft);
+}
+
+[data-theme="light"] .fv-statusbar,
+[data-theme="light"] .app-layout {
+  background: var(--header-bg);
+}
+
+[data-theme="light"] .fv-statusbar {
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.15);
+}
+
+

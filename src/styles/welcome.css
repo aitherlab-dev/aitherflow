@@ -59,9 +59,9 @@
   width: 100%;
   max-width: 420px;
   padding: 10px 24px;
-  background: var(--bg-card);
-  border: 1px dashed var(--border);
-  border-radius: 8px;
+  background: var(--tab-bg);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
   color: var(--fg-muted);
   font-size: 0.85rem;
   cursor: pointer;
@@ -106,8 +106,8 @@
   justify-content: center;
   gap: 6px;
   padding: 20px 16px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  background: var(--tab-bg-hover);
+  border: 1px solid var(--accent);
   border-radius: 10px;
   cursor: pointer;
   transition: background 0.2s, border-color 0.2s, transform 0.2s, box-shadow 0.2s;
