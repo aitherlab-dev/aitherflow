@@ -7,37 +7,61 @@ import { useChatStore } from "../../../stores/chatStore";
 import { newChat, switchChat, deleteChat, renameChat, toggleChatPin } from "../../../stores/chatService";
 import { useAgentStore } from "../../../stores/agentStore";
 import { ResizeHandle } from "../ResizeHandle";
-import { FilesPanel } from "../FilesPanel";
+import { FilesPanel } from "../files-panel";
 import { DashboardPanel } from "../../dashboard/DashboardPanel";
 import { AgentTab } from "./AgentTab";
 
 export const Sidebar = memo(function Sidebar() {
   const isMobile = useIsMobile();
-  const open = useLayoutStore((s) => s.sidebarOpen);
-  const width = useLayoutStore((s) => s.sidebarWidth);
-  const toggleSidebar = useLayoutStore((s) => s.toggleSidebar);
-  const activeView = useLayoutStore((s) => s.activeView);
-  const openSettings = useLayoutStore((s) => s.openSettings);
-  const closeSettings = useLayoutStore((s) => s.closeSettings);
-  const openWelcome = useLayoutStore((s) => s.openWelcome);
-  const closeWelcome = useLayoutStore((s) => s.closeWelcome);
+  const {
+    sidebarOpen: open,
+    sidebarWidth: width,
+    toggleSidebar,
+    activeView,
+    openSettings,
+    closeSettings,
+    openWelcome,
+    closeWelcome,
+  } = useLayoutStore(useShallow((s) => ({
+    sidebarOpen: s.sidebarOpen,
+    sidebarWidth: s.sidebarWidth,
+    toggleSidebar: s.toggleSidebar,
+    activeView: s.activeView,
+    openSettings: s.openSettings,
+    closeSettings: s.closeSettings,
+    openWelcome: s.openWelcome,
+    closeWelcome: s.closeWelcome,
+  })));
 
   /** Close sidebar on mobile after navigation actions */
   const closeMobile = useCallback(() => {
     if (isMobile && open) toggleSidebar();
   }, [isMobile, open, toggleSidebar]);
 
-  const agents = useAgentStore((s) => s.agents);
-  const activeAgentId = useAgentStore((s) => s.activeAgentId);
-  const removeAgent = useAgentStore((s) => s.removeAgent);
-  const setActiveAgent = useAgentStore((s) => s.setActiveAgent);
-  const getLockedChatIds = useAgentStore((s) => s.getLockedChatIds);
-  const reorderAgent = useAgentStore((s) => s.reorderAgent);
+  const {
+    agents,
+    activeAgentId,
+    removeAgent,
+    setActiveAgent,
+    getLockedChatIds,
+    reorderAgent,
+  } = useAgentStore(useShallow((s) => ({
+    agents: s.agents,
+    activeAgentId: s.activeAgentId,
+    removeAgent: s.removeAgent,
+    setActiveAgent: s.setActiveAgent,
+    getLockedChatIds: s.getLockedChatIds,
+    reorderAgent: s.reorderAgent,
+  })));
 
-  const chatList = useChatStore((s) => s.chatList);
-  const currentChatId = useChatStore((s) => s.currentChatId);
-  const isThinking = useChatStore((s) => s.isThinking);
-  const thinkingAgentIds = useChatStore(useShallow((s) => s.thinkingAgentIds));
+  const { chatList, currentChatId, isThinking, thinkingAgentIds } = useChatStore(
+    useShallow((s) => ({
+      chatList: s.chatList,
+      currentChatId: s.currentChatId,
+      isThinking: s.isThinking,
+      thinkingAgentIds: s.thinkingAgentIds,
+    })),
+  );
 
   const [filesOpen, setFilesOpen] = useState(false);
   const [dashboardOpen, setDashboardOpen] = useState(true);

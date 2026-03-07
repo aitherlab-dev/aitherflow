@@ -169,15 +169,29 @@ pub async fn get_session_usage(
             return Ok(serde_json::json!(null));
         }
 
-        let content = std::fs::read_to_string(&jsonl_path)
-            .map_err(|e| format!("Failed to read JSONL: {e}"))?;
+        // Read only the tail of the file — last assistant+result events are near the end
+        let tail = {
+            use std::io::{Read, Seek, SeekFrom};
+            let mut file = std::fs::File::open(&jsonl_path)
+                .map_err(|e| format!("Failed to open JSONL: {e}"))?;
+            let len = file.metadata().map(|m| m.len()).unwrap_or(0);
+            const TAIL_SIZE: u64 = 32 * 1024;
+            if len > TAIL_SIZE {
+                file.seek(SeekFrom::End(-(TAIL_SIZE as i64)))
+                    .map_err(|e| format!("Seek failed: {e}"))?;
+            }
+            let mut buf = String::new();
+            file.read_to_string(&mut buf)
+                .map_err(|e| format!("Failed to read JSONL tail: {e}"))?;
+            buf
+        };
 
         let mut context_usage: Option<serde_json::Value> = None;
         let mut cost_usd: f64 = 0.0;
         let mut context_window: u64 = 0;
 
         // Iterate in reverse: find last assistant (context) and last result (cost/window)
-        for line in content.lines().rev() {
+        for line in tail.lines().rev() {
             // Stop early if we have everything
             if context_usage.is_some() && (cost_usd > 0.0 || context_window > 0) {
                 break;

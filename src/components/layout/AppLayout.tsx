@@ -3,7 +3,7 @@ import { useTelegramBridge } from "../../hooks/useTelegramBridge";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { useHotkeys } from "../../hooks/useHotkeys";
 import { Header } from "./Header";
-import { Sidebar } from "./Sidebar";
+import { Sidebar } from "./sidebar";
 import { ChatView } from "../chat/ChatView";
 import { SettingsView } from "../settings/SettingsView";
 import { WelcomeScreen } from "./WelcomeScreen";

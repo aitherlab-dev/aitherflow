@@ -113,6 +113,7 @@ pub fn run() {
             telegram::commands::telegram_send_status,
             telegram::commands::telegram_send_history,
             telegram::commands::telegram_stream_draft,
+            telegram::commands::telegram_reset_draft,
             hooks::load_hooks,
             hooks::save_hooks,
             hooks::test_hook_command,

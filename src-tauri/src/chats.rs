@@ -16,7 +16,8 @@ static META_CACHE: LazyLock<Mutex<HashMap<String, ChatFileMeta>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// Lightweight metadata (everything except messages).
-#[derive(Clone)]
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 struct ChatFileMeta {
     id: String,
     project_path: String,
@@ -65,6 +66,92 @@ fn cache_meta(chat: &ChatFile) {
 
 fn get_cached_meta(chat_id: &str) -> Option<ChatFileMeta> {
     META_CACHE.lock().ok()?.get(chat_id).cloned()
+}
+
+/// Path to the lightweight index file
+fn index_path() -> PathBuf {
+    chats_dir().join("index.json")
+}
+
+/// Read index from disk (returns empty vec on any error)
+fn read_index() -> Vec<ChatFileMeta> {
+    let path = index_path();
+    match fs::read_to_string(&path) {
+        Ok(data) => serde_json::from_str(&data).unwrap_or_default(),
+        Err(_) => Vec::new(),
+    }
+}
+
+/// Write index to disk
+fn write_index(entries: &[ChatFileMeta]) -> Result<(), String> {
+    let data = serde_json::to_string_pretty(entries)
+        .map_err(|e| format!("Failed to serialize index: {e}"))?;
+    atomic_write(&index_path(), data.as_bytes())
+}
+
+/// Rebuild index by scanning all chat files (fallback when index.json is missing)
+fn rebuild_index() -> Result<Vec<ChatFileMeta>, String> {
+    let dir = chats_dir();
+    if !dir.exists() {
+        return Ok(Vec::new());
+    }
+    let entries = fs::read_dir(&dir)
+        .map_err(|e| format!("Failed to read chats dir: {e}"))?;
+
+    let mut index = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("json") {
+            continue;
+        }
+        // Skip the index file itself
+        if path.file_stem().and_then(|s| s.to_str()) == Some("index") {
+            continue;
+        }
+        if let Ok(data) = fs::read_to_string(&path) {
+            if let Ok(chat) = serde_json::from_str::<ChatFileLight>(&data) {
+                index.push(ChatFileMeta {
+                    id: chat.id,
+                    project_path: chat.project_path,
+                    agent_id: chat.agent_id,
+                    title: chat.title,
+                    created_at: chat.created_at,
+                    session_id: chat.session_id,
+                    custom_title: chat.custom_title,
+                    pinned: chat.pinned,
+                });
+            }
+        }
+    }
+    write_index(&index)?;
+    Ok(index)
+}
+
+/// Get the index, rebuilding if the file doesn't exist yet
+fn get_or_rebuild_index() -> Result<Vec<ChatFileMeta>, String> {
+    if index_path().exists() {
+        Ok(read_index())
+    } else {
+        rebuild_index()
+    }
+}
+
+/// Update a single entry in the index (insert or replace by id)
+fn upsert_index_entry(meta: &ChatFileMeta) -> Result<(), String> {
+    let mut index = get_or_rebuild_index()?;
+    if let Some(pos) = index.iter().position(|e| e.id == meta.id) {
+        index[pos] = meta.clone();
+    } else {
+        index.push(meta.clone());
+    }
+    write_index(&index)
+}
+
+/// Remove an entry from the index by id
+fn remove_index_entry(chat_id: &str) -> Result<(), String> {
+    let mut index = get_or_rebuild_index()?;
+    index.retain(|e| e.id != chat_id);
+    write_index(&index)
 }
 
 fn chat_lock(chat_id: &str) -> Arc<Mutex<()>> {
@@ -151,6 +238,8 @@ pub struct ChatMeta {
 struct ChatFileLight {
     id: String,
     project_path: String,
+    #[serde(default)]
+    agent_id: Option<String>,
     title: String,
     created_at: u64,
     #[serde(default)]
@@ -183,35 +272,20 @@ fn read_chat_file(chat_id: &str) -> Option<ChatFile> {
 #[tauri::command]
 pub async fn list_chats(project_path: String) -> Result<Vec<ChatMeta>, String> {
     tokio::task::spawn_blocking(move || {
-        let dir = chats_dir();
-        if !dir.exists() {
-            return Ok(Vec::new());
-        }
+        let index = get_or_rebuild_index()?;
 
-        let entries = fs::read_dir(&dir)
-            .map_err(|e| format!("Failed to read chats dir: {e}"))?;
-
-        let mut chats: Vec<ChatMeta> = Vec::new();
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) != Some("json") {
-                continue;
-            }
-            if let Ok(data) = fs::read_to_string(&path) {
-                if let Ok(chat) = serde_json::from_str::<ChatFileLight>(&data) {
-                    if chat.project_path == project_path {
-                        chats.push(ChatMeta {
-                            id: chat.id,
-                            title: chat.title,
-                            created_at: chat.created_at,
-                            session_id: chat.session_id,
-                            custom_title: chat.custom_title,
-                            pinned: chat.pinned.unwrap_or(false),
-                        });
-                    }
-                }
-            }
-        }
+        let mut chats: Vec<ChatMeta> = index
+            .into_iter()
+            .filter(|e| e.project_path == project_path)
+            .map(|e| ChatMeta {
+                id: e.id,
+                title: e.title,
+                created_at: e.created_at,
+                session_id: e.session_id,
+                custom_title: e.custom_title,
+                pinned: e.pinned.unwrap_or(false),
+            })
+            .collect();
 
         // Pinned first, then newest first within each group
         chats.sort_by(|a, b| {
@@ -254,6 +328,9 @@ pub async fn create_chat(
         atomic_write(&chat_path(&id), data.as_bytes())?;
 
         cache_meta(&chat);
+        upsert_index_entry(&ChatFileMeta::from_chat(&chat))
+            .map_err(|e| eprintln!("[chats] Failed to update chat index: {e}"))
+            .ok();
         Ok(chat)
     })
     .await
@@ -313,7 +390,11 @@ pub async fn update_chat_session(chat_id: String, session_id: String) -> Result<
         let mut chat = read_chat_file(&chat_id)
             .ok_or_else(|| format!("Chat {chat_id} not found"))?;
         chat.session_id = Some(session_id);
+        let meta = ChatFileMeta::from_chat(&chat);
         cache_meta(&chat);
+        upsert_index_entry(&meta)
+            .map_err(|e| eprintln!("[chats] Failed to update chat index: {e}"))
+            .ok();
         let data = serde_json::to_string_pretty(&chat)
             .map_err(|e| format!("Failed to serialize chat: {e}"))?;
         atomic_write(&chat_path(&chat_id), data.as_bytes())
@@ -338,6 +419,9 @@ pub async fn delete_chat(chat_id: String) -> Result<(), String> {
         if let Ok(mut map) = META_CACHE.lock() {
             map.remove(&chat_id);
         }
+        remove_index_entry(&chat_id)
+            .map_err(|e| eprintln!("[chats] Failed to update chat index: {e}"))
+            .ok();
         Ok(())
     })
     .await
@@ -358,7 +442,11 @@ pub async fn rename_chat(chat_id: String, custom_title: String) -> Result<(), St
         } else {
             Some(trimmed.to_string())
         };
+        let meta = ChatFileMeta::from_chat(&chat);
         cache_meta(&chat);
+        upsert_index_entry(&meta)
+            .map_err(|e| eprintln!("[chats] Failed to update chat index: {e}"))
+            .ok();
         let data = serde_json::to_string_pretty(&chat)
             .map_err(|e| format!("Failed to serialize chat: {e}"))?;
         atomic_write(&chat_path(&chat_id), data.as_bytes())
@@ -376,7 +464,11 @@ pub async fn toggle_chat_pin(chat_id: String, pinned: bool) -> Result<(), String
         let mut chat = read_chat_file(&chat_id)
             .ok_or_else(|| format!("Chat {chat_id} not found"))?;
         chat.pinned = if pinned { Some(true) } else { None };
+        let meta = ChatFileMeta::from_chat(&chat);
         cache_meta(&chat);
+        upsert_index_entry(&meta)
+            .map_err(|e| eprintln!("[chats] Failed to update chat index: {e}"))
+            .ok();
         let data = serde_json::to_string_pretty(&chat)
             .map_err(|e| format!("Failed to serialize chat: {e}"))?;
         atomic_write(&chat_path(&chat_id), data.as_bytes())

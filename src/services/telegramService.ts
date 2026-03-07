@@ -132,6 +132,7 @@ export function finishStreaming(): void {
     }
   }
 
+  invoke("telegram_reset_draft").catch(console.error);
   lastDraftText = "";
 }
 

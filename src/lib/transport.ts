@@ -4,16 +4,23 @@
  * Every store and component imports from here instead of @tauri-apps/* directly.
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+import type { Window } from "@tauri-apps/api/window";
+
+type DialogOptions = {
+  directory?: boolean;
+  multiple?: boolean;
+  filters?: Array<{ name: string; extensions: string[] }>;
+  title?: string;
+};
 
 // ── Lazy imports for Tauri APIs ──────────────────────────────────────
 
-let _tauriInvoke: ((cmd: string, args?: Record<string, unknown>) => Promise<any>) | null = null;
-let _tauriListen: ((event: string, handler: (e: any) => void) => Promise<() => void>) | null = null;
+let _tauriInvoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null = null;
+let _tauriListen: ((event: string, handler: (e: { payload: unknown }) => void) => Promise<() => void>) | null = null;
 let _tauriConvertFileSrc: ((path: string) => string) | null = null;
-let _tauriOpenDialog: ((options: any) => Promise<any>) | null = null;
+let _tauriOpenDialog: ((options: DialogOptions) => Promise<string | string[] | null>) | null = null;
 let _tauriOpenUrl: ((url: string) => Promise<void>) | null = null;
-let _tauriGetCurrentWindow: (() => any) | null = null;
+let _tauriGetCurrentWindow: (() => Window) | null = null;
 
 const tauriReady: Promise<void> = (async () => {
   const [core, event, dialog, opener, win] = await Promise.all([
@@ -39,7 +46,7 @@ export async function invoke<T = unknown>(
   args?: Record<string, unknown>,
 ): Promise<T> {
   await tauriReady;
-  return _tauriInvoke!(cmd, args);
+  return _tauriInvoke!(cmd, args) as Promise<T>;
 }
 
 /** Subscribe to backend events via Tauri listen. */
@@ -48,7 +55,7 @@ export async function listen<T = unknown>(
   handler: (event: { payload: T }) => void,
 ): Promise<() => void> {
   await tauriReady;
-  return _tauriListen!(event, handler);
+  return _tauriListen!(event, handler as (e: { payload: unknown }) => void);
 }
 
 /** Convert a filesystem path to a URL the webview can load. */
@@ -60,12 +67,7 @@ export function convertFileSrc(path: string): string {
 }
 
 /** Open a native file/folder dialog. */
-export async function openDialog(options?: {
-  directory?: boolean;
-  multiple?: boolean;
-  filters?: Array<{ name: string; extensions: string[] }>;
-  title?: string;
-}): Promise<string | string[] | null> {
+export async function openDialog(options?: DialogOptions): Promise<string | string[] | null> {
   await tauriReady;
   return _tauriOpenDialog!(options ?? {});
 }
@@ -77,7 +79,7 @@ export async function openUrl(url: string): Promise<void> {
 }
 
 /** Get the current Tauri window handle. */
-export async function getCurrentWindow(): Promise<any | null> {
+export async function getCurrentWindow(): Promise<Window> {
   await tauriReady;
   return _tauriGetCurrentWindow!();
 }

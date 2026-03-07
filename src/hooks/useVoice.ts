@@ -23,10 +23,13 @@ export function useVoice(
   const finalizedRef = useRef(""); // Deepgram finalized text
   const interimRef = useRef(""); // Deepgram current interim
   const unlistenersRef = useRef<UnlistenFn[]>([]);
+  const busyRef = useRef(false); // guard against concurrent startStream
   const onInsertRef = useRef(onInsert);
   const onReplaceRef = useRef(onReplace);
+  const getPrefixRef = useRef(getPrefix);
   onInsertRef.current = onInsert;
   onReplaceRef.current = onReplace;
+  getPrefixRef.current = getPrefix;
 
   // Clean up event listeners on unmount
   useEffect(() => {
@@ -78,13 +81,15 @@ export function useVoice(
   }, []);
 
   const startStream = useCallback(async (provider: string) => {
+    if (busyRef.current) return;
+    busyRef.current = true;
     try {
       // Clean up any existing listeners first (prevents leak on double call)
       cleanupStreamListeners();
 
       const settings = await invoke<AppSettings>("load_settings");
       accumulatedRef.current = "";
-      prefixRef.current = getPrefix?.() ?? "";
+      prefixRef.current = getPrefixRef.current?.() ?? "";
       providerRef.current = provider;
 
       // Set up event listeners before starting stream
@@ -150,6 +155,8 @@ export function useVoice(
       console.error("Failed to start voice stream:", e);
       cleanupStreamListeners();
       setVoiceState("idle");
+    } finally {
+      busyRef.current = false;
     }
   }, [cleanupStreamListeners]);
 

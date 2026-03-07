@@ -23,19 +23,18 @@ pub fn parse_line(
         .unwrap_or("");
 
     let mut events = Vec::new();
-    let aid = agent_id.to_string();
 
     match event_type {
         "system" => {
             if let Some(sid) = parsed.get("session_id").and_then(|v| v.as_str()) {
                 events.push(CliEvent::SessionId {
-                    agent_id: aid.clone(),
+                    agent_id: agent_id.to_string(),
                     session_id: sid.to_string(),
                 });
             }
             if let Some(m) = parsed.get("model").and_then(|v| v.as_str()) {
                 events.push(CliEvent::ModelInfo {
-                    agent_id: aid.clone(),
+                    agent_id: agent_id.to_string(),
                     model: m.to_string(),
                 });
             }
@@ -46,7 +45,7 @@ pub fn parse_line(
                     .collect();
                 if !commands.is_empty() {
                     events.push(CliEvent::SlashCommands {
-                        agent_id: aid,
+                        agent_id: agent_id.to_string(),
                         commands,
                     });
                 }
@@ -71,7 +70,7 @@ pub fn parse_line(
                 delta_text.push_str(chunk);
                 combine_text_into(combined_buf, completed_text, delta_text);
                 events.push(CliEvent::StreamChunk {
-                    agent_id: aid,
+                    agent_id: agent_id.to_string(),
                     text: combined_buf.clone(),
                 });
             }
@@ -102,7 +101,7 @@ pub fn parse_line(
             if !had_deltas && !text.is_empty() {
                 combine_text_into(combined_buf, completed_text, "");
                 events.push(CliEvent::StreamChunk {
-                    agent_id: aid.clone(),
+                    agent_id: agent_id.to_string(),
                     text: combined_buf.clone(),
                 });
             }
@@ -128,7 +127,7 @@ pub fn parse_line(
                 let context_used = input + cache_creation + cache_read;
                 if context_used > 0 {
                     events.push(CliEvent::ContextInfo {
-                        agent_id: aid.clone(),
+                        agent_id: agent_id.to_string(),
                         context_used,
                         output_tokens: output,
                     });
@@ -144,7 +143,7 @@ pub fn parse_line(
                 for item in arr {
                     if item.get("type").and_then(|t| t.as_str()) == Some("tool_use") {
                         events.push(CliEvent::ToolUse {
-                            agent_id: aid.clone(),
+                            agent_id: agent_id.to_string(),
                             tool_use_id: item
                                 .get("id")
                                 .and_then(|v| v.as_str())
@@ -182,7 +181,7 @@ pub fn parse_line(
                         let content_text = extract_tool_result_text(item);
                         let preview: String = content_text.chars().take(500).collect();
                         events.push(CliEvent::ToolResult {
-                            agent_id: aid.clone(),
+                            agent_id: agent_id.to_string(),
                             tool_use_id: item
                                 .get("tool_use_id")
                                 .and_then(|v| v.as_str())
@@ -220,7 +219,7 @@ pub fn parse_line(
 
             if is_error {
                 events.push(CliEvent::Error {
-                    agent_id: aid.clone(),
+                    agent_id: agent_id.to_string(),
                     message: parsed
                         .get("result")
                         .and_then(|r| r.as_str())
@@ -229,7 +228,7 @@ pub fn parse_line(
                 });
             } else if !final_text.is_empty() {
                 events.push(CliEvent::MessageComplete {
-                    agent_id: aid.clone(),
+                    agent_id: agent_id.to_string(),
                     text: final_text,
                 });
             }
@@ -268,7 +267,7 @@ pub fn parse_line(
 
             if input_tokens > 0 || output_tokens > 0 {
                 events.push(CliEvent::UsageInfo {
-                    agent_id: aid.clone(),
+                    agent_id: agent_id.to_string(),
                     input_tokens,
                     output_tokens,
                     cache_creation_input_tokens,
@@ -283,7 +282,7 @@ pub fn parse_line(
             delta_text.clear();
 
             // Turn complete
-            events.push(CliEvent::TurnComplete { agent_id: aid });
+            events.push(CliEvent::TurnComplete { agent_id: agent_id.to_string() });
         }
 
         "control_request" => {
@@ -315,7 +314,7 @@ pub fn parse_line(
 
             if !request_id.is_empty() {
                 events.push(CliEvent::ControlRequest {
-                    agent_id: aid,
+                    agent_id: agent_id.to_string(),
                     request_id,
                     tool_name,
                     tool_use_id,

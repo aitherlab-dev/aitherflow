@@ -1,10 +1,10 @@
-import { useCallback, useRef, useState } from "react";
+import { memo, useCallback, useRef, useState } from "react";
 import { MessageList } from "./MessageList";
 import { InputBar } from "./InputBar";
 import { useChatStore } from "../../stores/chatStore";
 import { useAttachmentStore } from "../../stores/attachmentStore";
 
-export function ChatView() {
+export const ChatView = memo(function ChatView() {
   const error = useChatStore((s) => s.error);
   const isEmpty = useChatStore((s) => s.messages.length === 0);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -65,4 +65,4 @@ export function ChatView() {
       </div>
     </div>
   );
-}
+});

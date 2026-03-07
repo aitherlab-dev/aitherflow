@@ -58,22 +58,22 @@ pub struct PluginsData {
 // ── JSON structures on disk (CLI-managed files) ──
 
 #[derive(Deserialize, Debug)]
-struct InstalledPluginsFile {
+pub(crate) struct InstalledPluginsFile {
     #[serde(default)]
-    plugins: HashMap<String, Vec<InstalledEntry>>,
+    pub plugins: HashMap<String, Vec<InstalledEntry>>,
 }
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-struct InstalledEntry {
+pub(crate) struct InstalledEntry {
     #[serde(default)]
-    scope: String,
+    pub scope: String,
     #[serde(default)]
-    install_path: String,
+    pub install_path: String,
     #[serde(default)]
-    version: String,
+    pub version: String,
     #[serde(default)]
-    installed_at: String,
+    pub installed_at: String,
 }
 
 #[derive(Deserialize, Debug)]

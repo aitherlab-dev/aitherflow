@@ -262,11 +262,17 @@ pub fn index_project(conn: &Connection, project_path: &str) -> Result<usize, Str
             let count = db::insert_messages(conn, &messages)?;
             total_messages += count;
         } else {
-            // Resumed session — only insert new messages (skip already indexed)
+            // Resumed session — check for new or rewritten messages
             let existing_count = db::message_count_for_session(conn, &session_id);
             if messages.len() > existing_count {
+                // Appended messages — index only the new ones
                 let new_messages = &messages[existing_count..];
                 let count = db::insert_messages(conn, new_messages)?;
+                total_messages += count;
+            } else if messages.len() < existing_count {
+                // File was rewritten (shorter than indexed) — re-index from scratch
+                db::delete_messages_for_session(conn, &session_id)?;
+                let count = db::insert_messages(conn, &messages)?;
                 total_messages += count;
             }
         }

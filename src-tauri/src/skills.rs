@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use crate::config;
 use crate::file_ops::atomic_write;
+use crate::plugins::InstalledPluginsFile;
 
 // ── Types ──
 
@@ -52,20 +53,6 @@ pub struct SkillsData {
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct SkillFavorites {
     pub ids: Vec<String>,
-}
-
-// ── Installed plugins manifest (read-only, CLI manages this) ──
-
-#[derive(Deserialize, Debug)]
-struct InstalledPluginsFile {
-    #[serde(default)]
-    plugins: std::collections::HashMap<String, Vec<InstalledPluginEntry>>,
-}
-
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-struct InstalledPluginEntry {
-    install_path: String,
 }
 
 // ── YAML frontmatter parsing ──

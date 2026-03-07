@@ -126,6 +126,17 @@ pub fn insert_messages(
     Ok(count)
 }
 
+/// Delete all messages for a session (used when JSONL was rewritten, not appended).
+/// The `messages_ad` trigger automatically updates the FTS index.
+pub fn delete_messages_for_session(conn: &Connection, session_id: &str) -> Result<(), String> {
+    conn.execute(
+        "DELETE FROM messages WHERE session_id = ?1",
+        params![session_id],
+    )
+    .map_err(|e| format!("Failed to delete messages for session {session_id}: {e}"))?;
+    Ok(())
+}
+
 /// Sanitize a user query for FTS5 MATCH: quote each token to avoid
 /// operator injection (OR, AND, NEAR, *, etc.).
 fn sanitize_fts_query(query: &str) -> String {

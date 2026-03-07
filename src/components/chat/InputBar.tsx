@@ -116,14 +116,15 @@ export const InputBar = memo(function InputBar() {
     let cleanup: (() => void) | undefined;
 
     getCurrentWindow().then((win) => {
-      if (cancelled || !win) return;
-      const unlisten = win.onDragDropEvent(async (event: { payload: { type: string; paths: string[] } }) => {
-        if (event.payload.type === "drop") {
+      if (cancelled) return;
+      const unlisten = win.onDragDropEvent(async (event) => {
+        const p = event.payload;
+        if (p.type === "drop") {
           setIsDragOver(false);
-          processFromPaths(event.payload.paths).catch(console.error);
-        } else if (event.payload.type === "over") {
+          processFromPaths(p.paths).catch(console.error);
+        } else if (p.type === "over") {
           setIsDragOver(true);
-        } else if (event.payload.type === "leave") {
+        } else if (p.type === "leave") {
           setIsDragOver(false);
         }
       });

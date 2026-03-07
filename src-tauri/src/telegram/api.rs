@@ -104,19 +104,30 @@ pub(crate) async fn tg_send_message_draft(
     client: &reqwest::Client,
     token: &str,
     chat_id: i64,
+    draft_id: i64,
     text: &str,
 ) -> Result<(), String> {
     let url = format!("{TG_API}{token}/sendMessageDraft");
     let body = serde_json::json!({
         "chat_id": chat_id,
+        "draft_id": draft_id,
         "text": text,
     });
-    let resp = client.post(&url).json(&body).send().await;
-    if let Err(e) = resp {
-        eprintln!(
-            "[TG] sendMessageDraft error: {}",
-            sanitize_error(&e.to_string(), token)
-        );
+    match client.post(&url).json(&body).send().await {
+        Ok(r) => {
+            if !r.status().is_success() {
+                let status = r.status();
+                let body_text = r.text().await.unwrap_or_default();
+                let err = format!("sendMessageDraft HTTP {status}: {}", sanitize_error(&body_text, token));
+                eprintln!("[TG] {err}");
+                return Err(err);
+            }
+        }
+        Err(e) => {
+            let err = format!("sendMessageDraft: {}", sanitize_error(&e.to_string(), token));
+            eprintln!("[TG] {err}");
+            return Err(err);
+        }
     }
     Ok(())
 }

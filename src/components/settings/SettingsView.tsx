@@ -23,7 +23,7 @@ import { MemorySection } from "./MemorySection";
 import { VoiceSection } from "./VoiceSection";
 import { TelegramSection } from "./TelegramSection";
 import { HooksSection } from "./hooks";
-import { McpSection } from "./McpSection";
+import { McpSection } from "./mcp-section";
 import { CliStatsSection } from "./CliStatsSection";
 import { HotkeysSection } from "./HotkeysSection";
 

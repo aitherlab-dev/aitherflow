@@ -440,6 +440,7 @@ pub async fn start_telegram_bot() -> Result<TelegramStatus, String> {
             incoming_tx: None,
             incoming_rx: None,
             http_client: None,
+            draft_id: 0,
         });
 
         if state.task_handle.is_some() {
@@ -496,6 +497,7 @@ pub async fn start_telegram_bot() -> Result<TelegramStatus, String> {
             incoming_tx: None,
             incoming_rx: None,
             http_client: None,
+            draft_id: 0,
         });
         state.status = status.clone();
         state.task_handle = Some(task);
@@ -737,5 +739,32 @@ pub async fn telegram_send_history(messages: Vec<serde_json::Value>) -> Result<(
 #[tauri::command]
 pub async fn telegram_stream_draft(text: String) -> Result<(), String> {
     let (token, chat_id, client) = get_bot_connection()?;
-    tg_send_message_draft(&client, &token, chat_id, &text).await
+    let draft_id = with_state(|s| {
+        if let Some(state) = s.as_mut() {
+            if state.draft_id == 0 {
+                use std::time::{SystemTime, UNIX_EPOCH};
+                state.draft_id = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_millis() as i64;
+            }
+            state.draft_id
+        } else {
+            0
+        }
+    });
+    if draft_id == 0 {
+        return Err("Bot not running".into());
+    }
+    tg_send_message_draft(&client, &token, chat_id, draft_id, &text).await
+}
+
+/// Reset draft_id (call after streaming finishes)
+#[tauri::command]
+pub fn telegram_reset_draft() {
+    with_state(|s| {
+        if let Some(state) = s.as_mut() {
+            state.draft_id = 0;
+        }
+    });
 }
