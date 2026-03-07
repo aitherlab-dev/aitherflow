@@ -1,5 +1,6 @@
 import { memo } from "react";
 import { Cable } from "lucide-react";
+import { useShallow } from "zustand/react/shallow";
 import { useMcpStore } from "../../../stores/mcpStore";
 import { DashboardCard } from "../DashboardCard";
 
@@ -10,9 +11,9 @@ export const McpCard = memo(function McpCard({
   expanded: boolean;
   onToggle: (id: string) => void;
 }) {
-  const globalCount = useMcpStore((s) => s.global.length);
-  const projectCount = useMcpStore((s) => s.project.length);
-  const total = globalCount + projectCount;
+  const globalServers = useMcpStore(useShallow((s) => s.global.map((m) => m.name)));
+  const projectServers = useMcpStore(useShallow((s) => s.project.map((m) => m.name)));
+  const total = globalServers.length + projectServers.length;
 
   return (
     <DashboardCard
@@ -25,14 +26,37 @@ export const McpCard = memo(function McpCard({
       onToggle={onToggle}
     >
       <div className="dash-card__details">
-        <div className="dash-card__row">
-          <span className="dash-card__label">Global</span>
-          <span>{globalCount}</span>
-        </div>
-        <div className="dash-card__row">
-          <span className="dash-card__label">Project</span>
-          <span>{projectCount}</span>
-        </div>
+        {globalServers.length > 0 && (
+          <>
+            <div className="dash-card__row">
+              <span className="dash-card__label">Global</span>
+              <span>{globalServers.length}</span>
+            </div>
+            {globalServers.map((name) => (
+              <div key={name} className="dash-card__row dash-card__row--sub">
+                <span className="dash-card__label">{name}</span>
+              </div>
+            ))}
+          </>
+        )}
+        {projectServers.length > 0 && (
+          <>
+            <div className="dash-card__row">
+              <span className="dash-card__label">Project</span>
+              <span>{projectServers.length}</span>
+            </div>
+            {projectServers.map((name) => (
+              <div key={name} className="dash-card__row dash-card__row--sub">
+                <span className="dash-card__label">{name}</span>
+              </div>
+            ))}
+          </>
+        )}
+        {total === 0 && (
+          <div className="dash-card__row">
+            <span className="dash-card__label">No servers configured</span>
+          </div>
+        )}
       </div>
     </DashboardCard>
   );

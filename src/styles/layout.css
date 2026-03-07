@@ -1400,6 +1400,11 @@
   color: #f87171;
 }
 
+.dash-card__row--sub {
+  padding-left: 10px;
+  font-size: 0.8rem;
+}
+
 .dash-card__label {
   color: var(--fg-muted);
 }

@@ -112,7 +112,7 @@
 }
 
 .chat-message-user {
-  max-width: 65%;
+  width: 75%;
   background: var(--bg-hard);
   border: 1px solid var(--border);
   color: var(--fg);
@@ -137,7 +137,6 @@
 .chat-show-more {
   display: block;
   margin-top: 4px;
-  margin-left: auto;
   padding: 0;
   background: none;
   border: none;
@@ -557,14 +556,14 @@
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 6px 8px;
-  padding: 6px 8px 8px;
+  gap: 10px 12px;
+  padding: 10px 12px 12px;
 }
 
 .input-bar-cell--btns {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
 }
 
 .input-bar-cell--end {

@@ -102,15 +102,15 @@ export const UserMessage = memo(function UserMessage({ message }: UserMessagePro
           >
             {displayText}
           </div>
+          {isLong && (
+            <button
+              className="chat-show-more"
+              onClick={() => setExpanded((v) => !v)}
+            >
+              {expanded ? "Show less" : "Show more"}
+            </button>
+          )}
         </div>
-      )}
-      {isLong && (
-        <button
-          className="chat-show-more"
-          onClick={() => setExpanded((v) => !v)}
-        >
-          {expanded ? "Show less" : "Show more"}
-        </button>
       )}
     </div>
   );
