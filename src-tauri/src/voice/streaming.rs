@@ -17,11 +17,25 @@ pub struct AnthropicAuthStatus {
 
 /// Read OAuth credentials from CLI's credentials file.
 fn read_oauth_token() -> Result<(String, u64), String> {
+    use std::os::unix::fs::MetadataExt;
+
     let home = dirs::home_dir().ok_or("Cannot determine home directory")?;
     let cred_path = home.join(".claude").join(".credentials.json");
 
-    let data = std::fs::read_to_string(&cred_path)
+    // Check file permissions before reading sensitive data
+    let meta = std::fs::metadata(&cred_path)
         .map_err(|_| "Not logged in to Claude CLI (no credentials file)")?;
+    let mode = meta.mode();
+    if mode & 0o077 != 0 {
+        log::warn!(
+            "Credentials file {:?} has loose permissions ({:o}), expected 600",
+            cred_path,
+            mode & 0o777
+        );
+    }
+
+    let data = std::fs::read_to_string(&cred_path)
+        .map_err(|_| "Failed to read credentials file")?;
 
     let parsed: serde_json::Value =
         serde_json::from_str(&data).map_err(|e| format!("Failed to parse credentials: {e}"))?;

@@ -134,8 +134,8 @@ pub(crate) struct BotState {
     pub incoming_tx: Option<mpsc::UnboundedSender<TgIncoming>>,
     pub incoming_rx: Option<mpsc::UnboundedReceiver<TgIncoming>>,
     pub http_client: Option<reqwest::Client>,
-    /// Current draft_id for streaming; 0 = no active draft
-    pub draft_id: i64,
+    /// Message ID for edit-based streaming; 0 = no active stream
+    pub stream_message_id: i64,
 }
 
 static BOT_STATE: Mutex<Option<BotState>> = Mutex::new(None);

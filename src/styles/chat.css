@@ -150,25 +150,71 @@
   text-decoration: underline;
 }
 
-/* ── Thinking blocks (intermediate assistant thoughts) ── */
+/* ── Thinking toggle (collapsible intermediate thoughts) ── */
 
-.thinking-blocks {
-  margin-bottom: 6px;
-  padding-bottom: 6px;
+.thinking-toggle {
+  margin: -0.75rem -1rem 0.75rem;
   border-bottom: 1px solid var(--border);
+}
+
+.thinking-toggle-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 1rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--fg-muted);
+  font-size: 0.8rem;
+  transition: background 0.15s, color 0.15s;
+}
+
+.thinking-toggle-bar:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.thinking-toggle-icon {
+  flex-shrink: 0;
+  color: var(--accent-icon);
+}
+
+.thinking-toggle-label {
+  flex: 1;
+  text-align: left;
+  user-select: none;
+}
+
+.thinking-toggle-chevron {
+  flex-shrink: 0;
+  transition: transform 0.2s;
+  color: var(--fg-dim);
+}
+
+.thinking-toggle-chevron--open {
+  transform: rotate(90deg);
+}
+
+.thinking-toggle-content {
+  padding: 10px 1rem 12px;
+  max-height: 400px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
 }
 
 .thinking-block {
   font-size: 0.82rem;
-  line-height: 1.4;
-  color: var(--fg-dim);
-  opacity: 0.65;
+  line-height: 1.5;
+  color: var(--fg-muted);
 }
 
 .thinking-block + .thinking-block {
-  margin-top: 4px;
-  padding-top: 4px;
-  border-top: 1px dashed color-mix(in srgb, var(--border) 50%, transparent);
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed color-mix(in srgb, var(--border) 40%, transparent);
 }
 
 /* ── Streaming cursor ── */

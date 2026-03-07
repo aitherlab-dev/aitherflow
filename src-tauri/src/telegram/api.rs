@@ -99,35 +99,61 @@ pub(crate) async fn tg_send_message(
     Ok(())
 }
 
-/// Send a draft message for native streaming (Bot API 9.3+)
-pub(crate) async fn tg_send_message_draft(
+/// Send a message and return its message_id (for streaming via edit)
+pub(crate) async fn tg_send_message_returning_id(
     client: &reqwest::Client,
     token: &str,
     chat_id: i64,
-    draft_id: i64,
     text: &str,
-) -> Result<(), String> {
-    let url = format!("{TG_API}{token}/sendMessageDraft");
+) -> Result<i64, String> {
+    let url = format!("{TG_API}{token}/sendMessage");
     let body = serde_json::json!({
         "chat_id": chat_id,
-        "draft_id": draft_id,
         "text": text,
+        "disable_web_page_preview": true,
+    });
+    let resp = client
+        .post(&url)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| sanitize_error(&format!("sendMessage: {e}"), token))?;
+    let json: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| sanitize_error(&format!("sendMessage parse: {e}"), token))?;
+    json["result"]["message_id"]
+        .as_i64()
+        .ok_or_else(|| "sendMessage: no message_id in response".into())
+}
+
+/// Edit an existing message text (for streaming updates)
+pub(crate) async fn tg_edit_message_text(
+    client: &reqwest::Client,
+    token: &str,
+    chat_id: i64,
+    message_id: i64,
+    text: &str,
+) -> Result<(), String> {
+    let url = format!("{TG_API}{token}/editMessageText");
+    let body = serde_json::json!({
+        "chat_id": chat_id,
+        "message_id": message_id,
+        "text": text,
+        "disable_web_page_preview": true,
     });
     match client.post(&url).json(&body).send().await {
-        Ok(r) => {
-            if !r.status().is_success() {
-                let status = r.status();
-                let body_text = r.text().await.unwrap_or_default();
-                let err = format!("sendMessageDraft HTTP {status}: {}", sanitize_error(&body_text, token));
-                eprintln!("[TG] {err}");
-                return Err(err);
+        Ok(r) if !r.status().is_success() => {
+            // Ignore "message is not modified" errors (same text)
+            let body_text = r.text().await.unwrap_or_default();
+            if !body_text.contains("message is not modified") {
+                eprintln!("[TG] editMessageText error: {}", sanitize_error(&body_text, token));
             }
         }
         Err(e) => {
-            let err = format!("sendMessageDraft: {}", sanitize_error(&e.to_string(), token));
-            eprintln!("[TG] {err}");
-            return Err(err);
+            eprintln!("[TG] editMessageText: {}", sanitize_error(&e.to_string(), token));
         }
+        _ => {}
     }
     Ok(())
 }

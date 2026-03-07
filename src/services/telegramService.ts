@@ -37,7 +37,7 @@ const TURN_SEPARATOR = "\n<!-- turn -->\n";
 /** True when the last user message came from Telegram (not from the app) */
 let lastFromTelegram = false;
 
-let lastDraftText = "";
+let lastStreamText = "";
 let streamTimer: ReturnType<typeof setInterval> | null = null;
 /** ID of the last assistant message sent to Telegram (to avoid duplicates) */
 let lastSentMessageId: string | null = null;
@@ -79,26 +79,24 @@ export async function pollAndHandle(): Promise<void> {
 export function startStreaming(): void {
   if (!lastFromTelegram) return;
 
-  lastDraftText = "";
+  lastStreamText = "";
 
   if (streamTimer) clearInterval(streamTimer);
   streamTimer = setInterval(() => {
     const s = useChatStore.getState();
     if (!s.isThinking) return;
 
-    for (let i = s.messages.length - 1; i >= 0; i--) {
-      const m = s.messages[i];
-      if (m.role === "assistant" && m.text) {
-        const clean = stripThinking(m.text);
-        if (clean && clean !== lastDraftText) {
-          lastDraftText = clean;
-          const truncated =
-            clean.length > 4000 ? clean.slice(-4000) : clean;
-          invoke("telegram_stream_draft", { text: truncated }).catch(
-            console.error,
-          );
-        }
-        break;
+    // During streaming, the current response is in streamingMessage, not in messages
+    const text = s.streamingMessage?.role === "assistant" ? s.streamingMessage.text : null;
+    if (text) {
+      const clean = stripThinking(text);
+      if (clean && clean !== lastStreamText) {
+        lastStreamText = clean;
+        const truncated =
+          clean.length > 4000 ? clean.slice(-4000) : clean;
+        invoke("telegram_stream_edit", { text: truncated }).catch(
+          console.error,
+        );
       }
     }
   }, STREAM_THROTTLE_MS);
@@ -111,7 +109,7 @@ export function finishStreaming(): void {
   }
 
   if (!lastFromTelegram) {
-    lastDraftText = "";
+    lastStreamText = "";
     return;
   }
   lastFromTelegram = false;
@@ -126,14 +124,17 @@ export function finishStreaming(): void {
 
       const clean = stripThinking(m.text);
       if (clean) {
-        invoke("send_to_telegram", { text: clean }).catch(console.error);
+        invoke("telegram_stream_edit", { text: clean.length > 4000 ? clean.slice(-4000) : clean })
+          .then(() => invoke("telegram_stream_reset"))
+          .catch(console.error);
+      } else {
+        invoke("telegram_stream_reset").catch(console.error);
       }
       break;
     }
   }
 
-  invoke("telegram_reset_draft").catch(console.error);
-  lastDraftText = "";
+  lastStreamText = "";
 }
 
 export function cleanupStreaming(): void {

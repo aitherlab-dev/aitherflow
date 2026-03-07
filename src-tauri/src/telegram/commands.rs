@@ -440,7 +440,7 @@ pub async fn start_telegram_bot() -> Result<TelegramStatus, String> {
             incoming_tx: None,
             incoming_rx: None,
             http_client: None,
-            draft_id: 0,
+            stream_message_id: 0,
         });
 
         if state.task_handle.is_some() {
@@ -497,7 +497,7 @@ pub async fn start_telegram_bot() -> Result<TelegramStatus, String> {
             incoming_tx: None,
             incoming_rx: None,
             http_client: None,
-            draft_id: 0,
+            stream_message_id: 0,
         });
         state.status = status.clone();
         state.task_handle = Some(task);
@@ -735,36 +735,36 @@ pub async fn telegram_send_history(messages: Vec<serde_json::Value>) -> Result<(
     tg_send_message(&client, &token, chat_id, out.trim()).await
 }
 
-/// Stream a draft message (Bot API 9.3+ sendMessageDraft)
+/// Stream via sendMessage + editMessageText.
+/// First call sends a new message; subsequent calls edit it.
 #[tauri::command]
-pub async fn telegram_stream_draft(text: String) -> Result<(), String> {
+pub async fn telegram_stream_edit(text: String) -> Result<(), String> {
+    use super::api::{tg_send_message_returning_id, tg_edit_message_text};
     let (token, chat_id, client) = get_bot_connection()?;
-    let draft_id = with_state(|s| {
-        if let Some(state) = s.as_mut() {
-            if state.draft_id == 0 {
-                use std::time::{SystemTime, UNIX_EPOCH};
-                state.draft_id = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_millis() as i64;
-            }
-            state.draft_id
-        } else {
-            0
-        }
+
+    let msg_id = with_state(|s| {
+        s.as_ref().map(|st| st.stream_message_id).unwrap_or(0)
     });
-    if draft_id == 0 {
-        return Err("Bot not running".into());
+
+    if msg_id == 0 {
+        let new_id = tg_send_message_returning_id(&client, &token, chat_id, &text).await?;
+        with_state(|s| {
+            if let Some(state) = s.as_mut() {
+                state.stream_message_id = new_id;
+            }
+        });
+    } else {
+        tg_edit_message_text(&client, &token, chat_id, msg_id, &text).await?;
     }
-    tg_send_message_draft(&client, &token, chat_id, draft_id, &text).await
+    Ok(())
 }
 
-/// Reset draft_id (call after streaming finishes)
+/// Reset stream message_id (call after streaming finishes)
 #[tauri::command]
-pub fn telegram_reset_draft() {
+pub fn telegram_stream_reset() {
     with_state(|s| {
         if let Some(state) = s.as_mut() {
-            state.draft_id = 0;
+            state.stream_message_id = 0;
         }
     });
 }

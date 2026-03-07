@@ -1,4 +1,5 @@
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState } from "react";
+import { ChevronRight, Sparkles } from "lucide-react";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { InlineMarkdown } from "./InlineMarkdown";
 import { InteractiveCard } from "./InteractiveCard";
@@ -15,6 +16,7 @@ interface AssistantMessageProps {
 export const AssistantMessage = memo(function AssistantMessage({
   message,
 }: AssistantMessageProps) {
+  const [thinkingOpen, setThinkingOpen] = useState(false);
   const interactiveTools = message.tools?.filter((t) =>
     isInteractiveTool(t.toolName),
   );
@@ -34,10 +36,18 @@ export const AssistantMessage = memo(function AssistantMessage({
     };
   }, [message.text, message.isStreaming, displayText]);
 
-  // While streaming — show only the latest block (previous ones are overwritten)
+  // While streaming — show current block, with collapsible thinking above
   if (message.isStreaming) {
     return (
       <div className="chat-message chat-message-assistant">
+        {thinking.length > 0 && (
+          <ThinkingToggle
+            thinking={thinking}
+            open={thinkingOpen}
+            onToggle={() => setThinkingOpen((v) => !v)}
+            isStreaming
+          />
+        )}
         <div className="chat-message-content">
           <InlineMarkdown content={thinking.length > 0 ? finalText : displayText} />
           <span className="streaming-cursor" />
@@ -46,9 +56,16 @@ export const AssistantMessage = memo(function AssistantMessage({
     );
   }
 
-  // Finished — show only the final text, intermediate thinking is discarded
+  // Finished — show collapsible thinking + final text
   return (
     <div className="chat-message chat-message-assistant">
+      {thinking.length > 0 && (
+        <ThinkingToggle
+          thinking={thinking}
+          open={thinkingOpen}
+          onToggle={() => setThinkingOpen((v) => !v)}
+        />
+      )}
       {finalText && (
         <div className="chat-message-content">
           <MarkdownRenderer content={finalText} />
@@ -58,6 +75,46 @@ export const AssistantMessage = memo(function AssistantMessage({
         interactiveTools.map((tool) => (
           <InteractiveCard key={tool.toolUseId} tool={tool} />
         ))}
+    </div>
+  );
+});
+
+/* ── Collapsible thinking block ── */
+
+interface ThinkingToggleProps {
+  thinking: string[];
+  open: boolean;
+  onToggle: () => void;
+  isStreaming?: boolean;
+}
+
+const ThinkingToggle = memo(function ThinkingToggle({
+  thinking,
+  open,
+  onToggle,
+  isStreaming,
+}: ThinkingToggleProps) {
+  return (
+    <div className="thinking-toggle">
+      <button className="thinking-toggle-bar" onClick={onToggle}>
+        <Sparkles size={14} className="thinking-toggle-icon" />
+        <span className="thinking-toggle-label">
+          {isStreaming ? "Thinking…" : "Thought process"}
+        </span>
+        <ChevronRight
+          size={14}
+          className={`thinking-toggle-chevron${open ? " thinking-toggle-chevron--open" : ""}`}
+        />
+      </button>
+      {open && (
+        <div className="thinking-toggle-content">
+          {thinking.map((block, i) => (
+            <div key={i} className="thinking-block">
+              <InlineMarkdown content={block} />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 });

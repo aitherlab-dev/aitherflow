@@ -258,10 +258,10 @@ pub fn copy_dir_recursive(src: &Path, dest: &Path) -> Result<(), String> {
 pub async fn file_snapshot(path: String) -> Result<Option<String>, String> {
     tokio::task::spawn_blocking(move || {
         let p = Path::new(&path);
+        validate_path_safe(p)?;
         if !p.exists() {
             return Ok(None);
         }
-        validate_path_safe(p)?;
 
         let meta = fs::metadata(p).map_err(|e| format!("Cannot read file: {e}"))?;
         if meta.len() > MAX_FILE_SIZE {
