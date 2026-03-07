@@ -104,22 +104,4 @@ impl SessionManager {
             session.status = status;
         }
     }
-
-    /// Kill ALL sessions (for graceful shutdown on app exit).
-    #[allow(dead_code)]
-    pub async fn kill_all(&self) {
-        let mut map = self.sessions.lock().await;
-        let ids: Vec<String> = map.keys().cloned().collect();
-        for id in ids {
-            if let Some(mut session) = map.remove(&id) {
-                drop(session.stdin);
-                if let Err(e) = session.child.kill().await {
-                    eprintln!("[conductor] Failed to kill process for {id}: {e}");
-                }
-                if let Err(e) = session.child.wait().await {
-                    eprintln!("[conductor] Failed to wait for process of {id}: {e}");
-                }
-            }
-        }
-    }
 }

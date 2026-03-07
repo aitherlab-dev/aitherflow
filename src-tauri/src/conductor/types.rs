@@ -116,8 +116,6 @@ pub enum SessionStatus {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AttachmentPayload {
-    #[allow(dead_code)]
-    pub name: String,
     /// data URI: data:image/png;base64,...
     pub content: String,
     pub file_type: String,

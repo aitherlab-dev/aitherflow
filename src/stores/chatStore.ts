@@ -86,27 +86,13 @@ export interface ChatState {
 
 /** Convert frontend ChatMessage[] to storable format (strip isStreaming) */
 export function messagesToStored(messages: ChatMessage[]) {
-  return messages.map((m) => ({
-    id: m.id,
-    role: m.role,
-    text: m.text,
-    timestamp: m.timestamp,
-    tools: (m.tools ?? []).map((t) => ({
-      toolUseId: t.toolUseId,
-      toolName: t.toolName,
-      toolInput: t.toolInput,
-      result: t.result ?? null,
-      isError: t.isError ?? null,
-      userResponse: t.userResponse ?? null,
-    })),
-    attachments: (m.attachments ?? []).map((a) => ({
-      id: a.id,
-      name: a.name,
-      content: a.content,
-      size: a.size,
-      fileType: a.fileType,
-    })),
-  }));
+  const needsClean = messages.some((m) => m.isStreaming);
+  if (!needsClean) return messages;
+  return messages.map((m) => {
+    if (!m.isStreaming) return m;
+    const { isStreaming: _, ...rest } = m;
+    return rest;
+  });
 }
 
 // ── Utility exports (used by UI components) ──

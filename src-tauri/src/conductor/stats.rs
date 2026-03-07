@@ -309,6 +309,33 @@ fn aggregate_cli_stats_inner(days: u32) -> Result<AggregatedStats, String> {
     })
 }
 
+/// Typed structure for JSONL line parsing (avoids serde_json::Value overhead).
+#[derive(Deserialize)]
+struct JsonlLine {
+    timestamp: Option<String>,
+    #[serde(rename = "type")]
+    line_type: Option<String>,
+    message: Option<JsonlMessage>,
+}
+
+#[derive(Deserialize)]
+struct JsonlMessage {
+    model: Option<String>,
+    usage: Option<JsonlUsage>,
+}
+
+#[derive(Deserialize)]
+struct JsonlUsage {
+    #[serde(default)]
+    input_tokens: u64,
+    #[serde(default)]
+    output_tokens: u64,
+    #[serde(default)]
+    cache_creation_input_tokens: u64,
+    #[serde(default)]
+    cache_read_input_tokens: u64,
+}
+
 /// Parse a JSONL file and return a CachedSession (with project name baked in).
 fn parse_and_cache(
     path: &PathBuf,
@@ -327,13 +354,13 @@ fn parse_and_cache(
     let mut found_any = false;
 
     for line in content.lines() {
-        let parsed: serde_json::Value = match serde_json::from_str(line) {
+        let parsed: JsonlLine = match serde_json::from_str(line) {
             Ok(v) => v,
             Err(_) => continue,
         };
 
         if date.is_empty() {
-            if let Some(ts) = parsed.get("timestamp").and_then(|t| t.as_str()) {
+            if let Some(ts) = &parsed.timestamp {
                 if let Some(d) = ts.get(..10) {
                     if d < cutoff_date {
                         return None;
@@ -343,35 +370,29 @@ fn parse_and_cache(
             }
         }
 
-        if parsed.get("type").and_then(|t| t.as_str()) != Some("assistant") {
+        if parsed.line_type.as_deref() != Some("assistant") {
             continue;
         }
 
-        let msg = match parsed.get("message") {
+        let msg = match &parsed.message {
             Some(m) => m,
             None => continue,
         };
-        let usage = match msg.get("usage") {
+        let usage = match &msg.usage {
             Some(u) => u,
             None => continue,
         };
 
         found_any = true;
 
-        if let Some(m) = msg.get("model").and_then(|m| m.as_str()) {
-            model = m.to_string();
+        if let Some(m) = &msg.model {
+            model.clone_from(m);
         }
 
-        sum_input += usage.get("input_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
-        sum_output += usage.get("output_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
-        sum_cache_creation += usage
-            .get("cache_creation_input_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-        sum_cache_read += usage
-            .get("cache_read_input_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
+        sum_input += usage.input_tokens;
+        sum_output += usage.output_tokens;
+        sum_cache_creation += usage.cache_creation_input_tokens;
+        sum_cache_read += usage.cache_read_input_tokens;
     }
 
     if !found_any || date.is_empty() {

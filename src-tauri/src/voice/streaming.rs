@@ -27,8 +27,8 @@ fn read_oauth_token() -> Result<(String, u64), String> {
         .map_err(|_| "Not logged in to Claude CLI (no credentials file)")?;
     let mode = meta.mode();
     if mode & 0o077 != 0 {
-        log::warn!(
-            "Credentials file {:?} has loose permissions ({:o}), expected 600",
+        eprintln!(
+            "[voice] Credentials file {:?} has loose permissions ({:o}), expected 600",
             cred_path,
             mode & 0o777
         );

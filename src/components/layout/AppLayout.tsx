@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Menu } from "lucide-react";
 import { useTelegramBridge } from "../../hooks/useTelegramBridge";
 import { useIsMobile } from "../../hooks/useIsMobile";
@@ -27,34 +28,31 @@ export function AppLayout() {
 
   const showPanel = fileViewerVisible && fileViewerHasContent;
 
-  const panelStyle =
-    fileViewerPosition === "right"
-      ? { width: fileViewerSize, minWidth: 250 }
-      : { height: fileViewerSize, minHeight: 150 };
-
-  const renderMain = () => {
+  const mainContent = useMemo(() => {
     if (activeView === "welcome") {
       return <WelcomeScreen />;
     }
     if (activeView === "settings") {
       return <SettingsView />;
     }
+    const panelStyle =
+      fileViewerPosition === "right"
+        ? { width: fileViewerSize, minWidth: 250 }
+        : { height: fileViewerSize, minHeight: 150 };
     return (
-      <>
-        <div className={`main-split main-split--${fileViewerPosition}`}>
-          <ChatView />
-          {showPanel && (
-            <>
-              <FileViewerResizeHandle />
-              <div className="file-viewer-wrapper" style={panelStyle}>
-                <FileViewerPanel />
-              </div>
-            </>
-          )}
-        </div>
-      </>
+      <div className={`main-split main-split--${fileViewerPosition}`}>
+        <ChatView />
+        {showPanel && (
+          <>
+            <FileViewerResizeHandle />
+            <div className="file-viewer-wrapper" style={panelStyle}>
+              <FileViewerPanel />
+            </div>
+          </>
+        )}
+      </div>
     );
-  };
+  }, [activeView, fileViewerPosition, fileViewerSize, showPanel]);
 
   return (
     <div className="app-layout">
@@ -62,7 +60,7 @@ export function AppLayout() {
       <Header />
       <Sidebar />
       <main className="app-main">
-        {renderMain()}
+        {mainContent}
       </main>
       <BrandFooter />
 

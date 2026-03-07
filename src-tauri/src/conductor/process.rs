@@ -85,7 +85,11 @@ pub async fn run_cli_session(
     }
 
     // Attach built-in memory MCP server if binary is available
-    if let Some(mcp_config) = build_memory_mcp_config(project_path.as_deref()) {
+    // build_memory_mcp_config calls find_memory_binary which may run `which` (blocking I/O)
+    let pp_clone = project_path.clone();
+    if let Ok(Some(mcp_config)) = tokio::task::spawn_blocking(move || {
+        build_memory_mcp_config(pp_clone.as_deref())
+    }).await {
         args.push("--mcp-config".into());
         args.push(mcp_config);
     }

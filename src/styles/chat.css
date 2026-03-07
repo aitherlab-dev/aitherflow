@@ -123,7 +123,7 @@
 }
 
 .chat-message-assistant {
-  max-width: 100%;
+  width: 100%;
   margin-right: auto;
   background: var(--bubble-ai);
   border: 1px solid var(--border);
@@ -137,6 +137,7 @@
 .chat-show-more {
   display: block;
   margin-top: 4px;
+  margin-left: auto;
   padding: 0;
   background: none;
   border: none;

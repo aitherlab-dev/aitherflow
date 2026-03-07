@@ -880,19 +880,7 @@ fn get_git_sha(repo_path: &Path) -> String {
 // copy_dir_all: use the canonical implementation from file_ops
 use crate::file_ops::copy_dir_recursive as copy_dir_all;
 
-/// Generate an ISO 8601 timestamp (no chrono crate dependency)
+/// Generate an ISO 8601 timestamp.
 fn chrono_now() -> String {
-    // Use std::process to get date, or fallback to empty
-    Command::new("date")
-        .args(["--iso-8601=seconds", "--utc"])
-        .output()
-        .ok()
-        .and_then(|o| {
-            if o.status.success() {
-                Some(String::from_utf8_lossy(&o.stdout).trim().to_string())
-            } else {
-                None
-            }
-        })
-        .unwrap_or_default()
+    chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
 }
