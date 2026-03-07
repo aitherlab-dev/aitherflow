@@ -48,12 +48,10 @@ function emptyUsage(): AgentUsageState {
 interface ConductorState {
   // State
   sessionId: string | null;
-  streamingText: string;
   model: string | null;
   selectedModel: string;
   selectedEffort: string;
   selectedPermissionMode: "default" | "plan";
-  isThinking: boolean;
   error: string | null;
   inputTokens: number;
   outputTokens: number;
@@ -82,12 +80,10 @@ interface ConductorState {
 export const useConductorStore = create<ConductorState>((set, get) => ({
   // Initial state
   sessionId: null,
-  streamingText: "",
   model: null,
   selectedModel: "opus",
   selectedEffort: "high",
   selectedPermissionMode: "default",
-  isThinking: false,
   error: null,
   inputTokens: 0,
   outputTokens: 0,
@@ -104,11 +100,7 @@ export const useConductorStore = create<ConductorState>((set, get) => ({
   setSelectedPermissionMode: (mode: "default" | "plan") => set({ selectedPermissionMode: mode }),
 
   startSession: async (prompt: string) => {
-    set({
-      error: null,
-      isThinking: true,
-      streamingText: "",
-    });
+    set({ error: null });
     try {
       await invoke("start_session", {
         options: {
@@ -117,12 +109,12 @@ export const useConductorStore = create<ConductorState>((set, get) => ({
         } satisfies StartSessionOptions,
       });
     } catch (e) {
-      set({ error: String(e), isThinking: false });
+      set({ error: String(e) });
     }
   },
 
   sendFollowup: async (prompt: string) => {
-    set({ error: null, isThinking: true });
+    set({ error: null });
     try {
       await invoke("send_message", {
         options: {
@@ -131,7 +123,7 @@ export const useConductorStore = create<ConductorState>((set, get) => ({
         } satisfies SendMessageOptions,
       });
     } catch (e) {
-      set({ error: String(e), isThinking: false });
+      set({ error: String(e) });
     }
   },
 
@@ -141,7 +133,6 @@ export const useConductorStore = create<ConductorState>((set, get) => ({
     } catch (e) {
       set({ error: String(e) });
     }
-    set({ isThinking: false });
   },
 
   clearError: () => set({ error: null }),
@@ -149,9 +140,7 @@ export const useConductorStore = create<ConductorState>((set, get) => ({
   reset: () =>
     set({
       sessionId: null,
-      streamingText: "",
       model: null,
-      isThinking: false,
       error: null,
       inputTokens: 0,
       outputTokens: 0,
@@ -267,18 +256,15 @@ listen<CliEvent>("cli-event", (event) => {
 
   const { setState: set, getState: get } = useConductorStore;
 
-  // Keep event log capped
-  set({ events: [...get().events.slice(-MAX_EVENT_LOG), e] });
+  // Keep event log capped — mutate-then-replace to avoid O(N) spread
+  const events = get().events;
+  if (events.length >= MAX_EVENT_LOG) events.shift();
+  events.push(e);
+  set({ events: [...events] });
 
   switch (e.type) {
     case "sessionId":
       set({ sessionId: e.session_id });
-      break;
-    case "streamChunk":
-      set({ streamingText: e.text, isThinking: true });
-      break;
-    case "messageComplete":
-      set({ streamingText: e.text });
       break;
     case "modelInfo":
       set({ model: e.model });
@@ -286,14 +272,8 @@ listen<CliEvent>("cli-event", (event) => {
     case "slashCommands":
       set({ slashCommands: e.commands });
       break;
-    case "turnComplete":
-      set({ isThinking: false });
-      break;
-    case "processExited":
-      set({ isThinking: false });
-      break;
     case "error":
-      set({ error: e.message, isThinking: false });
+      set({ error: e.message });
       break;
   }
 }).catch(console.error);

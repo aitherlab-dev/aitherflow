@@ -100,6 +100,7 @@ pub struct ProcessedFile {
 pub async fn process_file(path: String) -> Result<ProcessedFile, String> {
     tokio::task::spawn_blocking(move || {
         let file_path = Path::new(&path);
+        crate::files::validate_path_safe(file_path)?;
         if !file_path.exists() {
             return Err(format!("File not found: {path}"));
         }

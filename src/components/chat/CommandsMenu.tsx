@@ -2,7 +2,7 @@ import { memo, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { Terminal } from "lucide-react";
 import { useConductorStore } from "../../stores/conductorStore";
-import { useChatStore } from "../../stores/chatStore";
+import { sendMessage } from "../../stores/chatService";
 import { useSkillStore } from "../../stores/skillStore";
 import { useTranslationStore } from "../../stores/translationStore";
 
@@ -108,7 +108,7 @@ export const CommandsMenu = memo(function CommandsMenu({
   const handleCommandClick = useCallback(
     (cmd: string) => {
       onClose();
-      useChatStore.getState().sendMessage(`/${cmd}`).catch(console.error);
+      sendMessage(`/${cmd}`).catch(console.error);
     },
     [onClose],
   );

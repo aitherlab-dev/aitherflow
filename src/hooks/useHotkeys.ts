@@ -3,6 +3,7 @@ import { useHotkeyStore, type HotkeyAction } from "../stores/hotkeyStore";
 import { useLayoutStore } from "../stores/layoutStore";
 import { useAgentStore } from "../stores/agentStore";
 import { useChatStore } from "../stores/chatStore";
+import { newChat, restartSession, stopGeneration } from "../stores/chatService";
 import { useProjectStore } from "../stores/projectStore";
 import { useSkillStore } from "../stores/skillStore";
 
@@ -93,7 +94,7 @@ function dispatch(action: HotkeyAction) {
       break;
 
     case "newChat":
-      useChatStore.getState().newChat().catch(console.error);
+      newChat().catch(console.error);
       break;
 
     case "newAgent": {
@@ -110,12 +111,12 @@ function dispatch(action: HotkeyAction) {
     }
 
     case "restartSession":
-      useChatStore.getState().restartSession().catch(console.error);
+      restartSession().catch(console.error);
       break;
 
     case "stopGeneration":
       if (useChatStore.getState().isThinking) {
-        useChatStore.getState().stopGeneration().catch(console.error);
+        stopGeneration().catch(console.error);
       }
       break;
 

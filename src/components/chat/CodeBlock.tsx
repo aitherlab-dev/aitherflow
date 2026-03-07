@@ -1,4 +1,4 @@
-import { memo, useState, useCallback, type ReactNode } from "react";
+import { memo, useState, useCallback, useRef, type ReactNode } from "react";
 import { Copy, Check } from "lucide-react";
 import { extractText } from "./utils";
 
@@ -9,13 +9,15 @@ interface CodeBlockProps {
 
 export const CodeBlock = memo(function CodeBlock({ language, children }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const rawText = extractText(children).replace(/\n$/, "");
 
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(rawText).catch(console.error);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setCopied(false), 2000);
   }, [rawText]);
 
   return (

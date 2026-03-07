@@ -1,9 +1,8 @@
 use serde::Deserialize;
 
-use super::types::*;
+use super::*;
 
-pub const TG_API: &str = "https://api.telegram.org/bot";
-pub const TELEGRAM_TAG: &str = "[TG] ";
+const TG_API: &str = "https://api.telegram.org/bot";
 
 pub(crate) fn sanitize_error(err: &str, token: &str) -> String {
     if token.is_empty() {
@@ -75,6 +74,7 @@ pub(crate) async fn tg_send_message(
         match resp {
             Ok(r) => {
                 if !r.status().is_success() {
+                    // Fallback without parse_mode if markdown fails
                     let body_plain = serde_json::json!({
                         "chat_id": chat_id,
                         "text": chunk,
@@ -99,59 +99,22 @@ pub(crate) async fn tg_send_message(
     Ok(())
 }
 
-/// Send a message and return its message_id (for later editing)
-pub(crate) async fn tg_send_and_get_id(
+/// Send a draft message for native streaming (Bot API 9.3+)
+pub(crate) async fn tg_send_message_draft(
     client: &reqwest::Client,
     token: &str,
     chat_id: i64,
-    text: &str,
-) -> Result<i64, String> {
-    let url = format!("{TG_API}{token}/sendMessage");
-    let body = serde_json::json!({
-        "chat_id": chat_id,
-        "text": text,
-        "disable_web_page_preview": true,
-    });
-    let resp = client
-        .post(&url)
-        .json(&body)
-        .send()
-        .await
-        .map_err(|e| sanitize_error(&format!("sendMessage: {e}"), token))?;
-
-    #[derive(Deserialize)]
-    struct Msg {
-        message_id: i64,
-    }
-    let parsed: TgResponse<Msg> = resp
-        .json()
-        .await
-        .map_err(|e| sanitize_error(&format!("sendMessage parse: {e}"), token))?;
-    parsed
-        .result
-        .map(|m| m.message_id)
-        .ok_or_else(|| "sendMessage: no result".into())
-}
-
-/// Edit an existing message
-pub(crate) async fn tg_edit_message(
-    client: &reqwest::Client,
-    token: &str,
-    chat_id: i64,
-    message_id: i64,
     text: &str,
 ) -> Result<(), String> {
-    let url = format!("{TG_API}{token}/editMessageText");
+    let url = format!("{TG_API}{token}/sendMessageDraft");
     let body = serde_json::json!({
         "chat_id": chat_id,
-        "message_id": message_id,
         "text": text,
-        "disable_web_page_preview": true,
     });
     let resp = client.post(&url).json(&body).send().await;
     if let Err(e) = resp {
         eprintln!(
-            "[TG] editMessage error: {}",
+            "[TG] sendMessageDraft error: {}",
             sanitize_error(&e.to_string(), token)
         );
     }
@@ -177,6 +140,50 @@ pub(crate) async fn tg_send_inline_keyboard(
         .send()
         .await
         .map_err(|e| sanitize_error(&format!("sendInlineKeyboard: {e}"), token))?;
+    Ok(())
+}
+
+pub(crate) async fn tg_send_with_reply_keyboard(
+    client: &reqwest::Client,
+    token: &str,
+    chat_id: i64,
+    text: &str,
+    buttons: Vec<Vec<String>>,
+) -> Result<(), String> {
+    let url = format!("{TG_API}{token}/sendMessage");
+    let keyboard: Vec<Vec<serde_json::Value>> = buttons
+        .into_iter()
+        .map(|row| row.into_iter().map(|t| serde_json::json!({"text": t})).collect())
+        .collect();
+    let reply_markup = serde_json::json!({
+        "keyboard": keyboard,
+        "resize_keyboard": true,
+        "is_persistent": true,
+    });
+    let body = serde_json::json!({
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "Markdown",
+        "disable_web_page_preview": true,
+        "reply_markup": reply_markup,
+    });
+    let resp = client.post(&url).json(&body).send().await;
+    match resp {
+        Ok(r) if !r.status().is_success() => {
+            let body_plain = serde_json::json!({
+                "chat_id": chat_id,
+                "text": text,
+                "disable_web_page_preview": true,
+                "reply_markup": reply_markup,
+            });
+            client.post(&url).json(&body_plain).send().await
+                .map_err(|e| sanitize_error(&format!("sendReplyKeyboard fallback: {e}"), token))?;
+        }
+        Err(e) => {
+            return Err(sanitize_error(&format!("sendReplyKeyboard: {e}"), token));
+        }
+        _ => {}
+    }
     Ok(())
 }
 
@@ -258,11 +265,11 @@ pub(crate) async fn tg_set_my_commands(
     let url = format!("{TG_API}{token}/setMyCommands");
     let commands = serde_json::json!({
         "commands": [
-            {"command": "menu", "description": "Project list"},
-            {"command": "chats", "description": "Chat history"},
-            {"command": "newchat", "description": "New chat"},
+            {"command": "start", "description": "Dashboard"},
+            {"command": "agents", "description": "Active agents"},
+            {"command": "projects", "description": "Start new session"},
             {"command": "history", "description": "Recent messages"},
-            {"command": "status", "description": "Bot status"},
+            {"command": "status", "description": "Current status"},
             {"command": "help", "description": "Help"}
         ]
     });

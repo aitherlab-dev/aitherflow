@@ -6,7 +6,7 @@ import type {
   AskQuestion,
   ExitPlanModeInput,
 } from "../../types/chat";
-import { useChatStore } from "../../stores/chatStore";
+import { respondToCard } from "../../stores/chatService";
 
 interface InteractiveCardProps {
   tool: ToolActivity;
@@ -63,7 +63,7 @@ function QuestionBlock({
   answered: boolean;
   userResponse?: string;
 }) {
-  const respondToCard = useChatStore((s) => s.respondToCard);
+
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const handleClick = useCallback(
@@ -129,7 +129,7 @@ function QuestionBlock({
 
 function ExitPlanModeCard({ tool }: { tool: ToolActivity }) {
   const input = tool.toolInput as unknown as ExitPlanModeInput;
-  const respondToCard = useChatStore((s) => s.respondToCard);
+
   const answered = !!tool.userResponse;
   const [rejecting, setRejecting] = useState(false);
   const [rejectReason, setRejectReason] = useState("");

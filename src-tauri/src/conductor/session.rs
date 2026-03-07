@@ -84,6 +84,19 @@ impl SessionManager {
         }
     }
 
+    /// Try to get the exit code of the child process without killing it.
+    pub async fn try_exit_code(&self, agent_id: &str) -> Option<i32> {
+        let mut map = self.sessions.lock().await;
+        if let Some(session) = map.get_mut(agent_id) {
+            match session.child.try_wait() {
+                Ok(Some(status)) => status.code(),
+                _ => None,
+            }
+        } else {
+            None
+        }
+    }
+
     /// Update session status.
     pub async fn set_status(&self, agent_id: &str, status: SessionStatus) {
         let mut map = self.sessions.lock().await;

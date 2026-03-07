@@ -201,13 +201,14 @@ pub async fn run_cli_session(
 
     let mut completed_text = String::new();
     let mut delta_text = String::new();
+    let mut combined_buf = String::new();
 
     while let Ok(Some(line)) = lines.next_line().await {
         if line.trim().is_empty() {
             continue;
         }
 
-        match parse_line(&line, &agent_id, &mut completed_text, &mut delta_text) {
+        match parse_line(&line, &agent_id, &mut completed_text, &mut delta_text, &mut combined_buf) {
             Ok(events) => {
                 for event in events {
                     sink.emit(&event);
@@ -247,10 +248,13 @@ pub async fn run_cli_session(
         });
     }
 
+    // Try to capture exit code before cleanup
+    let exit_code = sessions.try_exit_code(&agent_id).await;
+
     // Emit process exited
     sink.emit(&CliEvent::ProcessExited {
         agent_id: agent_id.clone(),
-        exit_code: None,
+        exit_code,
     });
 
     // Clean up session

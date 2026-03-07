@@ -1,322 +1,12 @@
-use std::io::Cursor;
 use std::sync::Arc;
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use rubato::Resampler;
 use serde::Serialize;
 use tauri::Emitter;
-use tokio::sync::Mutex;
 
-// ── Groq (existing) ─────────────────────────────────────────────
+use super::recording::VoiceState;
 
-/// Shared state managed by Tauri.
-/// We only store the audio buffer and a stop signal — the cpal stream
-/// lives on its own dedicated thread (not Send).
-pub struct VoiceState {
-    inner: Arc<Mutex<Option<ActiveRecording>>>,
-    stream_state: Arc<Mutex<Option<StreamSession>>>,
-}
-
-
-impl VoiceState {
-    pub fn new() -> Self {
-        Self {
-            inner: Arc::new(Mutex::new(None)),
-            stream_state: Arc::new(Mutex::new(None)),
-        }
-    }
-}
-
-struct ActiveRecording {
-    buffer: Arc<std::sync::Mutex<Vec<f32>>>,
-    stop_tx: std::sync::mpsc::Sender<()>,
-    thread: Option<std::thread::JoinHandle<()>>,
-    sample_rate: u32,
-    channels: u16,
-}
-
-#[tauri::command]
-pub async fn voice_start(state: tauri::State<'_, VoiceState>) -> Result<(), String> {
-    let mut guard = state.inner.lock().await;
-    if guard.is_some() {
-        return Err("Already recording".into());
-    }
-
-    let buffer: Arc<std::sync::Mutex<Vec<f32>>> = Arc::new(std::sync::Mutex::new(Vec::new()));
-    let buf_clone = buffer.clone();
-    let (stop_tx, stop_rx) = std::sync::mpsc::channel::<()>();
-
-    // Query device config on a blocking thread first
-    let (sample_rate, channels) = tokio::task::spawn_blocking(|| -> Result<(u32, u16), String> {
-        let host = cpal::default_host();
-        let device = host
-            .default_input_device()
-            .ok_or("No input device found")?;
-        let config = device
-            .default_input_config()
-            .map_err(|e| format!("Failed to get input config: {e}"))?;
-        Ok((config.sample_rate().0, config.channels()))
-    })
-    .await
-    .map_err(|e| format!("Task join error: {e}"))??;
-
-    // Spawn a dedicated OS thread for the cpal stream (not Send, can't use tokio)
-    let thread = std::thread::spawn(move || {
-        let host = cpal::default_host();
-        let device = match host.default_input_device() {
-            Some(d) => d,
-            None => {
-                eprintln!("[voice] No input device");
-                return;
-            }
-        };
-        let config = match device.default_input_config() {
-            Ok(c) => c,
-            Err(e) => {
-                eprintln!("[voice] Config error: {e}");
-                return;
-            }
-        };
-
-        let stream = match config.sample_format() {
-            cpal::SampleFormat::F32 => {
-                let buf = buf_clone.clone();
-                device.build_input_stream(
-                    &config.into(),
-                    move |data: &[f32], _: &cpal::InputCallbackInfo| {
-                        if let Ok(mut b) = buf.lock() {
-                            b.extend_from_slice(data);
-                        }
-                    },
-                    |err| eprintln!("[voice] Stream error: {err}"),
-                    None,
-                )
-            }
-            cpal::SampleFormat::I16 => {
-                let buf = buf_clone.clone();
-                device.build_input_stream(
-                    &config.into(),
-                    move |data: &[i16], _: &cpal::InputCallbackInfo| {
-                        if let Ok(mut b) = buf.lock() {
-                            b.extend(data.iter().map(|&s| s as f32 / i16::MAX as f32));
-                        }
-                    },
-                    |err| eprintln!("[voice] Stream error: {err}"),
-                    None,
-                )
-            }
-            format => {
-                eprintln!("[voice] Unsupported format: {format:?}");
-                return;
-            }
-        };
-
-        let stream = match stream {
-            Ok(s) => s,
-            Err(e) => {
-                eprintln!("[voice] Build stream error: {e}");
-                return;
-            }
-        };
-
-        if let Err(e) = stream.play() {
-            eprintln!("[voice] Play error: {e}");
-            return;
-        }
-
-        // Block until stop signal (intentionally ignore: recv returns Err only when sender is dropped, which is our stop condition)
-        if let Err(e) = stop_rx.recv() {
-            eprintln!("[voice] Stop signal recv error: {e}");
-        }
-        drop(stream);
-    });
-
-    *guard = Some(ActiveRecording {
-        buffer,
-        stop_tx,
-        thread: Some(thread),
-        sample_rate,
-        channels,
-    });
-
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn voice_stop(state: tauri::State<'_, VoiceState>) -> Result<Vec<u8>, String> {
-    let mut guard = state.inner.lock().await;
-    let mut recording = guard.take().ok_or("Not recording")?;
-
-    // Signal the recording thread to stop
-    if let Err(e) = recording.stop_tx.send(()) {
-        eprintln!("[voice] Failed to send stop signal: {e}");
-    }
-
-    // Wait for the thread to finish
-    if let Some(thread) = recording.thread.take() {
-        thread.join().map_err(|_| "Recording thread panicked")?;
-    }
-
-    let buffer = recording.buffer;
-    let sample_rate = recording.sample_rate;
-    let channels = recording.channels;
-
-    tokio::task::spawn_blocking(move || {
-        let samples = buffer.lock().map_err(|e| format!("Lock error: {e}"))?;
-
-        if samples.is_empty() {
-            return Err("No audio recorded".into());
-        }
-
-        // Encode to WAV in memory
-        let mut wav_buf = Cursor::new(Vec::new());
-        let spec = hound::WavSpec {
-            channels,
-            sample_rate,
-            bits_per_sample: 16,
-            sample_format: hound::SampleFormat::Int,
-        };
-
-        let mut writer = hound::WavWriter::new(&mut wav_buf, spec)
-            .map_err(|e| format!("WAV writer error: {e}"))?;
-
-        for &sample in samples.iter() {
-            let clamped = sample.clamp(-1.0_f32, 1.0_f32);
-            let int_sample = (clamped * i16::MAX as f32) as i16;
-            writer
-                .write_sample(int_sample)
-                .map_err(|e| format!("WAV write error: {e}"))?;
-        }
-
-        writer
-            .finalize()
-            .map_err(|e| format!("WAV finalize error: {e}"))?;
-
-        Ok(wav_buf.into_inner())
-    })
-    .await
-    .map_err(|e| format!("Task join error: {e}"))?
-}
-
-#[tauri::command]
-pub async fn voice_transcribe(
-    audio_data: Vec<u8>,
-    api_key: String,
-    language: String,
-    post_process: bool,
-    post_model: String,
-) -> Result<String, String> {
-    if api_key.is_empty() {
-        return Err("Groq API key is not set. Go to Settings → Voice.".into());
-    }
-
-    let file_part = reqwest::multipart::Part::bytes(audio_data)
-        .file_name("audio.wav")
-        .mime_str("audio/wav")
-        .map_err(|e| format!("Multipart error: {e}"))?;
-
-    let mut form = reqwest::multipart::Form::new()
-        .part("file", file_part)
-        .text("model", "whisper-large-v3-turbo");
-
-    if !language.is_empty() {
-        form = form.text("language", language);
-    }
-
-    let client = reqwest::Client::new();
-    let resp = client
-        .post("https://api.groq.com/openai/v1/audio/transcriptions")
-        .bearer_auth(&api_key)
-        .multipart(form)
-        .send()
-        .await
-        .map_err(|e| format!("Groq API request failed: {e}"))?;
-
-    let status = resp.status();
-    let body = resp
-        .text()
-        .await
-        .map_err(|e| format!("Failed to read response: {e}"))?;
-
-    if !status.is_success() {
-        return Err(format!("Groq API error ({status}): {body}"));
-    }
-
-    // Response: { "text": "transcribed text" }
-    let parsed: serde_json::Value =
-        serde_json::from_str(&body).map_err(|e| format!("JSON parse error: {e}"))?;
-
-    let raw_text = parsed["text"]
-        .as_str()
-        .ok_or_else(|| format!("Unexpected response format: {body}"))?;
-
-    if raw_text.trim().is_empty() {
-        return Ok(String::new());
-    }
-
-    if !post_process || post_model.is_empty() {
-        return Ok(raw_text.to_string());
-    }
-
-    // Post-process with LLM: fix punctuation, formatting, typos
-    let cleaned = polish_with_llm(&client, &api_key, raw_text, &post_model).await;
-    Ok(cleaned.unwrap_or_else(|_| raw_text.to_string()))
-}
-
-/// Send raw STT text to LLM for cleanup (punctuation, capitalization, minor fixes).
-async fn polish_with_llm(
-    client: &reqwest::Client,
-    api_key: &str,
-    raw: &str,
-    model: &str,
-) -> Result<String, String> {
-    let payload = serde_json::json!({
-        "model": model,
-        "messages": [
-            {
-                "role": "system",
-                "content": "You are a text post-processor for speech-to-text output. \
-                    Fix punctuation, capitalization, and obvious speech recognition errors. \
-                    Do NOT change the meaning, do NOT add or remove words, do NOT translate. \
-                    Return ONLY the cleaned text, nothing else."
-            },
-            {
-                "role": "user",
-                "content": raw
-            }
-        ],
-        "temperature": 0.0,
-        "max_tokens": 2048
-    });
-
-    let resp = client
-        .post("https://api.groq.com/openai/v1/chat/completions")
-        .bearer_auth(api_key)
-        .json(&payload)
-        .send()
-        .await
-        .map_err(|e| format!("Llama request failed: {e}"))?;
-
-    let status = resp.status();
-    let body = resp
-        .text()
-        .await
-        .map_err(|e| format!("Failed to read Llama response: {e}"))?;
-
-    if !status.is_success() {
-        return Err(format!("Llama API error ({status}): {body}"));
-    }
-
-    let parsed: serde_json::Value =
-        serde_json::from_str(&body).map_err(|e| format!("Llama JSON parse error: {e}"))?;
-
-    parsed["choices"][0]["message"]["content"]
-        .as_str()
-        .map(|s| s.trim().to_string())
-        .ok_or_else(|| "Unexpected Llama response format".into())
-}
-
-// ── Anthropic native STT (streaming) ────────────────────────────
+// ── Anthropic auth ──────────────────────────────────────────────
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -348,30 +38,29 @@ fn read_oauth_token() -> Result<(String, u64), String> {
 
 #[tauri::command]
 pub async fn voice_check_anthropic_auth() -> Result<AnthropicAuthStatus, String> {
-    tokio::task::spawn_blocking(|| {
-        match read_oauth_token() {
-            Ok((_, expires_at)) => {
-                let now_ms = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_millis() as u64;
-                Ok(AnthropicAuthStatus {
-                    available: true,
-                    expired: expires_at > 0 && now_ms > expires_at,
-                })
-            }
-            Err(_) => Ok(AnthropicAuthStatus {
-                available: false,
-                expired: false,
-            }),
+    tokio::task::spawn_blocking(|| match read_oauth_token() {
+        Ok((_, expires_at)) => {
+            let now_ms = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as u64;
+            Ok(AnthropicAuthStatus {
+                available: true,
+                expired: expires_at > 0 && now_ms > expires_at,
+            })
         }
+        Err(_) => Ok(AnthropicAuthStatus {
+            available: false,
+            expired: false,
+        }),
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
 }
 
-/// Active streaming session state
-struct StreamSession {
+// ── Stream session ──────────────────────────────────────────────
+
+pub(crate) struct StreamSession {
     stop_tx: tokio::sync::watch::Sender<bool>,
     tasks: Vec<tokio::task::JoinHandle<()>>,
     audio_thread: Option<std::thread::JoinHandle<()>>,
@@ -496,17 +185,16 @@ pub async fn voice_stop_stream(state: tauri::State<'_, VoiceState>) -> Result<()
     let mut guard = state.stream_state.lock().await;
     let session = guard.take().ok_or("Not streaming")?;
 
-    // Signal stop
     if let Err(e) = session.stop_tx.send(true) {
         eprintln!("[voice-stream] Failed to send stop signal: {e}");
     }
 
-    // Wait for tasks with timeout
     for task in session.tasks {
-        let _ = tokio::time::timeout(std::time::Duration::from_secs(2), task).await;
+        if let Err(e) = tokio::time::timeout(std::time::Duration::from_secs(2), task).await {
+            eprintln!("[voice-stream] Task did not finish within timeout: {e}");
+        }
     }
 
-    // Wait for audio thread
     if let Some(thread) = session.audio_thread {
         if thread.join().is_err() {
             eprintln!("[voice-stream] Audio capture thread panicked");
@@ -516,7 +204,8 @@ pub async fn voice_stop_stream(state: tauri::State<'_, VoiceState>) -> Result<()
     Ok(())
 }
 
-/// Capture audio from microphone, resample to target_rate, send as PCM i16 chunks.
+// ── Audio capture ───────────────────────────────────────────────
+
 fn run_audio_capture(
     device_rate: u32,
     device_channels: u16,
@@ -524,7 +213,9 @@ fn run_audio_capture(
     audio_tx: tokio::sync::mpsc::Sender<Vec<u8>>,
     stop_rx: tokio::sync::watch::Receiver<bool>,
 ) {
-    use rubato::{SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction};
+    use rubato::{
+        Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction,
+    };
 
     let host = cpal::default_host();
     let device = match host.default_input_device() {
@@ -542,7 +233,6 @@ fn run_audio_capture(
         }
     };
 
-    // Shared buffer: cpal callback writes here, we read from it periodically
     let shared_buf: Arc<std::sync::Mutex<Vec<f32>>> =
         Arc::new(std::sync::Mutex::new(Vec::new()));
     let buf_writer = shared_buf.clone();
@@ -600,14 +290,13 @@ fn run_audio_capture(
             oversampling_factor: 16,
             window: WindowFunction::Blackman2,
         };
-        // Process in chunks of ~10ms
         let chunk_size = (device_rate as usize) / 100;
         match SincFixedIn::<f32>::new(
             target_rate as f64 / device_rate as f64,
             2.0,
             params,
             chunk_size,
-            1, // mono
+            1,
         ) {
             Ok(r) => Some((r, chunk_size)),
             Err(e) => {
@@ -621,9 +310,7 @@ fn run_audio_capture(
 
     let channels = device_channels as usize;
 
-    // Read loop: grab from shared buffer, resample, send
     loop {
-        // Check stop signal
         if *stop_rx.borrow() {
             break;
         }
@@ -635,9 +322,7 @@ fn run_audio_capture(
                 Ok(b) => b,
                 Err(_) => break,
             };
-            let data = b.clone();
-            b.clear();
-            data
+            std::mem::take(&mut *b)
         };
 
         if raw_samples.is_empty() {
@@ -659,7 +344,6 @@ fn run_audio_capture(
             let mut output = Vec::new();
             for chunk in mono.chunks(chunk_size) {
                 let mut input_chunk = chunk.to_vec();
-                // Pad last chunk if needed
                 if input_chunk.len() < chunk_size {
                     input_chunk.resize(chunk_size, 0.0);
                 }
@@ -694,16 +378,16 @@ fn run_audio_capture(
             })
             .collect();
 
-        // Send to WebSocket task (non-blocking)
         if audio_tx.blocking_send(pcm_bytes).is_err() {
-            break; // Receiver dropped
+            break;
         }
     }
 
     drop(stream);
 }
 
-/// Connect to STT WebSocket, send audio, emit transcript events.
+// ── WebSocket ───────────────────────────────────────────────────
+
 async fn run_websocket(
     url: String,
     auth_header: String,
@@ -748,15 +432,13 @@ async fn run_websocket(
     use futures_util::{SinkExt, StreamExt};
     let (mut ws_tx, mut ws_rx) = ws_stream.split();
 
-    // Keepalive timer (Anthropic needs it, Deepgram uses KeepAlive too)
     let mut keepalive = tokio::time::interval(std::time::Duration::from_secs(8));
-    keepalive.tick().await; // skip first immediate tick
+    keepalive.tick().await;
 
     let is_deepgram = provider == "deepgram";
 
     loop {
         tokio::select! {
-            // Audio chunk from microphone
             chunk = audio_rx.recv() => {
                 match chunk {
                     Some(data) => {
@@ -769,7 +451,6 @@ async fn run_websocket(
                 }
             }
 
-            // WebSocket message from server
             msg = ws_rx.next() => {
                 match msg {
                     Some(Ok(Message::Text(text))) => {
@@ -788,7 +469,6 @@ async fn run_websocket(
                 }
             }
 
-            // Keepalive
             _ = keepalive.tick() => {
                 let ka = serde_json::json!({"type": "KeepAlive"}).to_string();
                 if let Err(e) = ws_tx.send(Message::Text(ka.into())).await {
@@ -797,20 +477,11 @@ async fn run_websocket(
                 }
             }
 
-            // Stop signal
             _ = stop_rx.changed() => {
                 if *stop_rx.borrow() {
-                    if is_deepgram {
-                        // Deepgram: send CloseStream then wait for final
-                        let close = serde_json::json!({"type": "CloseStream"}).to_string();
-                        if let Err(e) = ws_tx.send(Message::Text(close.into())).await {
-                            eprintln!("[voice-stream] ws send CloseStream error: {e}");
-                        }
-                    } else {
-                        let close = serde_json::json!({"type": "CloseStream"}).to_string();
-                        if let Err(e) = ws_tx.send(Message::Text(close.into())).await {
-                            eprintln!("[voice-stream] ws send CloseStream error: {e}");
-                        }
+                    let close = serde_json::json!({"type": "CloseStream"}).to_string();
+                    if let Err(e) = ws_tx.send(Message::Text(close.into())).await {
+                        eprintln!("[voice-stream] ws send CloseStream error: {e}");
                     }
                     // Wait briefly for final transcript
                     let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(1);
@@ -835,6 +506,8 @@ async fn run_websocket(
 
     eprintln!("[voice-stream] WebSocket disconnected ({provider})");
 }
+
+// ── Message handlers ────────────────────────────────────────────
 
 fn handle_anthropic_message(text: &str, app: &tauri::AppHandle) {
     let parsed: serde_json::Value = match serde_json::from_str(text) {
@@ -868,9 +541,6 @@ fn handle_anthropic_message(text: &str, app: &tauri::AppHandle) {
     }
 }
 
-/// Deepgram sends full transcript per segment.
-/// is_final=false → interim (replaces previous), is_final=true → finalized segment.
-/// speech_final=true → utterance boundary.
 fn handle_deepgram_message(text: &str, app: &tauri::AppHandle) {
     let parsed: serde_json::Value = match serde_json::from_str(text) {
         Ok(v) => v,
@@ -893,7 +563,6 @@ fn handle_deepgram_message(text: &str, app: &tauri::AppHandle) {
             let speech_final = parsed["speech_final"].as_bool().unwrap_or(false);
 
             if is_final {
-                // Finalized segment — emit as final text
                 if let Err(e) = app.emit("voice-interim", transcript) {
                     eprintln!("[voice-stream] Failed to emit voice-interim: {e}");
                 }
@@ -902,14 +571,11 @@ fn handle_deepgram_message(text: &str, app: &tauri::AppHandle) {
                         eprintln!("[voice-stream] Failed to emit voice-final: {e}");
                     }
                 }
-            } else {
-                // Interim — emit for live preview (will be replaced)
-                if let Err(e) = app.emit("voice-interim", transcript) {
-                    eprintln!("[voice-stream] Failed to emit voice-interim: {e}");
-                }
+            } else if let Err(e) = app.emit("voice-interim", transcript) {
+                eprintln!("[voice-stream] Failed to emit voice-interim: {e}");
             }
         }
-        "Metadata" => {} // ignore
+        "Metadata" => {}
         "Error" | "error" => {
             let desc = parsed["message"]
                 .as_str()

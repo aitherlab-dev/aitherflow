@@ -16,10 +16,10 @@ const USAGE_COLORS = {
   gray: "#888",
 } as const;
 
-function getUsageLevel(pct: number): "green" | "orange" | "red" | "gray" {
-  if (pct >= 80) return "red";
-  if (pct >= 50) return "orange";
-  return "green";
+function getUsageColor(tokens: number): string {
+  if (tokens >= 150_000) return "var(--color-red, #f87171)";
+  if (tokens >= 100_000) return "var(--color-orange, #f59e0b)";
+  return "var(--color-green, #4ade80)";
 }
 
 export const TokensCard = memo(function TokensCard({
@@ -44,8 +44,10 @@ export const TokensCard = memo(function TokensCard({
     ? `${formatTokens(contextUsed)} / ${formatTokens(contextMax)}`
     : "—";
 
-  const usageLevel = contextUsed > 0 ? getUsageLevel(pct) : "gray";
-  const barColor = USAGE_COLORS[usageLevel];
+  const usageColor = contextUsed > 0 ? getUsageColor(contextUsed) : undefined;
+  const barColor = contextUsed > 0
+    ? getUsageColor(contextUsed)
+    : USAGE_COLORS.gray;
 
   return (
     <DashboardCard
@@ -53,7 +55,8 @@ export const TokensCard = memo(function TokensCard({
       icon={Coins}
       title="Tokens"
       statusText={statusText}
-      statusColor={usageLevel}
+      statusColor={undefined}
+      statusTextStyle={usageColor ? { color: usageColor } : undefined}
       expanded={expanded}
       onToggle={onToggle}
     >

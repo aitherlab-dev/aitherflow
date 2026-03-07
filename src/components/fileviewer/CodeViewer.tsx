@@ -265,19 +265,45 @@ export const CodeViewer = memo(function CodeViewer({
 });
 
 /**
- * Renders a single line of highlighted code via DOM ref.
- * Safe: hljs only produces <span class="hljs-*"> from local file content.
+ * Sanitize hljs output: only allow <span> with class="hljs-*".
+ * Strips all other tags, keeping their text content.
  */
+function sanitizeHljsNode(source: Node, target: Node) {
+  for (const child of source.childNodes) {
+    if (child.nodeType === Node.TEXT_NODE) {
+      target.appendChild(document.createTextNode(child.textContent ?? ""));
+    } else if (
+      child.nodeType === Node.ELEMENT_NODE &&
+      child.nodeName === "SPAN"
+    ) {
+      const el = child as Element;
+      const cls = el.getAttribute("class") ?? "";
+      if (/^hljs[\w -]*$/.test(cls)) {
+        const span = document.createElement("span");
+        span.className = cls;
+        sanitizeHljsNode(child, span);
+        target.appendChild(span);
+      } else {
+        // Untrusted class — keep text content only
+        sanitizeHljsNode(child, target);
+      }
+    }
+    // Silently drop any other element types
+  }
+}
+
 const LineContent = memo(function LineContent({ html }: { html: string }) {
   const ref = useRef<HTMLElement>(null);
 
   useEffect(() => {
     if (ref.current) {
-      // hljs output: only <span class="hljs-*"> tokens from local source files
       ref.current.textContent = "";
-      const template = document.createElement("template");
-      template.innerHTML = html || "\u00a0";
-      ref.current.appendChild(template.content);
+      if (!html) {
+        ref.current.appendChild(document.createTextNode("\u00a0"));
+        return;
+      }
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      sanitizeHljsNode(doc.body, ref.current);
     }
   }, [html]);
 

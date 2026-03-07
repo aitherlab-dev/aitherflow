@@ -2,6 +2,7 @@ import { memo, useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { Plus, RotateCcw, Star, Mic, MicOff, ArrowUp, Square, X, MessageSquarePlus, Sparkles, Brain, Zap, Loader2, Slash } from "lucide-react";
 import { openDialog, invoke, getCurrentWindow } from "../../lib/transport";
 import { useChatStore, getToolLabel, selectRecentTools } from "../../stores/chatStore";
+import { sendMessage, stopGeneration, newChat, restartSession, switchPermissionMode } from "../../stores/chatService";
 import { useShallow } from "zustand/react/shallow";
 import { useAttachmentStore } from "../../stores/attachmentStore";
 import { useFileAttach } from "../../hooks/useFileAttach";
@@ -46,18 +47,13 @@ export const InputBar = memo(function InputBar() {
   const commandsBtnRef = useRef<HTMLButtonElement>(null);
   const { attachments, processFromPaths, addAttachment, removeAttachment, clearAttachments } = useFileAttach();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const sendMessage = useChatStore((s) => s.sendMessage);
-  const stopGeneration = useChatStore((s) => s.stopGeneration);
   const isThinking = useChatStore((s) => s.isThinking);
-  const newChat = useChatStore((s) => s.newChat);
-  const restartSession = useChatStore((s) => s.restartSession);
   const selectedModel = useConductorStore((s) => s.selectedModel);
   const selectedEffort = useConductorStore((s) => s.selectedEffort);
   const selectedPermissionMode = useConductorStore((s) => s.selectedPermissionMode);
   const activeModel = useConductorStore((s) => s.model);
   const hasSession = useChatStore((s) => s.hasSession);
   const planMode = useChatStore((s) => s.planMode);
-  const switchPermissionMode = useChatStore((s) => s.switchPermissionMode);
 
   // Voice input — insert appends, replace overwrites (for streaming interim)
   const handleVoiceInsert = useCallback((transcribed: string) => {
@@ -124,7 +120,7 @@ export const InputBar = memo(function InputBar() {
       const unlisten = win.onDragDropEvent(async (event: { payload: { type: string; paths: string[] } }) => {
         if (event.payload.type === "drop") {
           setIsDragOver(false);
-          processFromPaths(event.payload.paths);
+          processFromPaths(event.payload.paths).catch(console.error);
         } else if (event.payload.type === "over") {
           setIsDragOver(true);
         } else if (event.payload.type === "leave") {
@@ -149,7 +145,7 @@ export const InputBar = memo(function InputBar() {
       if (state.pendingPaths.length === 0 || state.pendingPaths === prev.pendingPaths) return;
       const paths = [...state.pendingPaths];
       useAttachmentStore.getState().clearPending();
-      processFromPaths(paths);
+      processFromPaths(paths).catch(console.error);
     });
     return unsub;
   }, [processFromPaths]);
@@ -166,7 +162,7 @@ export const InputBar = memo(function InputBar() {
       });
       if (!selected) return;
       const paths = Array.isArray(selected) ? selected : [selected];
-      processFromPaths(paths);
+      processFromPaths(paths).catch(console.error);
     } catch (e) {
       console.error("File dialog error:", e);
     }
@@ -245,8 +241,9 @@ export const InputBar = memo(function InputBar() {
           if (ta) {
             const start = ta.selectionStart;
             const end = ta.selectionEnd;
-            const before = text.slice(0, start);
-            const after = text.slice(end);
+            const current = ta.value;
+            const before = current.slice(0, start);
+            const after = current.slice(end);
             setText(before + clipText + after);
             // Restore cursor position after inserted text
             requestAnimationFrame(() => {
@@ -306,11 +303,11 @@ export const InputBar = memo(function InputBar() {
     clearAttachments();
     resetStream(); // Clear accumulated voice text so stream doesn't refill textarea
     sendMessage(finalPrompt.trim(), attachments.length > 0 ? [...attachments] : undefined).catch(console.error);
-  }, [text, attachments, isThinking, sendMessage, clearAttachments, resetStream]);
+  }, [text, attachments, isThinking, clearAttachments, resetStream]);
 
   const handleStop = useCallback(() => {
     stopGeneration().catch(console.error);
-  }, [stopGeneration]);
+  }, []);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -488,7 +485,8 @@ export const InputBar = memo(function InputBar() {
         <div className="input-bar-cell input-bar-cell--btns">
           <button
             className="input-bar-label-btn"
-            onClick={newChat}
+            onClick={() => { if (!isThinking) newChat().catch(console.error); }}
+            disabled={isThinking}
             title="New chat"
             aria-label="New chat"
           >

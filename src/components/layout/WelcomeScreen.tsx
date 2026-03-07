@@ -1,8 +1,8 @@
-import { useState, useCallback } from "react";
-import { FolderOpen, FolderPlus, Plus, X, Sparkles } from "lucide-react";
+import { useState, useCallback, useRef } from "react";
+import { FolderOpen, FolderPlus, Plus, X, Sparkles, CornerDownLeft } from "lucide-react";
 import { useProjectStore } from "../../stores/projectStore";
 import { useAgentStore } from "../../stores/agentStore";
-import { useChatStore } from "../../stores/chatStore";
+import { switchChat } from "../../stores/chatService";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useSkillStore } from "../../stores/skillStore";
 import { openDialog } from "../../lib/transport";
@@ -15,11 +15,66 @@ export function WelcomeScreen() {
   const welcomeCards = useProjectStore((s) => s.welcomeCards);
   const addWelcomeCard = useProjectStore((s) => s.addWelcomeCard);
   const removeWelcomeCard = useProjectStore((s) => s.removeWelcomeCard);
+  const reorderWelcomeCards = useProjectStore((s) => s.reorderWelcomeCards);
   const closeWelcome = useLayoutStore((s) => s.closeWelcome);
   const createAgent = useAgentStore((s) => s.createAgent);
   const loadSkills = useSkillStore((s) => s.load);
 
   const [showPicker, setShowPicker] = useState(false);
+
+  // Pointer-based drag (Shift+drag, same as dashboard)
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
+  const [dropTargetIdx, setDropTargetIdx] = useState<number | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const dragElRef = useRef<HTMLElement | null>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+
+  const findCardAtPoint = useCallback((x: number, y: number, excludeIdx: number): number | null => {
+    if (!gridRef.current) return null;
+    const cards = gridRef.current.querySelectorAll<HTMLElement>("[data-card-idx]");
+    for (const card of cards) {
+      const idx = Number(card.dataset.cardIdx);
+      if (idx === excludeIdx) continue;
+      const rect = card.getBoundingClientRect();
+      if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) return idx;
+    }
+    return null;
+  }, []);
+
+  const handlePointerDown = useCallback((e: React.PointerEvent, idx: number) => {
+    if (!e.shiftKey) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const target = e.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    dragElRef.current = target;
+    setDragging(false);
+    setDragIdx(idx);
+    setDragOffset({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    setDragPos({ x: e.clientX, y: e.clientY });
+    target.setPointerCapture(e.pointerId);
+  }, []);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (dragIdx === null) return;
+    setDragging(true);
+    setDragPos({ x: e.clientX, y: e.clientY });
+    setDropTargetIdx(findCardAtPoint(e.clientX, e.clientY, dragIdx));
+  }, [dragIdx, findCardAtPoint]);
+
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    if (dragIdx === null) return;
+    if (dragElRef.current) dragElRef.current.releasePointerCapture(e.pointerId);
+    if (dragging && dropTargetIdx !== null && dropTargetIdx !== dragIdx) {
+      reorderWelcomeCards(dragIdx, dropTargetIdx).catch(console.error);
+    }
+    setDragIdx(null);
+    setDropTargetIdx(null);
+    dragElRef.current = null;
+    setDragging(false);
+  }, [dragIdx, dragging, dropTargetIdx, reorderWelcomeCards]);
 
   // Workspace is always the first project
   const workspace = projects[0];
@@ -37,7 +92,7 @@ export function WelcomeScreen() {
       // If we have a specific chat to restore, switch to it
       if (chatId) {
         try {
-          await useChatStore.getState().switchChat(chatId);
+          await switchChat(chatId);
         } catch {
           // Chat may not exist anymore, that's fine — new chat will be shown
         }
@@ -104,7 +159,7 @@ export function WelcomeScreen() {
         <span>New Project</span>
       </button>
 
-      <div className="welcome-grid">
+      <div className="welcome-grid" ref={gridRef}>
         {/* Card 1: Workspace — new chat */}
         <button
           className="welcome-card welcome-card--fixed welcome-stagger"
@@ -126,10 +181,10 @@ export function WelcomeScreen() {
             onClick={openLastProject}
           >
             <div className="welcome-card-icon">
-              <FolderOpen size={20} />
+              <CornerDownLeft size={20} />
             </div>
-            <div className="welcome-card-name">{lastProject.name}</div>
-            <div className="welcome-card-desc">Continue</div>
+            <div className="welcome-card-name">Return</div>
+            <div className="welcome-card-desc">{lastProject.name}</div>
           </button>
         ) : (
           <div
@@ -147,9 +202,13 @@ export function WelcomeScreen() {
         {welcomeCards.map((card, idx) => (
           <button
             key={card.projectPath}
-            className="welcome-card welcome-stagger"
+            data-card-idx={idx}
+            className={`welcome-card welcome-stagger${dragIdx === idx && dragging ? " welcome-card--dragging" : ""}${dropTargetIdx === idx ? " welcome-card--drag-over" : ""}`}
             style={{ "--i": 4 + idx } as React.CSSProperties}
-            onClick={() => openProject(card.projectPath, card.projectName)}
+            onPointerDown={(e) => handlePointerDown(e, idx)}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onClick={() => { if (!dragging) openProject(card.projectPath, card.projectName); }}
           >
             <div
               role="button"
@@ -187,6 +246,24 @@ export function WelcomeScreen() {
           </button>
         )}
       </div>
+
+      {/* Drag ghost */}
+      {dragIdx !== null && dragging && dragElRef.current && (
+        <div
+          className="welcome-card-ghost"
+          style={{
+            left: dragPos.x - dragOffset.x,
+            top: dragPos.y - dragOffset.y,
+            width: dragElRef.current.offsetWidth,
+            height: dragElRef.current.offsetHeight,
+          }}
+        >
+          <div className="welcome-card-icon">
+            <FolderOpen size={20} />
+          </div>
+          <div className="welcome-card-name">{welcomeCards[dragIdx]?.projectName}</div>
+        </div>
+      )}
 
       {/* Project picker popup */}
       {showPicker && (

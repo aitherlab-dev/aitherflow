@@ -12,6 +12,7 @@ pub fn parse_line(
     agent_id: &str,
     completed_text: &mut String,
     delta_text: &mut String,
+    combined_buf: &mut String,
 ) -> Result<Vec<CliEvent>, String> {
     let parsed: Value =
         serde_json::from_str(line).map_err(|e| format!("Invalid JSON: {e}"))?;
@@ -68,10 +69,10 @@ pub fn parse_line(
                 .and_then(|v| v.as_str())
             {
                 delta_text.push_str(chunk);
-                let full = combine_text(completed_text, delta_text);
+                combine_text_into(combined_buf, completed_text, delta_text);
                 events.push(CliEvent::StreamChunk {
                     agent_id: aid,
-                    text: full,
+                    text: combined_buf.clone(),
                 });
             }
         }
@@ -99,9 +100,10 @@ pub fn parse_line(
 
             // If no streaming deltas came, send the text as a chunk
             if !had_deltas && !text.is_empty() {
+                combine_text_into(combined_buf, completed_text, "");
                 events.push(CliEvent::StreamChunk {
                     agent_id: aid.clone(),
-                    text: completed_text.clone(),
+                    text: combined_buf.clone(),
                 });
             }
 
@@ -204,7 +206,8 @@ pub fn parse_line(
                 .unwrap_or(false);
 
             // Build final text
-            let accumulated = combine_text(completed_text, delta_text);
+            combine_text_into(combined_buf, completed_text, delta_text);
+            let accumulated = combined_buf.clone();
             let final_text = if accumulated.is_empty() {
                 parsed
                     .get("result")
@@ -330,20 +333,19 @@ pub fn parse_line(
     Ok(events)
 }
 
-/// Combine completed text and current delta into one string.
+/// Combine completed text and current delta into the reusable buffer.
 /// Uses `<!-- turn -->` separator so the frontend can distinguish thinking blocks.
-fn combine_text(completed: &str, current: &str) -> String {
+fn combine_text_into(buf: &mut String, completed: &str, current: &str) {
+    buf.clear();
     if completed.is_empty() {
-        current.to_string()
+        buf.push_str(current);
     } else if current.is_empty() {
-        completed.to_string()
+        buf.push_str(completed);
     } else {
-        let sep = "\n<!-- turn -->\n";
-        let mut s = String::with_capacity(completed.len() + sep.len() + current.len());
-        s.push_str(completed);
-        s.push_str(sep);
-        s.push_str(current);
-        s
+        buf.reserve(completed.len() + 16 + current.len());
+        buf.push_str(completed);
+        buf.push_str("\n<!-- turn -->\n");
+        buf.push_str(current);
     }
 }
 
@@ -391,12 +393,23 @@ fn extract_tool_result_text(item: &Value) -> String {
 mod tests {
     use super::*;
 
+    /// Convenience wrapper: creates combined_buf automatically
+    fn pl(
+        line: &str,
+        agent_id: &str,
+        completed: &mut String,
+        delta: &mut String,
+    ) -> Result<Vec<CliEvent>, String> {
+        let mut buf = String::new();
+        parse_line(line, agent_id, completed, delta, &mut buf)
+    }
+
     #[test]
     fn parse_system_event() {
         let line = r#"{"type":"system","session_id":"sess_abc","model":"claude-sonnet-4-20250514"}"#;
         let mut completed = String::new();
         let mut delta = String::new();
-        let events = parse_line(line, "agent1", &mut completed, &mut delta).unwrap();
+        let events = pl(line, "agent1", &mut completed, &mut delta).unwrap();
 
         assert_eq!(events.len(), 2);
         match &events[0] {
@@ -423,7 +436,7 @@ mod tests {
         let line = r#"{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"Hello "}}}"#;
         let mut completed = String::new();
         let mut delta = String::new();
-        let events = parse_line(line, "default", &mut completed, &mut delta).unwrap();
+        let events = pl(line, "default", &mut completed, &mut delta).unwrap();
 
         assert_eq!(events.len(), 1);
         match &events[0] {
@@ -434,7 +447,7 @@ mod tests {
 
         // Second delta accumulates
         let line2 = r#"{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"world!"}}}"#;
-        let events2 = parse_line(line2, "default", &mut completed, &mut delta).unwrap();
+        let events2 = pl(line2, "default", &mut completed, &mut delta).unwrap();
         match &events2[0] {
             CliEvent::StreamChunk { text, .. } => assert_eq!(text, "Hello world!"),
             other => panic!("Expected StreamChunk, got {other:?}"),
@@ -446,7 +459,7 @@ mod tests {
         let line = r#"{"type":"result","is_error":false,"result":"Done","session_id":"sess_abc","usage":{"input_tokens":100,"output_tokens":50},"total_cost_usd":0.015}"#;
         let mut completed = String::new();
         let mut delta = "Hello world!".to_string();
-        let events = parse_line(line, "default", &mut completed, &mut delta).unwrap();
+        let events = pl(line, "default", &mut completed, &mut delta).unwrap();
 
         // Should produce: MessageComplete, UsageInfo, TurnComplete
         assert_eq!(events.len(), 3);
@@ -488,7 +501,7 @@ mod tests {
         let line = r#"{"type":"result","is_error":false,"result":"OK","usage":{"input_tokens":5000,"output_tokens":1200,"cache_creation_input_tokens":20000,"cache_read_input_tokens":40000},"total_cost_usd":0.42,"modelUsage":{"claude-opus-4-20250514":{"contextWindow":200000}}}"#;
         let mut completed = String::new();
         let mut delta = "Done".to_string();
-        let events = parse_line(line, "a1", &mut completed, &mut delta).unwrap();
+        let events = pl(line, "a1", &mut completed, &mut delta).unwrap();
 
         let usage = events.iter().find(|e| matches!(e, CliEvent::UsageInfo { .. }));
         assert!(usage.is_some(), "Should have UsageInfo event");
@@ -517,7 +530,7 @@ mod tests {
             r#"{"type":"result","is_error":true,"result":"Auth expired","usage":{}}"#;
         let mut completed = String::new();
         let mut delta = String::new();
-        let events = parse_line(line, "default", &mut completed, &mut delta).unwrap();
+        let events = pl(line, "default", &mut completed, &mut delta).unwrap();
 
         assert!(events.len() >= 2); // Error + TurnComplete
         match &events[0] {
@@ -530,7 +543,7 @@ mod tests {
     fn parse_invalid_json() {
         let mut completed = String::new();
         let mut delta = String::new();
-        let result = parse_line("not json", "default", &mut completed, &mut delta);
+        let result = pl("not json", "default", &mut completed, &mut delta);
         assert!(result.is_err());
     }
 
@@ -539,7 +552,7 @@ mod tests {
         let line = r#"{"type":"assistant","message":{"content":[{"type":"text","text":"Let me check."},{"type":"tool_use","id":"tu_1","name":"Read","input":{"file_path":"/tmp/test.rs"}}]}}"#;
         let mut completed = String::new();
         let mut delta = String::new();
-        let events = parse_line(line, "default", &mut completed, &mut delta).unwrap();
+        let events = pl(line, "default", &mut completed, &mut delta).unwrap();
 
         // StreamChunk (text) + ToolUse
         assert_eq!(events.len(), 2);
@@ -569,20 +582,20 @@ mod tests {
 
         // Turn 1: streaming deltas → assistant → user
         let d1 = r#"{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"Looking..."}}}"#;
-        parse_line(d1, "a", &mut completed, &mut delta).unwrap();
+        pl(d1, "a", &mut completed, &mut delta).unwrap();
         assert_eq!(delta, "Looking...");
 
         let a1 = r#"{"type":"assistant","message":{"content":[{"type":"text","text":"Looking..."},{"type":"tool_use","id":"t1","name":"Read","input":{}}]}}"#;
-        parse_line(a1, "a", &mut completed, &mut delta).unwrap();
+        pl(a1, "a", &mut completed, &mut delta).unwrap();
         assert_eq!(completed, "Looking...");
         assert!(delta.is_empty());
 
         let u1 = r#"{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"ok"}]}}"#;
-        parse_line(u1, "a", &mut completed, &mut delta).unwrap();
+        pl(u1, "a", &mut completed, &mut delta).unwrap();
 
         // Turn 2: new streaming text
         let d2 = r#"{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"Found it."}}}"#;
-        let events = parse_line(d2, "a", &mut completed, &mut delta).unwrap();
+        let events = pl(d2, "a", &mut completed, &mut delta).unwrap();
 
         // StreamChunk should contain both turns separated by turn marker
         match &events[0] {
@@ -603,7 +616,7 @@ mod tests {
         let line = r#"{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"tu_1","content":"file contents here","is_error":false}]}}"#;
         let mut completed = String::new();
         let mut delta = String::new();
-        let events = parse_line(line, "default", &mut completed, &mut delta).unwrap();
+        let events = pl(line, "default", &mut completed, &mut delta).unwrap();
 
         assert_eq!(events.len(), 1);
         match &events[0] {

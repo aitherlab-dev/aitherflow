@@ -2,7 +2,7 @@ import { memo, useCallback, useMemo, useState } from "react";
 import { ChevronRight, Settings, Sparkles, Star } from "lucide-react";
 import { useSkillStore } from "../../../stores/skillStore";
 import { useAgentStore } from "../../../stores/agentStore";
-import { useChatStore } from "../../../stores/chatStore";
+import { sendMessage } from "../../../stores/chatService";
 import { useLayoutStore } from "../../../stores/layoutStore";
 import { useTranslationStore } from "../../../stores/translationStore";
 import { DashboardCard } from "../DashboardCard";
@@ -126,7 +126,7 @@ export const SkillsCard = memo(function SkillsCard({
   const handleInvoke = useCallback(
     (command: string) => {
       if (!hasActiveAgent) return;
-      useChatStore.getState().sendMessage(command).catch(console.error);
+      sendMessage(command).catch(console.error);
     },
     [hasActiveAgent],
   );

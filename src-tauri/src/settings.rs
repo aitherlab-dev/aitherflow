@@ -4,6 +4,10 @@ use std::path::PathBuf;
 
 use crate::config;
 use crate::file_ops::atomic_write;
+use crate::secrets;
+
+const KEY_GROQ: &str = "groq-api-key";
+const KEY_DEEPGRAM: &str = "deepgram-api-key";
 
 /// App-wide settings stored on disk
 #[derive(Default, Serialize, Deserialize, Clone)]
@@ -55,30 +59,69 @@ fn settings_path() -> PathBuf {
 }
 
 
-/// Load settings from disk. Returns defaults if file doesn't exist.
+/// Load settings from disk. API keys are loaded from system keyring;
+/// if not found there, migrates from JSON to keyring.
 #[tauri::command]
 pub async fn load_settings() -> Result<AppSettings, String> {
     tokio::task::spawn_blocking(move || {
         let path = settings_path();
-        if !path.exists() {
+        let mut settings = if path.exists() {
+            let data = fs::read_to_string(&path)
+                .map_err(|e| format!("Failed to read settings.json: {e}"))?;
+            serde_json::from_str::<AppSettings>(&data)
+                .map_err(|e| format!("Failed to parse settings.json: {e}"))?
+        } else {
             return Ok(AppSettings::default());
+        };
+
+        let mut migrated = false;
+
+        // Groq key: prefer keyring, migrate from JSON if needed
+        if let Some(kr) = secrets::get_secret(KEY_GROQ) {
+            settings.groq_api_key = kr;
+        } else if !settings.groq_api_key.is_empty() {
+            let _ = secrets::set_secret(KEY_GROQ, &settings.groq_api_key);
+            migrated = true;
         }
 
-        let data = fs::read_to_string(&path)
-            .map_err(|e| format!("Failed to read settings.json: {e}"))?;
-        let settings: AppSettings = serde_json::from_str(&data)
-            .map_err(|e| format!("Failed to parse settings.json: {e}"))?;
+        // Deepgram key: same logic
+        if let Some(kr) = secrets::get_secret(KEY_DEEPGRAM) {
+            settings.deepgram_api_key = kr;
+        } else if !settings.deepgram_api_key.is_empty() {
+            let _ = secrets::set_secret(KEY_DEEPGRAM, &settings.deepgram_api_key);
+            migrated = true;
+        }
+
+        // If migrated, clear keys from JSON file
+        if migrated {
+            let mut disk = settings.clone();
+            disk.groq_api_key = String::new();
+            disk.deepgram_api_key = String::new();
+            let data = serde_json::to_string_pretty(&disk)
+                .map_err(|e| format!("Failed to serialize settings: {e}"))?;
+            let _ = atomic_write(&settings_path(), data.as_bytes());
+        }
+
         Ok(settings)
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
 }
 
-/// Save settings to disk (atomic write)
+/// Save settings to disk. API keys go to system keyring;
+/// settings.json stores everything else with empty key fields.
 #[tauri::command]
 pub async fn save_settings(settings: AppSettings) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
-        let data = serde_json::to_string_pretty(&settings)
+        // Store secrets in keyring
+        let _ = secrets::set_secret(KEY_GROQ, &settings.groq_api_key);
+        let _ = secrets::set_secret(KEY_DEEPGRAM, &settings.deepgram_api_key);
+
+        // Write JSON without secrets
+        let mut disk = settings;
+        disk.groq_api_key = String::new();
+        disk.deepgram_api_key = String::new();
+        let data = serde_json::to_string_pretty(&disk)
             .map_err(|e| format!("Failed to serialize settings: {e}"))?;
         atomic_write(&settings_path(), data.as_bytes())
     })

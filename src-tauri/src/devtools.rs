@@ -42,13 +42,17 @@ pub async fn self_build(app: tauri::AppHandle) -> Result<(), String> {
             .find(|p| p.exists())
             .ok_or_else(|| "self-build.sh not found".to_string())?;
 
-        // Verify script is under $HOME
-        let home = std::env::var("HOME").map_err(|_| "HOME not set".to_string())?;
-        if !script_path.starts_with(&home) {
+        // Verify script is under $HOME (canonicalized to prevent symlink bypass)
+        let home = PathBuf::from(
+            std::env::var("HOME").map_err(|_| "HOME not set".to_string())?
+        );
+        let home = home.canonicalize().unwrap_or(home);
+        let script_resolved = script_path.canonicalize().unwrap_or(script_path.clone());
+        if !script_resolved.starts_with(&home) {
             return Err(format!(
                 "self-build.sh must be under HOME ({}), found: {}",
-                home,
-                script_path.display()
+                home.display(),
+                script_resolved.display()
             ));
         }
 
@@ -80,12 +84,22 @@ pub async fn self_dev(project_path: String) -> Result<String, String> {
             return Err(format!("Project dir not found: {project_path}"));
         }
 
-        // Verify project dir is under $HOME
-        let home = std::env::var("HOME").map_err(|_| "HOME not set".to_string())?;
+        // Canonicalize to resolve symlinks before checking
+        let project_dir = project_dir
+            .canonicalize()
+            .map_err(|e| format!("Cannot resolve path: {e}"))?;
+
+        // Verify resolved path is under $HOME
+        let home = PathBuf::from(
+            std::env::var("HOME").map_err(|_| "HOME not set".to_string())?
+        );
+        let home = home
+            .canonicalize()
+            .unwrap_or(home);
         if !project_dir.starts_with(&home) {
             return Err(format!(
                 "Project dir must be under HOME ({}), found: {}",
-                home,
+                home.display(),
                 project_dir.display()
             ));
         }
@@ -165,9 +179,8 @@ pub async fn self_dev(project_path: String) -> Result<String, String> {
             .map_err(|e| format!("Failed to launch '{display}': {e}"))?;
 
         // Save PID for stop_dev
-        if let Ok(mut pids) = DEV_SERVER_PIDS.lock() {
-            pids.insert(project_path, child.id());
-        }
+        let mut pids = DEV_SERVER_PIDS.lock().unwrap_or_else(|e| e.into_inner());
+        pids.insert(project_path, child.id());
 
         Ok::<String, String>(display)
     })
@@ -178,29 +191,27 @@ pub async fn self_dev(project_path: String) -> Result<String, String> {
 #[tauri::command]
 pub async fn stop_dev(project_path: String) -> Result<(), String> {
     let pid = {
-        let mut pids = DEV_SERVER_PIDS
-            .lock()
-            .map_err(|e| format!("Lock error: {e}"))?;
+        let mut pids = DEV_SERVER_PIDS.lock().unwrap_or_else(|e| e.into_inner());
         pids.remove(&project_path)
     };
 
     if let Some(pid) = pid {
         tokio::task::spawn_blocking(move || {
             // Kill process group to stop all children (vite, cargo, etc.)
-            if let Err(e) = std::process::Command::new("kill")
+            let group_ok = std::process::Command::new("kill")
                 .args(["--", &format!("-{pid}")])
                 .output()
-            {
-                eprintln!(
-                    "[devtools] Failed to kill dev server process group {pid}: {e}"
-                );
-            }
-            // Fallback: kill direct process
-            if let Err(e) = std::process::Command::new("kill")
-                .arg(pid.to_string())
-                .output()
-            {
-                eprintln!("[devtools] Failed to kill dev server process {pid}: {e}");
+                .map(|o| o.status.success())
+                .unwrap_or(false);
+
+            // Fallback: kill direct process only if group kill failed
+            if !group_ok {
+                if let Err(e) = std::process::Command::new("kill")
+                    .arg(pid.to_string())
+                    .output()
+                {
+                    eprintln!("[devtools] Failed to kill dev server process {pid}: {e}");
+                }
             }
         })
         .await

@@ -275,15 +275,22 @@ fn test_stdio(config: &McpServerConfig) -> Result<McpTestResult, String> {
                     if let Err(e) = c.kill() {
                         eprintln!("[mcp] Failed to kill test process: {e}");
                     }
+                    // Reap zombie
+                    let _ = c.wait();
                     Ok(McpTestResult {
                         ok: true,
                         message: "Process started successfully".into(),
                     })
                 }
-                Err(e) => Ok(McpTestResult {
-                    ok: false,
-                    message: format!("Failed to check process: {e}"),
-                }),
+                Err(e) => {
+                    // Reap in case of error too
+                    let _ = c.kill();
+                    let _ = c.wait();
+                    Ok(McpTestResult {
+                        ok: false,
+                        message: format!("Failed to check process: {e}"),
+                    })
+                }
             }
         }
         Err(e) => Ok(McpTestResult {

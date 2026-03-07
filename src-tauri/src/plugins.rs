@@ -533,7 +533,9 @@ pub async fn install_plugin(name: String, marketplace: String) -> Result<(), Str
                         .map_err(|e| format!("Failed to run git clone: {e}"))?;
 
                     if !output.status.success() {
-                        let _ = fs::remove_dir_all(&clone_dir);
+                        if let Err(e) = fs::remove_dir_all(&clone_dir) {
+                            eprintln!("[plugins] Failed to clean up clone dir: {e}");
+                        }
                         let stderr = String::from_utf8_lossy(&output.stderr);
                         return Err(format!("Failed to clone plugin: {}", stderr.trim()));
                     }
@@ -875,30 +877,8 @@ fn get_git_sha(repo_path: &Path) -> String {
         .unwrap_or_default()
 }
 
-/// Recursively copy a directory
-fn copy_dir_all(src: &Path, dst: &Path) -> Result<(), String> {
-    fs::create_dir_all(dst)
-        .map_err(|e| format!("Failed to create dir {}: {e}", dst.display()))?;
-
-    let entries = fs::read_dir(src)
-        .map_err(|e| format!("Failed to read dir {}: {e}", src.display()))?;
-
-    for entry in entries.flatten() {
-        let ft = entry
-            .file_type()
-            .map_err(|e| format!("Failed to get file type: {e}"))?;
-        let dest = dst.join(entry.file_name());
-
-        if ft.is_dir() {
-            copy_dir_all(&entry.path(), &dest)?;
-        } else {
-            fs::copy(entry.path(), &dest)
-                .map_err(|e| format!("Failed to copy file: {e}"))?;
-        }
-    }
-
-    Ok(())
-}
+// copy_dir_all: use the canonical implementation from file_ops
+use crate::file_ops::copy_dir_recursive as copy_dir_all;
 
 /// Generate an ISO 8601 timestamp (no chrono crate dependency)
 fn chrono_now() -> String {

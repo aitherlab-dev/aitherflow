@@ -1,8 +1,6 @@
 import { create } from "zustand";
 import { invoke } from "../lib/transport";
 import type { ProjectBookmark, ProjectsConfig, WelcomeCard } from "../types/projects";
-import { useAgentStore } from "./agentStore";
-
 interface ProjectState {
   projects: ProjectBookmark[];
   lastOpenedProject: string | null;
@@ -35,6 +33,9 @@ interface ProjectState {
 
   /** Remove a welcome card */
   removeWelcomeCard: (projectPath: string) => Promise<void>;
+
+  /** Reorder welcome cards */
+  reorderWelcomeCards: (fromIndex: number, toIndex: number) => Promise<void>;
 }
 
 /** Persist current state to disk via Rust */
@@ -97,7 +98,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     );
     set({ projects: updated, welcomeCards: updatedCards });
     await persist(updated, lastOpenedProject, lastOpenedChatId, updatedCards);
-    useAgentStore.getState().renameProjectInAgents(path, newName).catch(console.error);
+    import("./agentStore").then(({ useAgentStore }) => {
+      useAgentStore.getState().renameProjectInAgents(path, newName).catch(console.error);
+    });
   },
 
   addDirectory: async (projectPath, dirPath) => {
@@ -140,6 +143,15 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   removeWelcomeCard: async (projectPath) => {
     const { projects, lastOpenedProject, lastOpenedChatId, welcomeCards } = get();
     const updated = welcomeCards.filter((c) => c.projectPath !== projectPath);
+    set({ welcomeCards: updated });
+    await persist(projects, lastOpenedProject, lastOpenedChatId, updated);
+  },
+
+  reorderWelcomeCards: async (fromIndex, toIndex) => {
+    const { projects, lastOpenedProject, lastOpenedChatId, welcomeCards } = get();
+    const updated = [...welcomeCards];
+    const [moved] = updated.splice(fromIndex, 1);
+    updated.splice(toIndex, 0, moved);
     set({ welcomeCards: updated });
     await persist(projects, lastOpenedProject, lastOpenedChatId, updated);
   },

@@ -70,22 +70,12 @@ pub async fn start_session(
     Ok(())
 }
 
-/// Send a follow-up message to an existing CLI session via stdin.
-#[tauri::command]
-pub async fn send_message(
-    sessions: State<'_, SessionManager>,
-    options: SendMessageOptions,
-) -> Result<(), String> {
-    let agent_id = options
-        .agent_id
-        .unwrap_or_else(|| DEFAULT_AGENT_ID.to_string());
-
+/// Write an NDJSON line to an agent's stdin.
+async fn write_stdin(sessions: &SessionManager, agent_id: &str, ndjson: &str) -> Result<(), String> {
     let stdin_handle = sessions
-        .get_stdin(&agent_id)
+        .get_stdin(agent_id)
         .await
         .ok_or_else(|| "No active session for this agent".to_string())?;
-
-    let ndjson = process::build_stdin_message(&options.prompt, &options.attachments)?;
 
     let mut stdin = stdin_handle.lock().await;
     let result = async {
@@ -97,7 +87,20 @@ pub async fn send_message(
     }
     .await;
 
-    result.map_err(|e| format!("Failed to send message: {e}"))
+    result.map_err(|e| format!("Failed to write to stdin: {e}"))
+}
+
+/// Send a follow-up message to an existing CLI session via stdin.
+#[tauri::command]
+pub async fn send_message(
+    sessions: State<'_, SessionManager>,
+    options: SendMessageOptions,
+) -> Result<(), String> {
+    let agent_id = options
+        .agent_id
+        .unwrap_or_else(|| DEFAULT_AGENT_ID.to_string());
+    let ndjson = process::build_stdin_message(&options.prompt, &options.attachments)?;
+    write_stdin(&sessions, &agent_id, &ndjson).await
 }
 
 /// Respond to a control_request (permission or interactive tool) via control_response.
@@ -113,25 +116,8 @@ pub async fn respond_to_tool(
     response: serde_json::Value,
 ) -> Result<(), String> {
     let agent_id = agent_id.unwrap_or_else(|| DEFAULT_AGENT_ID.to_string());
-
-    let stdin_handle = sessions
-        .get_stdin(&agent_id)
-        .await
-        .ok_or_else(|| "No active session for this agent".to_string())?;
-
     let ndjson = process::build_control_response(&request_id, &response)?;
-
-    let mut stdin = stdin_handle.lock().await;
-    let write_result = async {
-        use tokio::io::AsyncWriteExt;
-        stdin.write_all(ndjson.as_bytes()).await?;
-        stdin.write_all(b"\n").await?;
-        stdin.flush().await?;
-        Ok::<(), std::io::Error>(())
-    }
-    .await;
-
-    write_result.map_err(|e| format!("Failed to send control_response: {e}"))
+    write_stdin(&sessions, &agent_id, &ndjson).await
 }
 
 /// Stop (kill) an agent's CLI process.
@@ -172,7 +158,7 @@ pub async fn get_session_usage(
 ) -> Result<serde_json::Value, String> {
     tokio::task::spawn_blocking(move || {
         let home = dirs::home_dir().ok_or("No home directory")?;
-        let encoded = project_path.replace(['/', '.', '_'], "-");
+        let encoded = crate::memory::indexer::encode_project_path(&project_path);
         let jsonl_path = home
             .join(".claude")
             .join("projects")

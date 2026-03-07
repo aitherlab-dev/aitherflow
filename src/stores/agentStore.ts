@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { invoke } from "../lib/transport";
 import type { AgentEntry, AgentsConfig } from "../types/agents";
 import { useChatStore } from "./chatStore";
+import { switchAgent, clearAgentState } from "./chatService";
 import { useProjectStore } from "./projectStore";
 
 interface AgentState {
@@ -85,9 +86,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     await persist(updated, newAgent.id);
 
     // Switch chatStore to the new agent
-    await useChatStore
-      .getState()
-      .switchAgent(newAgent.id, newAgent.projectPath, newAgent.projectName, null);
+    await switchAgent(newAgent.id, newAgent.projectPath, newAgent.projectName, null);
 
     // Track last opened project
     useProjectStore.getState().setLastOpened(projectPath, null).catch(console.error);
@@ -99,10 +98,10 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     // Stop CLI for this agent and clean up background buffer
     try {
       await invoke("stop_session", { agentId });
-    } catch {
-      // Ignore — may not have an active session
+    } catch (e) {
+      console.error(`[agentStore] stop_session for ${agentId}:`, e);
     }
-    useChatStore.getState().clearAgentState(agentId);
+    clearAgentState(agentId);
 
     const updated = agents.filter((a) => a.id !== agentId);
     let newActiveId = activeAgentId;
@@ -124,9 +123,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       const newAgent = updated.find((a) => a.id === newActiveId);
       if (newAgent) {
         const savedChatId = remainingLocks[newActiveId] ?? null;
-        await useChatStore
-          .getState()
-          .switchAgent(newAgent.id, newAgent.projectPath, newAgent.projectName, savedChatId);
+        await switchAgent(newAgent.id, newAgent.projectPath, newAgent.projectName, savedChatId);
       }
     }
   },
@@ -153,9 +150,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     const savedChatId = chatLocks[agentId] ?? null;
 
     // Tell chatStore to switch context
-    await useChatStore
-      .getState()
-      .switchAgent(agent.id, agent.projectPath, agent.projectName, savedChatId);
+    await switchAgent(agent.id, agent.projectPath, agent.projectName, savedChatId);
 
     // Track last opened project
     useProjectStore.getState().setLastOpened(agent.projectPath, savedChatId).catch(console.error);

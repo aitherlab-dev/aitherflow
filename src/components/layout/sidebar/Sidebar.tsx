@@ -4,6 +4,7 @@ import { Home, Settings, FolderOpen, LayoutDashboard } from "lucide-react";
 import { useIsMobile } from "../../../hooks/useIsMobile";
 import { useLayoutStore } from "../../../stores/layoutStore";
 import { useChatStore } from "../../../stores/chatStore";
+import { newChat, switchChat, deleteChat, renameChat, toggleChatPin } from "../../../stores/chatService";
 import { useAgentStore } from "../../../stores/agentStore";
 import { ResizeHandle } from "../ResizeHandle";
 import { FilesPanel } from "../FilesPanel";
@@ -37,11 +38,6 @@ export const Sidebar = memo(function Sidebar() {
   const currentChatId = useChatStore((s) => s.currentChatId);
   const isThinking = useChatStore((s) => s.isThinking);
   const thinkingAgentIds = useChatStore(useShallow((s) => s.thinkingAgentIds));
-  const newChat = useChatStore((s) => s.newChat);
-  const switchChat = useChatStore((s) => s.switchChat);
-  const deleteChat = useChatStore((s) => s.deleteChat);
-  const renameChat = useChatStore((s) => s.renameChat);
-  const toggleChatPin = useChatStore((s) => s.toggleChatPin);
 
   const [filesOpen, setFilesOpen] = useState(false);
   const [dashboardOpen, setDashboardOpen] = useState(true);

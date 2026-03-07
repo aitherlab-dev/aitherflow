@@ -11,8 +11,64 @@ use crate::file_ops::atomic_write;
 static CHAT_LOCKS: LazyLock<Mutex<HashMap<String, Arc<Mutex<()>>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
+/// Cached chat metadata to avoid re-reading the whole file in save_chat_messages.
+static META_CACHE: LazyLock<Mutex<HashMap<String, ChatFileMeta>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// Lightweight metadata (everything except messages).
+#[derive(Clone)]
+struct ChatFileMeta {
+    id: String,
+    project_path: String,
+    agent_id: Option<String>,
+    title: String,
+    created_at: u64,
+    session_id: Option<String>,
+    custom_title: Option<String>,
+    pinned: Option<bool>,
+}
+
+impl ChatFileMeta {
+    fn from_chat(chat: &ChatFile) -> Self {
+        Self {
+            id: chat.id.clone(),
+            project_path: chat.project_path.clone(),
+            agent_id: chat.agent_id.clone(),
+            title: chat.title.clone(),
+            created_at: chat.created_at,
+            session_id: chat.session_id.clone(),
+            custom_title: chat.custom_title.clone(),
+            pinned: chat.pinned,
+        }
+    }
+
+    fn into_chat_file(self, messages: Vec<ChatMessageStored>) -> ChatFile {
+        ChatFile {
+            id: self.id,
+            project_path: self.project_path,
+            agent_id: self.agent_id,
+            title: self.title,
+            created_at: self.created_at,
+            session_id: self.session_id,
+            custom_title: self.custom_title,
+            pinned: self.pinned,
+            messages,
+        }
+    }
+}
+
+fn cache_meta(chat: &ChatFile) {
+    if let Ok(mut map) = META_CACHE.lock() {
+        map.insert(chat.id.clone(), ChatFileMeta::from_chat(chat));
+    }
+}
+
+fn get_cached_meta(chat_id: &str) -> Option<ChatFileMeta> {
+    META_CACHE.lock().ok()?.get(chat_id).cloned()
+}
+
 fn chat_lock(chat_id: &str) -> Arc<Mutex<()>> {
-    let mut map = CHAT_LOCKS.lock().expect("CHAT_LOCKS poisoned");
+    let mut map = CHAT_LOCKS.lock().unwrap_or_else(|e| e.into_inner());
     map.entry(chat_id.to_string())
         .or_insert_with(|| Arc::new(Mutex::new(())))
         .clone()
@@ -89,6 +145,22 @@ pub struct ChatMeta {
     pub pinned: bool,
 }
 
+/// Lightweight struct for list_chats — skips messages during deserialization
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ChatFileLight {
+    id: String,
+    project_path: String,
+    title: String,
+    created_at: u64,
+    #[serde(default)]
+    session_id: Option<String>,
+    #[serde(default)]
+    custom_title: Option<String>,
+    #[serde(default)]
+    pinned: Option<bool>,
+}
+
 /// Directory where chat JSON files live: ~/.config/aither-flow/chats/
 fn chats_dir() -> PathBuf {
     config::config_dir().join("chats")
@@ -126,7 +198,7 @@ pub async fn list_chats(project_path: String) -> Result<Vec<ChatMeta>, String> {
                 continue;
             }
             if let Ok(data) = fs::read_to_string(&path) {
-                if let Ok(chat) = serde_json::from_str::<ChatFile>(&data) {
+                if let Ok(chat) = serde_json::from_str::<ChatFileLight>(&data) {
                     if chat.project_path == project_path {
                         chats.push(ChatMeta {
                             id: chat.id,
@@ -181,6 +253,7 @@ pub async fn create_chat(
             .map_err(|e| format!("Failed to serialize chat: {e}"))?;
         atomic_write(&chat_path(&id), data.as_bytes())?;
 
+        cache_meta(&chat);
         Ok(chat)
     })
     .await
@@ -191,7 +264,10 @@ pub async fn create_chat(
 #[tauri::command]
 pub async fn load_chat(chat_id: String) -> Result<ChatFile, String> {
     tokio::task::spawn_blocking(move || {
-        read_chat_file(&chat_id).ok_or_else(|| format!("Chat {chat_id} not found"))
+        let chat = read_chat_file(&chat_id)
+            .ok_or_else(|| format!("Chat {chat_id} not found"))?;
+        cache_meta(&chat);
+        Ok(chat)
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
@@ -206,9 +282,20 @@ pub async fn save_chat_messages(
     tokio::task::spawn_blocking(move || {
         let lock = chat_lock(&chat_id);
         let _guard = lock.lock().map_err(|e| format!("Chat lock poisoned: {e}"))?;
-        let mut chat = read_chat_file(&chat_id)
-            .ok_or_else(|| format!("Chat {chat_id} not found"))?;
-        chat.messages = messages;
+
+        // Try cached metadata first (avoids reading+parsing the whole file)
+        let meta = get_cached_meta(&chat_id);
+        let chat = if let Some(meta) = meta {
+            meta.into_chat_file(messages)
+        } else {
+            // Cache miss: fall back to full read (first save before load_chat)
+            let mut chat = read_chat_file(&chat_id)
+                .ok_or_else(|| format!("Chat {chat_id} not found"))?;
+            chat.messages = messages;
+            cache_meta(&chat);
+            chat
+        };
+
         let data = serde_json::to_string_pretty(&chat)
             .map_err(|e| format!("Failed to serialize chat: {e}"))?;
         atomic_write(&chat_path(&chat_id), data.as_bytes())
@@ -226,6 +313,7 @@ pub async fn update_chat_session(chat_id: String, session_id: String) -> Result<
         let mut chat = read_chat_file(&chat_id)
             .ok_or_else(|| format!("Chat {chat_id} not found"))?;
         chat.session_id = Some(session_id);
+        cache_meta(&chat);
         let data = serde_json::to_string_pretty(&chat)
             .map_err(|e| format!("Failed to serialize chat: {e}"))?;
         atomic_write(&chat_path(&chat_id), data.as_bytes())
@@ -242,6 +330,13 @@ pub async fn delete_chat(chat_id: String) -> Result<(), String> {
         if path.exists() {
             fs::remove_file(&path)
                 .map_err(|e| format!("Failed to delete chat file: {e}"))?;
+        }
+        // Clean up caches
+        if let Ok(mut map) = CHAT_LOCKS.lock() {
+            map.remove(&chat_id);
+        }
+        if let Ok(mut map) = META_CACHE.lock() {
+            map.remove(&chat_id);
         }
         Ok(())
     })
@@ -263,6 +358,7 @@ pub async fn rename_chat(chat_id: String, custom_title: String) -> Result<(), St
         } else {
             Some(trimmed.to_string())
         };
+        cache_meta(&chat);
         let data = serde_json::to_string_pretty(&chat)
             .map_err(|e| format!("Failed to serialize chat: {e}"))?;
         atomic_write(&chat_path(&chat_id), data.as_bytes())
@@ -280,6 +376,7 @@ pub async fn toggle_chat_pin(chat_id: String, pinned: bool) -> Result<(), String
         let mut chat = read_chat_file(&chat_id)
             .ok_or_else(|| format!("Chat {chat_id} not found"))?;
         chat.pinned = if pinned { Some(true) } else { None };
+        cache_meta(&chat);
         let data = serde_json::to_string_pretty(&chat)
             .map_err(|e| format!("Failed to serialize chat: {e}"))?;
         atomic_write(&chat_path(&chat_id), data.as_bytes())

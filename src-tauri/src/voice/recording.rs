@@ -1,0 +1,200 @@
+use std::io::Cursor;
+use std::sync::Arc;
+
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use tokio::sync::Mutex;
+
+/// Shared state managed by Tauri.
+/// We only store the audio buffer and a stop signal — the cpal stream
+/// lives on its own dedicated thread (not Send).
+pub struct VoiceState {
+    pub(crate) inner: Arc<Mutex<Option<ActiveRecording>>>,
+    pub(crate) stream_state: Arc<Mutex<Option<super::streaming::StreamSession>>>,
+}
+
+impl VoiceState {
+    pub fn new() -> Self {
+        Self {
+            inner: Arc::new(Mutex::new(None)),
+            stream_state: Arc::new(Mutex::new(None)),
+        }
+    }
+}
+
+pub(crate) struct ActiveRecording {
+    pub buffer: Arc<std::sync::Mutex<Vec<f32>>>,
+    pub stop_tx: std::sync::mpsc::Sender<()>,
+    pub thread: Option<std::thread::JoinHandle<()>>,
+    pub sample_rate: u32,
+    pub channels: u16,
+}
+
+#[tauri::command]
+pub async fn voice_start(state: tauri::State<'_, VoiceState>) -> Result<(), String> {
+    let mut guard = state.inner.lock().await;
+    if guard.is_some() {
+        return Err("Already recording".into());
+    }
+
+    let buffer: Arc<std::sync::Mutex<Vec<f32>>> = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let buf_clone = buffer.clone();
+    let (stop_tx, stop_rx) = std::sync::mpsc::channel::<()>();
+
+    // Query device config on a blocking thread first
+    let (sample_rate, channels) = tokio::task::spawn_blocking(|| -> Result<(u32, u16), String> {
+        let host = cpal::default_host();
+        let device = host
+            .default_input_device()
+            .ok_or("No input device found")?;
+        let config = device
+            .default_input_config()
+            .map_err(|e| format!("Failed to get input config: {e}"))?;
+        Ok((config.sample_rate().0, config.channels()))
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))??;
+
+    // Spawn a dedicated OS thread for the cpal stream (not Send, can't use tokio)
+    let thread = std::thread::spawn(move || {
+        let host = cpal::default_host();
+        let device = match host.default_input_device() {
+            Some(d) => d,
+            None => {
+                eprintln!("[voice] No input device");
+                return;
+            }
+        };
+        let config = match device.default_input_config() {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("[voice] Config error: {e}");
+                return;
+            }
+        };
+
+        let stream = match config.sample_format() {
+            cpal::SampleFormat::F32 => {
+                let buf = buf_clone.clone();
+                device.build_input_stream(
+                    &config.into(),
+                    move |data: &[f32], _: &cpal::InputCallbackInfo| {
+                        if let Ok(mut b) = buf.lock() {
+                            b.extend_from_slice(data);
+                        }
+                    },
+                    |err| eprintln!("[voice] Stream error: {err}"),
+                    None,
+                )
+            }
+            cpal::SampleFormat::I16 => {
+                let buf = buf_clone.clone();
+                device.build_input_stream(
+                    &config.into(),
+                    move |data: &[i16], _: &cpal::InputCallbackInfo| {
+                        if let Ok(mut b) = buf.lock() {
+                            b.extend(data.iter().map(|&s| s as f32 / i16::MAX as f32));
+                        }
+                    },
+                    |err| eprintln!("[voice] Stream error: {err}"),
+                    None,
+                )
+            }
+            format => {
+                eprintln!("[voice] Unsupported format: {format:?}");
+                return;
+            }
+        };
+
+        let stream = match stream {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("[voice] Build stream error: {e}");
+                return;
+            }
+        };
+
+        if let Err(e) = stream.play() {
+            eprintln!("[voice] Play error: {e}");
+            return;
+        }
+
+        // Block until stop signal
+        if let Err(e) = stop_rx.recv() {
+            eprintln!("[voice] Stop signal recv error: {e}");
+        }
+        drop(stream);
+    });
+
+    *guard = Some(ActiveRecording {
+        buffer,
+        stop_tx,
+        thread: Some(thread),
+        sample_rate,
+        channels,
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn voice_stop(state: tauri::State<'_, VoiceState>) -> Result<Vec<u8>, String> {
+    let mut guard = state.inner.lock().await;
+    let mut recording = guard.take().ok_or("Not recording")?;
+
+    // Signal the recording thread to stop
+    if let Err(e) = recording.stop_tx.send(()) {
+        eprintln!("[voice] Failed to send stop signal: {e}");
+    }
+
+    // Wait for the thread to finish (blocking — run off tokio)
+    let thread_handle = recording.thread.take();
+    if thread_handle.is_some() {
+        tokio::task::spawn_blocking(move || {
+            if let Some(t) = thread_handle {
+                let _ = t.join();
+            }
+        })
+        .await
+        .map_err(|e| format!("Join task error: {e}"))?;
+    }
+
+    let buffer = recording.buffer;
+    let sample_rate = recording.sample_rate;
+    let channels = recording.channels;
+
+    tokio::task::spawn_blocking(move || {
+        let samples = buffer.lock().map_err(|e| format!("Lock error: {e}"))?;
+
+        if samples.is_empty() {
+            return Err("No audio recorded".into());
+        }
+
+        // Encode to WAV in memory
+        let mut wav_buf = Cursor::new(Vec::new());
+        let spec = hound::WavSpec {
+            channels,
+            sample_rate,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+
+        let mut writer = hound::WavWriter::new(&mut wav_buf, spec)
+            .map_err(|e| format!("WAV writer error: {e}"))?;
+
+        for &sample in samples.iter() {
+            let clamped = sample.clamp(-1.0_f32, 1.0_f32);
+            let int_sample = (clamped * i16::MAX as f32) as i16;
+            writer
+                .write_sample(int_sample)
+                .map_err(|e| format!("WAV write error: {e}"))?;
+        }
+
+        writer
+            .finalize()
+            .map_err(|e| format!("WAV finalize error: {e}"))?;
+
+        Ok(wav_buf.into_inner())
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}

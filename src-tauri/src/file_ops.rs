@@ -236,8 +236,8 @@ pub async fn copy_entry(src: String, dest_dir: String) -> Result<String, String>
 }
 
 /// Recursively copy a directory
-fn copy_dir_recursive(src: &Path, dest: &Path) -> Result<(), String> {
-    fs::create_dir(dest).map_err(|e| format!("Failed to create dir: {e}"))?;
+pub fn copy_dir_recursive(src: &Path, dest: &Path) -> Result<(), String> {
+    fs::create_dir_all(dest).map_err(|e| format!("Failed to create dir: {e}"))?;
     for entry in fs::read_dir(src).map_err(|e| format!("Failed to read dir: {e}"))? {
         let entry = entry.map_err(|e| format!("Failed to read entry: {e}"))?;
         let ft = entry.file_type().map_err(|e| format!("Failed to get file type: {e}"))?;

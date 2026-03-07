@@ -23,6 +23,10 @@ export function useVoice(
   const finalizedRef = useRef(""); // Deepgram finalized text
   const interimRef = useRef(""); // Deepgram current interim
   const unlistenersRef = useRef<UnlistenFn[]>([]);
+  const onInsertRef = useRef(onInsert);
+  const onReplaceRef = useRef(onReplace);
+  onInsertRef.current = onInsert;
+  onReplaceRef.current = onReplace;
 
   // Clean up event listeners on unmount
   useEffect(() => {
@@ -57,17 +61,27 @@ export function useVoice(
       });
 
       if (text.trim()) {
-        onInsert(text.trim());
+        onInsertRef.current(text.trim());
       }
     } catch (e) {
       console.error("Transcription failed:", e);
     } finally {
       setVoiceState("idle");
     }
-  }, [onInsert]);
+  }, []);
+
+  const cleanupStreamListeners = useCallback(() => {
+    for (const unlisten of unlistenersRef.current) {
+      unlisten();
+    }
+    unlistenersRef.current = [];
+  }, []);
 
   const startStream = useCallback(async (provider: string) => {
     try {
+      // Clean up any existing listeners first (prevents leak on double call)
+      cleanupStreamListeners();
+
       const settings = await invoke<AppSettings>("load_settings");
       accumulatedRef.current = "";
       prefixRef.current = getPrefix?.() ?? "";
@@ -87,7 +101,7 @@ export function useVoice(
             const combined = prefixRef.current
               ? prefixRef.current + " " + finalizedRef.current + interimRef.current
               : finalizedRef.current + interimRef.current;
-            onReplace(combined);
+            onReplaceRef.current(combined);
             accumulatedRef.current = finalizedRef.current + interimRef.current;
           })
         );
@@ -106,7 +120,7 @@ export function useVoice(
             const combined = prefixRef.current
               ? prefixRef.current + " " + accumulatedRef.current
               : accumulatedRef.current;
-            onReplace(combined);
+            onReplaceRef.current(combined);
           })
         );
 
@@ -137,7 +151,7 @@ export function useVoice(
       cleanupStreamListeners();
       setVoiceState("idle");
     }
-  }, [onReplace]);
+  }, [cleanupStreamListeners]);
 
   const stopStream = useCallback(async () => {
     try {
@@ -150,14 +164,7 @@ export function useVoice(
       cleanupStreamListeners();
       setVoiceState("idle");
     }
-  }, []);
-
-  const cleanupStreamListeners = useCallback(() => {
-    for (const unlisten of unlistenersRef.current) {
-      unlisten();
-    }
-    unlistenersRef.current = [];
-  }, []);
+  }, [cleanupStreamListeners]);
 
   const toggleVoice = useCallback(async () => {
     if (voiceState === "idle") {

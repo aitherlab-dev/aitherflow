@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "../../lib/transport";
 import { useAgentStore } from "../../stores/agentStore";
-import { useConductorStore } from "../../stores/conductorStore";
+import { useChatStore } from "../../stores/chatStore";
 
 // ── Build button with confirmation popup ──
 
@@ -11,7 +11,7 @@ const BuildButton = memo(function BuildButton() {
   const btnRef = useRef<HTMLButtonElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
 
-  const isThinking = useConductorStore((s) => s.isThinking);
+  const isThinking = useChatStore((s) => s.isThinking);
 
   // Close popup on outside click
   useEffect(() => {
@@ -91,8 +91,7 @@ const BuildButton = memo(function BuildButton() {
 
 const DevButton = memo(function DevButton() {
   const [devServers, setDevServers] = useState<Set<string>>(new Set());
-  const activeAgent = useAgentStore((s) => s.getActiveAgent());
-  const projectPath = activeAgent?.projectPath ?? "";
+  const projectPath = useAgentStore((s) => s.getActiveAgent()?.projectPath ?? "");
   const isRunning = projectPath ? devServers.has(projectPath) : false;
 
   const handleToggle = useCallback(async () => {

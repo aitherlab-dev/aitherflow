@@ -1,8 +1,9 @@
 use notify_debouncer_mini::{new_debouncer, DebouncedEventKind};
 use serde::Serialize;
+use std::collections::HashSet;
 use std::path::PathBuf;
-use std::sync::Mutex;
 use std::time::Duration;
+use tokio::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager};
 
 /// Event payload sent to the frontend
@@ -55,7 +56,7 @@ pub async fn watch_directories(
                 };
 
                 // Collect unique parent directories that changed
-                let mut changed: Vec<String> = Vec::new();
+                let mut changed = HashSet::new();
                 for evt in &events {
                     if evt.kind != DebouncedEventKind::Any {
                         continue;
@@ -66,9 +67,7 @@ pub async fn watch_directories(
                         .unwrap_or(&evt.path)
                         .to_string_lossy()
                         .into_owned();
-                    if !changed.contains(&parent) {
-                        changed.push(parent);
-                    }
+                    changed.insert(parent);
                 }
 
                 for path in changed {
@@ -101,7 +100,7 @@ pub async fn watch_directories(
     .map_err(|e| format!("Task join error: {e}"))??;
 
     // Replace previous watcher (old one drops and stops automatically)
-    let mut guard = state.inner.lock().map_err(|e| format!("Lock error: {e}"))?;
+    let mut guard = state.inner.lock().await;
     *guard = Some(handle);
 
     Ok(())
@@ -111,7 +110,7 @@ pub async fn watch_directories(
 #[tauri::command]
 pub async fn unwatch_directories(app: AppHandle) -> Result<(), String> {
     let state = app.state::<WatcherState>();
-    let mut guard = state.inner.lock().map_err(|e| format!("Lock error: {e}"))?;
+    let mut guard = state.inner.lock().await;
     *guard = None;
     Ok(())
 }

@@ -2,7 +2,7 @@ import { memo, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Star } from "lucide-react";
 import { useSkillStore } from "../../stores/skillStore";
-import { useChatStore } from "../../stores/chatStore";
+import { sendMessage } from "../../stores/chatService";
 import { useTranslationStore } from "../../stores/translationStore";
 import type { SkillEntry } from "../../types/skills";
 
@@ -41,7 +41,7 @@ export const SkillsMenu = memo(function SkillsMenu({
   const handleSkillClick = useCallback(
     (skill: SkillEntry) => {
       onClose();
-      useChatStore.getState().sendMessage(skill.command).catch(console.error);
+      sendMessage(skill.command).catch(console.error);
     },
     [onClose],
   );

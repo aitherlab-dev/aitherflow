@@ -1,4 +1,4 @@
-import { memo, type ReactNode } from "react";
+import { memo, type CSSProperties, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 
 export interface DashboardCardProps {
@@ -9,6 +9,8 @@ export interface DashboardCardProps {
   statusText: string;
   /** Status dot color */
   statusColor?: "green" | "red" | "gray" | "orange" | "blue" | "dim";
+  /** Inline style for status text */
+  statusTextStyle?: CSSProperties;
   expanded: boolean;
   onToggle: (id: string) => void;
   /** Extra element in header (e.g. settings button) */
@@ -23,6 +25,7 @@ export const DashboardCard = memo(function DashboardCard({
   title,
   statusText,
   statusColor,
+  statusTextStyle,
   expanded,
   onToggle,
   headerExtra,
@@ -38,7 +41,7 @@ export const DashboardCard = memo(function DashboardCard({
         <span className="dash-card__title">{title}</span>
         <span className="dash-card__status">
           {statusColor && <span className={`dash-card__dot dash-card__dot--${statusColor}`} />}
-          <span className="dash-card__status-text">{statusText}</span>
+          <span className="dash-card__status-text" style={statusTextStyle}>{statusText}</span>
         </span>
         {headerExtra}
       </div>

@@ -1,16 +1,21 @@
 use std::path::PathBuf;
 
+/// Fallback home when $HOME is unset (containers, systemd units)
+fn fallback_home() -> PathBuf {
+    PathBuf::from("/tmp")
+}
+
 /// XDG config directory: ~/.config/aither-flow/
 pub fn config_dir() -> PathBuf {
     dirs::config_dir()
-        .unwrap_or_else(|| PathBuf::from("~/.config"))
+        .unwrap_or_else(|| fallback_home().join(".config"))
         .join("aither-flow")
 }
 
 /// XDG data directory: ~/.local/share/aither-flow/
 pub fn data_dir() -> PathBuf {
     dirs::data_dir()
-        .unwrap_or_else(|| PathBuf::from("~/.local/share"))
+        .unwrap_or_else(|| fallback_home().join(".local/share"))
         .join("aither-flow")
 }
 
@@ -26,9 +31,8 @@ pub fn get_workspace_path() -> String {
 }
 
 /// Claude CLI home: ~/.claude/
-#[allow(dead_code)]
 pub fn claude_home() -> PathBuf {
     dirs::home_dir()
-        .unwrap_or_else(|| PathBuf::from("~"))
+        .unwrap_or_else(fallback_home)
         .join(".claude")
 }

@@ -126,6 +126,16 @@ pub fn insert_messages(
     Ok(count)
 }
 
+/// Sanitize a user query for FTS5 MATCH: quote each token to avoid
+/// operator injection (OR, AND, NEAR, *, etc.).
+fn sanitize_fts_query(query: &str) -> String {
+    query
+        .split_whitespace()
+        .map(|w| format!("\"{}\"", w.replace('"', "")))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 /// Full-text search across messages for a specific project.
 pub fn search_messages(
     conn: &Connection,
@@ -133,6 +143,7 @@ pub fn search_messages(
     query: &str,
     limit: usize,
 ) -> Result<Vec<SearchResult>, String> {
+    let safe_query = sanitize_fts_query(query);
     let mut stmt = conn
         .prepare(
             "SELECT m.session_id, m.role, m.text, m.timestamp,
@@ -148,7 +159,7 @@ pub fn search_messages(
         .map_err(|e| format!("FTS query failed: {e}"))?;
 
     let rows = stmt
-        .query_map(params![query, project_path, limit as i64], |row| {
+        .query_map(params![safe_query, project_path, limit as i64], |row| {
             Ok(SearchResult {
                 session_id: row.get(0)?,
                 role: row.get(1)?,

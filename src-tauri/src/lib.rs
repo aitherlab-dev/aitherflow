@@ -10,9 +10,9 @@ mod files;
 mod hooks;
 mod mcp;
 mod memory;
-mod platform;
 mod plugins;
 mod projects;
+mod secrets;
 mod settings;
 mod skills;
 mod telegram;
@@ -93,12 +93,12 @@ pub fn run() {
             memory::memory_get_session,
             memory::memory_stats,
             memory::memory_index_project,
-            voice::voice_start,
-            voice::voice_stop,
-            voice::voice_transcribe,
-            voice::voice_check_anthropic_auth,
-            voice::voice_start_stream,
-            voice::voice_stop_stream,
+            voice::recording::voice_start,
+            voice::recording::voice_stop,
+            voice::groq::voice_transcribe,
+            voice::streaming::voice_check_anthropic_auth,
+            voice::streaming::voice_start_stream,
+            voice::streaming::voice_stop_stream,
             telegram::commands::load_telegram_config,
             telegram::commands::save_telegram_config,
             telegram::commands::get_telegram_status,
@@ -107,10 +107,12 @@ pub fn run() {
             telegram::commands::poll_telegram_messages,
             telegram::commands::send_to_telegram,
             telegram::commands::notify_telegram,
-            telegram::commands::telegram_stream_start,
-            telegram::commands::telegram_stream_update,
-            telegram::commands::telegram_set_project,
-            telegram::commands::telegram_push_message,
+            telegram::commands::telegram_send_menu,
+            telegram::commands::telegram_send_agents,
+            telegram::commands::telegram_send_projects,
+            telegram::commands::telegram_send_status,
+            telegram::commands::telegram_send_history,
+            telegram::commands::telegram_stream_draft,
             hooks::load_hooks,
             hooks::save_hooks,
             hooks::test_hook_command,
@@ -161,7 +163,7 @@ pub fn run() {
                     }
                 }
 
-                let _ = sessions_clone;
+                drop(sessions_clone);
             });
 
             Ok(())
