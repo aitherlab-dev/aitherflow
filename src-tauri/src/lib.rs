@@ -112,6 +112,7 @@ pub fn run() {
             telegram::commands::telegram_send_projects,
             telegram::commands::telegram_send_status,
             telegram::commands::telegram_send_history,
+            telegram::commands::telegram_send_skills,
             telegram::commands::telegram_stream_edit,
             telegram::commands::telegram_stream_reset,
             hooks::load_hooks,

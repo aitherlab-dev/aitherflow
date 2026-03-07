@@ -303,11 +303,11 @@ pub(crate) async fn tg_set_my_commands(
     let commands = serde_json::json!({
         "commands": [
             {"command": "start", "description": "Dashboard"},
-            {"command": "agents", "description": "Active agents"},
-            {"command": "projects", "description": "Start new session"},
-            {"command": "history", "description": "Recent messages"},
-            {"command": "status", "description": "Current status"},
-            {"command": "help", "description": "Help"}
+            {"command": "agents_bot", "description": "Active agents"},
+            {"command": "projects_bot", "description": "Start new session"},
+            {"command": "history_bot", "description": "Recent messages"},
+            {"command": "status_bot", "description": "Current status"},
+            {"command": "help_bot", "description": "Help"}
         ]
     });
     client

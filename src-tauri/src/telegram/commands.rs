@@ -125,6 +125,7 @@ fn keyboard_button_kind(text: &str) -> Option<&'static str> {
         "Projects" => Some("request_projects"),
         "Status" => Some("request_status"),
         "History" => Some("request_history"),
+        "Skills" => Some("request_skills"),
         _ => None,
     }
 }
@@ -154,6 +155,20 @@ async fn handle_callback(
         }
         if let Err(e) = tg_send_message(client, token, chat_id, &format!("Switched to: {agent_name}")).await {
             eprintln!("[TG] confirm switch_agent: {e}");
+        }
+    } else if let Some(skill_cmd) = data.strip_prefix("skill:") {
+        // skill_cmd is the slash command (e.g. "/commit", "/blog-post")
+        if let Err(e) = incoming_tx.send(TgIncoming {
+            kind: "text".into(),
+            text: skill_cmd.to_string(),
+            project_path: None,
+            project_name: None,
+            attachment_path: None,
+        }) {
+            eprintln!("[TG] send skill command: {e}");
+        }
+        if let Err(e) = tg_send_message(client, token, chat_id, &format!("Running {skill_cmd}")).await {
+            eprintln!("[TG] confirm skill: {e}");
         }
     } else if let Some(path) = data.strip_prefix("project:") {
         let name = path.rsplit('/').next().unwrap_or(path);
@@ -190,46 +205,53 @@ async fn handle_command(
         })
     };
     match cmd {
-        "/start" | "/menu" => {
+        "/start" | "/menu_bot" => {
             if let Err(e) = send_request("request_menu") {
                 eprintln!("[TG] send request_menu: {e}");
             }
         }
-        "/agents" => {
+        "/agents_bot" => {
             if let Err(e) = send_request("request_agents") {
                 eprintln!("[TG] send request_agents: {e}");
             }
         }
-        "/projects" => {
+        "/projects_bot" => {
             if let Err(e) = send_request("request_projects") {
                 eprintln!("[TG] send request_projects: {e}");
             }
         }
-        "/history" => {
+        "/history_bot" => {
             if let Err(e) = send_request("request_history") {
                 eprintln!("[TG] send request_history: {e}");
             }
         }
-        "/status" => {
+        "/status_bot" => {
             if let Err(e) = send_request("request_status") {
                 eprintln!("[TG] send request_status: {e}");
             }
         }
-        "/help" => {
+        "/help_bot" => {
             let help = "\
 /start — dashboard\n\
-/agents — active agents\n\
-/projects — start new session\n\
-/history — recent messages\n\
-/status — current status\n\n\
+/agents_bot — active agents\n\
+/projects_bot — start new session\n\
+/history_bot — recent messages\n\
+/status_bot — current status\n\n\
 Text or voice goes to the active agent.";
             if let Err(e) = tg_send_message(client, token, chat_id, help).await {
                 eprintln!("[TG] send help: {e}");
             }
         }
         _ => {
-            if let Err(e) = tg_send_message(client, token, chat_id, "Unknown command. /help").await {
-                eprintln!("[TG] send unknown cmd: {e}");
+            // Not a bot command — forward as text to the agent (e.g. /commit, /simplify)
+            if let Err(e) = incoming_tx.send(TgIncoming {
+                kind: "text".into(),
+                text: text.to_string(),
+                project_path: None,
+                project_name: None,
+                attachment_path: None,
+            }) {
+                eprintln!("[TG] forward unknown cmd as text: {e}");
             }
         }
     }
@@ -600,6 +622,7 @@ pub async fn telegram_send_menu(
     let keyboard = vec![
         vec!["Agents".to_string(), "Projects".to_string()],
         vec!["Status".to_string(), "History".to_string()],
+        vec!["Skills".to_string()],
     ];
 
     // Build dashboard text
@@ -757,6 +780,28 @@ pub async fn telegram_stream_edit(text: String) -> Result<(), String> {
         tg_edit_message_text(&client, &token, chat_id, msg_id, &text).await?;
     }
     Ok(())
+}
+
+/// Send skills list with inline buttons
+#[tauri::command]
+pub async fn telegram_send_skills(skills: Vec<serde_json::Value>) -> Result<(), String> {
+    let (token, chat_id, client) = get_bot_connection()?;
+
+    if skills.is_empty() {
+        tg_send_message(&client, &token, chat_id, "No skills available").await?;
+        return Ok(());
+    }
+
+    let mut buttons: Vec<Vec<serde_json::Value>> = Vec::new();
+    for skill in &skills {
+        let id = skill["id"].as_str().unwrap_or("");
+        let name = skill["name"].as_str().unwrap_or(id);
+        buttons.push(vec![serde_json::json!({
+            "text": name,
+            "callback_data": format!("skill:{id}"),
+        })]);
+    }
+    tg_send_inline_keyboard(&client, &token, chat_id, "Skills:", buttons).await
 }
 
 /// Reset stream message_id (call after streaming finishes)

@@ -10,6 +10,7 @@ import { useChatStore } from "../stores/chatStore";
 import { useAgentStore } from "../stores/agentStore";
 import { useProjectStore } from "../stores/projectStore";
 import { useConductorStore } from "../stores/conductorStore";
+import { useSkillStore } from "../stores/skillStore";
 import { sendMessage } from "../stores/chatService";
 import type { Attachment } from "../types/chat";
 import type { ProcessFileResult } from "../types/files";
@@ -166,6 +167,9 @@ async function handleIncoming(msg: TgIncoming): Promise<void> {
     case "request_history":
       await handleRequestHistory();
       break;
+    case "request_skills":
+      await handleRequestSkills();
+      break;
     case "switch_agent":
       await handleSwitchAgent(msg.text);
       break;
@@ -286,6 +290,16 @@ async function handleRequestHistory(): Promise<void> {
     messages: last5.map((m) => ({
       role: m.role,
       text: m.text,
+    })),
+  }).catch(console.error);
+}
+
+async function handleRequestSkills(): Promise<void> {
+  const skills = useSkillStore.getState().getFavorites();
+  await invoke("telegram_send_skills", {
+    skills: skills.map((s) => ({
+      id: s.command,
+      name: s.name,
     })),
   }).catch(console.error);
 }
