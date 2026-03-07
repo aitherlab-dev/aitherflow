@@ -383,14 +383,12 @@ fn run_audio_capture(
         }
 
         // Convert f32 → i16 → bytes (little-endian PCM)
-        let pcm_bytes: Vec<u8> = resampled
-            .iter()
-            .flat_map(|&s| {
-                let clamped = s.clamp(-1.0, 1.0);
-                let sample = (clamped * i16::MAX as f32) as i16;
-                sample.to_le_bytes()
-            })
-            .collect();
+        let mut pcm_bytes: Vec<u8> = Vec::with_capacity(resampled.len() * 2);
+        for &s in &resampled {
+            let clamped = s.clamp(-1.0, 1.0);
+            let sample = (clamped * i16::MAX as f32) as i16;
+            pcm_bytes.extend_from_slice(&sample.to_le_bytes());
+        }
 
         if audio_tx.blocking_send(pcm_bytes).is_err() {
             break;

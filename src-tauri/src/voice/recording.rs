@@ -40,8 +40,9 @@ pub async fn voice_start(state: tauri::State<'_, VoiceState>) -> Result<(), Stri
     let buf_clone = buffer.clone();
     let (stop_tx, stop_rx) = std::sync::mpsc::channel::<()>();
 
-    // Query device config on a blocking thread first
-    let (sample_rate, channels) = tokio::task::spawn_blocking(|| -> Result<(u32, u16), String> {
+    // Query device + config once on a blocking thread, then move into the recording thread.
+    // This avoids a second default_input_device() call that could return a different device.
+    let (device, supported_config) = tokio::task::spawn_blocking(|| -> Result<(cpal::Device, cpal::SupportedStreamConfig), String> {
         let host = cpal::default_host();
         let device = host
             .default_input_device()
@@ -49,28 +50,17 @@ pub async fn voice_start(state: tauri::State<'_, VoiceState>) -> Result<(), Stri
         let config = device
             .default_input_config()
             .map_err(|e| format!("Failed to get input config: {e}"))?;
-        Ok((config.sample_rate().0, config.channels()))
+        Ok((device, config))
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))??;
 
+    let sample_rate = supported_config.sample_rate().0;
+    let channels = supported_config.channels();
+
     // Spawn a dedicated OS thread for the cpal stream (not Send, can't use tokio)
     let thread = std::thread::spawn(move || {
-        let host = cpal::default_host();
-        let device = match host.default_input_device() {
-            Some(d) => d,
-            None => {
-                eprintln!("[voice] No input device");
-                return;
-            }
-        };
-        let config = match device.default_input_config() {
-            Ok(c) => c,
-            Err(e) => {
-                eprintln!("[voice] Config error: {e}");
-                return;
-            }
-        };
+        let config = supported_config;
 
         let stream = match config.sample_format() {
             cpal::SampleFormat::F32 => {
