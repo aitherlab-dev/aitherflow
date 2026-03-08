@@ -6,10 +6,19 @@ import { useChatStore } from "../../stores/chatStore";
 /** Distance from bottom (px) to consider "at bottom" */
 const BOTTOM_THRESHOLD = 50;
 
+/** Renders the streaming message separately to avoid re-running messages.map() on every chunk */
+const StreamingBubble = memo(function StreamingBubble({ agentId }: { agentId: string }) {
+  const streamingMessage = useChatStore((s) => s.streamingMessage);
+  if (!streamingMessage) return null;
+  return <MessageBubble key={streamingMessage.id} message={streamingMessage} agentId={agentId} />;
+});
+
 export const MessageList = memo(function MessageList() {
   const messages = useChatStore((s) => s.messages);
-  const streamingMessage = useChatStore((s) => s.streamingMessage);
+  const hasStreamingMessage = useChatStore((s) => s.streamingMessage !== null);
+  const agentId = useChatStore((s) => s.agentId);
   const containerRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const scrolledUp = useRef(false);
   const lastScrollTop = useRef(0);
@@ -44,13 +53,19 @@ export const MessageList = memo(function MessageList() {
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, []);
 
-  // Auto-scroll when messages or streaming message change (unless user scrolled up)
+  // Auto-scroll when inner content grows (covers both new messages and streaming)
   useEffect(() => {
-    const el = containerRef.current;
-    if (!el || scrolledUp.current) return;
-
-    el.scrollTo({ top: el.scrollHeight, behavior: "instant" });
-  }, [messages, streamingMessage]);
+    const inner = innerRef.current;
+    const container = containerRef.current;
+    if (!inner || !container) return;
+    const observer = new ResizeObserver(() => {
+      if (!scrolledUp.current) {
+        container.scrollTo({ top: container.scrollHeight, behavior: "instant" });
+      }
+    });
+    observer.observe(inner);
+    return () => observer.disconnect();
+  }, []);
 
   // Scroll to bottom when container resizes (input bar grows/shrinks with attachments)
   useEffect(() => {
@@ -87,15 +102,15 @@ export const MessageList = memo(function MessageList() {
       className="message-list"
       onScroll={handleScroll}
     >
-      <div className="message-list-inner">
-        {messages.length === 0 && !streamingMessage ? (
+      <div ref={innerRef} className="message-list-inner">
+        {messages.length === 0 && !hasStreamingMessage ? (
           <div className="message-list-empty">
             <p>Start a conversation</p>
           </div>
         ) : (
           <>
-            {messages.map((msg) => <MessageBubble key={msg.id} message={msg} />)}
-            {streamingMessage && <MessageBubble key={streamingMessage.id} message={streamingMessage} />}
+            {messages.map((msg) => <MessageBubble key={msg.id} message={msg} agentId={agentId} />)}
+            <StreamingBubble agentId={agentId} />
           </>
         )}
       </div>

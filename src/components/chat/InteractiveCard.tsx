@@ -10,23 +10,25 @@ import { respondToCard } from "../../stores/chatService";
 
 interface InteractiveCardProps {
   tool: ToolActivity;
+  agentId: string;
 }
 
 export const InteractiveCard = memo(function InteractiveCard({
   tool,
+  agentId,
 }: InteractiveCardProps) {
   if (tool.toolName === "AskUserQuestion") {
-    return <AskUserQuestionCard tool={tool} />;
+    return <AskUserQuestionCard tool={tool} agentId={agentId} />;
   }
   if (tool.toolName === "ExitPlanMode") {
-    return <ExitPlanModeCard tool={tool} />;
+    return <ExitPlanModeCard tool={tool} agentId={agentId} />;
   }
   return null;
 });
 
 // ── AskUserQuestion ──
 
-function AskUserQuestionCard({ tool }: { tool: ToolActivity }) {
+function AskUserQuestionCard({ tool, agentId }: { tool: ToolActivity; agentId: string }) {
   const input = tool.toolInput as unknown as AskUserQuestionInput;
   const questions = input?.questions;
   const answered = !!tool.userResponse;
@@ -44,6 +46,7 @@ function AskUserQuestionCard({ tool }: { tool: ToolActivity }) {
           key={i}
           question={q}
           toolUseId={tool.toolUseId}
+          agentId={agentId}
           answered={answered}
           userResponse={tool.userResponse}
         />
@@ -55,11 +58,13 @@ function AskUserQuestionCard({ tool }: { tool: ToolActivity }) {
 function QuestionBlock({
   question,
   toolUseId,
+  agentId,
   answered,
   userResponse,
 }: {
   question: AskQuestion;
   toolUseId: string;
+  agentId: string;
   answered: boolean;
   userResponse?: string;
 }) {
@@ -77,17 +82,17 @@ function QuestionBlock({
           return next;
         });
       } else {
-        respondToCard(toolUseId, label).catch(console.error);
+        respondToCard(agentId, toolUseId, label).catch(console.error);
       }
     },
-    [answered, question.multiSelect, respondToCard, toolUseId],
+    [answered, question.multiSelect, agentId, toolUseId],
   );
 
   const handleSubmitMulti = useCallback(() => {
     if (answered || selected.size === 0) return;
     const response = Array.from(selected).join(", ");
-    respondToCard(toolUseId, response).catch(console.error);
-  }, [answered, selected, respondToCard, toolUseId]);
+    respondToCard(agentId, toolUseId, response).catch(console.error);
+  }, [answered, selected, agentId, toolUseId]);
 
   return (
     <div className="interactive-card-question">
@@ -127,7 +132,7 @@ function QuestionBlock({
 
 // ── ExitPlanMode ──
 
-function ExitPlanModeCard({ tool }: { tool: ToolActivity }) {
+function ExitPlanModeCard({ tool, agentId }: { tool: ToolActivity; agentId: string }) {
   const input = tool.toolInput as unknown as ExitPlanModeInput;
 
   const answered = !!tool.userResponse;
@@ -136,8 +141,8 @@ function ExitPlanModeCard({ tool }: { tool: ToolActivity }) {
 
   const handleApprove = useCallback(() => {
     if (answered) return;
-    respondToCard(tool.toolUseId, "yes").catch(console.error);
-  }, [answered, respondToCard, tool.toolUseId]);
+    respondToCard(agentId, tool.toolUseId, "yes").catch(console.error);
+  }, [answered, agentId, tool.toolUseId]);
 
   const handleReject = useCallback(() => {
     if (answered) return;
@@ -146,8 +151,8 @@ function ExitPlanModeCard({ tool }: { tool: ToolActivity }) {
       return;
     }
     const reason = rejectReason.trim() || "Rejected by user";
-    respondToCard(tool.toolUseId, `__deny__${reason}`).catch(console.error);
-  }, [answered, rejecting, rejectReason, respondToCard, tool.toolUseId]);
+    respondToCard(agentId, tool.toolUseId, `__deny__${reason}`).catch(console.error);
+  }, [answered, rejecting, rejectReason, agentId, tool.toolUseId]);
 
   const prompts = input?.allowedPrompts;
 

@@ -1,8 +1,20 @@
 use rusqlite::Connection;
 use serde_json::Value;
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
 use super::db;
+
+/// Compute a fast content hash for a list of messages.
+fn compute_content_hash(messages: &[(String, String, String, String)]) -> String {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    for (_, role, text, ts) in messages {
+        role.hash(&mut hasher);
+        text.hash(&mut hasher);
+        ts.hash(&mut hasher);
+    }
+    format!("{:016x}", hasher.finish())
+}
 
 /// Encode a project path the same way CLI does: slashes → dashes.
 /// e.g. `/home/sasha/WORK/AITHEFLOW` → `-home-sasha-WORK-AITHEFLOW`
@@ -230,19 +242,25 @@ pub fn index_project(conn: &Connection, project_path: &str) -> Result<usize, Str
 
             db::insert_session(conn, &session_id, project_path, first_msg, created_at)?;
             let count = db::insert_messages(conn, &messages)?;
+            db::set_content_hash(conn, &session_id, &compute_content_hash(&messages))?;
             total_messages += count;
         } else {
             // Resumed session — check for new or rewritten messages
             let existing_count = db::message_count_for_session(conn, &session_id);
-            if messages.len() > existing_count {
-                // Appended messages — index only the new ones
+            let new_hash = compute_content_hash(&messages);
+            let stored_hash = db::get_content_hash(conn, &session_id);
+
+            if messages.len() > existing_count && stored_hash.is_none() {
+                // Appended messages (legacy: no hash stored yet) — index only the new ones
                 let new_messages = &messages[existing_count..];
                 let count = db::insert_messages(conn, new_messages)?;
+                db::set_content_hash(conn, &session_id, &new_hash)?;
                 total_messages += count;
-            } else if messages.len() < existing_count {
-                // File was rewritten (shorter than indexed) — re-index from scratch
+            } else if stored_hash.as_deref() != Some(&new_hash) {
+                // Content changed (different count or same count but different hash) — re-index
                 db::delete_messages_for_session(conn, &session_id)?;
                 let count = db::insert_messages(conn, &messages)?;
+                db::set_content_hash(conn, &session_id, &new_hash)?;
                 total_messages += count;
             }
         }

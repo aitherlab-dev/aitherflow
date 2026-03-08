@@ -11,10 +11,12 @@ const TURN_SEPARATOR = "\n<!-- turn -->\n";
 
 interface AssistantMessageProps {
   message: ChatMessage;
+  agentId: string;
 }
 
 export const AssistantMessage = memo(function AssistantMessage({
   message,
+  agentId,
 }: AssistantMessageProps) {
   const [thinkingOpen, setThinkingOpen] = useState(false);
   const interactiveTools = message.tools?.filter((t) =>
@@ -73,7 +75,7 @@ export const AssistantMessage = memo(function AssistantMessage({
       )}
       {interactiveTools &&
         interactiveTools.map((tool) => (
-          <InteractiveCard key={tool.toolUseId} tool={tool} />
+          <InteractiveCard key={tool.toolUseId} tool={tool} agentId={agentId} />
         ))}
     </div>
   );

@@ -241,6 +241,10 @@ pub(crate) async fn tg_answer_callback(
 }
 
 pub(crate) fn split_message(text: &str, max_len: usize) -> Vec<String> {
+    let text = text.trim_start_matches('\n');
+    if text.is_empty() {
+        return vec![];
+    }
     if text.len() <= max_len {
         return vec![text.to_string()];
     }
@@ -412,6 +416,12 @@ mod tests {
     #[test]
     fn split_message_empty() {
         let chunks = split_message("", 100);
-        assert_eq!(chunks, vec![""]);
+        assert!(chunks.is_empty());
+    }
+
+    #[test]
+    fn split_message_leading_newlines() {
+        let chunks = split_message("\n\nHello", 100);
+        assert_eq!(chunks, vec!["Hello"]);
     }
 }

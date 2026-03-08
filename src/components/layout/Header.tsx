@@ -10,16 +10,21 @@ import {
   Moon,
 } from "lucide-react";
 import { useLayoutStore } from "../../stores/layoutStore";
+import { useShallow } from "zustand/react/shallow";
 
 export const Header = memo(function Header() {
-  const sidebarOpen = useLayoutStore((s) => s.sidebarOpen);
-  const toggleSidebar = useLayoutStore((s) => s.toggleSidebar);
-  const fileViewerVisible = useLayoutStore((s) => s.fileViewerVisible);
-  const fileViewerPosition = useLayoutStore((s) => s.fileViewerPosition);
-  const toggleFileViewer = useLayoutStore((s) => s.toggleFileViewer);
-  const setFileViewerPosition = useLayoutStore(
-    (s) => s.setFileViewerPosition,
-  );
+  const {
+    sidebarOpen, toggleSidebar,
+    fileViewerVisible, fileViewerPosition,
+    toggleFileViewer, setFileViewerPosition,
+  } = useLayoutStore(useShallow((s) => ({
+    sidebarOpen: s.sidebarOpen,
+    toggleSidebar: s.toggleSidebar,
+    fileViewerVisible: s.fileViewerVisible,
+    fileViewerPosition: s.fileViewerPosition,
+    toggleFileViewer: s.toggleFileViewer,
+    setFileViewerPosition: s.setFileViewerPosition,
+  })));
   const [isDark, setIsDark] = useState(
     () => document.documentElement.getAttribute("data-theme") !== "light",
   );

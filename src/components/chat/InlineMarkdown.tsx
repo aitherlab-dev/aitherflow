@@ -1,4 +1,4 @@
-import { type ReactNode, memo } from "react";
+import { type ReactNode, memo, useRef } from "react";
 import { openUrl } from "../../lib/transport";
 
 /**
@@ -6,6 +6,9 @@ import { openUrl } from "../../lib/transport";
  * Handles: **bold**, *italic*, `code`, [links](url).
  * Paragraphs via double newlines, <br/> via single newlines.
  * No AST, no dependencies — single-pass regex.
+ *
+ * Optimization: caches rendered paragraphs that are stable (all except the last
+ * during streaming). Only the growing tail paragraph is re-parsed on each update.
  */
 
 // Combined regex: order matters — backticks first (so * inside code is safe),
@@ -89,14 +92,44 @@ interface InlineMarkdownProps {
   content: string;
 }
 
+interface ParagraphCache {
+  texts: string[];
+  nodes: ReactNode[];
+}
+
 export const InlineMarkdown = memo(function InlineMarkdown({ content }: InlineMarkdownProps) {
   if (!content) return null;
 
+  const cacheRef = useRef<ParagraphCache>({ texts: [], nodes: [] });
   const paragraphs = content.split(/\n{2,}/);
+  const cache = cacheRef.current;
+
+  // Find how many leading paragraphs match the cache (stable prefix)
+  let stableCount = 0;
+  while (
+    stableCount < paragraphs.length - 1 &&
+    stableCount < cache.texts.length &&
+    paragraphs[stableCount] === cache.texts[stableCount]
+  ) {
+    stableCount++;
+  }
+
+  // Build result: reuse cached nodes for stable paragraphs, render the rest
+  const result: ReactNode[] = [];
+  for (let i = 0; i < stableCount; i++) {
+    result.push(cache.nodes[i]);
+  }
+  for (let i = stableCount; i < paragraphs.length; i++) {
+    result.push(renderParagraph(paragraphs[i], i));
+  }
+
+  // Update cache
+  cache.texts = paragraphs;
+  cache.nodes = result;
 
   return (
     <div className="markdown-body">
-      {paragraphs.map((p, i) => renderParagraph(p, i))}
+      {result}
     </div>
   );
 });

@@ -56,6 +56,15 @@ pub fn open_db(db_path: &Path) -> Result<Connection, String> {
     )
     .map_err(|e| format!("Failed to create memory schema: {e}"))?;
 
+    // Migration: add content_hash column if missing
+    let has_hash: bool = conn
+        .prepare("SELECT content_hash FROM sessions LIMIT 0")
+        .is_ok();
+    if !has_hash {
+        conn.execute_batch("ALTER TABLE sessions ADD COLUMN content_hash TEXT;")
+            .map_err(|e| format!("Failed to add content_hash column: {e}"))?;
+    }
+
     Ok(conn)
 }
 
@@ -77,6 +86,26 @@ pub fn message_count_for_session(conn: &Connection, session_id: &str) -> usize {
         |row| row.get::<_, i64>(0),
     )
     .unwrap_or(0) as usize
+}
+
+/// Get the stored content hash for a session.
+pub fn get_content_hash(conn: &Connection, session_id: &str) -> Option<String> {
+    conn.query_row(
+        "SELECT content_hash FROM sessions WHERE session_id = ?1",
+        params![session_id],
+        |row| row.get::<_, Option<String>>(0),
+    )
+    .unwrap_or(None)
+}
+
+/// Update the content hash for a session.
+pub fn set_content_hash(conn: &Connection, session_id: &str, hash: &str) -> Result<(), String> {
+    conn.execute(
+        "UPDATE sessions SET content_hash = ?1 WHERE session_id = ?2",
+        params![hash, session_id],
+    )
+    .map_err(|e| format!("Failed to update content_hash: {e}"))?;
+    Ok(())
 }
 
 /// Insert a session record.

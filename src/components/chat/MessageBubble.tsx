@@ -5,11 +5,12 @@ import type { ChatMessage } from "../../types/chat";
 
 interface MessageBubbleProps {
   message: ChatMessage;
+  agentId: string;
 }
 
-export const MessageBubble = memo(function MessageBubble({ message }: MessageBubbleProps) {
+export const MessageBubble = memo(function MessageBubble({ message, agentId }: MessageBubbleProps) {
   if (message.role === "user") {
     return <UserMessage message={message} />;
   }
-  return <AssistantMessage message={message} />;
+  return <AssistantMessage message={message} agentId={agentId} />;
 });

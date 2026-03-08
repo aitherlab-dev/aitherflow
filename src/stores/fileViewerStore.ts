@@ -32,8 +32,6 @@ interface FileViewerState {
   // Content editing
   updateTabContent: (tabId: string, newContent: string) => void;
   saveFile: (tabId: string) => Promise<void>;
-  cancelEdit: (tabId: string) => void;
-
   // Diff actions
   addDiffFromToolUse: (
     toolUseId: string,
@@ -226,10 +224,6 @@ export const useFileViewerStore = create<FileViewerState>((set, get) => ({
     } catch (e) {
       console.error("Failed to save file:", e);
     }
-  },
-
-  cancelEdit: (_tabId: string) => {
-    // Reload from disk handled by the component (re-read)
   },
 
   addDiffFromToolUse: async (

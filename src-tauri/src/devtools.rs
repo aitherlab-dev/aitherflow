@@ -219,6 +219,23 @@ pub async fn stop_dev(project_path: String) -> Result<(), String> {
                     eprintln!("[devtools] Failed to kill dev server process {pid}: {e}");
                 }
             }
+
+            // SIGKILL fallback: if process is still alive after 3s, force kill
+            std::thread::sleep(std::time::Duration::from_secs(3));
+            let still_alive = std::process::Command::new("kill")
+                .args(["-0", &pid.to_string()])
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false);
+            if still_alive {
+                eprintln!("[devtools] Process {pid} didn't exit after SIGTERM, sending SIGKILL");
+                if let Err(e) = std::process::Command::new("kill")
+                    .args(["-9", "--", &format!("-{pid}")])
+                    .output()
+                {
+                    eprintln!("[devtools] Failed to SIGKILL process group {pid}: {e}");
+                }
+            }
         })
         .await
         .map_err(|e| format!("Task join error: {e}"))?;

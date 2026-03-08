@@ -483,13 +483,19 @@ export function clearAgentState(agentId: string) {
   }
 }
 
-export async function respondToCard(toolUseId: string, response: string) {
-  const state = useChatStore.getState();
+export async function respondToCard(agentId: string, toolUseId: string, response: string) {
+  const activeAgentId = useChatStore.getState().agentId;
+  const isActive = agentId === activeAgentId;
+
+  // Find messages in the correct store (Zustand for active, Map for background)
+  const sourceMsgs = isActive
+    ? useChatStore.getState().messages
+    : agentStates.get(agentId)?.messages ?? [];
 
   let requestId: string | undefined;
   let toolName: string | undefined;
   let toolInput: Record<string, unknown> | undefined;
-  const msgs = [...state.messages];
+  const msgs = [...sourceMsgs];
   for (let i = msgs.length - 1; i >= 0; i--) {
     const msg = msgs[i];
     if (msg.role === "assistant" && msg.tools?.some((t) => t.toolUseId === toolUseId)) {
@@ -506,15 +512,22 @@ export async function respondToCard(toolUseId: string, response: string) {
       break;
     }
   }
-  useChatStore.setState({ messages: msgs, isThinking: true });
+
+  // Update the correct store
+  if (isActive) {
+    useChatStore.setState({ messages: msgs, isThinking: true });
+  } else {
+    const bgState = agentStates.get(agentId);
+    if (bgState) bgState.messages = msgs;
+  }
 
   if (!requestId) {
     try {
       await invoke("send_message", {
-        options: { agentId: state.agentId, prompt: response } satisfies SendMessageOptions,
+        options: { agentId, prompt: response } satisfies SendMessageOptions,
       });
     } catch (e) {
-      useChatStore.setState({ error: String(e), isThinking: false });
+      if (isActive) useChatStore.setState({ error: String(e), isThinking: false });
     }
     return;
   }
@@ -540,11 +553,11 @@ export async function respondToCard(toolUseId: string, response: string) {
 
   try {
     await invoke("respond_to_tool", {
-      agentId: state.agentId,
+      agentId,
       requestId,
       response: controlResponse,
     });
   } catch (e) {
-    useChatStore.setState({ error: String(e), isThinking: false });
+    if (isActive) useChatStore.setState({ error: String(e), isThinking: false });
   }
 }

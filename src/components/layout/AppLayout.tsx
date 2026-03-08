@@ -11,6 +11,7 @@ import { WelcomeScreen } from "./WelcomeScreen";
 import { FileViewerPanel } from "../fileviewer/FileViewerPanel";
 import { FileViewerResizeHandle } from "../fileviewer/FileViewerResizeHandle";
 import { useLayoutStore } from "../../stores/layoutStore";
+import { useShallow } from "zustand/react/shallow";
 import { DevToolsBar } from "./DevToolsBar";
 import { BrandFooter } from "./BrandFooter";
 
@@ -18,13 +19,18 @@ export function AppLayout() {
   useTelegramBridge();
   useHotkeys();
   const isMobile = useIsMobile();
-  const sidebarOpen = useLayoutStore((s) => s.sidebarOpen);
-  const toggleSidebar = useLayoutStore((s) => s.toggleSidebar);
-  const activeView = useLayoutStore((s) => s.activeView);
-  const fileViewerVisible = useLayoutStore((s) => s.fileViewerVisible);
-  const fileViewerHasContent = useLayoutStore((s) => s.fileViewerHasContent);
-  const fileViewerPosition = useLayoutStore((s) => s.fileViewerPosition);
-  const fileViewerSize = useLayoutStore((s) => s.fileViewerSize);
+  const {
+    sidebarOpen, toggleSidebar, activeView,
+    fileViewerVisible, fileViewerHasContent, fileViewerPosition, fileViewerSize,
+  } = useLayoutStore(useShallow((s) => ({
+    sidebarOpen: s.sidebarOpen,
+    toggleSidebar: s.toggleSidebar,
+    activeView: s.activeView,
+    fileViewerVisible: s.fileViewerVisible,
+    fileViewerHasContent: s.fileViewerHasContent,
+    fileViewerPosition: s.fileViewerPosition,
+    fileViewerSize: s.fileViewerSize,
+  })));
 
   const showPanel = fileViewerVisible && fileViewerHasContent;
 

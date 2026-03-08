@@ -193,6 +193,7 @@ export const useHotkeyStore = create<HotkeyState>((set, get) => ({
   voicePushToTalk: localStorage.getItem(PTT_KEY) !== "false",
 
   matches: (action, e) => {
+    if (e.metaKey) return false;
     const b = get().bindings[action];
     return (
       e.ctrlKey === b.ctrl &&
@@ -203,6 +204,7 @@ export const useHotkeyStore = create<HotkeyState>((set, get) => ({
   },
 
   findAction: (e) => {
+    if (e.metaKey) return null;
     const { bindings } = get();
     for (const [action, b] of Object.entries(bindings)) {
       if (
