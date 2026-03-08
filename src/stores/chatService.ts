@@ -30,7 +30,7 @@ function generateTitle(text: string): string {
   return (lastSpace > 10 ? truncated.slice(0, lastSpace) : truncated) + "…";
 }
 
-async function persistMessages() {
+export async function persistMessages() {
   const { currentChatId, messages } = useChatStore.getState();
   if (!currentChatId || messages.length === 0) return;
   try {

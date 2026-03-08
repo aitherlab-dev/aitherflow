@@ -71,7 +71,7 @@ pub fn parse_line(
                 combine_text_into(combined_buf, completed_text, delta_text);
                 events.push(CliEvent::StreamChunk {
                     agent_id: agent_id.to_string(),
-                    text: combined_buf.clone(),
+                    text: std::mem::take(combined_buf),
                 });
             }
         }
@@ -102,7 +102,7 @@ pub fn parse_line(
                 combine_text_into(combined_buf, completed_text, "");
                 events.push(CliEvent::StreamChunk {
                     agent_id: agent_id.to_string(),
-                    text: combined_buf.clone(),
+                    text: std::mem::take(combined_buf),
                 });
             }
 
@@ -206,7 +206,7 @@ pub fn parse_line(
 
             // Build final text
             combine_text_into(combined_buf, completed_text, delta_text);
-            let accumulated = combined_buf.clone();
+            let accumulated = std::mem::take(combined_buf);
             let final_text = if accumulated.is_empty() {
                 parsed
                     .get("result")

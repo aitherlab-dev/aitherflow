@@ -410,7 +410,7 @@ fn parse_and_cache(
         model,
         project: project.to_string(),
         cost,
-        input_tokens: sum_input + sum_cache_creation + sum_cache_read,
+        input_tokens: sum_input,
         output_tokens: sum_output,
         cache_read_tokens: sum_cache_read,
         cache_creation_tokens: sum_cache_creation,

@@ -4,7 +4,7 @@ import { useSkillStore } from "./skillStore";
 import { usePluginStore } from "./pluginStore";
 import { useAgentStore } from "./agentStore";
 import { useConductorStore } from "./conductorStore";
-import { COMMAND_DESCRIPTIONS } from "../components/chat/CommandsMenu";
+import { COMMAND_DESCRIPTIONS } from "../data/commandDescriptions";
 import type { HooksConfig, HookEntry } from "../types/hooks";
 
 interface TranslationCache {

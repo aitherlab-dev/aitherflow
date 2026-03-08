@@ -58,20 +58,25 @@ pub async fn voice_start(state: tauri::State<'_, VoiceState>) -> Result<(), Stri
     let sample_rate = supported_config.sample_rate().0;
     let channels = supported_config.channels();
 
+    // Channel for the recording thread to signal successful start
+    let (ready_tx, ready_rx) = std::sync::mpsc::channel::<Result<(), String>>();
+
     // Spawn a dedicated OS thread for the cpal stream (not Send, can't use tokio)
     let thread = std::thread::spawn(move || {
         let stream = match super::capture::build_input_stream(&device, supported_config, buf_clone, "voice") {
             Ok(s) => s,
             Err(e) => {
-                eprintln!("{e}");
+                let _ = ready_tx.send(Err(e));
                 return;
             }
         };
 
         if let Err(e) = stream.play() {
-            eprintln!("[voice] Play error: {e}");
+            let _ = ready_tx.send(Err(format!("[voice] Play error: {e}")));
             return;
         }
+
+        let _ = ready_tx.send(Ok(()));
 
         // Block until stop signal
         if let Err(e) = stop_rx.recv() {
@@ -79,6 +84,17 @@ pub async fn voice_start(state: tauri::State<'_, VoiceState>) -> Result<(), Stri
         }
         drop(stream);
     });
+
+    // Wait for the thread to report success or failure
+    let start_result = ready_rx
+        .recv()
+        .unwrap_or_else(|_| Err("Recording thread exited unexpectedly".into()));
+
+    if let Err(e) = start_result {
+        // Thread failed — join it and don't store ActiveRecording
+        let _ = thread.join();
+        return Err(e);
+    }
 
     *guard = Some(ActiveRecording {
         buffer,

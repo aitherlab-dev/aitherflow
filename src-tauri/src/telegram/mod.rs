@@ -185,7 +185,9 @@ pub(crate) fn load_config_from_disk() -> Result<TelegramConfig, String> {
     if let Some(kr) = secrets::get_secret(KEY_TG_BOT_TOKEN) {
         cfg.bot_token = Some(kr);
     } else if cfg.bot_token.as_ref().is_some_and(|t| !t.is_empty()) {
-        let _ = secrets::set_secret(KEY_TG_BOT_TOKEN, cfg.bot_token.as_ref().unwrap());
+        if let Err(e) = secrets::set_secret(KEY_TG_BOT_TOKEN, cfg.bot_token.as_ref().unwrap()) {
+            eprintln!("[TG] Failed to migrate bot token to keyring: {e}");
+        }
         migrated = true;
     }
 
@@ -193,7 +195,9 @@ pub(crate) fn load_config_from_disk() -> Result<TelegramConfig, String> {
     if let Some(kr) = secrets::get_secret(KEY_TG_GROQ) {
         cfg.groq_api_key = Some(kr);
     } else if cfg.groq_api_key.as_ref().is_some_and(|k| !k.is_empty()) {
-        let _ = secrets::set_secret(KEY_TG_GROQ, cfg.groq_api_key.as_ref().unwrap());
+        if let Err(e) = secrets::set_secret(KEY_TG_GROQ, cfg.groq_api_key.as_ref().unwrap()) {
+            eprintln!("[TG] Failed to migrate groq key to keyring: {e}");
+        }
         migrated = true;
     }
 
@@ -203,7 +207,9 @@ pub(crate) fn load_config_from_disk() -> Result<TelegramConfig, String> {
         disk.groq_api_key = None;
         let json = serde_json::to_string_pretty(&disk)
             .map_err(|e| format!("Failed to serialize: {e}"))?;
-        let _ = atomic_write(&config_path(), json.as_bytes());
+        if let Err(e) = atomic_write(&config_path(), json.as_bytes()) {
+            eprintln!("[TG] Failed to write migrated config: {e}");
+        }
     }
 
     Ok(cfg)
@@ -212,14 +218,18 @@ pub(crate) fn load_config_from_disk() -> Result<TelegramConfig, String> {
 pub(crate) fn save_config_to_disk(cfg: &TelegramConfig) -> Result<(), String> {
     // Store secrets in keyring
     if let Some(token) = &cfg.bot_token {
-        let _ = secrets::set_secret(KEY_TG_BOT_TOKEN, token);
-    } else {
-        let _ = secrets::delete_secret(KEY_TG_BOT_TOKEN);
+        if let Err(e) = secrets::set_secret(KEY_TG_BOT_TOKEN, token) {
+            eprintln!("[TG] Failed to store bot token: {e}");
+        }
+    } else if let Err(e) = secrets::delete_secret(KEY_TG_BOT_TOKEN) {
+        eprintln!("[TG] Failed to delete bot token: {e}");
     }
     if let Some(key) = &cfg.groq_api_key {
-        let _ = secrets::set_secret(KEY_TG_GROQ, key);
-    } else {
-        let _ = secrets::delete_secret(KEY_TG_GROQ);
+        if let Err(e) = secrets::set_secret(KEY_TG_GROQ, key) {
+            eprintln!("[TG] Failed to store groq key: {e}");
+        }
+    } else if let Err(e) = secrets::delete_secret(KEY_TG_GROQ) {
+        eprintln!("[TG] Failed to delete groq key: {e}");
     }
 
     // Write JSON without secrets

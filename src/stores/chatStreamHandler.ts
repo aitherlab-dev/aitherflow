@@ -5,8 +5,8 @@
  * Side-effect module: importing this file registers the "cli-event" listener.
  */
 
-import { listen } from "../lib/transport";
-import { invoke } from "../lib/transport";
+import { listen, invoke } from "../lib/transport";
+import { persistMessages } from "./chatService";
 import type { CliEvent } from "../types/conductor";
 import type { ChatMessage, ToolActivity } from "../types/chat";
 import { isInteractiveTool } from "../types/chat";
@@ -76,19 +76,6 @@ export function clearToolActivityTimer() {
 }
 
 // ── Persistence helpers ──
-
-async function persistMessages() {
-  const { currentChatId, messages } = useChatStore.getState();
-  if (!currentChatId || messages.length === 0) return;
-  try {
-    await invoke("save_chat_messages", {
-      chatId: currentChatId,
-      messages: messagesToStored(messages),
-    });
-  } catch (e) {
-    console.error("Failed to save messages:", e);
-  }
-}
 
 async function persistAgentMessages(agentId: string) {
   const isActive = agentId === useChatStore.getState().agentId;

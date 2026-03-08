@@ -1,12 +1,15 @@
 import { memo, useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { Plus, RotateCcw, Star, Mic, MicOff, ArrowUp, Square, X, MessageSquarePlus, Sparkles, Brain, Zap, Loader2, Slash } from "lucide-react";
-import { openDialog, invoke, getCurrentWindow } from "../../lib/transport";
+import { Plus, RotateCcw, Star, Mic, MicOff, ArrowUp, Square, MessageSquarePlus, Sparkles, Brain, Zap, Loader2, Slash } from "lucide-react";
+import { openDialog } from "../../lib/transport";
 import { useChatStore, getToolLabel, selectRecentTools } from "../../stores/chatStore";
 import { sendMessage, stopGeneration, newChat, restartSession, switchPermissionMode } from "../../stores/chatService";
 import { useShallow } from "zustand/react/shallow";
 import { useAttachmentStore } from "../../stores/attachmentStore";
 import { useFileAttach } from "../../hooks/useFileAttach";
+import { usePasteHandler } from "../../hooks/usePasteHandler";
+import { useTauriDragDrop } from "../../hooks/useTauriDragDrop";
 import { ThinkingIndicator } from "./ThinkingIndicator";
+import { AttachmentList } from "./AttachmentList";
 import { ModelMenu } from "./ModelMenu";
 import { SkillsMenu } from "./SkillsMenu";
 import { CommandsMenu } from "./CommandsMenu";
@@ -26,19 +29,8 @@ const TEXT_EXTENSIONS = [
   "c", "h", "cpp", "hpp", "go", "rb", "java", "xml", "csv", "sql",
 ];
 
-/** Read a File (blob) into a data URI string */
-function readFileAsDataUri(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(new Error("Failed to read file"));
-    reader.readAsDataURL(file);
-  });
-}
-
 export const InputBar = memo(function InputBar() {
   const [text, setText] = useState("");
-  const [isDragOver, setIsDragOver] = useState(false);
   const [modelMenuRect, setModelMenuRect] = useState<DOMRect | null>(null);
   const [skillsMenuRect, setSkillsMenuRect] = useState<DOMRect | null>(null);
   const [commandsMenuRect, setCommandsMenuRect] = useState<DOMRect | null>(null);
@@ -62,13 +54,12 @@ export const InputBar = memo(function InputBar() {
   const handleVoiceReplace = useCallback((newText: string) => {
     setText(newText);
   }, []);
-  // Ref to always have current text for voice prefix (avoids stale closure)
   const textRef = useRef("");
   textRef.current = text;
   const getVoicePrefix = useCallback(() => textRef.current, []);
   const { voiceState, toggleVoice, resetStream } = useVoice(handleVoiceInsert, handleVoiceReplace, getVoicePrefix);
 
-  // Focus textarea when voice recording stops (so user can hit Enter immediately)
+  // Focus textarea when voice recording stops
   const prevVoiceRef = useRef(voiceState);
   useEffect(() => {
     if (prevVoiceRef.current !== "idle" && voiceState === "idle") {
@@ -77,7 +68,7 @@ export const InputBar = memo(function InputBar() {
     prevVoiceRef.current = voiceState;
   }, [voiceState]);
 
-  // Listen for hotkey:focusInput custom event from central hotkey handler
+  // Listen for hotkey:focusInput custom event
   useEffect(() => {
     const handler = () => textareaRef.current?.focus();
     window.addEventListener("hotkey:focusInput", handler);
@@ -95,52 +86,26 @@ export const InputBar = memo(function InputBar() {
     return selectedModel.charAt(0).toUpperCase() + selectedModel.slice(1);
   }, [hasSession, activeModel, selectedModel]);
 
-  // Last 2 tool activities from the latest assistant message
   const recentTools = useChatStore(useShallow(selectRecentTools));
 
-  // Auto-resize textarea and keep cursor visible
+  // Auto-resize textarea
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = "auto";
     el.style.height = Math.min(el.scrollHeight, MAX_HEIGHT) + "px";
-    // Scroll to caret so the typing line is always visible
     if (el.scrollHeight > MAX_HEIGHT) {
       el.scrollTop = el.scrollHeight;
     }
   }, [text]);
 
-  // Listen for Tauri drag-drop events (gives real file paths)
-  useEffect(() => {
-    let cancelled = false;
-    let cleanup: (() => void) | undefined;
+  // Tauri drag-drop
+  const { isDragOver, setIsDragOver } = useTauriDragDrop(processFromPaths);
 
-    getCurrentWindow().then((win) => {
-      if (cancelled) return;
-      const unlisten = win.onDragDropEvent(async (event) => {
-        const p = event.payload;
-        if (p.type === "drop") {
-          setIsDragOver(false);
-          processFromPaths(p.paths).catch(console.error);
-        } else if (p.type === "over") {
-          setIsDragOver(true);
-        } else if (p.type === "leave") {
-          setIsDragOver(false);
-        }
-      });
-      unlisten.then((fn: () => void) => {
-        if (cancelled) fn();
-        else cleanup = fn;
-      });
-    });
+  // Paste handler
+  const handlePaste = usePasteHandler(textareaRef, setText, addAttachment);
 
-    return () => {
-      cancelled = true;
-      cleanup?.();
-    };
-  }, [processFromPaths]);
-
-  // ── Process files queued from FilesPanel ──
+  // Process files queued from FilesPanel
   useEffect(() => {
     const unsub = useAttachmentStore.subscribe(async (state, prev) => {
       if (state.pendingPaths.length === 0 || state.pendingPaths === prev.pendingPaths) return;
@@ -151,7 +116,7 @@ export const InputBar = memo(function InputBar() {
     return unsub;
   }, [processFromPaths]);
 
-  // ── Add file via native picker ──
+  // Add file via native picker
   const handleAddFile = useCallback(async () => {
     try {
       const selected = await openDialog({
@@ -169,129 +134,12 @@ export const InputBar = memo(function InputBar() {
     }
   }, [processFromPaths]);
 
-  // ── Paste handler (Ctrl+V) ──
-  const handlePaste = useCallback(async (e: React.ClipboardEvent) => {
-    const cd = e.clipboardData;
-    const types = Array.from(cd.types);
-
-    // If text + image together (e.g. Telegram copy), prioritize text
-    if (types.includes("text/plain") && types.some((t) => t.startsWith("image/"))) {
-      // Let default paste handle the text
-      return;
-    }
-
-    // Branch 1: explicit File with image MIME
-    if (types.includes("Files")) {
-      const files = cd.files;
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        if (file.type.startsWith("image/")) {
-          e.preventDefault();
-          try {
-            const dataUri = await readFileAsDataUri(file);
-            addAttachment({
-              id: crypto.randomUUID(),
-              name: file.name || "pasted-image.png",
-              content: dataUri,
-              size: file.size,
-              fileType: "image",
-            });
-          } catch (err) {
-            console.error("Failed to read pasted file:", err);
-          }
-          return;
-        }
-      }
-    }
-
-    // Branch 2: raw image type in clipboard items (screenshot)
-    if (types.some((t) => t.startsWith("image/"))) {
-      e.preventDefault();
-      const items = cd.items;
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        if (item.type.startsWith("image/")) {
-          const file = item.getAsFile();
-          if (!file) continue;
-          try {
-            const dataUri = await readFileAsDataUri(file);
-            addAttachment({
-              id: crypto.randomUUID(),
-              name: "screenshot.png",
-              content: dataUri,
-              size: file.size,
-              fileType: "image",
-            });
-          } catch (err) {
-            console.error("Failed to read pasted image:", err);
-          }
-          return;
-        }
-      }
-    }
-
-    // Branch 3: empty types (Wayland/WebKitGTK bug) — fallback to Rust clipboard
-    if (types.length === 0) {
-      e.preventDefault();
-
-      // Try text first
-      try {
-        const clipText = await invoke<string>("read_clipboard_text");
-        if (clipText) {
-          const ta = textareaRef.current;
-          if (ta) {
-            const start = ta.selectionStart;
-            const end = ta.selectionEnd;
-            const current = ta.value;
-            const before = current.slice(0, start);
-            const after = current.slice(end);
-            setText(before + clipText + after);
-            // Restore cursor position after inserted text
-            requestAnimationFrame(() => {
-              const pos = start + clipText.length;
-              ta.selectionStart = pos;
-              ta.selectionEnd = pos;
-            });
-          } else {
-            setText((prev) => prev + clipText);
-          }
-          return;
-        }
-      } catch {
-        // No text — try image below
-      }
-
-      // Try image
-      try {
-        const result = await invoke<{
-          path: string;
-          preview: string;
-          size: number;
-          filename: string;
-        }>("read_clipboard_image");
-        addAttachment({
-          id: crypto.randomUUID(),
-          name: result.filename,
-          content: result.preview,
-          size: result.size,
-          fileType: "image",
-        });
-      } catch {
-        // No image in clipboard either — nothing to paste
-      }
-      return;
-    }
-
-    // Default: let the browser handle text paste normally
-  }, [addAttachment]);
-
-  // ── Send message with attachments ──
+  // Send message with attachments
   const handleSend = useCallback(() => {
     const trimmed = text.trim();
     const hasContent = trimmed || attachments.length > 0;
     if (!hasContent || isThinking) return;
 
-    // Build final prompt: text attachments inline as code blocks (for CLI)
     let finalPrompt = "";
     for (const att of attachments) {
       if (att.fileType === "text") {
@@ -302,7 +150,7 @@ export const InputBar = memo(function InputBar() {
 
     setText("");
     clearAttachments();
-    resetStream(); // Clear accumulated voice text so stream doesn't refill textarea
+    resetStream();
     sendMessage(finalPrompt.trim(), attachments.length > 0 ? [...attachments] : undefined).catch(console.error);
   }, [text, attachments, isThinking, clearAttachments, resetStream]);
 
@@ -320,22 +168,20 @@ export const InputBar = memo(function InputBar() {
     [handleSend],
   );
 
-  // DOM drag events (visual feedback only — actual file handling via Tauri events)
+  // DOM drag events (visual feedback only)
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(true);
-  }, []);
+  }, [setIsDragOver]);
 
   const handleDragLeave = useCallback(() => {
     setIsDragOver(false);
-  }, []);
+  }, [setIsDragOver]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
-    // Actual file processing handled by Tauri onDragDropEvent (OS drops)
-    // or ChatView drop handler (internal FilesPanel drops)
-  }, []);
+  }, [setIsDragOver]);
 
   return (
     <div
@@ -348,36 +194,7 @@ export const InputBar = memo(function InputBar() {
         <div className="input-bar-drop-overlay">Drop files here</div>
       )}
 
-      {/* Attachment cards */}
-      {attachments.length > 0 && (
-        <div className="attachment-chips">
-          {attachments.map((att) => (
-            <div key={att.id} className={`attachment-chip ${att.fileType === "image" ? "attachment-chip--image" : "attachment-chip--file"}`}>
-              <button
-                className="attachment-chip-remove"
-                onClick={() => removeAttachment(att.id)}
-                title="Remove"
-              >
-                <X size={10} />
-              </button>
-              {att.fileType === "image" ? (
-                <img
-                  src={att.content}
-                  alt={att.name}
-                  className="attachment-chip-preview"
-                />
-              ) : (
-                <>
-                  <span className="attachment-chip-name">{att.name}</span>
-                  <span className="attachment-chip-ext">
-                    {att.name.includes(".") ? att.name.split(".").pop()!.toUpperCase() : "FILE"}
-                  </span>
-                </>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+      <AttachmentList attachments={attachments} onRemove={removeAttachment} />
 
       <div className="input-bar-row">
         <textarea
@@ -392,7 +209,7 @@ export const InputBar = memo(function InputBar() {
         />
       </div>
       <div className="input-bar-bottom">
-        {/* ── Row 1 ── */}
+        {/* Row 1 */}
         <div className="input-bar-cell input-bar-cell--btns">
           <button
             className="input-bar-btn"
@@ -482,7 +299,7 @@ export const InputBar = memo(function InputBar() {
           </button>
         </div>
 
-        {/* ── Row 2 ── */}
+        {/* Row 2 */}
         <div className="input-bar-cell input-bar-cell--btns">
           <button
             className="input-bar-label-btn"

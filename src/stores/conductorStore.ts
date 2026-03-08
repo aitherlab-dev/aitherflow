@@ -1,16 +1,7 @@
 import { create } from "zustand";
 import { invoke, listen } from "../lib/transport";
-import type {
-  CliEvent,
-  StartSessionOptions,
-  SendMessageOptions,
-} from "../types/conductor";
+import type { CliEvent } from "../types/conductor";
 import { useChatStore } from "./chatStore";
-
-/** Get the current active agentId from chatStore */
-function currentAgentId(): string {
-  return useChatStore.getState().agentId;
-}
 
 /** Maximum number of raw events to keep in the log */
 const MAX_EVENT_LOG = 200;
@@ -67,10 +58,6 @@ interface ConductorState {
   setSelectedModel: (model: string) => void;
   setSelectedEffort: (effort: string) => void;
   setSelectedPermissionMode: (mode: "default" | "plan") => void;
-  startSession: (prompt: string) => Promise<void>;
-  sendFollowup: (prompt: string) => Promise<void>;
-  stopSession: () => Promise<void>;
-  clearError: () => void;
   reset: () => void;
   saveUsageForAgent: (agentId: string) => void;
   restoreUsageForAgent: (agentId: string) => void;
@@ -98,44 +85,6 @@ export const useConductorStore = create<ConductorState>((set, get) => ({
   setSelectedModel: (model: string) => set({ selectedModel: model }),
   setSelectedEffort: (effort: string) => set({ selectedEffort: effort }),
   setSelectedPermissionMode: (mode: "default" | "plan") => set({ selectedPermissionMode: mode }),
-
-  startSession: async (prompt: string) => {
-    set({ error: null });
-    try {
-      await invoke("start_session", {
-        options: {
-          agentId: currentAgentId(),
-          prompt,
-        } satisfies StartSessionOptions,
-      });
-    } catch (e) {
-      set({ error: String(e) });
-    }
-  },
-
-  sendFollowup: async (prompt: string) => {
-    set({ error: null });
-    try {
-      await invoke("send_message", {
-        options: {
-          agentId: currentAgentId(),
-          prompt,
-        } satisfies SendMessageOptions,
-      });
-    } catch (e) {
-      set({ error: String(e) });
-    }
-  },
-
-  stopSession: async () => {
-    try {
-      await invoke("stop_session", { agentId: currentAgentId() });
-    } catch (e) {
-      set({ error: String(e) });
-    }
-  },
-
-  clearError: () => set({ error: null }),
 
   reset: () =>
     set({
@@ -256,11 +205,10 @@ listen<CliEvent>("cli-event", (event) => {
 
   const { setState: set, getState: get } = useConductorStore;
 
-  // Keep event log capped — mutate-then-replace to avoid O(N) spread
-  const events = get().events;
-  if (events.length >= MAX_EVENT_LOG) events.shift();
-  events.push(e);
-  set({ events: [...events] });
+  // Keep event log capped — immutable update
+  const prev = get().events;
+  const trimmed = prev.length >= MAX_EVENT_LOG ? prev.slice(1) : prev;
+  set({ events: [...trimmed, e] });
 
   switch (e.type) {
     case "sessionId":

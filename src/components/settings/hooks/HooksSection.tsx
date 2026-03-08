@@ -25,8 +25,9 @@ export function HooksSection() {
   const [showTemplates, setShowTemplates] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const activeAgent = useAgentStore((s) => s.getActiveAgent());
-  const projectPath = activeAgent?.projectPath;
+  const projectPath = useAgentStore(
+    (s) => s.agents.find((a) => a.id === s.activeAgentId)?.projectPath,
+  );
 
   const hooks = scope === "global" ? globalHooks : projectHooks;
   const setHooks = scope === "global" ? setGlobalHooks : setProjectHooks;

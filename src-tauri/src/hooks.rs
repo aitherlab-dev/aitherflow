@@ -19,8 +19,10 @@ fn global_settings_path() -> PathBuf {
     config::claude_home().join("settings.json")
 }
 
-fn project_settings_path(project_path: &str) -> PathBuf {
-    PathBuf::from(project_path).join(".claude/settings.json")
+fn project_settings_path(project_path: &str) -> Result<PathBuf, String> {
+    let p = std::path::Path::new(project_path);
+    crate::files::validate_path_safe(p)?;
+    Ok(p.join(".claude/settings.json"))
 }
 
 fn settings_path(scope: &str, project_path: &Option<String>) -> Result<PathBuf, String> {
@@ -30,7 +32,7 @@ fn settings_path(scope: &str, project_path: &Option<String>) -> Result<PathBuf, 
             let pp = project_path
                 .as_deref()
                 .ok_or("project_path is required for project scope")?;
-            Ok(project_settings_path(pp))
+            project_settings_path(pp)
         }
         _ => Err(format!("Invalid scope: {scope}")),
     }
@@ -101,6 +103,7 @@ pub async fn test_hook_command(
         let mut cmd = std::process::Command::new("sh");
         cmd.arg("-c").arg(&command);
         if let Some(ref dir) = cwd {
+            crate::files::validate_path_safe(std::path::Path::new(dir))?;
             cmd.current_dir(dir);
         }
         // Provide empty stdin

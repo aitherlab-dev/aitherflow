@@ -125,6 +125,7 @@ pub async fn run_cli_session(
         .stderr(std::process::Stdio::piped());
 
     if let Some(ref dir) = project_path {
+        crate::files::validate_path_safe(std::path::Path::new(dir))?;
         cmd.current_dir(dir);
     }
 
@@ -152,13 +153,14 @@ pub async fn run_cli_session(
         .ok_or_else(|| "Failed to capture stderr".to_string())?;
 
     // Store session immediately (so kill works even during first write)
-    sessions
+    let generation = sessions
         .insert(
             agent_id.clone(),
             AgentSession {
                 child,
                 stdin: std::sync::Arc::new(tokio::sync::Mutex::new(stdin)),
                 status: SessionStatus::Thinking,
+                generation: 0, // assigned by insert()
             },
         )
         .await;
@@ -276,8 +278,8 @@ pub async fn run_cli_session(
         exit_code,
     });
 
-    // Clean up session
-    sessions.kill(&agent_id).await;
+    // Clean up session — only if it's still ours (same generation)
+    sessions.cleanup(&agent_id, generation).await;
 
     Ok(())
 }

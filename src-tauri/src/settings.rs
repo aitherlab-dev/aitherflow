@@ -89,7 +89,9 @@ pub async fn load_settings() -> Result<AppSettings, String> {
         if let Some(kr) = secrets::get_secret(KEY_GROQ) {
             settings.groq_api_key = kr;
         } else if !settings.groq_api_key.is_empty() {
-            let _ = secrets::set_secret(KEY_GROQ, &settings.groq_api_key);
+            if let Err(e) = secrets::set_secret(KEY_GROQ, &settings.groq_api_key) {
+                eprintln!("[settings] Failed to migrate groq key to keyring: {e}");
+            }
             migrated = true;
         }
 
@@ -97,7 +99,9 @@ pub async fn load_settings() -> Result<AppSettings, String> {
         if let Some(kr) = secrets::get_secret(KEY_DEEPGRAM) {
             settings.deepgram_api_key = kr;
         } else if !settings.deepgram_api_key.is_empty() {
-            let _ = secrets::set_secret(KEY_DEEPGRAM, &settings.deepgram_api_key);
+            if let Err(e) = secrets::set_secret(KEY_DEEPGRAM, &settings.deepgram_api_key) {
+                eprintln!("[settings] Failed to migrate deepgram key to keyring: {e}");
+            }
             migrated = true;
         }
 
@@ -108,7 +112,9 @@ pub async fn load_settings() -> Result<AppSettings, String> {
             disk.deepgram_api_key = String::new();
             let data = serde_json::to_string_pretty(&disk)
                 .map_err(|e| format!("Failed to serialize settings: {e}"))?;
-            let _ = atomic_write(&settings_path(), data.as_bytes());
+            if let Err(e) = atomic_write(&settings_path(), data.as_bytes()) {
+                eprintln!("[settings] Failed to write migrated settings: {e}");
+            }
         }
 
         Ok(settings)
@@ -123,8 +129,12 @@ pub async fn load_settings() -> Result<AppSettings, String> {
 pub async fn save_settings(settings: AppSettings) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
         // Store secrets in keyring
-        let _ = secrets::set_secret(KEY_GROQ, &settings.groq_api_key);
-        let _ = secrets::set_secret(KEY_DEEPGRAM, &settings.deepgram_api_key);
+        if let Err(e) = secrets::set_secret(KEY_GROQ, &settings.groq_api_key) {
+            eprintln!("[settings] Failed to store groq key: {e}");
+        }
+        if let Err(e) = secrets::set_secret(KEY_DEEPGRAM, &settings.deepgram_api_key) {
+            eprintln!("[settings] Failed to store deepgram key: {e}");
+        }
 
         // Write JSON without secrets
         let mut disk = settings;

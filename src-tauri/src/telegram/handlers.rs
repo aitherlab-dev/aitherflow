@@ -56,6 +56,13 @@ pub(super) async fn handle_callback(
             eprintln!("[TG] confirm skill: {e}");
         }
     } else if let Some(path) = data.strip_prefix("project:") {
+        if let Err(e) = crate::files::validate_path_safe(std::path::Path::new(path)) {
+            eprintln!("[TG] Invalid project path from callback: {e}");
+            if let Err(se) = tg_send_message(client, token, chat_id, &format!("Invalid path: {e}")).await {
+                eprintln!("[TG] send path error: {se}");
+            }
+            return;
+        }
         let name = path.rsplit('/').next().unwrap_or(path);
         if let Err(e) = incoming_tx.send(TgIncoming {
             kind: "new_session".into(),

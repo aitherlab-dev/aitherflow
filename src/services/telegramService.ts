@@ -58,7 +58,10 @@ function stripThinking(raw: string): string {
 export function isBotRunning(): Promise<boolean> {
   return invoke<TelegramStatus>("get_telegram_status")
     .then((s) => s.running && s.connected)
-    .catch(() => false);
+    .catch((e) => {
+      console.error("[TG] isBotRunning:", e);
+      return false;
+    });
 }
 
 export async function pollAndHandle(): Promise<void> {

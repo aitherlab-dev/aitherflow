@@ -105,8 +105,10 @@ fn extract_servers(val: &serde_json::Value) -> Vec<McpServer> {
     servers
 }
 
-fn mcp_json_path(project_path: &str) -> PathBuf {
-    Path::new(project_path).join(".mcp.json")
+fn mcp_json_path(project_path: &str) -> Result<PathBuf, String> {
+    let p = Path::new(project_path);
+    crate::files::validate_path_safe(p)?;
+    Ok(p.join(".mcp.json"))
 }
 
 // ─── commands ───
@@ -127,11 +129,18 @@ pub async fn list_mcp_servers(project_path: Option<String>) -> Result<McpData, S
         // Project servers: .mcp.json in project root
         let (project, project_path_display) = match &project_path_clone {
             Some(pp) => {
-                let p = mcp_json_path(pp);
-                let servers = read_json_file(&p)
-                    .map(|v| extract_servers(&v))
-                    .unwrap_or_default();
-                (servers, Some(p.to_string_lossy().to_string()))
+                match mcp_json_path(pp) {
+                    Ok(p) => {
+                        let servers = read_json_file(&p)
+                            .map(|v| extract_servers(&v))
+                            .unwrap_or_default();
+                        (servers, Some(p.to_string_lossy().to_string()))
+                    }
+                    Err(e) => {
+                        eprintln!("[mcp] Invalid project path: {e}");
+                        (vec![], None)
+                    }
+                }
             }
             None => (vec![], None),
         };
@@ -195,7 +204,7 @@ pub async fn save_project_mcp_servers(
     servers: HashMap<String, McpServerConfig>,
 ) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
-        let path = mcp_json_path(&project_path);
+        let path = mcp_json_path(&project_path)?;
         let wrapper = serde_json::json!({ "mcpServers": servers });
         let data = serde_json::to_string_pretty(&wrapper)
             .map_err(|e| format!("Failed to serialize: {e}"))?;
@@ -276,7 +285,9 @@ fn test_stdio(config: &McpServerConfig) -> Result<McpTestResult, String> {
                         eprintln!("[mcp] Failed to kill test process: {e}");
                     }
                     // Reap zombie
-                    let _ = c.wait();
+                    if let Err(e) = c.wait() {
+                        eprintln!("[mcp] Failed to reap test process: {e}");
+                    }
                     Ok(McpTestResult {
                         ok: true,
                         message: "Process started successfully".into(),
@@ -284,8 +295,12 @@ fn test_stdio(config: &McpServerConfig) -> Result<McpTestResult, String> {
                 }
                 Err(e) => {
                     // Reap in case of error too
-                    let _ = c.kill();
-                    let _ = c.wait();
+                    if let Err(ke) = c.kill() {
+                        eprintln!("[mcp] Failed to kill test process: {ke}");
+                    }
+                    if let Err(we) = c.wait() {
+                        eprintln!("[mcp] Failed to reap test process: {we}");
+                    }
                     Ok(McpTestResult {
                         ok: false,
                         message: format!("Failed to check process: {e}"),
@@ -353,6 +368,7 @@ fn test_http(config: &McpServerConfig) -> Result<McpTestResult, String> {
 #[tauri::command]
 pub async fn reset_mcp_project_choices(project_path: String) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
+        crate::files::validate_path_safe(Path::new(&project_path))?;
         let output = Command::new("claude")
             .args(["mcp", "reset-project-choices"])
             .current_dir(&project_path)

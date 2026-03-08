@@ -128,9 +128,18 @@ pub(super) async fn bot_loop(
                 }
             }
 
-            Some(outgoing) = outgoing_rx.recv() => {
-                if let Err(e) = tg_send_message(&client, &token, outgoing.chat_id, &outgoing.text).await {
-                    eprintln!("[TG] send outgoing: {e}");
+            outgoing = outgoing_rx.recv() => {
+                match outgoing {
+                    Some(msg) => {
+                        if let Err(e) = tg_send_message(&client, &token, msg.chat_id, &msg.text).await {
+                            eprintln!("[TG] send outgoing: {e}");
+                        }
+                    }
+                    None => {
+                        // Channel closed by stop_telegram_bot → graceful exit
+                        eprintln!("[TG] Outgoing channel closed, shutting down");
+                        break;
+                    }
                 }
             }
         }

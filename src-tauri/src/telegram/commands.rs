@@ -121,6 +121,13 @@ pub async fn start_telegram_bot() -> Result<TelegramStatus, String> {
             http_client: None,
             stream_message_id: 0,
         });
+
+        // Guard: if another start/stop happened while we were connecting, abort our task
+        if state.task_handle.is_some() {
+            task.abort();
+            return;
+        }
+
         state.status = status.clone();
         state.task_handle = Some(task);
         state.outgoing_tx = Some(outgoing_tx);
@@ -134,17 +141,31 @@ pub async fn start_telegram_bot() -> Result<TelegramStatus, String> {
 
 #[tauri::command]
 pub async fn stop_telegram_bot() -> Result<(), String> {
-    with_state(|s| {
+    let handle = with_state(|s| {
         if let Some(state) = s.as_mut() {
-            if let Some(handle) = state.task_handle.take() {
-                handle.abort();
-            }
+            let handle = state.task_handle.take();
             state.outgoing_tx = None;
             state.incoming_tx = None;
             state.incoming_rx = None;
             state.status = TelegramStatus::default();
+            handle
+        } else {
+            None
         }
     });
+
+    // Outgoing channel was dropped above → bot_loop will break on next select! cycle.
+    // Wait up to 3s for graceful exit, then abort as safety net.
+    if let Some(mut handle) = handle {
+        tokio::select! {
+            _ = &mut handle => {} // Graceful exit via channel close
+            _ = tokio::time::sleep(std::time::Duration::from_secs(3)) => {
+                eprintln!("[TG] Graceful shutdown timed out, aborting");
+                handle.abort();
+                let _ = handle.await;
+            }
+        }
+    }
     Ok(())
 }
 

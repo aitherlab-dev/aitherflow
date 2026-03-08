@@ -91,7 +91,9 @@ const BuildButton = memo(function BuildButton() {
 
 const DevButton = memo(function DevButton() {
   const [devServers, setDevServers] = useState<Set<string>>(new Set());
-  const projectPath = useAgentStore((s) => s.getActiveAgent()?.projectPath ?? "");
+  const projectPath = useAgentStore(
+    (s) => s.agents.find((a) => a.id === s.activeAgentId)?.projectPath ?? "",
+  );
   const isRunning = projectPath ? devServers.has(projectPath) : false;
 
   const handleToggle = useCallback(async () => {
