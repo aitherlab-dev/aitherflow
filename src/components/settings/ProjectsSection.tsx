@@ -151,11 +151,15 @@ export function ProjectsSection() {
   const addProject = useProjectStore((s) => s.addProject);
 
   const handleAdd = useCallback(async () => {
-    const selected = await openDialog({ directory: true, multiple: false });
-    if (selected) {
-      const path = selected as string;
-      const name = path.split("/").pop() ?? path;
-      await addProject(path, name);
+    try {
+      const selected = await openDialog({ directory: true, multiple: false });
+      if (selected) {
+        const path = selected as string;
+        const name = path.split("/").pop() ?? path;
+        await addProject(path, name);
+      }
+    } catch (e) {
+      console.error("Add project dialog failed:", e);
     }
   }, [addProject]);
 

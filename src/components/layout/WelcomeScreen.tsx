@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { FolderOpen, FolderPlus, Plus, X, Sparkles, CornerDownLeft } from "lucide-react";
 import { useProjectStore } from "../../stores/projectStore";
 import { useAgentStore } from "../../stores/agentStore";
@@ -111,6 +111,21 @@ export function WelcomeScreen() {
     if (!workspace) return;
     await openProject(workspace.path, workspace.name);
   }, [workspace, openProject]);
+
+  // Escape: close picker or close welcome screen
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === "Escape") {
+        if (showPicker) {
+          setShowPicker(false);
+        } else {
+          closeWelcome();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showPicker, closeWelcome]);
 
   const openLastProject = useCallback(async () => {
     if (!lastProject) return;

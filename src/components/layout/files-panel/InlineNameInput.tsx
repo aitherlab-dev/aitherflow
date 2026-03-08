@@ -2,20 +2,37 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 
 export const InlineNameInput = memo(function InlineNameInput({
   placeholder,
+  initialValue = "",
+  selectStem = false,
   onSubmit,
   onCancel,
 }: {
   placeholder: string;
+  initialValue?: string;
+  selectStem?: boolean;
   onSubmit: (name: string) => void;
   onCancel: () => void;
 }) {
   const ref = useRef<HTMLInputElement>(null);
-  const [value, setValue] = useState("");
+  const [value, setValue] = useState(initialValue);
   const submittedRef = useRef(false);
 
   useEffect(() => {
     // Delay focus to avoid race with menu closing
-    const id = requestAnimationFrame(() => ref.current?.focus());
+    const id = requestAnimationFrame(() => {
+      const input = ref.current;
+      if (!input) return;
+      input.focus();
+      if (selectStem && initialValue) {
+        // Select just the name without extension (e.g. "file" in "file.txt")
+        const dotIdx = initialValue.lastIndexOf(".");
+        if (dotIdx > 0) {
+          input.setSelectionRange(0, dotIdx);
+        } else {
+          input.select();
+        }
+      }
+    });
     return () => cancelAnimationFrame(id);
   }, []);
 

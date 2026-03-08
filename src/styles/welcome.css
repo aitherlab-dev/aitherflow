@@ -90,6 +90,7 @@
   width: 100%;
   max-height: calc(100vh - 280px);
   overflow-y: auto;
+  padding: 4px;
   scrollbar-width: none;
 }
 

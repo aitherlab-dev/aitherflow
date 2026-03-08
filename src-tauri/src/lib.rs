@@ -70,6 +70,7 @@ pub fn run() {
             file_ops::create_directory,
             file_ops::create_file,
             file_ops::copy_entry,
+            file_ops::rename_entry,
             file_watcher::watch_directories,
             file_watcher::unwatch_directories,
             skills::load_skills,

@@ -43,6 +43,7 @@ export const FilesPanel = memo(function FilesPanel() {
     type: "folder" | "file";
     dirPath: string;
   } | null>(null);
+  const [renamingEntry, setRenamingEntry] = useState<{ path: string; dirPath: string } | null>(null);
 
   // Mounted drives
   const [mounts, setMounts] = useState<MountEntry[]>([]);
@@ -283,6 +284,31 @@ export const FilesPanel = memo(function FilesPanel() {
     setInlineInput({ type: "file", dirPath });
   }, [ctxMenu]);
 
+  const handleRename = useCallback(() => {
+    if (!ctxMenu?.entry) return;
+    const entry = ctxMenu.entry;
+    const dirPath = ctxMenu.dirPath;
+    setCtxMenu(null);
+    setRenamingEntry({ path: entry.path, dirPath });
+  }, [ctxMenu]);
+
+  const handleRenameSubmit = useCallback(
+    async (newName: string) => {
+      if (!renamingEntry) return;
+      const { path: oldPath, dirPath } = renamingEntry;
+      setRenamingEntry(null);
+      try {
+        await invoke("rename_entry", { oldPath, newName });
+        await refreshDir(dirPath);
+      } catch (e) {
+        console.error("Rename failed:", e);
+      }
+    },
+    [renamingEntry, refreshDir],
+  );
+
+  const handleRenameCancel = useCallback(() => setRenamingEntry(null), []);
+
   const handleInlineSubmit = useCallback(
     async (name: string) => {
       if (!inlineInput) return;
@@ -374,10 +400,13 @@ export const FilesPanel = memo(function FilesPanel() {
             depth={0}
             expandedSet={expandedSet}
             childrenCache={childrenCache}
+            renamingPath={renamingEntry?.path ?? null}
             onToggle={handleToggle}
             onFileClick={handleFileClick}
             onFileDblClick={handleFileDblClick}
             onContextMenu={handleEntryContextMenu}
+            onRenameSubmit={handleRenameSubmit}
+            onRenameCancel={handleRenameCancel}
             inlineInput={inlineInput}
             onInlineSubmit={handleInlineSubmit}
             onInlineCancel={handleInlineCancel}
@@ -403,10 +432,13 @@ export const FilesPanel = memo(function FilesPanel() {
                   <BrowserEntry
                     key={entry.path}
                     entry={entry}
+                    renamingPath={renamingEntry?.path ?? null}
                     onNavigate={handleNavigate}
                     onFileClick={handleFileClick}
                     onFileDblClick={handleFileDblClick}
                     onContextMenu={handleEntryContextMenu}
+                    onRenameSubmit={handleRenameSubmit}
+                    onRenameCancel={handleRenameCancel}
                   />
                 ))
             )}
@@ -446,6 +478,7 @@ export const FilesPanel = memo(function FilesPanel() {
           copiedPath={copiedPath}
           onCopyPath={handleCopyPath}
           onCopy={handleCopy}
+          onRename={handleRename}
           onDelete={handleDelete}
           onPaste={handlePaste}
           onNewFolder={handleNewFolder}

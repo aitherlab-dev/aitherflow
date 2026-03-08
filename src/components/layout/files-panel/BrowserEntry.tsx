@@ -2,20 +2,28 @@ import { memo, useCallback, useRef, useState } from "react";
 import { Folder, File } from "lucide-react";
 import { useAttachmentStore } from "../../../stores/attachmentStore";
 import type { FileEntry } from "../../../types/files";
+import { InlineNameInput } from "./InlineNameInput";
 
 export const BrowserEntry = memo(function BrowserEntry({
   entry,
+  renamingPath,
   onNavigate,
   onFileClick,
   onFileDblClick,
   onContextMenu,
+  onRenameSubmit,
+  onRenameCancel,
 }: {
   entry: FileEntry;
+  renamingPath: string | null;
   onNavigate: (path: string) => void;
   onFileClick: (path: string) => void;
   onFileDblClick: (path: string) => void;
   onContextMenu: (e: React.MouseEvent, entry: FileEntry) => void;
+  onRenameSubmit: (name: string) => void;
+  onRenameCancel: () => void;
 }) {
+  const isRenaming = renamingPath === entry.path;
   const [flash, setFlash] = useState(false);
   const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -67,7 +75,17 @@ export const BrowserEntry = memo(function BrowserEntry({
       ) : (
         <File size={16} className="files-entry__icon files-entry__icon--file" />
       )}
-      <span className="files-entry__name">{entry.name}</span>
+      {isRenaming ? (
+        <InlineNameInput
+          placeholder={entry.name}
+          initialValue={entry.name}
+          selectStem={!entry.isDir}
+          onSubmit={onRenameSubmit}
+          onCancel={onRenameCancel}
+        />
+      ) : (
+        <span className="files-entry__name">{entry.name}</span>
+      )}
     </div>
   );
 });

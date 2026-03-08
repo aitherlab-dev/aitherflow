@@ -7,6 +7,7 @@ import {
   FilePlus,
   Clipboard,
   Trash2,
+  Pencil,
 } from "lucide-react";
 import type { ContextMenuState } from "./types";
 
@@ -15,6 +16,7 @@ export const FileContextMenu = memo(function FileContextMenu({
   copiedPath,
   onCopyPath,
   onCopy,
+  onRename,
   onDelete,
   onPaste,
   onNewFolder,
@@ -25,6 +27,7 @@ export const FileContextMenu = memo(function FileContextMenu({
   copiedPath: string | null;
   onCopyPath: () => void;
   onCopy: () => void;
+  onRename: () => void;
   onDelete: () => void;
   onPaste: () => void;
   onNewFolder: () => void;
@@ -79,6 +82,10 @@ export const FileContextMenu = memo(function FileContextMenu({
           <button type="button" className="files-context-menu__item" onClick={onCopy}>
             <Copy size={14} />
             <span>Copy</span>
+          </button>
+          <button type="button" className="files-context-menu__item" onClick={onRename}>
+            <Pencil size={14} />
+            <span>Rename</span>
           </button>
           <button
             type="button"

@@ -185,6 +185,44 @@ pub async fn create_file(path: String, name: String) -> Result<String, String> {
     .map_err(|e| format!("Task join error: {e}"))?
 }
 
+/// Rename a file or directory
+#[tauri::command]
+pub async fn rename_entry(old_path: String, new_name: String) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        let src = Path::new(&old_path);
+        validate_path_safe(src)?;
+
+        if !src.exists() {
+            return Err(format!("'{}' does not exist", old_path));
+        }
+
+        // Reject path separators and traversal in name
+        if new_name.contains('/') || new_name.contains('\\') || new_name == ".." || new_name == "."
+        {
+            return Err(format!("Invalid name: '{}'", new_name));
+        }
+
+        let parent = src
+            .parent()
+            .ok_or_else(|| "Cannot rename root".to_string())?;
+        let target = parent.join(&new_name);
+
+        if target == src {
+            // Same name — no-op
+            return Ok(target.to_string_lossy().into_owned());
+        }
+
+        if target.exists() {
+            return Err(format!("'{}' already exists", new_name));
+        }
+
+        fs::rename(src, &target).map_err(|e| format!("Failed to rename: {e}"))?;
+        Ok(target.to_string_lossy().into_owned())
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
 /// Copy a file or directory recursively
 #[tauri::command]
 pub async fn copy_entry(src: String, dest_dir: String) -> Result<String, String> {
