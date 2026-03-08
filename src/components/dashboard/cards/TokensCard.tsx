@@ -44,7 +44,6 @@ export const TokensCard = memo(function TokensCard({
     ? `${formatTokens(contextUsed)} / ${formatTokens(contextMax)}`
     : "—";
 
-  const usageColor = contextUsed > 0 ? getUsageColor(contextUsed) : undefined;
   const barColor = contextUsed > 0
     ? getUsageColor(contextUsed)
     : USAGE_COLORS.gray;
