@@ -52,8 +52,7 @@ fn load_history_index(project_path: &str) -> std::collections::HashMap<String, (
             ) {
                 // Convert millis timestamp to ISO string
                 let secs = ts / 1000;
-                let nanos = (ts % 1000) * 1_000_000;
-                let iso = chrono_like_iso(secs, nanos);
+                let iso = timestamp_to_iso(secs);
                 map.insert(sid.to_string(), (display.to_string(), iso));
             }
         }
@@ -62,43 +61,14 @@ fn load_history_index(project_path: &str) -> std::collections::HashMap<String, (
     map
 }
 
-/// Simple timestamp conversion (avoids chrono dependency).
-fn chrono_like_iso(secs: u64, _nanos: u64) -> String {
-    // Use std::time for a rough ISO string — good enough for sorting
-    // Format: 2026-03-03T20:53:35Z
-    let d = std::time::UNIX_EPOCH + std::time::Duration::from_secs(secs);
-    let dt = d;
-    // humantime gives us a nice ISO format
-    // But we don't have humantime, so format manually:
-    let secs_since_epoch = dt
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-
-    let days = secs_since_epoch / 86400;
-    let time_of_day = secs_since_epoch % 86400;
-    let hours = time_of_day / 3600;
-    let minutes = (time_of_day % 3600) / 60;
-    let seconds = time_of_day % 60;
-
-    // Days since epoch to Y-M-D (simplified)
-    let (year, month, day) = days_to_ymd(days);
-    format!("{year:04}-{month:02}-{day:02}T{hours:02}:{minutes:02}:{seconds:02}Z")
-}
-
-fn days_to_ymd(mut days: u64) -> (u64, u64, u64) {
-    // Civil days algorithm (Howard Hinnant)
-    days += 719_468;
-    let era = days / 146_097;
-    let doe = days - era * 146_097;
-    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365;
-    let y = yoe + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = doy - (153 * mp + 2) / 5 + 1;
-    let m = if mp < 10 { mp + 3 } else { mp - 9 };
-    let y = if m <= 2 { y + 1 } else { y };
-    (y, m, d)
+/// Convert unix timestamp (seconds) to ISO 8601 string.
+fn timestamp_to_iso(secs: u64) -> String {
+    use chrono::TimeZone;
+    chrono::Utc
+        .timestamp_opt(secs as i64, 0)
+        .single()
+        .map(|dt| dt.format("%Y-%m-%dT%H:%M:%SZ").to_string())
+        .unwrap_or_else(|| "1970-01-01T00:00:00Z".to_string())
 }
 
 /// Parse a single JSONL session file and extract user/assistant text messages.
@@ -293,41 +263,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn days_to_ymd_epoch() {
-        // Day 0 = 1970-01-01
-        assert_eq!(days_to_ymd(0), (1970, 1, 1));
+    fn timestamp_to_iso_epoch() {
+        assert_eq!(timestamp_to_iso(0), "1970-01-01T00:00:00Z");
     }
 
     #[test]
-    fn days_to_ymd_known_dates() {
-        // 2024-01-01 = day 19723
-        assert_eq!(days_to_ymd(19723), (2024, 1, 1));
-        // 2000-03-01 = day 11017 (leap year boundary)
-        assert_eq!(days_to_ymd(11017), (2000, 3, 1));
-        // 2000-02-29 = day 11016 (leap day)
-        assert_eq!(days_to_ymd(11016), (2000, 2, 29));
-    }
-
-    #[test]
-    fn days_to_ymd_end_of_year() {
-        // 1970-12-31 = day 364
-        assert_eq!(days_to_ymd(364), (1970, 12, 31));
-    }
-
-    #[test]
-    fn chrono_like_iso_epoch() {
-        assert_eq!(chrono_like_iso(0, 0), "1970-01-01T00:00:00Z");
-    }
-
-    #[test]
-    fn chrono_like_iso_known_timestamp() {
+    fn timestamp_to_iso_known_timestamp() {
         // 2024-01-01 00:00:00 UTC = 1704067200
-        assert_eq!(chrono_like_iso(1704067200, 0), "2024-01-01T00:00:00Z");
+        assert_eq!(timestamp_to_iso(1704067200), "2024-01-01T00:00:00Z");
     }
 
     #[test]
-    fn chrono_like_iso_with_time() {
+    fn timestamp_to_iso_with_time() {
         // 2026-03-08 14:30:45 UTC = 1772980245
-        assert_eq!(chrono_like_iso(1772980245, 0), "2026-03-08T14:30:45Z");
+        assert_eq!(timestamp_to_iso(1772980245), "2026-03-08T14:30:45Z");
     }
 }

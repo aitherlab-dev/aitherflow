@@ -77,9 +77,7 @@ pub(crate) struct TgCallbackFrom {
 }
 
 #[derive(Deserialize, Clone)]
-#[allow(dead_code)]
 pub(crate) struct TgMessage {
-    pub message_id: i64,
     pub chat: TgChat,
     pub text: Option<String>,
     pub voice: Option<TgVoice>,
@@ -91,10 +89,6 @@ pub(crate) struct TgMessage {
 #[derive(Deserialize, Clone)]
 pub(crate) struct TgPhotoSize {
     pub file_id: String,
-    #[allow(dead_code)]
-    pub width: u32,
-    #[allow(dead_code)]
-    pub height: u32,
 }
 
 #[derive(Deserialize, Clone)]
@@ -112,8 +106,6 @@ pub(crate) struct TgChat {
 #[derive(Deserialize, Clone)]
 pub(crate) struct TgVoice {
     pub file_id: String,
-    #[allow(dead_code)]
-    pub duration: Option<u32>,
 }
 
 #[derive(Deserialize)]

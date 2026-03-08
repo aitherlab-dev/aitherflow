@@ -19,7 +19,6 @@ pub fn init() {
 }
 
 /// Background-index sessions for a project. Call inside spawn_blocking.
-#[allow(dead_code)]
 pub fn background_index(project_path: &str) {
     let db_path = memory_db_path();
     match db::open_db(&db_path) {

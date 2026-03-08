@@ -127,7 +127,8 @@ pub fn run() {
             mcp::reset_mcp_project_choices,
         ])
         .setup(move |_app| {
-            let sessions_clone = sessions.clone();
+            // Keep `sessions` alive until setup completes (State already holds a clone via .manage())
+            let _sessions = sessions;
             tauri::async_runtime::spawn(async move {
                 let tg_enabled = tokio::task::spawn_blocking(|| {
                     let cfg_dir = config::config_dir();
@@ -166,7 +167,6 @@ pub fn run() {
                     }
                 }
 
-                drop(sessions_clone);
             });
 
             Ok(())

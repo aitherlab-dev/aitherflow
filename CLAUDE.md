@@ -16,7 +16,7 @@ Aither Flow — десктопная GUI-обёртка для Claude Code CLI. 
 
 - `src/components/` — React: `chat/`, `layout/`, `settings/`, `fileviewer/`, `dashboard/`
 - `src/stores/` — Zustand-сторы, `src/types/` — TypeScript-типы
-- `src-tauri/src/` — Tauri-команды + модули: `conductor/` (ядро), `memory/`, `telegram/`, `voice/`
+- `src-tauri/src/` — Tauri-команды + модули: `conductor/` (ядро), `memory/`, `plugins/`, `telegram/`, `voice/`
 - `src-tauri/crates/` — крейты: `memory-mcp`, `aither-flow-perms`
 
 ## Команды
@@ -25,7 +25,9 @@ Aither Flow — десктопная GUI-обёртка для Claude Code CLI. 
 pnpm tauri dev          # dev-режим
 pnpm tauri build        # production
 pnpm typecheck          # tsc --noEmit
+pnpm lint               # eslint
 cargo clippy            # lint Rust (из src-tauri/)
+cargo test              # тесты Rust (из src-tauri/)
 ```
 
 CI: `tsc --noEmit` + `eslint` + `cargo clippy -D warnings`
@@ -63,7 +65,7 @@ CI: `tsc --noEmit` + `eslint` + `cargo clippy -D warnings`
 
 ## Дизайн-система
 
-CSS-переменные: `:root` (тёмная) и `[data-theme="light"]`. Слои: `--bg` → `--bg-soft`/`--bg-hard` → `--bg-card` → `--bg-hover` → `--input-bg`. Акцент: `--accent`, `--accent-stroke`, `--accent-icon`. НЕ хардкодить цвета. Палитра: `memory/palette.md`
+CSS-переменные: `:root` (тёмная) и `[data-theme="light"]`. Слои: `--bg` → `--bg-soft`/`--bg-hard` → `--bg-card` → `--bg-hover` → `--input-bg`. Акцент: `--accent`, `--accent-stroke`, `--accent-icon`. НЕ хардкодить цвета. Палитра: `MEMORY/palette.md` (auto-memory)
 
 ## Работа с пользователем
 

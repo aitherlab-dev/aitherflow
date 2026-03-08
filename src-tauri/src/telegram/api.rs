@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-use super::*;
+use super::{TgFile, TgResponse, TgUpdate, TgUser};
 
 const TG_API: &str = "https://api.telegram.org/bot";
 
@@ -323,16 +323,20 @@ pub(crate) async fn groq_transcribe(
     client: &reqwest::Client,
     api_key: &str,
     audio_bytes: Vec<u8>,
+    language: &str,
 ) -> Result<String, String> {
     let part = reqwest::multipart::Part::bytes(audio_bytes)
         .file_name("voice.ogg")
         .mime_str("audio/ogg")
         .map_err(|e| format!("multipart: {e}"))?;
 
-    let form = reqwest::multipart::Form::new()
+    let mut form = reqwest::multipart::Form::new()
         .text("model", "whisper-large-v3")
-        .text("language", "ru")
         .part("file", part);
+
+    if !language.is_empty() {
+        form = form.text("language", language.to_string());
+    }
 
     let resp = client
         .post("https://api.groq.com/openai/v1/audio/transcriptions")

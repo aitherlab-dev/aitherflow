@@ -225,7 +225,6 @@ function getCurrentAgentName(): string | null {
 async function handleRequestMenu(): Promise<void> {
   const { agents } = useAgentStore.getState();
   const { isThinking, messages } = useChatStore.getState();
-  const { projects } = useProjectStore.getState();
 
   // Mark last assistant message as sent so streaming won't duplicate it
   for (let i = messages.length - 1; i >= 0; i--) {
@@ -239,10 +238,6 @@ async function handleRequestMenu(): Promise<void> {
     agents: agents.map((a) => ({
       id: a.id,
       projectName: a.projectName,
-    })),
-    projects: projects.map((p) => ({
-      path: p.path,
-      name: p.name,
     })),
     currentAgent: getCurrentAgentName(),
     lastMessage: getLastAssistantMessage(),

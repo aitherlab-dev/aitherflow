@@ -41,15 +41,17 @@ pub async fn start_session(
         if let Err(e) = process::run_cli_session(
             process::EventSink::new(app_clone.clone()),
             sessions_owned,
-            agent_id_clone.clone(),
-            prompt,
-            project_path,
-            model,
-            effort,
-            resume_session_id,
-            permission_mode,
-            chrome,
-            image_attachments,
+            process::CliSessionConfig {
+                agent_id: agent_id_clone.clone(),
+                prompt,
+                project_path,
+                model,
+                effort,
+                resume_session_id,
+                permission_mode,
+                chrome,
+                image_attachments,
+            },
         )
         .await
         {

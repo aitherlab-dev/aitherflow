@@ -1,8 +1,13 @@
 use tokio::sync::mpsc;
 
-use super::api::*;
-use super::*;
+use super::api::{
+    tg_get_me, tg_send_inline_keyboard, tg_send_message, tg_send_with_reply_keyboard,
+};
 use super::bot::{bot_loop, get_bot_connection};
+use super::{
+    load_config_from_disk, save_config_to_disk, with_state, BotState, TelegramConfig,
+    TelegramStatus, TgIncoming, TgOutgoing,
+};
 
 // ── Tauri commands ──
 
@@ -78,6 +83,9 @@ pub async fn start_telegram_bot() -> Result<TelegramStatus, String> {
 
     let chat_id = config.chat_id.ok_or("Telegram chat ID is not configured")?;
     let groq_key = config.groq_api_key.clone().filter(|k| !k.is_empty());
+    let voice_language = tokio::task::spawn_blocking(crate::settings::get_voice_language)
+        .await
+        .unwrap_or_default();
 
     let client = reqwest::Client::new();
     let me = tg_get_me(&client, &token).await?;
@@ -90,6 +98,7 @@ pub async fn start_telegram_bot() -> Result<TelegramStatus, String> {
         bot_token,
         chat_id,
         groq_key,
+        voice_language,
         incoming_tx.clone(),
         outgoing_rx,
     ));
@@ -193,7 +202,6 @@ pub fn notify_telegram(text: String) -> Result<(), String> {
 #[tauri::command]
 pub async fn telegram_send_menu(
     agents: Vec<serde_json::Value>,
-    _projects: Vec<serde_json::Value>,
     current_agent: Option<String>,
     last_message: Option<String>,
     is_thinking: bool,

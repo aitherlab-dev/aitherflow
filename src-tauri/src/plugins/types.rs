@@ -162,9 +162,6 @@ impl AuthorField {
 #[derive(Deserialize, Debug)]
 pub(super) struct PluginJson {
     #[serde(default)]
-    #[allow(dead_code)]
-    pub name: String,
-    #[serde(default)]
     pub description: String,
 }
 

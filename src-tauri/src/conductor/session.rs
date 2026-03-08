@@ -18,7 +18,7 @@ pub struct AgentSession {
 ///
 /// Uses `Arc<Mutex<...>>` so it can be Clone'd into `tokio::spawn` tasks
 /// (Tauri's `State<'_>` has a lifetime that can't cross spawn boundaries).
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct SessionManager {
     sessions: Arc<Mutex<HashMap<String, AgentSession>>>,
 }

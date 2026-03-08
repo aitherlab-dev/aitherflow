@@ -4,8 +4,8 @@ use tokio::sync::mpsc;
 
 use crate::file_ops::atomic_write;
 
-use super::api::*;
-use super::*;
+use super::api::{groq_transcribe, tg_download_file, tg_send_message};
+use super::TgIncoming;
 
 pub(super) fn keyboard_button_kind(text: &str) -> Option<&'static str> {
     match text {
@@ -148,6 +148,7 @@ pub(super) async fn handle_voice(
     chat_id: i64,
     file_id: &str,
     groq_key: &Option<String>,
+    voice_language: &str,
     incoming_tx: &mpsc::UnboundedSender<TgIncoming>,
 ) {
     let Some(key) = groq_key.as_deref() else {
@@ -162,7 +163,7 @@ pub(super) async fn handle_voice(
     }
 
     match tg_download_file(client, token, file_id).await {
-        Ok((audio, _)) => match groq_transcribe(client, key, audio).await {
+        Ok((audio, _)) => match groq_transcribe(client, key, audio, voice_language).await {
             Ok(text) => {
                 if text.trim().is_empty() {
                     if let Err(e) = tg_send_message(client, token, chat_id, "Could not recognize speech").await {

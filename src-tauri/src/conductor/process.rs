@@ -29,25 +29,40 @@ impl EventSink {
     }
 }
 
+/// Configuration for a CLI session.
+pub struct CliSessionConfig {
+    pub agent_id: String,
+    pub prompt: String,
+    pub project_path: Option<String>,
+    pub model: Option<String>,
+    pub effort: Option<String>,
+    pub resume_session_id: Option<String>,
+    pub permission_mode: Option<String>,
+    pub chrome: bool,
+    pub image_attachments: Vec<AttachmentPayload>,
+}
+
 /// Spawn Claude CLI and run the session until the process exits.
 ///
 /// This is a long-running function — call it inside `tokio::spawn`.
 /// Events are delivered through the provided `EventSink`.
-#[allow(clippy::too_many_arguments)]
 pub async fn run_cli_session(
     sink: EventSink,
     sessions: SessionManager,
-    agent_id: String,
-    prompt: String,
-    project_path: Option<String>,
-    model: Option<String>,
-    effort: Option<String>,
-    resume_session_id: Option<String>,
-    permission_mode: Option<String>,
-    chrome: bool,
-    image_attachments: Vec<AttachmentPayload>,
+    config: CliSessionConfig,
 ) -> Result<(), String> {
     let tag = sink.tag();
+    let CliSessionConfig {
+        agent_id,
+        prompt,
+        project_path,
+        model,
+        effort,
+        resume_session_id,
+        permission_mode,
+        chrome,
+        image_attachments,
+    } = config;
 
     // Build command arguments
     let mut args: Vec<String> = vec![

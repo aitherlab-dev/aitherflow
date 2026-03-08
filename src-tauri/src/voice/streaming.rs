@@ -138,9 +138,10 @@ pub async fn voice_start_stream(
         _ => return Err(format!("Unknown streaming provider: {provider}")),
     };
 
-    // Get audio device config
-    let (device_sample_rate, device_channels) =
-        tokio::task::spawn_blocking(|| -> Result<(u32, u16), String> {
+    // Get audio device + config once; pass both into the capture thread to avoid
+    // a second default_input_device() call that could return a different device.
+    let (device, supported_config) =
+        tokio::task::spawn_blocking(|| -> Result<(cpal::Device, cpal::SupportedStreamConfig), String> {
             let host = cpal::default_host();
             let device = host
                 .default_input_device()
@@ -148,7 +149,7 @@ pub async fn voice_start_stream(
             let config = device
                 .default_input_config()
                 .map_err(|e| format!("Failed to get input config: {e}"))?;
-            Ok((config.sample_rate().0, config.channels()))
+            Ok((device, config))
         })
         .await
         .map_err(|e| format!("Task join error: {e}"))??;
@@ -165,8 +166,8 @@ pub async fn voice_start_stream(
         let stop_rx = stop_rx.clone();
         std::thread::spawn(move || {
             run_audio_capture(
-                device_sample_rate,
-                device_channels,
+                device,
+                supported_config,
                 target_rate,
                 audio_tx,
                 stop_rx,
@@ -221,8 +222,8 @@ pub async fn voice_stop_stream(state: tauri::State<'_, VoiceState>) -> Result<()
 // ── Audio capture ───────────────────────────────────────────────
 
 fn run_audio_capture(
-    device_rate: u32,
-    device_channels: u16,
+    device: cpal::Device,
+    config: cpal::SupportedStreamConfig,
     target_rate: u32,
     audio_tx: tokio::sync::mpsc::Sender<Vec<u8>>,
     stop_rx: tokio::sync::watch::Receiver<bool>,
@@ -231,21 +232,8 @@ fn run_audio_capture(
         Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction,
     };
 
-    let host = cpal::default_host();
-    let device = match host.default_input_device() {
-        Some(d) => d,
-        None => {
-            eprintln!("[voice-stream] No input device");
-            return;
-        }
-    };
-    let config = match device.default_input_config() {
-        Ok(c) => c,
-        Err(e) => {
-            eprintln!("[voice-stream] Config error: {e}");
-            return;
-        }
-    };
+    let device_rate = config.sample_rate().0;
+    let device_channels = config.channels();
 
     let shared_buf: Arc<std::sync::Mutex<Vec<f32>>> =
         Arc::new(std::sync::Mutex::new(Vec::new()));

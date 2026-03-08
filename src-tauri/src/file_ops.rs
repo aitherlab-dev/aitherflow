@@ -55,7 +55,7 @@ pub fn atomic_write(path: &Path, data: &[u8]) -> Result<(), String> {
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_nanos() as u64
+            .as_micros() as u64
     ));
     let mut file =
         fs::File::create(&tmp).map_err(|e| format!("Failed to create temp file: {e}"))?;
@@ -257,6 +257,9 @@ pub async fn copy_entry(src: String, dest_dir: String) -> Result<String, String>
                     break;
                 }
                 i += 1;
+                if i > 1000 {
+                    return Err("Too many conflicting names (>1000)".into());
+                }
             }
         }
 

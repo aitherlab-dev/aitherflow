@@ -113,6 +113,7 @@
 
 .chat-message-user {
   width: 75%;
+  text-align: right;
   background: var(--bg-hard);
   border: 1px solid var(--border);
   color: var(--fg);

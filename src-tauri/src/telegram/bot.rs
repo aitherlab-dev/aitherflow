@@ -1,7 +1,7 @@
 use tokio::sync::mpsc;
 
-use super::api::*;
-use super::*;
+use super::api::{tg_answer_callback, tg_get_updates, tg_send_message, tg_set_my_commands};
+use super::{with_state, TgIncoming, TgOutgoing};
 
 /// Get bot token, chat_id, and HTTP client from the current bot state.
 pub(crate) fn get_bot_connection() -> Result<(String, i64, reqwest::Client), String> {
@@ -26,11 +26,13 @@ pub(super) async fn bot_loop(
     token: String,
     owner_chat_id: i64,
     groq_key: Option<String>,
+    voice_language: String,
     incoming_tx: mpsc::UnboundedSender<TgIncoming>,
     mut outgoing_rx: mpsc::UnboundedReceiver<TgOutgoing>,
 ) {
     let client = reqwest::Client::new();
     let mut update_offset: i64 = 0;
+    let mut error_backoff_secs: u64 = 0;
 
     if let Err(e) = tg_set_my_commands(&client, &token).await {
         eprintln!("[TG] setMyCommands failed: {e}");
@@ -41,6 +43,7 @@ pub(super) async fn bot_loop(
             updates_result = tg_get_updates(&client, &token, update_offset) => {
                 match updates_result {
                     Ok(updates) => {
+                        error_backoff_secs = 0; // reset on success
                         for update in updates {
                             update_offset = update.update_id + 1;
 
@@ -66,7 +69,7 @@ pub(super) async fn bot_loop(
 
                                 // Voice
                                 if let Some(voice) = msg.voice {
-                                    super::handlers::handle_voice(&client, &token, owner_chat_id, &voice.file_id, &groq_key, &incoming_tx).await;
+                                    super::handlers::handle_voice(&client, &token, owner_chat_id, &voice.file_id, &groq_key, &voice_language, &incoming_tx).await;
                                     continue;
                                 }
 
@@ -118,8 +121,9 @@ pub(super) async fn bot_loop(
                         }
                     }
                     Err(e) => {
-                        eprintln!("[TG] getUpdates error: {e}");
-                        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                        error_backoff_secs = (error_backoff_secs.max(5) * 2).min(60);
+                        eprintln!("[TG] getUpdates error (retry in {error_backoff_secs}s): {e}");
+                        tokio::time::sleep(std::time::Duration::from_secs(error_backoff_secs)).await;
                     }
                 }
             }

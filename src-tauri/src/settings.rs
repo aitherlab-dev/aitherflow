@@ -58,6 +58,15 @@ fn settings_path() -> PathBuf {
     config::config_dir().join("settings.json")
 }
 
+/// Read voice_language from settings (blocking I/O). Returns empty string if not set.
+pub fn get_voice_language() -> String {
+    let path = settings_path();
+    std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|data| serde_json::from_str::<AppSettings>(&data).ok())
+        .map(|s| s.voice_language)
+        .unwrap_or_default()
+}
 
 /// Load settings from disk. API keys are loaded from system keyring;
 /// if not found there, migrates from JSON to keyring.
