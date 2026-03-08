@@ -41,6 +41,34 @@
   --aqua: #8ec07c;
   --gray: #928374;
 
+  /* Status / indicator */
+  --status-green: #4ade80;
+  --status-red: #f87171;
+  --status-blue: #60a5fa;
+  --status-orange: #f59e0b;
+
+  /* Dev server active */
+  --dev-active: #66bb6a;
+  --dev-active-hover: #81c784;
+  --dev-active-bg: rgba(76, 175, 80, 0.12);
+  --dev-active-bg-hover: rgba(76, 175, 80, 0.2);
+
+  /* Semantic */
+  --fg-on-accent: #fff;
+  --fg-on-accent-muted: rgba(255, 255, 255, 0.8);
+  --error: #e74c3c;
+  --overlay-bg: rgba(0, 0, 0, 0.4);
+
+  /* Diff highlights */
+  --diff-add-bg: rgba(184, 187, 38, 0.15);
+  --diff-add-line: rgba(184, 187, 38, 0.12);
+  --diff-remove-bg: rgba(251, 73, 52, 0.15);
+  --diff-remove-line: rgba(251, 73, 52, 0.12);
+
+  /* Test results */
+  --test-ok-bg: rgba(80, 160, 80, 0.12);
+  --test-fail-bg: rgba(200, 80, 80, 0.12);
+
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
   --shadow-md: 0 8px 32px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2);
   --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.25);
@@ -89,6 +117,49 @@
   --purple: #b16286;
   --aqua: #689d6a;
   --gray: #7c6f64;
+
+  /* Status / indicator (same values both themes) */
+  --status-green: #4ade80;
+  --status-red: #f87171;
+  --status-blue: #60a5fa;
+  --status-orange: #f59e0b;
+
+  /* Dev server active */
+  --dev-active: #66bb6a;
+  --dev-active-hover: #81c784;
+  --dev-active-bg: rgba(76, 175, 80, 0.12);
+  --dev-active-bg-hover: rgba(76, 175, 80, 0.2);
+
+  /* Semantic */
+  --fg-on-accent: #fff;
+  --fg-on-accent-muted: rgba(255, 255, 255, 0.8);
+  --error: #e74c3c;
+  --overlay-bg: rgba(0, 0, 0, 0.4);
+
+  /* Diff highlights */
+  --diff-add-bg: rgba(184, 187, 38, 0.15);
+  --diff-add-line: rgba(184, 187, 38, 0.12);
+  --diff-remove-bg: rgba(251, 73, 52, 0.15);
+  --diff-remove-line: rgba(251, 73, 52, 0.12);
+
+  /* Test results */
+  --test-ok-bg: rgba(80, 160, 80, 0.12);
+  --test-fail-bg: rgba(200, 80, 80, 0.12);
+
+  /* Code blocks in light theme (dark terminal style) */
+  --code-bg: #1e1c19;
+  --code-bg-header: #282521;
+  --code-border: #3d3830;
+  --code-fg: #d6cdbf;
+  --code-fg-dim: #665c54;
+  --code-fg-muted: #a89984;
+  --code-red: #fb4934;
+  --code-green: #b8bb26;
+  --code-yellow: #fabd2f;
+  --code-blue: #83a598;
+  --code-purple: #d3869b;
+  --code-aqua: #8ec07c;
+  --code-gray: #928374;
 
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
   --shadow-md: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);

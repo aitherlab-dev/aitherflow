@@ -41,17 +41,11 @@ export const Sidebar = memo(function Sidebar() {
   const {
     agents,
     activeAgentId,
-    removeAgent,
-    setActiveAgent,
     getLockedChatIds,
-    reorderAgent,
   } = useAgentStore(useShallow((s) => ({
     agents: s.agents,
     activeAgentId: s.activeAgentId,
-    removeAgent: s.removeAgent,
-    setActiveAgent: s.setActiveAgent,
     getLockedChatIds: s.getLockedChatIds,
-    reorderAgent: s.reorderAgent,
   })));
 
   const { chatList, currentChatId, isThinking, thinkingAgentIds } = useChatStore(
@@ -78,18 +72,18 @@ export const Sidebar = memo(function Sidebar() {
     (agentId: string) => {
       if (activeView === "settings") closeSettings();
       if (activeView === "welcome") closeWelcome();
-      setActiveAgent(agentId).catch(console.error);
+      useAgentStore.getState().setActiveAgent(agentId).catch(console.error);
       closeMobile();
     },
-    [activeView, closeSettings, closeWelcome, setActiveAgent, closeMobile],
+    [activeView, closeSettings, closeWelcome, closeMobile],
   );
 
   const handleCloseAgent = useCallback(
     (agentId: string) => {
       if (agents.length === 1) openWelcome();
-      removeAgent(agentId).catch(console.error);
+      useAgentStore.getState().removeAgent(agentId).catch(console.error);
     },
-    [agents.length, openWelcome, removeAgent],
+    [agents.length, openWelcome],
   );
 
   const handleNewChat = useCallback(() => {
@@ -224,7 +218,7 @@ export const Sidebar = memo(function Sidebar() {
       if (agentDragRef.current && agentDropIndex !== null) {
         const from = agentDragRef.current.fromIndex;
         if (from !== agentDropIndex) {
-          reorderAgent(from, agentDropIndex).catch(console.error);
+          useAgentStore.getState().reorderAgent(from, agentDropIndex).catch(console.error);
         }
       }
       agentDragRef.current = null;
@@ -239,7 +233,7 @@ export const Sidebar = memo(function Sidebar() {
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [agentDragIndex, agentDropIndex, agents.length, reorderAgent]);
+  }, [agentDragIndex, agentDropIndex, agents.length]);
 
   return (
     <aside

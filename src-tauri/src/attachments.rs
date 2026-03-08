@@ -265,3 +265,42 @@ pub async fn cleanup_temp_file(path: String) -> Result<(), String> {
     .await
     .map_err(|e| format!("Task join error: {e}"))?
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_data_uri_png() {
+        let uri = "data:image/png;base64,iVBORw0KGgo=";
+        let result = parse_data_uri(uri);
+        assert_eq!(result, Some(("image/png", "iVBORw0KGgo=")));
+    }
+
+    #[test]
+    fn parse_data_uri_jpeg() {
+        let uri = "data:image/jpeg;base64,/9j/4AAQ";
+        let result = parse_data_uri(uri);
+        assert_eq!(result, Some(("image/jpeg", "/9j/4AAQ")));
+    }
+
+    #[test]
+    fn parse_data_uri_no_prefix() {
+        assert_eq!(parse_data_uri("image/png;base64,abc"), None);
+    }
+
+    #[test]
+    fn parse_data_uri_no_base64() {
+        assert_eq!(parse_data_uri("data:image/png;charset=utf-8,abc"), None);
+    }
+
+    #[test]
+    fn parse_data_uri_no_semicolon() {
+        assert_eq!(parse_data_uri("data:image/png"), None);
+    }
+
+    #[test]
+    fn parse_data_uri_empty() {
+        assert_eq!(parse_data_uri(""), None);
+    }
+}

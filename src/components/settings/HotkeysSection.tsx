@@ -118,7 +118,7 @@ function HotkeyRow({
       }
 
       // Skip pure modifier presses
-      if (["Control", "Alt", "Shift", "Meta"].includes(e.key)) return;
+      if (["ControlLeft","ControlRight","AltLeft","AltRight","ShiftLeft","ShiftRight","MetaLeft","MetaRight"].includes(e.code)) return;
 
       // F-keys and Backquote can work without modifiers; everything else needs Alt or Ctrl
       const allowBare = /^F\d{1,2}$/.test(e.code);

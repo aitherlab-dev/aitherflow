@@ -635,7 +635,7 @@
 }
 
 .voice-recording {
-  color: #e74c3c;
+  color: var(--error);
   animation: voice-pulse 1s ease-in-out infinite;
 }
 

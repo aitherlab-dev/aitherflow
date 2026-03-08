@@ -287,3 +287,47 @@ pub fn index_project(conn: &Connection, project_path: &str) -> Result<usize, Str
 
     Ok(total_messages)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn days_to_ymd_epoch() {
+        // Day 0 = 1970-01-01
+        assert_eq!(days_to_ymd(0), (1970, 1, 1));
+    }
+
+    #[test]
+    fn days_to_ymd_known_dates() {
+        // 2024-01-01 = day 19723
+        assert_eq!(days_to_ymd(19723), (2024, 1, 1));
+        // 2000-03-01 = day 11017 (leap year boundary)
+        assert_eq!(days_to_ymd(11017), (2000, 3, 1));
+        // 2000-02-29 = day 11016 (leap day)
+        assert_eq!(days_to_ymd(11016), (2000, 2, 29));
+    }
+
+    #[test]
+    fn days_to_ymd_end_of_year() {
+        // 1970-12-31 = day 364
+        assert_eq!(days_to_ymd(364), (1970, 12, 31));
+    }
+
+    #[test]
+    fn chrono_like_iso_epoch() {
+        assert_eq!(chrono_like_iso(0, 0), "1970-01-01T00:00:00Z");
+    }
+
+    #[test]
+    fn chrono_like_iso_known_timestamp() {
+        // 2024-01-01 00:00:00 UTC = 1704067200
+        assert_eq!(chrono_like_iso(1704067200, 0), "2024-01-01T00:00:00Z");
+    }
+
+    #[test]
+    fn chrono_like_iso_with_time() {
+        // 2026-03-08 14:30:45 UTC = 1772980245
+        assert_eq!(chrono_like_iso(1772980245, 0), "2026-03-08T14:30:45Z");
+    }
+}

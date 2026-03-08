@@ -249,42 +249,11 @@ fn run_audio_capture(
 
     let shared_buf: Arc<std::sync::Mutex<Vec<f32>>> =
         Arc::new(std::sync::Mutex::new(Vec::new()));
-    let buf_writer = shared_buf.clone();
 
-    let stream = match config.sample_format() {
-        cpal::SampleFormat::F32 => device.build_input_stream(
-            &config.into(),
-            move |data: &[f32], _: &cpal::InputCallbackInfo| {
-                if let Ok(mut b) = buf_writer.lock() {
-                    b.extend_from_slice(data);
-                }
-            },
-            |err| eprintln!("[voice-stream] Stream error: {err}"),
-            None,
-        ),
-        cpal::SampleFormat::I16 => {
-            let buf = buf_writer;
-            device.build_input_stream(
-                &config.into(),
-                move |data: &[i16], _: &cpal::InputCallbackInfo| {
-                    if let Ok(mut b) = buf.lock() {
-                        b.extend(data.iter().map(|&s| s as f32 / i16::MAX as f32));
-                    }
-                },
-                |err| eprintln!("[voice-stream] Stream error: {err}"),
-                None,
-            )
-        }
-        format => {
-            eprintln!("[voice-stream] Unsupported format: {format:?}");
-            return;
-        }
-    };
-
-    let stream = match stream {
+    let stream = match super::capture::build_input_stream(&device, config, shared_buf.clone(), "voice-stream") {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("[voice-stream] Build stream error: {e}");
+            eprintln!("{e}");
             return;
         }
     };

@@ -1,5 +1,7 @@
 pub mod api;
+mod bot;
 pub mod commands;
+mod handlers;
 
 use std::sync::Mutex;
 
@@ -140,11 +142,24 @@ pub(crate) struct BotState {
 
 static BOT_STATE: Mutex<Option<BotState>> = Mutex::new(None);
 
+/// Access bot state under a short-lived lock.
+///
+/// # Contract
+/// The closure MUST be fast (no I/O, no network, no blocking waits).
+/// All heavy operations must happen outside `with_state`.
+///
+/// # Poisoned mutex
+/// If a previous holder panicked, the lock is recovered via `into_inner`
+/// and a warning is logged. This prevents cascading failures but the
+/// state may be inconsistent — callers should handle this gracefully.
 pub(crate) fn with_state<F, R>(f: F) -> R
 where
     F: FnOnce(&mut Option<BotState>) -> R,
 {
-    let mut guard = BOT_STATE.lock().unwrap_or_else(|e| e.into_inner());
+    let mut guard = BOT_STATE.lock().unwrap_or_else(|e| {
+        eprintln!("[TG] WARNING: BOT_STATE mutex was poisoned, recovering");
+        e.into_inner()
+    });
     f(&mut guard)
 }
 

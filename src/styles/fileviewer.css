@@ -186,7 +186,7 @@
 .fv-changed-badge {
   font-size: 10px;
   background: var(--accent);
-  color: #fff;
+  color: var(--fg-on-accent);
   border-radius: 8px;
   padding: 0 5px;
   min-width: 16px;
@@ -257,7 +257,7 @@
 }
 
 .fv-diff-btn--accept:hover {
-  background: rgba(184, 187, 38, 0.15);
+  background: var(--diff-add-bg);
 }
 
 .fv-diff-btn--reject {
@@ -265,7 +265,7 @@
 }
 
 .fv-diff-btn--reject:hover {
-  background: rgba(251, 73, 52, 0.15);
+  background: var(--diff-remove-bg);
 }
 
 /* ── Content area ── */
@@ -375,11 +375,11 @@
 }
 
 .fv-line--added {
-  background: rgba(184, 187, 38, 0.12) !important;
+  background: var(--diff-add-line) !important;
 }
 
 .fv-line--removed {
-  background: rgba(251, 73, 52, 0.12) !important;
+  background: var(--diff-remove-line) !important;
 }
 
 .fv-line-number {

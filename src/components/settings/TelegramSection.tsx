@@ -104,7 +104,7 @@ export function TelegramSection() {
       </div>
 
       {startError && (
-        <div className="webserver-note" style={{ color: "var(--error, #e55)" }}>
+        <div className="webserver-note" style={{ color: "var(--error)" }}>
           {startError}
         </div>
       )}

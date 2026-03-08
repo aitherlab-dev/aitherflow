@@ -1,274 +1,17 @@
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::Command;
 
-use crate::config;
 use crate::file_ops::atomic_write;
 
-// ── Output types (sent to frontend) ──
-
-#[derive(Serialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct InstalledPlugin {
-    pub id: String,
-    pub name: String,
-    pub marketplace: String,
-    pub version: String,
-    pub scope: String,
-    pub install_path: String,
-    pub installed_at: String,
-    pub description: String,
-    pub skill_count: usize,
-    pub enabled: bool,
-}
-
-#[derive(Serialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct AvailablePlugin {
-    pub name: String,
-    pub description: String,
-    pub author: String,
-    pub version: String,
-    pub category: String,
-    pub marketplace: String,
-    pub is_installed: bool,
-    pub install_count: u64,
-}
-
-#[derive(Serialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct MarketplaceSource {
-    pub name: String,
-    pub source_type: String,
-    pub url: String,
-    pub install_location: String,
-    pub last_updated: String,
-}
-
-#[derive(Serialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct PluginsData {
-    pub installed: Vec<InstalledPlugin>,
-    pub available: Vec<AvailablePlugin>,
-    pub sources: Vec<MarketplaceSource>,
-}
-
-// ── JSON structures on disk (CLI-managed files) ──
-
-#[derive(Deserialize, Debug)]
-pub(crate) struct InstalledPluginsFile {
-    #[serde(default)]
-    pub plugins: HashMap<String, Vec<InstalledEntry>>,
-}
-
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct InstalledEntry {
-    #[serde(default)]
-    pub scope: String,
-    #[serde(default)]
-    pub install_path: String,
-    #[serde(default)]
-    pub version: String,
-    #[serde(default)]
-    pub installed_at: String,
-}
-
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-struct KnownMarketplacesFile(HashMap<String, MarketplaceEntry>);
-
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-struct MarketplaceEntry {
-    source: MarketplaceSourceDef,
-    #[serde(default)]
-    install_location: String,
-    #[serde(default)]
-    last_updated: String,
-}
-
-#[derive(Deserialize, Debug)]
-struct MarketplaceSourceDef {
-    source: String,
-    #[serde(default)]
-    repo: Option<String>,
-    #[serde(default)]
-    url: Option<String>,
-}
-
-#[derive(Deserialize, Debug)]
-struct MarketplaceManifest {
-    #[serde(default)]
-    plugins: Vec<MarketplacePluginEntry>,
-}
-
-#[derive(Deserialize, Debug)]
-struct MarketplacePluginEntry {
-    #[serde(default)]
-    name: String,
-    #[serde(default)]
-    description: String,
-    #[serde(default)]
-    version: String,
-    #[serde(default)]
-    category: String,
-    #[serde(default)]
-    author: Option<AuthorField>,
-    #[serde(default)]
-    source: Option<PluginSourceField>,
-}
-
-#[derive(Deserialize, Debug)]
-#[serde(untagged)]
-enum PluginSourceField {
-    /// Local path like "./plugins/feature-dev"
-    Path(String),
-    /// Remote source like { "source": "url", "url": "https://..." }
-    Remote {
-        #[allow(dead_code)]
-        url: Option<String>,
-    },
-}
-
-impl PluginSourceField {
-    fn as_local_path(&self) -> Option<&str> {
-        match self {
-            PluginSourceField::Path(s) => Some(s),
-            PluginSourceField::Remote { .. } => None,
-        }
-    }
-
-    fn as_remote_url(&self) -> Option<&str> {
-        match self {
-            PluginSourceField::Remote { url } => url.as_deref(),
-            PluginSourceField::Path(_) => None,
-        }
-    }
-}
-
-#[derive(Deserialize, Debug)]
-#[serde(untagged)]
-enum AuthorField {
-    Struct { name: String },
-    Plain(String),
-}
-
-impl AuthorField {
-    fn name(&self) -> &str {
-        match self {
-            AuthorField::Struct { name } => name,
-            AuthorField::Plain(s) => s,
-        }
-    }
-}
-
-#[derive(Deserialize, Debug)]
-struct PluginJson {
-    #[serde(default)]
-    #[allow(dead_code)]
-    name: String,
-    #[serde(default)]
-    description: String,
-}
-
-#[derive(Deserialize, Debug)]
-struct InstallCountsFile {
-    #[serde(default)]
-    counts: Vec<InstallCountEntry>,
-}
-
-#[derive(Deserialize, Debug)]
-struct InstallCountEntry {
-    #[serde(default)]
-    plugin: String,
-    #[serde(default)]
-    unique_installs: u64,
-}
-
-// ── Helpers ──
-
-fn plugins_dir() -> PathBuf {
-    config::claude_home().join("plugins")
-}
-
-/// Count skills and commands inside a plugin's install path
-fn count_skills(install_path: &Path) -> usize {
-    let mut count = 0;
-
-    // Count skills/<name>/SKILL.md
-    let skills_dir = install_path.join("skills");
-    if skills_dir.is_dir() {
-        if let Ok(entries) = fs::read_dir(&skills_dir) {
-            for entry in entries.flatten() {
-                if entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false)
-                    && entry.path().join("SKILL.md").exists()
-                {
-                    count += 1;
-                }
-            }
-        }
-    }
-
-    // Count commands/ (flat .md or nested COMMAND.md)
-    let commands_dir = install_path.join("commands");
-    if commands_dir.is_dir() {
-        if let Ok(entries) = fs::read_dir(&commands_dir) {
-            for entry in entries.flatten() {
-                let ft = entry.file_type();
-                let path = entry.path();
-                let is_md_file = ft.as_ref().is_ok_and(|t| t.is_file())
-                    && path.extension().and_then(|e| e.to_str()) == Some("md");
-                let is_command_dir =
-                    ft.as_ref().is_ok_and(|t| t.is_dir()) && path.join("COMMAND.md").exists();
-
-                if is_md_file || is_command_dir {
-                    count += 1;
-                }
-            }
-        }
-    }
-
-    count
-}
-
-/// Read plugin.json from an install path to get description
-fn read_plugin_description(install_path: &Path) -> String {
-    let plugin_json = install_path.join(".claude-plugin/plugin.json");
-    if let Ok(content) = fs::read_to_string(&plugin_json) {
-        if let Ok(pj) = serde_json::from_str::<PluginJson>(&content) {
-            return pj.description;
-        }
-    }
-    String::new()
-}
-
-/// Load install counts from cache
-fn load_install_counts() -> HashMap<String, u64> {
-    let path = plugins_dir().join("install-counts-cache.json");
-    let data = match fs::read_to_string(&path) {
-        Ok(d) => d,
-        Err(_) => return HashMap::new(),
-    };
-    let file: InstallCountsFile = match serde_json::from_str(&data) {
-        Ok(f) => f,
-        Err(_) => return HashMap::new(),
-    };
-    file.counts
-        .into_iter()
-        .map(|e| (e.plugin, e.unique_installs))
-        .collect()
-}
-
-// ── Tauri commands ──
+use super::marketplace::*;
+use super::types::*;
 
 /// Load all plugin data: installed, available from marketplaces, sources
 #[tauri::command]
 pub async fn load_plugins() -> Result<PluginsData, String> {
     tokio::task::spawn_blocking(|| {
-        let base = plugins_dir();
+        let base = super::plugins_dir();
 
         // ── Installed plugins ──
         let installed_path = base.join("installed_plugins.json");
@@ -339,13 +82,9 @@ pub async fn load_plugins() -> Result<PluginsData, String> {
                         continue;
                     }
 
-                    let marketplace_name = entry
-                        .file_name()
-                        .to_string_lossy()
-                        .to_string();
+                    let marketplace_name = entry.file_name().to_string_lossy().to_string();
 
-                    let manifest_path =
-                        mkt_dir.join(".claude-plugin/marketplace.json");
+                    let manifest_path = mkt_dir.join(".claude-plugin/marketplace.json");
                     if !manifest_path.exists() {
                         continue;
                     }
@@ -374,8 +113,7 @@ pub async fn load_plugins() -> Result<PluginsData, String> {
                         };
 
                     for plugin in manifest.plugins {
-                        let plugin_id =
-                            format!("{}@{}", plugin.name, marketplace_name);
+                        let plugin_id = format!("{}@{}", plugin.name, marketplace_name);
                         let count_key = plugin_id.clone();
 
                         available.push(AvailablePlugin {
@@ -449,61 +187,11 @@ pub async fn load_plugins() -> Result<PluginsData, String> {
     .map_err(|e| format!("Task join error: {e}"))?
 }
 
-/// Resolve the actual directory of a plugin inside a marketplace using the `source` field
-fn resolve_plugin_source(base: &Path, marketplace: &str, plugin_name: &str) -> Option<PathBuf> {
-    let mkt_dir = base.join("marketplaces").join(marketplace);
-    let manifest_path = mkt_dir.join(".claude-plugin/marketplace.json");
-    let data = fs::read_to_string(&manifest_path).ok()?;
-    let manifest: MarketplaceManifest = serde_json::from_str(&data).ok()?;
-
-    for plugin in &manifest.plugins {
-        if plugin.name == plugin_name {
-            if let Some(src) = plugin.source.as_ref().and_then(|s| s.as_local_path()) {
-                let resolved = mkt_dir.join(src.trim_start_matches("./"));
-                if resolved.exists() {
-                    return Some(resolved);
-                }
-            }
-            break;
-        }
-    }
-
-    // Fallback: try common directory layouts
-    for subdir in &["plugins", "external_plugins", ""] {
-        let candidate = if subdir.is_empty() {
-            mkt_dir.join(plugin_name)
-        } else {
-            mkt_dir.join(subdir).join(plugin_name)
-        };
-        if candidate.exists() {
-            return Some(candidate);
-        }
-    }
-
-    None
-}
-
-/// Get the remote URL for a plugin from marketplace.json (if it's a remote-source plugin)
-fn get_plugin_remote_url(base: &Path, marketplace: &str, plugin_name: &str) -> Option<String> {
-    let mkt_dir = base.join("marketplaces").join(marketplace);
-    let manifest_path = mkt_dir.join(".claude-plugin/marketplace.json");
-    let data = fs::read_to_string(&manifest_path).ok()?;
-    let manifest: MarketplaceManifest = serde_json::from_str(&data).ok()?;
-
-    manifest
-        .plugins
-        .iter()
-        .find(|p| p.name == plugin_name)
-        .and_then(|p| p.source.as_ref())
-        .and_then(|s| s.as_remote_url())
-        .map(|s| s.to_string())
-}
-
 /// Install a plugin from a marketplace
 #[tauri::command]
 pub async fn install_plugin(name: String, marketplace: String) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
-        let base = plugins_dir();
+        let base = super::plugins_dir();
 
         // Try to find plugin locally first; if not found, try cloning from remote URL
         let marketplace_plugin_dir = match resolve_plugin_source(&base, &marketplace, &name) {
@@ -564,9 +252,7 @@ pub async fn install_plugin(name: String, marketplace: String) -> Result<(), Str
         };
 
         // Determine git commit SHA for the marketplace
-        let git_sha = get_git_sha(
-            &base.join("marketplaces").join(&marketplace),
-        );
+        let git_sha = get_git_sha(&base.join("marketplaces").join(&marketplace));
 
         // Use short sha as version if plugin has no semantic version
         let effective_version = if version.is_empty() {
@@ -586,7 +272,7 @@ pub async fn install_plugin(name: String, marketplace: String) -> Result<(), Str
             // Already installed this version, just update the manifest
         } else {
             // Copy plugin files to cache
-            copy_dir_all(&marketplace_plugin_dir, &cache_dir)?;
+            crate::file_ops::copy_dir_recursive(&marketplace_plugin_dir, &cache_dir)?;
         }
 
         // Update installed_plugins.json
@@ -630,7 +316,7 @@ pub async fn install_plugin(name: String, marketplace: String) -> Result<(), Str
 #[tauri::command]
 pub async fn uninstall_plugin(name: String, marketplace: String) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
-        let base = plugins_dir();
+        let base = super::plugins_dir();
         let key = format!("{}@{}", name, marketplace);
 
         // Read and update installed_plugins.json
@@ -656,7 +342,10 @@ pub async fn uninstall_plugin(name: String, marketplace: String) -> Result<(), S
         let cache_dir = base.join("cache").join(&marketplace).join(&name);
         if cache_dir.exists() {
             if let Err(e) = fs::remove_dir_all(&cache_dir) {
-                eprintln!("[plugins] Failed to remove cache dir {}: {e}", cache_dir.display());
+                eprintln!(
+                    "[plugins] Failed to remove cache dir {}: {e}",
+                    cache_dir.display()
+                );
             }
         }
 
@@ -674,7 +363,7 @@ pub async fn add_marketplace(
     url: String,
 ) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
-        let base = plugins_dir();
+        let base = super::plugins_dir();
         let target_dir = base.join("marketplaces").join(&name);
 
         if target_dir.exists() {
@@ -701,7 +390,10 @@ pub async fn add_marketplace(
         if !output.status.success() {
             // Clean up on failure
             if let Err(e) = fs::remove_dir_all(&target_dir) {
-                eprintln!("[plugins] Failed to clean up {}: {e}", target_dir.display());
+                eprintln!(
+                    "[plugins] Failed to clean up {}: {e}",
+                    target_dir.display()
+                );
             }
             let stderr = String::from_utf8_lossy(&output.stderr);
             return Err(format!("Git clone failed: {}", stderr.trim()));
@@ -742,7 +434,7 @@ pub async fn add_marketplace(
 #[tauri::command]
 pub async fn remove_marketplace(name: String) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
-        let base = plugins_dir();
+        let base = super::plugins_dir();
 
         // Remove from known_marketplaces.json
         let sources_path = base.join("known_marketplaces.json");
@@ -778,7 +470,7 @@ pub async fn remove_marketplace(name: String) -> Result<(), String> {
 #[tauri::command]
 pub async fn update_marketplaces() -> Result<(), String> {
     tokio::task::spawn_blocking(|| {
-        let base = plugins_dir();
+        let base = super::plugins_dir();
         let marketplaces_dir = base.join("marketplaces");
 
         if !marketplaces_dir.is_dir() {
@@ -856,31 +548,4 @@ pub async fn update_marketplaces() -> Result<(), String> {
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
-}
-
-// ── Internal helpers ──
-
-/// Get the current git SHA of a repo
-fn get_git_sha(repo_path: &Path) -> String {
-    Command::new("git")
-        .args(["rev-parse", "HEAD"])
-        .current_dir(repo_path)
-        .output()
-        .ok()
-        .and_then(|o| {
-            if o.status.success() {
-                Some(String::from_utf8_lossy(&o.stdout).trim().to_string())
-            } else {
-                None
-            }
-        })
-        .unwrap_or_default()
-}
-
-// copy_dir_all: use the canonical implementation from file_ops
-use crate::file_ops::copy_dir_recursive as copy_dir_all;
-
-/// Generate an ISO 8601 timestamp.
-fn chrono_now() -> String {
-    chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
 }

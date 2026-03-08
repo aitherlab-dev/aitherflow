@@ -155,7 +155,10 @@ fn remove_index_entry(chat_id: &str) -> Result<(), String> {
 }
 
 fn chat_lock(chat_id: &str) -> Arc<Mutex<()>> {
-    let mut map = CHAT_LOCKS.lock().unwrap_or_else(|e| e.into_inner());
+    let mut map = CHAT_LOCKS.lock().unwrap_or_else(|e| {
+        eprintln!("[chats] WARNING: CHAT_LOCKS mutex was poisoned, recovering");
+        e.into_inner()
+    });
     map.entry(chat_id.to_string())
         .or_insert_with(|| Arc::new(Mutex::new(())))
         .clone()

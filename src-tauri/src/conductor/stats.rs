@@ -156,7 +156,10 @@ fn file_mtime_secs(path: &std::path::Path) -> u64 {
 /// Return cached stats if fresh, otherwise compute and cache.
 /// Holds lock during computation to prevent stampede.
 pub fn aggregate_cli_stats(days: u32) -> Result<AggregatedStats, String> {
-    let mut guard = STATS_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+    let mut guard = STATS_CACHE.lock().unwrap_or_else(|e| {
+        eprintln!("[stats] WARNING: STATS_CACHE mutex was poisoned, recovering");
+        e.into_inner()
+    });
 
     if let Some((cached_days, computed_at, ref stats)) = *guard {
         if cached_days == days && computed_at.elapsed().as_secs() < CACHE_TTL_SECS {

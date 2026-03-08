@@ -60,45 +60,10 @@ pub async fn voice_start(state: tauri::State<'_, VoiceState>) -> Result<(), Stri
 
     // Spawn a dedicated OS thread for the cpal stream (not Send, can't use tokio)
     let thread = std::thread::spawn(move || {
-        let config = supported_config;
-
-        let stream = match config.sample_format() {
-            cpal::SampleFormat::F32 => {
-                let buf = buf_clone.clone();
-                device.build_input_stream(
-                    &config.into(),
-                    move |data: &[f32], _: &cpal::InputCallbackInfo| {
-                        if let Ok(mut b) = buf.lock() {
-                            b.extend_from_slice(data);
-                        }
-                    },
-                    |err| eprintln!("[voice] Stream error: {err}"),
-                    None,
-                )
-            }
-            cpal::SampleFormat::I16 => {
-                let buf = buf_clone.clone();
-                device.build_input_stream(
-                    &config.into(),
-                    move |data: &[i16], _: &cpal::InputCallbackInfo| {
-                        if let Ok(mut b) = buf.lock() {
-                            b.extend(data.iter().map(|&s| s as f32 / i16::MAX as f32));
-                        }
-                    },
-                    |err| eprintln!("[voice] Stream error: {err}"),
-                    None,
-                )
-            }
-            format => {
-                eprintln!("[voice] Unsupported format: {format:?}");
-                return;
-            }
-        };
-
-        let stream = match stream {
+        let stream = match super::capture::build_input_stream(&device, supported_config, buf_clone, "voice") {
             Ok(s) => s,
             Err(e) => {
-                eprintln!("[voice] Build stream error: {e}");
+                eprintln!("{e}");
                 return;
             }
         };

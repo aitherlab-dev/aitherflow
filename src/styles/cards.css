@@ -74,7 +74,7 @@
 .interactive-card-option--selected {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--fg-on-accent);
 }
 
 .interactive-card-option--selected:hover:not(:disabled) {
@@ -97,14 +97,14 @@
 }
 
 .interactive-card-option--selected .interactive-card-option-desc {
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--fg-on-accent-muted);
 }
 
 .interactive-card-option-check {
   position: absolute;
   top: 4px;
   right: 4px;
-  color: #fff;
+  color: var(--fg-on-accent);
 }
 
 .interactive-card-submit {
@@ -113,7 +113,7 @@
   background: var(--accent);
   border: none;
   border-radius: 6px;
-  color: #fff;
+  color: var(--fg-on-accent);
   font-size: 0.82rem;
   font-weight: 500;
   cursor: pointer;
@@ -188,7 +188,7 @@
 .interactive-card-approve {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--fg-on-accent);
 }
 
 .interactive-card-approve:hover {

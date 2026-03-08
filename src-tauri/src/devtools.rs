@@ -179,7 +179,10 @@ pub async fn self_dev(project_path: String) -> Result<String, String> {
             .map_err(|e| format!("Failed to launch '{display}': {e}"))?;
 
         // Save PID for stop_dev
-        let mut pids = DEV_SERVER_PIDS.lock().unwrap_or_else(|e| e.into_inner());
+        let mut pids = DEV_SERVER_PIDS.lock().unwrap_or_else(|e| {
+            eprintln!("[devtools] WARNING: DEV_SERVER_PIDS mutex was poisoned, recovering");
+            e.into_inner()
+        });
         pids.insert(project_path, child.id());
 
         Ok::<String, String>(display)
@@ -191,7 +194,10 @@ pub async fn self_dev(project_path: String) -> Result<String, String> {
 #[tauri::command]
 pub async fn stop_dev(project_path: String) -> Result<(), String> {
     let pid = {
-        let mut pids = DEV_SERVER_PIDS.lock().unwrap_or_else(|e| e.into_inner());
+        let mut pids = DEV_SERVER_PIDS.lock().unwrap_or_else(|e| {
+            eprintln!("[devtools] WARNING: DEV_SERVER_PIDS mutex was poisoned, recovering");
+            e.into_inner()
+        });
         pids.remove(&project_path)
     };
 

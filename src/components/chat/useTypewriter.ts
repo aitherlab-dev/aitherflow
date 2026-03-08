@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 
 /**
- * Typewriter hook: gradually reveals targetText at ~60fps.
- * Adaptive speed — catches up quickly on large chunks, slows down on small ones.
+ * Typewriter hook: gradually reveals targetText at ~60fps internally,
+ * but flushes to React state at ~20fps to reduce re-renders.
  * When isActive becomes false, immediately returns full text.
  */
 export function useTypewriter(targetText: string, isActive: boolean): string {
@@ -10,6 +10,7 @@ export function useTypewriter(targetText: string, isActive: boolean): string {
   const targetLenRef = useRef(0);
   const visibleLenRef = useRef(0);
   const rafRef = useRef<number | null>(null);
+  const lastFlushRef = useRef(0);
 
   const targetLen = targetText.length;
   targetLenRef.current = targetLen;
@@ -23,7 +24,13 @@ export function useTypewriter(targetText: string, isActive: boolean): string {
       const speed = Math.max(2, Math.min(12, Math.ceil(remaining / 10)));
       const next = Math.min(current + speed, target);
       visibleLenRef.current = next;
-      setVisibleLen(next);
+
+      const now = performance.now();
+      if (next >= target || now - lastFlushRef.current >= 50) {
+        setVisibleLen(next);
+        lastFlushRef.current = now;
+      }
+
       rafRef.current = requestAnimationFrame(tick);
     } else {
       rafRef.current = null;

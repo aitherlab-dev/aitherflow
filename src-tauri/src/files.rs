@@ -157,3 +157,44 @@ pub async fn list_directory(path: String) -> Result<Vec<FileEntry>, String> {
     .await
     .map_err(|e| format!("Task join error: {e}"))?
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn validate_path_safe_home() {
+        let home = dirs::home_dir().expect("home dir");
+        assert!(validate_path_safe(&home).is_ok());
+    }
+
+    #[test]
+    fn validate_path_safe_tmp() {
+        assert!(validate_path_safe(Path::new("/tmp")).is_ok());
+    }
+
+    #[test]
+    fn validate_path_safe_root_rejected() {
+        assert!(validate_path_safe(Path::new("/")).is_err());
+    }
+
+    #[test]
+    fn validate_path_safe_etc_rejected() {
+        assert!(validate_path_safe(Path::new("/etc/passwd")).is_err());
+    }
+
+    #[test]
+    fn validate_path_safe_traversal_rejected() {
+        let home = dirs::home_dir().expect("home dir");
+        let evil = home.join("..").join("..").join("etc").join("passwd");
+        assert!(validate_path_safe(&evil).is_err());
+    }
+
+    #[test]
+    fn validate_path_safe_nonexistent() {
+        let path = PathBuf::from("/tmp/nonexistent_test_dir_12345");
+        // canonicalize fails for nonexistent paths
+        assert!(validate_path_safe(&path).is_err());
+    }
+}

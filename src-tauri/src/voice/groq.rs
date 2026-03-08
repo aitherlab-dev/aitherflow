@@ -1,3 +1,8 @@
+use std::sync::LazyLock;
+
+/// Shared HTTP client — reuses connection pool and TLS state across calls.
+static HTTP_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(reqwest::Client::new);
+
 #[tauri::command]
 pub async fn voice_transcribe(
     audio_data: Vec<u8>,
@@ -23,7 +28,7 @@ pub async fn voice_transcribe(
         form = form.text("language", language);
     }
 
-    let client = reqwest::Client::new();
+    let client = &*HTTP_CLIENT;
     let resp = client
         .post("https://api.groq.com/openai/v1/audio/transcriptions")
         .bearer_auth(&api_key)
@@ -57,7 +62,7 @@ pub async fn voice_transcribe(
         return Ok(raw_text.to_string());
     }
 
-    let cleaned = polish_with_llm(&client, &api_key, raw_text, &post_model).await;
+    let cleaned = polish_with_llm(client, &api_key, raw_text, &post_model).await;
     Ok(cleaned.unwrap_or_else(|_| raw_text.to_string()))
 }
 

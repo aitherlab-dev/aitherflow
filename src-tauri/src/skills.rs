@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use crate::config;
 use crate::file_ops::atomic_write;
-use crate::plugins::InstalledPluginsFile;
+use crate::plugins::types::InstalledPluginsFile;
 
 // ── Types ──
 
@@ -97,7 +97,7 @@ fn scan_skills_dir(dir: &Path) -> Vec<(String, String, String, String)> {
 
     for entry in entries.flatten() {
         let ft = entry.file_type();
-        if ft.is_err() || !ft.unwrap().is_dir() {
+        if !ft.is_ok_and(|t| t.is_dir()) {
             continue;
         }
 

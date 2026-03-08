@@ -93,13 +93,13 @@
 }
 
 .devtools-btn--dev-active {
-  background: rgba(76, 175, 80, 0.12);
-  color: #66bb6a;
+  background: var(--dev-active-bg);
+  color: var(--dev-active);
 }
 
 .devtools-btn--dev-active:hover {
-  background: rgba(76, 175, 80, 0.2);
-  color: #81c784;
+  background: var(--dev-active-bg-hover);
+  color: var(--dev-active-hover);
 }
 
 .devtools-btn--blocked {
@@ -116,7 +116,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #66bb6a;
+  background: var(--dev-active);
   animation: dev-pulse-anim 1.5s ease-in-out infinite;
 }
 
@@ -177,7 +177,7 @@
 
 .build-confirm-yes {
   background: var(--accent);
-  color: #fff;
+  color: var(--fg-on-accent);
   border-color: var(--accent);
 }
 
@@ -1290,11 +1290,11 @@
 }
 
 .dash-card__dot--green {
-  background: #4ade80;
+  background: var(--status-green);
 }
 
 .dash-card__dot--red {
-  background: #f87171;
+  background: var(--status-red);
 }
 
 .dash-card__dot--gray {
@@ -1307,7 +1307,7 @@
 }
 
 .dash-card__dot--blue {
-  background: #60a5fa;
+  background: var(--status-blue);
 }
 
 .dash-card__dot--dim {
@@ -1398,7 +1398,7 @@
 }
 
 .dash-card__row--error {
-  color: #f87171;
+  color: var(--status-red);
 }
 
 .dash-card__row--sub {
@@ -1430,7 +1430,7 @@
 }
 
 .dash-card__toggle--on {
-  background: #4ade80;
+  background: var(--status-green);
 }
 
 .dash-card__toggle-knob {
@@ -1481,7 +1481,7 @@
 .cli-stats__period-btn--active {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--fg-on-accent);
 }
 
 /* Summary cards row */

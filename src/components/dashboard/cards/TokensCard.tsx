@@ -10,16 +10,16 @@ function formatTokens(n: number): string {
 }
 
 const USAGE_COLORS = {
-  green: "#4ade80",
-  orange: "#f59e0b",
-  red: "#f87171",
-  gray: "#888",
+  green: "var(--status-green)",
+  orange: "var(--status-orange)",
+  red: "var(--status-red)",
+  gray: "var(--fg-dim)",
 } as const;
 
 function getUsageColor(tokens: number): string {
-  if (tokens >= 150_000) return "var(--color-red, #f87171)";
-  if (tokens >= 100_000) return "var(--color-orange, #f59e0b)";
-  return "var(--color-green, #4ade80)";
+  if (tokens >= 150_000) return "var(--status-red)";
+  if (tokens >= 100_000) return "var(--status-orange)";
+  return "var(--status-green)";
 }
 
 export const TokensCard = memo(function TokensCard({

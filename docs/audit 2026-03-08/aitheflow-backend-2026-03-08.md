@@ -21,59 +21,32 @@
 
 ## Серьёзные проблемы
 
-### [ARC-001] God object: telegram/commands.rs — 815 строк, смешение ответственностей
-- **Файл:** `src/telegram/commands.rs`
-- **Серьёзность:** СЕРЬЁЗНАЯ
-- **Описание:** Файл содержит одновременно: бот-цикл (polling loop), обработчики всех типов сообщений (text, voice, photo, document, callback), все Tauri-команды (18 штук), вспомогательные функции (`save_to_tmp`, `now_millis`, `keyboard_button_kind`). Это нарушение Single Responsibility — любое изменение в одной из 5+ зон ответственности требует работы с файлом целиком.
-- **Риск:** Сложность поддержки, высокий шанс merge-конфликтов, затруднённый review.
+### [ARC-001] ~~God object: telegram/commands.rs — 815 строк, смешение ответственностей~~ ✅ ИСПРАВЛЕНО
+- **Исправление:** Разбит на 3 файла: `bot.rs` (бот-цикл + get_bot_connection), `handlers.rs` (обработчики сообщений + утилиты), `commands.rs` (18 Tauri-команд).
 
-### [ARC-002] God object: plugins.rs — 887 строк, 8+ зон ответственности
-- **Файл:** `src/plugins.rs`
-- **Серьёзность:** СЕРЬЁЗНАЯ
-- **Описание:** Один файл содержит: все типы данных (9 struct + 3 enum), JSON-десериализацию marketplace-формата, файловые операции с кэшем, git-операции (clone, pull, rev-parse), CRUD installed_plugins.json, CRUD known_marketplaces.json, и все 5 Tauri-команд. Логически это минимум 3 модуля: types, marketplace, commands.
-- **Риск:** Аналогично ARC-001.
+### [ARC-002] ~~God object: plugins.rs — 887 строк, 8+ зон ответственности~~ ✅ ИСПРАВЛЕНО
+- **Исправление:** Преобразован в модуль `plugins/`: `types.rs` (9 struct + 3 enum), `marketplace.rs` (логика marketplace, git, подсчёты), `commands.rs` (6 Tauri-команд).
 
-### [ARC-003] Глобальное мутабельное состояние через static Mutex без типобезопасной обёртки
-- **Файл:** `src/telegram/mod.rs:141`, `src/conductor/stats.rs:8`, `src/chats.rs:11-16`, `src/devtools.rs:7-8`
-- **Серьёзность:** СЕРЬЁЗНАЯ
-- **Описание:** В проекте 5 разных `static Mutex<...>` / `static LazyLock<Mutex<...>>` для глобального состояния. Все используют паттерн `unwrap_or_else(|e| e.into_inner())` для recovery от poisoned mutex. Это корректно, но `BOT_STATE` в telegram заслуживает внимания: через `with_state` к нему обращаются из синхронных Tauri-команд (блокируя tokio runtime thread), и одновременно из async-контекстов через `tokio::task::spawn_blocking`. Держать `std::sync::Mutex` под `tokio::spawn_blocking` и напрямую из `#[tauri::command]` — допустимо, но `with_state` принимает замыкание без ограничения времени удержания лока.
-- **Риск:** Если любая операция внутри `with_state` заблокируется или паникнет, это отравит весь Telegram-модуль. BOT_STATE хранит `mpsc::UnboundedReceiver` — move-only тип внутри `Option`, его `take()` в `start_telegram_bot` потенциально конфликтует с `poll_telegram_messages`.
+### [ARC-003] ~~Глобальное мутабельное состояние через static Mutex без типобезопасной обёртки~~ ✅ ИСПРАВЛЕНО
+- **Исправление:** Добавлена документация контракта на `with_state` (только быстрые операции под локом). Все точки `unwrap_or_else(|e| e.into_inner())` во всех модулях (telegram, chats, devtools, stats) теперь логируют предупреждение при отравлении мьютекса вместо молчаливого восстановления.
 
-### [ARC-004] Дублирование кода: `get_bot_connection` vs inline в `telegram_send_history`
-- **Файл:** `src/telegram/commands.rs:601-608` vs `src/telegram/commands.rs:727-733`
-- **Серьёзность:** СЕРЬЁЗНАЯ
-- **Описание:** `telegram_send_history` дублирует логику `get_bot_connection` вместо её вызова. Код идентичен — 7 строк copy-paste.
-- **Риск:** При изменении логики получения connection один из двух мест забудется обновить.
+### [ARC-004] ~~Дублирование кода: `get_bot_connection` vs inline в `telegram_send_history`~~ ✅ ИСПРАВЛЕНО
+- **Исправление:** `telegram_send_history` теперь использует общий `get_bot_connection()` из `bot.rs`. Исправлено в рамках рефакторинга ARC-001.
 
-### [ARC-005] Дублирование: audio capture код в recording.rs и streaming.rs
-- **Файл:** `src/voice/recording.rs:62-116` vs `src/voice/streaming.rs:254-290`
-- **Серьёзность:** СЕРЬЁЗНАЯ
-- **Описание:** Паттерн создания cpal input stream (match по SampleFormat::F32/I16, build_input_stream, play) дублируется полностью. Логика идентична: захват аудио в `Arc<Mutex<Vec<f32>>>`, конвертация i16→f32.
-- **Риск:** Баг-фикс в одном месте не попадёт в другое. Увеличение поддерживаемых форматов потребует правки в двух местах.
+### [ARC-005] ~~Дублирование: audio capture код в recording.rs и streaming.rs~~ ✅ ИСПРАВЛЕНО
+- **Исправление:** Вынесена общая функция `build_input_stream()` в новый файл `voice/capture.rs`. Оба файла (`recording.rs`, `streaming.rs`) используют её.
 
-### [ARC-006] Антипаттерн: unwrap() в production-коде
-- **Файл:** `src/skills.rs:100`
-- **Серьёзность:** СЕРЬЁЗНАЯ
-- **Описание:** `ft.is_err() || !ft.unwrap().is_dir()` — вызов `unwrap()` после проверки `is_err()`. Технически safe, но это антипаттерн. Идиоматичный Rust: `ft.is_ok_and(|t| t.is_dir())` (как уже сделано в plugins.rs:206).
-- **Риск:** При рефакторинге (удаление `is_err()` check) — паника в runtime.
+### [ARC-006] ~~Антипаттерн: unwrap() в production-коде~~ ✅ ИСПРАВЛЕНО
+- **Исправление:** Заменено `ft.is_err() || !ft.unwrap().is_dir()` на идиоматичное `!ft.is_ok_and(|t| t.is_dir())` в `skills.rs`.
 
-### [ARC-007] Антипаттерн: многократное создание reqwest::Client
-- **Файл:** `src/voice/groq.rs:26`, `src/telegram/commands.rs:18`, `src/telegram/commands.rs:491`
-- **Серьёзность:** СЕРЬЁЗНАЯ
-- **Описание:** `reqwest::Client::new()` создаётся заново на каждый вызов `voice_transcribe`, в `bot_loop`, и в `start_telegram_bot`. reqwest::Client содержит connection pool и TLS-состояние — его рекомендуется создавать один раз и переиспользовать. В Telegram-модуле client сохраняется в BotState, но `voice_transcribe` каждый раз создаёт новый.
-- **Риск:** Overhead на каждый запрос (TLS handshake, DNS), утечка ресурсов при частом использовании.
+### [ARC-007] ~~Антипаттерн: многократное создание reqwest::Client~~ ✅ ИСПРАВЛЕНО
+- **Исправление:** В `voice/groq.rs` добавлен `static HTTP_CLIENT: LazyLock<reqwest::Client>` — один клиент на весь процесс. В Telegram клиент уже сохранялся в BotState.
 
-### [ARC-008] Отсутствие тестов для всех модулей кроме conductor/parser
-- **Файл:** весь проект
-- **Серьёзность:** СЕРЬЁЗНАЯ
-- **Описание:** Из 34 файлов только `conductor/parser.rs` имеет тесты (`#[cfg(test)]`). Критические пути без тестов: `atomic_write` (file_ops.rs), `sanitize_fts_query` (memory/db.rs — SQL injection в FTS), `encode_project_path` (memory/indexer.rs), `split_message` (telegram/api.rs), `parse_data_uri` (attachments.rs), `validate_path_safe` (files.rs — security boundary), `days_to_ymd` (memory/indexer.rs — calendar math).
-- **Риск:** Регрессии при любых изменениях. Особенно опасно для security-чувствительных функций (validate_path_safe, sanitize_fts_query).
+### [ARC-008] ~~Отсутствие тестов для всех модулей кроме conductor/parser~~ ✅ ИСПРАВЛЕНО
+- **Исправление:** Добавлены тесты для: `validate_path_safe` (6 тестов, files.rs), `sanitize_fts_query` (6 тестов, memory/db.rs), `split_message` (6 тестов, telegram/api.rs), `parse_data_uri` (6 тестов, attachments.rs), `days_to_ymd` + `chrono_like_iso` (6 тестов, memory/indexer.rs). Всего 30 новых тестов, итого 39 (было 9).
 
-### [ARC-009] Отсутствие тестов для date/calendar алгоритма
-- **Файл:** `src/memory/indexer.rs:89-102`
-- **Серьёзность:** СЕРЬЁЗНАЯ
-- **Описание:** Функция `days_to_ymd` реализует алгоритм Hinnant для конвертации дней-из-эпохи в Y-M-D. Это сложный математический код, который легко сломать, и он не покрыт ни одним тестом. Плюс `chrono_like_iso` вызывает его — тоже без тестов.
-- **Риск:** Неверные даты в индексе памяти, silent data corruption.
+### [ARC-009] ~~Отсутствие тестов для date/calendar алгоритма~~ ✅ ИСПРАВЛЕНО
+- **Исправление:** Добавлены тесты для `days_to_ymd` (epoch, known dates, leap day, end of year) и `chrono_like_iso` (epoch, known timestamp, with time). Исправлено в рамках ARC-008.
 
 ---
 

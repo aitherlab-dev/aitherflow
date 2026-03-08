@@ -314,3 +314,39 @@ pub struct SessionMessage {
     pub text: String,
     pub timestamp: String,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sanitize_fts_simple_words() {
+        assert_eq!(sanitize_fts_query("hello world"), "\"hello\" \"world\"");
+    }
+
+    #[test]
+    fn sanitize_fts_strips_quotes() {
+        assert_eq!(sanitize_fts_query("he\"llo"), "\"hello\"");
+    }
+
+    #[test]
+    fn sanitize_fts_operators_are_quoted() {
+        // FTS5 operators like OR, AND, NEAR should be treated as literals
+        assert_eq!(sanitize_fts_query("OR AND NEAR"), "\"OR\" \"AND\" \"NEAR\"");
+    }
+
+    #[test]
+    fn sanitize_fts_wildcard_quoted() {
+        assert_eq!(sanitize_fts_query("test*"), "\"test*\"");
+    }
+
+    #[test]
+    fn sanitize_fts_empty() {
+        assert_eq!(sanitize_fts_query(""), "");
+    }
+
+    #[test]
+    fn sanitize_fts_extra_whitespace() {
+        assert_eq!(sanitize_fts_query("  a   b  "), "\"a\" \"b\"");
+    }
+}

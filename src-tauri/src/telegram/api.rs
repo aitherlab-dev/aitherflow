@@ -356,3 +356,58 @@ pub(crate) async fn groq_transcribe(
     let result: GroqResponse = resp.json().await.map_err(|e| format!("Groq parse: {e}"))?;
     Ok(result.text)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn split_message_short() {
+        let chunks = split_message("hello", 100);
+        assert_eq!(chunks, vec!["hello"]);
+    }
+
+    #[test]
+    fn split_message_exact_limit() {
+        let text = "a".repeat(100);
+        let chunks = split_message(&text, 100);
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(chunks[0].len(), 100);
+    }
+
+    #[test]
+    fn split_message_breaks_at_newline() {
+        let text = format!("{}\n{}", "a".repeat(50), "b".repeat(50));
+        let chunks = split_message(&text, 60);
+        assert_eq!(chunks.len(), 2);
+        assert_eq!(chunks[0], "a".repeat(50));
+        assert_eq!(chunks[1], "b".repeat(50));
+    }
+
+    #[test]
+    fn split_message_no_newline_breaks_at_limit() {
+        let text = "a".repeat(200);
+        let chunks = split_message(&text, 100);
+        assert_eq!(chunks.len(), 2);
+        assert_eq!(chunks[0].len(), 100);
+        assert_eq!(chunks[1].len(), 100);
+    }
+
+    #[test]
+    fn split_message_unicode_safe() {
+        // Cyrillic characters are multi-byte — must not split mid-character
+        let text = "я".repeat(100); // each 'я' is 2 bytes = 200 bytes total
+        let chunks = split_message(&text, 50);
+        for chunk in &chunks {
+            // Each chunk must be valid UTF-8 (wouldn't compile otherwise, but
+            // the point is it doesn't panic at runtime)
+            assert!(!chunk.is_empty());
+        }
+    }
+
+    #[test]
+    fn split_message_empty() {
+        let chunks = split_message("", 100);
+        assert_eq!(chunks, vec![""]);
+    }
+}
