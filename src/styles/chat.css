@@ -112,7 +112,7 @@
 }
 
 .chat-message-user {
-  width: 75%;
+  width: 70%;
   text-align: right;
   background: var(--bg-hard);
   border: 1px solid var(--border);
@@ -129,6 +129,7 @@
   background: var(--bubble-ai);
   border: 1px solid var(--border);
   color: var(--fg);
+  font-weight: 700;
 }
 
 .chat-message-content {
@@ -595,7 +596,8 @@
   color: var(--fg);
   font-family: inherit;
   font-size: 1.05rem;
-  line-height: 1.5;
+  font-weight: 500;
+  line-height: 1.7;
   resize: none;
 }
 

@@ -56,7 +56,7 @@ export const TokensCard = memo(function TokensCard({
       title="Tokens"
       statusText={statusText}
       statusColor={undefined}
-      statusTextStyle={usageColor ? { color: usageColor } : undefined}
+      statusTextStyle={undefined}
       expanded={expanded}
       onToggle={onToggle}
     >

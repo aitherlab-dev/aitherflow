@@ -1266,7 +1266,7 @@
 .dash-card__title {
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--fg-muted);
+  color: var(--fg);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1317,7 +1317,7 @@
 
 .dash-card__status-text {
   font-size: 0.7rem;
-  color: var(--fg-muted);
+  color: var(--fg);
   white-space: nowrap;
 }
 
