@@ -129,7 +129,11 @@
   background: var(--bubble-ai);
   border: 1px solid var(--border);
   color: var(--fg);
-  font-weight: 700;
+  font-weight: 500;
+}
+
+[data-theme="light"] .chat-message-assistant {
+  font-weight: 800;
 }
 
 .chat-message-content {
