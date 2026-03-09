@@ -1,6 +1,7 @@
 mod agents;
 mod attachments;
 mod chats;
+mod claude_md;
 mod conductor;
 mod config;
 mod devtools;
@@ -125,6 +126,9 @@ pub fn run() {
             mcp::save_project_mcp_servers,
             mcp::test_mcp_server,
             mcp::reset_mcp_project_choices,
+            claude_md::list_claude_md_files,
+            claude_md::read_claude_md,
+            claude_md::save_claude_md,
         ])
         .setup(move |_app| {
             // Keep `sessions` alive until setup completes (State already holds a clone via .manage())

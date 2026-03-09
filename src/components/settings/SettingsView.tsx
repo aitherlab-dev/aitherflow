@@ -3,7 +3,7 @@ import {
   X,
   User,
   Webhook,
-
+  FileText,
   FolderOpen,
   Sparkles,
   Languages,
@@ -26,6 +26,7 @@ import { HooksSection } from "./hooks";
 import { McpSection } from "./mcp-section";
 import { CliStatsSection } from "./CliStatsSection";
 import { HotkeysSection } from "./HotkeysSection";
+import { ClaudeMdSection } from "./ClaudeMdSection";
 
 const NAV_ITEMS = [
   { id: "general", label: "General", icon: User },
@@ -38,6 +39,7 @@ const NAV_ITEMS = [
   { id: "memory", label: "Memory", icon: Brain },
   { id: "voice", label: "Voice", icon: Mic },
   { id: "telegram", label: "Telegram", icon: Send },
+  { id: "claude-md", label: "CLAUDE.MD", icon: FileText },
   { id: "cli-stats", label: "CLI Stats", icon: BarChart3 },
 ] as const;
 
@@ -126,6 +128,9 @@ function SectionContent({ section }: { section: string }) {
   }
   if (section === "mcp") {
     return <McpSection />;
+  }
+  if (section === "claude-md") {
+    return <ClaudeMdSection />;
   }
   if (section === "cli-stats") {
     return <CliStatsSection />;
