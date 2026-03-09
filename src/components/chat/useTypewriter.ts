@@ -6,9 +6,10 @@ import { useState, useRef, useEffect, useCallback } from "react";
  * When isActive becomes false, immediately returns full text.
  */
 export function useTypewriter(targetText: string, isActive: boolean): string {
-  const [visibleLen, setVisibleLen] = useState(0);
+  // Start from current length on mount so re-mount doesn't replay from zero
+  const [visibleLen, setVisibleLen] = useState(() => isActive ? targetText.length : 0);
   const targetLenRef = useRef(0);
-  const visibleLenRef = useRef(0);
+  const visibleLenRef = useRef(isActive ? targetText.length : 0);
   const rafRef = useRef<number | null>(null);
   const lastFlushRef = useRef(0);
 
