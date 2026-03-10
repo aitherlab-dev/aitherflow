@@ -60,13 +60,17 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   welcomeCards: [],
 
   init: async () => {
-    const config = await invoke<ProjectsConfig>("load_projects");
-    set({
-      projects: config.projects,
-      lastOpenedProject: config.lastOpenedProject,
-      lastOpenedChatId: config.lastOpenedChatId ?? null,
-      welcomeCards: config.welcomeCards ?? [],
-    });
+    try {
+      const config = await invoke<ProjectsConfig>("load_projects");
+      set({
+        projects: config.projects,
+        lastOpenedProject: config.lastOpenedProject,
+        lastOpenedChatId: config.lastOpenedChatId ?? null,
+        welcomeCards: config.welcomeCards ?? [],
+      });
+    } catch (e) {
+      console.error("[projectStore] Failed to load projects:", e);
+    }
   },
 
   addProject: async (path, name) => {

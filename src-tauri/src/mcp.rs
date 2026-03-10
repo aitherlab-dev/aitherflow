@@ -81,7 +81,7 @@ pub struct McpTestResult {
 
 fn claude_json_path() -> PathBuf {
     dirs::home_dir()
-        .unwrap_or_else(|| PathBuf::from("~"))
+        .unwrap_or_else(|| PathBuf::from("/tmp"))
         .join(".claude.json")
 }
 

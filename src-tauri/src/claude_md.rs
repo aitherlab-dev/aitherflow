@@ -63,6 +63,7 @@ pub async fn list_claude_md_files() -> Result<Vec<ClaudeMdEntry>, String> {
 pub async fn read_claude_md(path: String) -> Result<String, String> {
     tokio::task::spawn_blocking(move || {
         let p = std::path::Path::new(&path);
+        crate::files::validate_path_safe(p)?;
         if !p.exists() {
             return Ok(String::new());
         }
@@ -77,6 +78,7 @@ pub async fn read_claude_md(path: String) -> Result<String, String> {
 pub async fn save_claude_md(path: String, content: String) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
         let p = std::path::Path::new(&path);
+        crate::files::validate_path_safe(p)?;
         atomic_write(p, content.as_bytes())
     })
     .await

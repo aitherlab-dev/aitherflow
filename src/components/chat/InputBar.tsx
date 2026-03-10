@@ -1,8 +1,8 @@
 import { memo, useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { Plus, RotateCcw, Star, Mic, MicOff, ArrowUp, Square, MessageSquarePlus, Sparkles, Brain, Zap, Loader2 } from "lucide-react";
+import { Plus, Star, Mic, MicOff, ArrowUp, Square, MessageSquarePlus, Sparkles, Brain, Zap, Loader2 } from "lucide-react";
 import { openDialog } from "../../lib/transport";
 import { useChatStore } from "../../stores/chatStore";
-import { sendMessage, stopGeneration, newChat, restartSession, switchPermissionMode } from "../../stores/chatService";
+import { sendMessage, stopGeneration, newChat, switchPermissionMode } from "../../stores/chatService";
 import { useAttachmentStore } from "../../stores/attachmentStore";
 import { useFileAttach } from "../../hooks/useFileAttach";
 import { usePasteHandler } from "../../hooks/usePasteHandler";
@@ -33,6 +33,7 @@ export const InputBar = memo(function InputBar() {
   const [modelMenuRect, setModelMenuRect] = useState<DOMRect | null>(null);
   const [skillsMenuRect, setSkillsMenuRect] = useState<DOMRect | null>(null);
   const [commandsMenuRect, setCommandsMenuRect] = useState<DOMRect | null>(null);
+  const [modeSwitching, setModeSwitching] = useState(false);
   const modelBtnRef = useRef<HTMLButtonElement>(null);
   const skillsBtnRef = useRef<HTMLButtonElement>(null);
   const { attachments, processFromPaths, addAttachment, removeAttachment, clearAttachments } = useFileAttach();
@@ -41,7 +42,6 @@ export const InputBar = memo(function InputBar() {
   const isThinking = useChatStore((s) => s.isThinking);
   const selectedModel = useConductorStore((s) => s.selectedModel);
   const selectedEffort = useConductorStore((s) => s.selectedEffort);
-  const selectedPermissionMode = useConductorStore((s) => s.selectedPermissionMode);
   const activeModel = useConductorStore((s) => s.model);
   const hasSession = useChatStore((s) => s.hasSession);
   const planMode = useChatStore((s) => s.planMode);
@@ -225,21 +225,25 @@ export const InputBar = memo(function InputBar() {
             <Plus size={18} />
           </button>
           {hasSession && (
-            <>
-              <button
-                className="input-bar-btn"
-                title="Restart session"
-                aria-label="Restart session"
-                onClick={() => restartSession().catch(console.error)}
-              >
-                <RotateCcw size={16} />
-              </button>
-            </>
-          )}
-          {hasSession && (
-            <span className="input-bar-mode-badge" style={planMode ? { color: "var(--accent-icon)" } : undefined}>
-              {planMode ? "Plan" : "Edit"}
-            </span>
+            <button
+              className={`input-bar-mode-badge${modeSwitching ? " input-bar-mode-badge--switching" : ""}`}
+              style={planMode ? { color: "var(--blue)" } : undefined}
+              disabled={isThinking || modeSwitching}
+              title={planMode ? "Switch to Edit mode (restarts session)" : "Switch to Plan mode (restarts session)"}
+              onClick={async () => {
+                const newMode = planMode ? "default" : "plan";
+                setModeSwitching(true);
+                try {
+                  await switchPermissionMode(newMode);
+                } catch (e) {
+                  console.error(e);
+                } finally {
+                  setModeSwitching(false);
+                }
+              }}
+            >
+              {modeSwitching ? "..." : (planMode ? "Plan" : "Edit")}
+            </button>
           )}
           <ThinkingIndicator />
         </div>
@@ -309,26 +313,6 @@ export const InputBar = memo(function InputBar() {
             {selectedEffort !== "high" && (
               <span className="model-effort-badge">{selectedEffort}</span>
             )}
-          </button>
-          <button
-            className="input-bar-label-btn"
-            title={hasSession
-              ? (planMode ? "Switch to Edit mode (restarts session)" : "Switch to Plan mode (restarts session)")
-              : (selectedPermissionMode === "plan" ? "Will start in Plan mode" : "Will start in Edit mode")}
-            aria-label="Toggle plan/edit mode"
-            disabled={isThinking}
-            onClick={() => {
-              const newMode = (planMode || selectedPermissionMode === "plan") ? "default" : "plan";
-              if (hasSession) {
-                switchPermissionMode(newMode).catch(console.error);
-              } else {
-                useConductorStore.getState().setSelectedPermissionMode(newMode);
-              }
-            }}
-          >
-            <span style={planMode || selectedPermissionMode === "plan" ? { color: "var(--accent-icon)" } : undefined}>
-              {planMode || selectedPermissionMode === "plan" ? "Plan" : "Edit"}
-            </span>
           </button>
         </div>
         <div className="input-bar-cell input-bar-cell--btns input-bar-cell--end">
