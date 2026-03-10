@@ -78,6 +78,7 @@ pub fn run() {
             skills::load_skill_favorites,
             skills::save_skill_favorites,
             skills::delete_skill,
+            skills::move_skill,
             devtools::self_build,
             devtools::self_dev,
             devtools::stop_dev,

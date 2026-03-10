@@ -101,7 +101,8 @@ function dispatch(action: HotkeyAction) {
       const workspace = useProjectStore.getState().projects[0];
       if (workspace) {
         useAgentStore.getState().createAgent(workspace.path, workspace.name).catch(console.error);
-        useSkillStore.getState().load(workspace.path).catch(console.error);
+        const allProjects = useProjectStore.getState().projects;
+        useSkillStore.getState().load(allProjects.map((p) => ({ path: p.path, name: p.name }))).catch(console.error);
         if (layout.activeView !== "chat") {
           layout.closeSettings();
           layout.closeWelcome();

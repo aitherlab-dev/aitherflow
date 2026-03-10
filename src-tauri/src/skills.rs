@@ -44,10 +44,25 @@ pub struct PluginSkillGroup {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
+pub struct ProjectSkillGroup {
+    pub project_path: String,
+    pub project_name: String,
+    pub skills: Vec<SkillEntry>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct SkillsData {
     pub global: Vec<SkillEntry>,
-    pub project: Vec<SkillEntry>,
+    pub projects: Vec<ProjectSkillGroup>,
     pub plugins: Vec<PluginSkillGroup>,
+}
+
+#[derive(Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectInfo {
+    pub path: String,
+    pub name: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
@@ -328,9 +343,9 @@ fn favorites_path() -> PathBuf {
 
 // ── Tauri commands ──
 
-/// Load all skills from disk: global, project, and plugin
+/// Load all skills from disk: global, all projects, and plugins
 #[tauri::command]
-pub async fn load_skills(project_path: String) -> Result<SkillsData, String> {
+pub async fn load_skills(project_list: Vec<ProjectInfo>) -> Result<SkillsData, String> {
     tokio::task::spawn_blocking(move || {
         // Global skills: ~/.claude/skills/
         let global_dir = config::claude_home().join("skills");
@@ -346,33 +361,43 @@ pub async fn load_skills(project_path: String) -> Result<SkillsData, String> {
             })
             .collect();
 
-        // Project skills: <project>/.claude/skills/
-        let project_skills_dir = PathBuf::from(&project_path)
-            .join(".claude")
-            .join("skills");
-        let project: Vec<SkillEntry> = scan_skills_dir(&project_skills_dir)
-            .into_iter()
-            .map(|(dir_name, name, description, file_path)| {
-                let id = format!("project:{}", dir_name);
-                SkillEntry {
-                    id,
-                    name,
-                    description,
-                    command: format!("/{}", dir_name),
-                    source: SkillSource::Project {
-                        project_path: project_path.clone(),
-                    },
-                    file_path,
-                }
-            })
-            .collect();
+        // Project skills: scan all registered projects
+        let mut projects: Vec<ProjectSkillGroup> = Vec::new();
+        for proj in &project_list {
+            let skills_dir = PathBuf::from(&proj.path)
+                .join(".claude")
+                .join("skills");
+            let skills: Vec<SkillEntry> = scan_skills_dir(&skills_dir)
+                .into_iter()
+                .map(|(dir_name, name, description, file_path)| {
+                    let id = format!("project:{}:{}", proj.path, dir_name);
+                    SkillEntry {
+                        id,
+                        name,
+                        description,
+                        command: format!("/{}", dir_name),
+                        source: SkillSource::Project {
+                            project_path: proj.path.clone(),
+                        },
+                        file_path,
+                    }
+                })
+                .collect();
+            if !skills.is_empty() {
+                projects.push(ProjectSkillGroup {
+                    project_path: proj.path.clone(),
+                    project_name: proj.name.clone(),
+                    skills,
+                });
+            }
+        }
 
         // Plugin skills
         let plugins = scan_plugin_skills();
 
         Ok(SkillsData {
             global,
-            project,
+            projects,
             plugins,
         })
     })
@@ -425,6 +450,75 @@ pub async fn delete_skill(file_path: String) -> Result<(), String> {
 
         fs::remove_dir_all(parent)
             .map_err(|e| format!("Failed to delete skill directory: {e}"))
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// Move a user skill to a different location (global ↔ project)
+/// `target_type`: "global" or "project"
+/// `project_path`: required when target_type is "project"
+/// `new_name` overrides the folder name if provided (for conflict resolution)
+#[tauri::command]
+pub async fn move_skill(
+    file_path: String,
+    target_type: String,
+    project_path: Option<String>,
+    new_name: Option<String>,
+) -> Result<String, String> {
+    use crate::file_ops::copy_dir_recursive;
+    use crate::files::validate_path_safe;
+
+    tokio::task::spawn_blocking(move || {
+        let skill_file = PathBuf::from(&file_path);
+        validate_path_safe(&skill_file)?;
+
+        if !skill_file.exists()
+            || skill_file.file_name().and_then(|n| n.to_str()) != Some("SKILL.md")
+        {
+            return Err(format!("Invalid skill path: {}", file_path));
+        }
+
+        let src_dir = skill_file
+            .parent()
+            .ok_or_else(|| "Cannot determine skill directory".to_string())?;
+
+        let folder_name = match &new_name {
+            Some(n) => n.clone(),
+            None => src_dir
+                .file_name()
+                .ok_or_else(|| "Cannot determine skill folder name".to_string())?
+                .to_string_lossy()
+                .to_string(),
+        };
+
+        let dest_skills = match target_type.as_str() {
+            "global" => config::claude_home().join("skills"),
+            "project" => {
+                let pp = project_path
+                    .ok_or_else(|| "project_path is required for project target".to_string())?;
+                PathBuf::from(pp).join(".claude").join("skills")
+            }
+            _ => return Err(format!("Invalid target_type: {}", target_type)),
+        };
+
+        let dest = dest_skills.join(&folder_name);
+
+        if dest.exists() {
+            return Err(format!("Skill '{}' already exists at destination", folder_name));
+        }
+
+        // Ensure parent skills/ directory exists
+        fs::create_dir_all(&dest_skills)
+            .map_err(|e| format!("Failed to create skills directory: {e}"))?;
+
+        // Copy then remove (safer than rename across filesystems)
+        copy_dir_recursive(src_dir, &dest)?;
+        fs::remove_dir_all(src_dir)
+            .map_err(|e| format!("Failed to remove original skill: {e}"))?;
+
+        // Return new SKILL.md path
+        Ok(dest.join("SKILL.md").to_string_lossy().to_string())
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?

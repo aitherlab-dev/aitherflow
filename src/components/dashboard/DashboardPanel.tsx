@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useMcpStore } from "../../stores/mcpStore";
 import { useSkillStore } from "../../stores/skillStore";
 import { useAgentStore } from "../../stores/agentStore";
+import { useProjectStore } from "../../stores/projectStore";
 import { McpCard } from "./cards/McpCard";
 import { SkillsCard } from "./cards/SkillsCard";
 import { TokensCard } from "./cards/TokensCard";
@@ -92,9 +93,8 @@ export const DashboardPanel = memo(function DashboardPanel() {
 
   useEffect(() => {
     if (!skillsLoaded) {
-      const agent = useAgentStore.getState();
-      const projectPath = agent.agents.find((a) => a.id === agent.activeAgentId)?.projectPath ?? "";
-      skillsLoad(projectPath).catch(console.error);
+      const allProjects = useProjectStore.getState().projects;
+      skillsLoad(allProjects.map((p) => ({ path: p.path, name: p.name }))).catch(console.error);
     }
   }, [skillsLoaded, skillsLoad]);
 

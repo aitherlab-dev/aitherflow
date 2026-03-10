@@ -98,6 +98,7 @@
   flex: 1;
   overflow-y: auto;
   padding: 24px;
+  max-width: 800px;
 }
 
 .settings-placeholder {
@@ -649,26 +650,21 @@
   cursor: not-allowed;
 }
 
-/* ── User skill row ── */
+/* ── Plugin skill simple row ── */
 
-.plugin-skill-row {
+.plugin-skill-row-simple {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 6px 12px;
+  padding: 4px 12px;
   border-radius: 4px;
-  transition: background 0.15s;
 }
 
-.plugin-skill-row:hover {
+.plugin-skill-row-simple:hover {
   background: var(--bg-hover);
 }
 
-.plugin-skill-row__name {
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--fg);
-}
+/* ── User skill (inside plugin-card) ── */
 
 .plugin-skill-row__command {
   font-size: 0.78rem;
@@ -676,24 +672,40 @@
   font-family: monospace;
 }
 
-.plugin-skill-row__delete {
-  margin-left: auto;
-  background: none;
-  border: none;
-  color: var(--fg-dim);
-  cursor: pointer;
-  padding: 2px 4px;
+.skill-card-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.skill-card-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
   border-radius: 4px;
-  opacity: 0;
-  transition: opacity 0.15s, color 0.15s;
+  background: transparent;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
 }
 
-.plugin-skill-row:hover .plugin-skill-row__delete {
-  opacity: 1;
+.skill-card-btn--move {
+  color: var(--fg-dim);
 }
 
-.plugin-skill-row__delete:hover {
-  color: var(--error);
+.skill-card-btn--move:hover {
+  color: var(--accent);
+  border-color: var(--accent-stroke);
+}
+
+.skill-card-btn--delete {
+  color: var(--fg-dim);
+}
+
+.skill-card-btn--delete:hover {
+  color: var(--red);
+  border-color: var(--red);
 }
 
 /* ── Available plugin row ── */

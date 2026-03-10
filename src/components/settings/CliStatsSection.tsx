@@ -77,7 +77,7 @@ export const CliStatsSection = memo(function CliStatsSection() {
 
   useEffect(() => {
     load(days);
-  }, []); // eslint-disable-line
+  }, []);
 
   if (!stats) {
     return <div className="cli-stats">{loading ? "Loading..." : "No data"}</div>;

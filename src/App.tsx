@@ -1,30 +1,27 @@
 import { useEffect } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { AppLayout } from "./components/layout/AppLayout";
-import { useChatStore } from "./stores/chatStore";
 import { useProjectStore } from "./stores/projectStore";
 import { useAgentStore } from "./stores/agentStore";
 import { useSkillStore } from "./stores/skillStore";
 
 export function App() {
   const initProjects = useProjectStore((s) => s.init);
+  const projects = useProjectStore(useShallow((s) => s.projects));
   const initAgents = useAgentStore((s) => s.init);
   const loadSkills = useSkillStore((s) => s.load);
-  const projectPath = useChatStore((s) => s.projectPath);
 
   useEffect(() => {
-    // Init agents (empty on startup — tabs created from welcome screen)
     initAgents().catch(console.error);
-
-    // Init projects (needed for welcome screen cards)
     initProjects().catch(console.error);
   }, [initAgents, initProjects]);
 
-  // Reload skills when active project changes (agent switch)
+  // Reload skills when projects list changes
   useEffect(() => {
-    if (projectPath) {
-      loadSkills(projectPath).catch(console.error);
+    if (projects.length > 0) {
+      loadSkills(projects.map((p) => ({ path: p.path, name: p.name }))).catch(console.error);
     }
-  }, [projectPath, loadSkills]);
+  }, [projects, loadSkills]);
 
   return <AppLayout />;
 }

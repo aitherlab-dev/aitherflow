@@ -22,8 +22,15 @@ export type SkillSource =
 /** All skills grouped for the sidebar tree */
 export interface SkillsData {
   global: SkillEntry[];
-  project: SkillEntry[];
+  projects: ProjectSkillGroup[];
   plugins: PluginSkillGroup[];
+}
+
+/** Skills from one registered project */
+export interface ProjectSkillGroup {
+  projectPath: string;
+  projectName: string;
+  skills: SkillEntry[];
 }
 
 /** Skills from one installed plugin */

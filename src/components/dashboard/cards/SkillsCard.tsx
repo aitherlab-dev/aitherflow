@@ -100,7 +100,7 @@ export const SkillsCard = memo(function SkillsCard({
   onToggle: (id: string) => void;
 }) {
   const global = useSkillStore((s) => s.global);
-  const project = useSkillStore((s) => s.project);
+  const projectGroups = useSkillStore((s) => s.projects);
   const plugins = useSkillStore((s) => s.plugins);
   const favoriteIds = useSkillStore((s) => s.favoriteIds);
   const getFavorites = useSkillStore((s) => s.getFavorites);
@@ -114,9 +114,10 @@ export const SkillsCard = memo(function SkillsCard({
     () => plugins.flatMap((pg: PluginSkillGroup) => pg.skills),
     [plugins],
   );
-  const total = global.length + project.length + pluginSkills.length;
+  const projectSkillCount = projectGroups.reduce((n, pg) => n + pg.skills.length, 0);
+  const total = global.length + projectSkillCount + pluginSkills.length;
 
-  const favorites = useMemo(() => getFavorites(), [getFavorites, favoriteIds, global, project, plugins]);
+  const favorites = useMemo(() => getFavorites(), [getFavorites, favoriteIds, global, projectGroups, plugins]);
 
   const handleToggleFav = useCallback(
     (id: string) => { toggleFavorite(id).catch(console.error); },
@@ -187,8 +188,8 @@ export const SkillsCard = memo(function SkillsCard({
           ))}
         </SkillSection>
 
-        <SkillSection label="Project" count={project.length}>
-          {project.map((s) => (
+        <SkillSection label="Project" count={projectGroups.reduce((n, pg) => n + pg.skills.length, 0)}>
+          {projectGroups.flatMap((pg) => pg.skills).map((s: SkillEntry) => (
             <SkillRowMini
               key={s.id}
               skill={s}

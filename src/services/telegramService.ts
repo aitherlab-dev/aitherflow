@@ -43,10 +43,6 @@ let streamTimer: ReturnType<typeof setInterval> | null = null;
 /** ID of the last assistant message sent to Telegram (to avoid duplicates) */
 let lastSentMessageId: string | null = null;
 
-export function isFromTelegram(): boolean {
-  return lastFromTelegram;
-}
-
 /** Strip thinking blocks — take text after last turn separator */
 function stripThinking(raw: string): string {
   const sep = raw.lastIndexOf(TURN_SEPARATOR);

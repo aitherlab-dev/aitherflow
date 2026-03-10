@@ -10,7 +10,6 @@ import type { AttachmentPayload } from "../types/conductor";
 import {
   useChatStore,
   agentStates,
-  getOrCreateAgentState,
   messagesToStored,
   type ChatMeta,
 } from "./chatStore";
@@ -44,12 +43,6 @@ export async function persistMessages() {
 }
 
 // ── Actions ──
-
-export async function initChat(agentId: string, projectPath: string, projectName: string) {
-  getOrCreateAgentState(agentId);
-  useChatStore.setState({ agentId, projectPath, projectName });
-  await loadChatList();
-}
 
 export async function loadChatList() {
   const { projectPath } = useChatStore.getState();

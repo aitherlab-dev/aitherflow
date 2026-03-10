@@ -98,8 +98,9 @@ export function WelcomeScreen() {
         }
       }
 
-      // Load skills for the project
-      loadSkills(projectPath).catch(console.error);
+      // Reload skills for all projects
+      const allProjects = useProjectStore.getState().projects;
+      loadSkills(allProjects.map((p) => ({ path: p.path, name: p.name }))).catch(console.error);
 
       // Switch to chat view
       closeWelcome();

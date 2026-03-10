@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ArrowRightLeft,
   ChevronRight,
   Download,
   ExternalLink,
@@ -13,9 +14,10 @@ import {
 } from "lucide-react";
 import { usePluginStore } from "../../stores/pluginStore";
 import { useSkillStore } from "../../stores/skillStore";
-import { useAgentStore } from "../../stores/agentStore";
+import { useProjectStore } from "../../stores/projectStore";
 import { useTranslationStore } from "../../stores/translationStore";
-import type { InstalledPlugin, AvailablePlugin, MarketplaceSource } from "../../types/plugins";
+import { Modal } from "../Modal";
+import type { AvailablePlugin, MarketplaceSource } from "../../types/plugins";
 import type { SkillEntry } from "../../types/skills";
 
 // ── Collapsible group with chevron ──
@@ -63,21 +65,19 @@ const SUB_TABS: { id: SubTab; label: string }[] = [
   { id: "sources", label: "Sources" },
 ];
 
-// ── Installed: plugin card ──
+// ── Installed: user skill card ──
 
-const PluginCard = memo(function PluginCard({
-  plugin,
-  onUninstall,
-  isUninstalling,
+const UserSkillCard = memo(function UserSkillCard({
+  skill,
+  onDelete,
+  onMove,
 }: {
-  plugin: InstalledPlugin;
-  onUninstall: (name: string, marketplace: string) => void;
-  isUninstalling: boolean;
+  skill: SkillEntry;
+  onDelete: (skill: SkillEntry) => void;
+  onMove: (skill: SkillEntry) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const translatedDesc = useTranslationStore(
-    (s) => s.cache.entries[`installed-plugin:${plugin.id}`],
-  );
+  const isGlobal = skill.source.type === "global";
 
   return (
     <div className="plugin-card">
@@ -86,60 +86,38 @@ const PluginCard = memo(function PluginCard({
           size={14}
           className={`plugin-card-chevron ${expanded ? "plugin-card-chevron--open" : ""}`}
         />
-        <span className="plugin-card-name">{plugin.name}</span>
-        {plugin.version && (
-          <span className="plugin-badge plugin-badge--version">{plugin.version}</span>
-        )}
-        <span className="plugin-badge plugin-badge--enabled">enabled</span>
-        <span className="plugin-badge plugin-badge--scope">{plugin.scope}</span>
-        {plugin.skillCount > 0 && (
-          <span className="plugin-badge plugin-badge--skills">
-            {plugin.skillCount} skill{plugin.skillCount !== 1 ? "s" : ""}
-          </span>
-        )}
+        <span className="plugin-card-name">{skill.name}</span>
+        <span className="plugin-badge plugin-badge--scope">
+          {isGlobal ? "global" : "project"}
+        </span>
+        <span className="plugin-skill-row__command">{skill.command}</span>
       </div>
       {expanded && (
         <div className="plugin-card-body">
-          {plugin.description && (
-            <p className="plugin-card-desc">{translatedDesc || plugin.description}</p>
+          {skill.description && (
+            <p className="plugin-card-desc">{skill.description}</p>
           )}
           <div className="plugin-card-meta">
-            <span>Source: {plugin.marketplace}</span>
+            <span>{skill.filePath}</span>
           </div>
-          <button
-            className="plugin-card-uninstall"
-            onClick={() => onUninstall(plugin.name, plugin.marketplace)}
-            disabled={isUninstalling}
-          >
-            <Trash2 size={14} />
-            <span>{isUninstalling ? "Removing..." : "Uninstall"}</span>
-          </button>
+          <div className="skill-card-actions">
+            <button
+              className="skill-card-btn skill-card-btn--move"
+              onClick={() => onMove(skill)}
+            >
+              <ArrowRightLeft size={14} />
+              <span>{isGlobal ? "Move to Project" : "Move to Global"}</span>
+            </button>
+            <button
+              className="skill-card-btn skill-card-btn--delete"
+              onClick={() => onDelete(skill)}
+            >
+              <Trash2 size={14} />
+              <span>Delete</span>
+            </button>
+          </div>
         </div>
       )}
-    </div>
-  );
-});
-
-// ── Installed: user skill row ──
-
-const UserSkillRow = memo(function UserSkillRow({
-  skill,
-  onDelete,
-}: {
-  skill: SkillEntry;
-  onDelete: (skill: SkillEntry) => void;
-}) {
-  return (
-    <div className="plugin-skill-row">
-      <span className="plugin-skill-row__name">{skill.name}</span>
-      <span className="plugin-skill-row__command">{skill.command}</span>
-      <button
-        className="plugin-skill-row__delete"
-        onClick={() => onDelete(skill)}
-        title="Delete skill"
-      >
-        <Trash2 size={14} />
-      </button>
     </div>
   );
 });
@@ -152,8 +130,27 @@ function InstalledTab() {
   const uninstall = usePluginStore((s) => s.uninstall);
 
   const globalSkills = useSkillStore((s) => s.global);
-  const projectSkills = useSkillStore((s) => s.project);
+  const projectGroups = useSkillStore((s) => s.projects);
+  const pluginGroups = useSkillStore((s) => s.plugins);
   const deleteSkill = useSkillStore((s) => s.deleteSkill);
+  const moveSkill = useSkillStore((s) => s.moveSkill);
+
+  const projects = useProjectStore((s) => s.projects);
+
+  // Total project skill count
+  const totalProjectSkills = useMemo(
+    () => projectGroups.reduce((sum, pg) => sum + pg.skills.length, 0),
+    [projectGroups],
+  );
+
+  // Delete modal
+  const [deleteTarget, setDeleteTarget] = useState<SkillEntry | null>(null);
+  // Move modal
+  const [moveTarget, setMoveTarget] = useState<SkillEntry | null>(null);
+  const [moveProjectPath, setMoveProjectPath] = useState("");
+  const [moveNewName, setMoveNewName] = useState("");
+  const [moveError, setMoveError] = useState("");
+  const [moveConflict, setMoveConflict] = useState(false);
 
   const handleUninstall = useCallback(
     (name: string, marketplace: string) => {
@@ -162,62 +159,198 @@ function InstalledTab() {
     [uninstall],
   );
 
-  const handleDeleteSkill = useCallback(
+  const handleConfirmDelete = useCallback(() => {
+    if (!deleteTarget) return;
+    deleteSkill(deleteTarget).catch(console.error);
+    setDeleteTarget(null);
+  }, [deleteTarget, deleteSkill]);
+
+  const handleMoveOpen = useCallback(
     (skill: SkillEntry) => {
-      deleteSkill(skill).catch(console.error);
+      setMoveTarget(skill);
+      setMoveProjectPath(projects[0]?.path ?? "");
+      setMoveNewName("");
+      setMoveError("");
+      setMoveConflict(false);
     },
-    [deleteSkill],
+    [projects],
   );
+
+  const handleConfirmMove = useCallback(async () => {
+    if (!moveTarget) return;
+
+    const isGlobal = moveTarget.source.type === "global";
+    const targetType = isGlobal ? "project" : "global";
+    const projectPath = isGlobal ? moveProjectPath : null;
+
+    try {
+      await moveSkill(
+        moveTarget,
+        targetType as "global" | "project",
+        projectPath,
+        moveNewName || undefined,
+      );
+      setMoveTarget(null);
+    } catch (e) {
+      const msg = String(e);
+      if (msg.includes("already exists")) {
+        setMoveConflict(true);
+        setMoveNewName(moveTarget.id.replace(/^project:[^:]+:/, ""));
+        setMoveError("Skill with this name already exists. Choose a new name.");
+      } else {
+        setMoveError(msg);
+      }
+    }
+  }, [moveTarget, moveProjectPath, moveNewName, moveSkill]);
 
   return (
     <div className="skills-section-tab">
-      {/* User skills */}
-      {(globalSkills.length > 0 || projectSkills.length > 0) && (
-        <div className="skills-section-block">
-          {globalSkills.length > 0 && (
-            <>
-              <h4 className="skills-section-subtitle">Global Skills</h4>
-              <div className="skills-section-list">
-                {globalSkills.map((s) => (
-                  <UserSkillRow key={s.id} skill={s} onDelete={handleDeleteSkill} />
-                ))}
-              </div>
-            </>
-          )}
-          {projectSkills.length > 0 && (
-            <>
-              <h4 className="skills-section-subtitle">Project Skills</h4>
-              <div className="skills-section-list">
-                {projectSkills.map((s) => (
-                  <UserSkillRow key={s.id} skill={s} onDelete={handleDeleteSkill} />
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {/* Plugins */}
-      <div className="skills-section-block">
-        <h4 className="skills-section-subtitle">
-          <Package size={14} />
-          Plugins ({installed.length})
-        </h4>
-        {installed.length === 0 ? (
-          <div className="skills-section-empty">No plugins installed</div>
-        ) : (
+      {/* Global Skills */}
+      {globalSkills.length > 0 && (
+        <CollapsibleGroup label="Global Skills" count={globalSkills.length} defaultOpen>
           <div className="skills-section-list">
-            {installed.map((p) => (
-              <PluginCard
-                key={p.id}
-                plugin={p}
-                onUninstall={handleUninstall}
-                isUninstalling={uninstalling.has(p.id)}
+            {globalSkills.map((s) => (
+              <UserSkillCard
+                key={s.id}
+                skill={s}
+                onDelete={setDeleteTarget}
+                onMove={handleMoveOpen}
               />
             ))}
           </div>
+        </CollapsibleGroup>
+      )}
+
+      {/* Project Skills */}
+      {projectGroups.length > 0 && (
+        <CollapsibleGroup label="Project Skills" count={totalProjectSkills}>
+          {projectGroups.map((pg) => (
+            <CollapsibleGroup
+              key={pg.projectPath}
+              label={pg.projectName}
+              count={pg.skills.length}
+            >
+              <div className="skills-section-list">
+                {pg.skills.map((s) => (
+                  <UserSkillCard
+                    key={s.id}
+                    skill={s}
+                    onDelete={setDeleteTarget}
+                    onMove={handleMoveOpen}
+                  />
+                ))}
+              </div>
+            </CollapsibleGroup>
+          ))}
+        </CollapsibleGroup>
+      )}
+
+      {/* Plugins */}
+      <CollapsibleGroup
+        label="Plugins"
+        count={installed.length}
+        icon={<Package size={14} />}
+        defaultOpen
+      >
+        {installed.length === 0 ? (
+          <div className="skills-section-empty">No plugins installed</div>
+        ) : (
+          installed.map((p) => {
+            const pg = pluginGroups.find((g) => g.pluginName === p.name);
+            return (
+              <CollapsibleGroup
+                key={p.id}
+                label={p.name}
+                count={pg?.skills.length ?? 0}
+              >
+                {p.description && (
+                  <p className="plugin-card-desc" style={{ padding: "0 12px 4px" }}>
+                    {p.description}
+                  </p>
+                )}
+                {pg && pg.skills.length > 0 && (
+                  <div className="skills-section-list">
+                    {pg.skills.map((s) => (
+                      <div key={s.id} className="plugin-skill-row-simple">
+                        <span className="plugin-card-name">{s.name}</span>
+                        <span className="plugin-skill-row__command">{s.command}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button
+                  className="plugin-card-uninstall"
+                  style={{ margin: "4px 12px 8px" }}
+                  onClick={() => handleUninstall(p.name, p.marketplace)}
+                  disabled={uninstalling.has(p.id)}
+                >
+                  <Trash2 size={14} />
+                  <span>{uninstalling.has(p.id) ? "Removing..." : "Uninstall"}</span>
+                </button>
+              </CollapsibleGroup>
+            );
+          })
         )}
-      </div>
+      </CollapsibleGroup>
+
+      {/* Delete confirmation modal */}
+      <Modal
+        open={deleteTarget !== null}
+        title="Delete Skill"
+        onClose={() => setDeleteTarget(null)}
+        actions={[
+          { label: "Cancel", onClick: () => setDeleteTarget(null) },
+          { label: "Delete", variant: "danger", onClick: handleConfirmDelete },
+        ]}
+      >
+        <p className="modal-text">
+          Delete skill <strong>{deleteTarget?.name}</strong>? This will remove the skill folder from disk.
+        </p>
+      </Modal>
+
+      {/* Move modal */}
+      <Modal
+        open={moveTarget !== null}
+        title={moveTarget?.source.type === "global" ? "Move to Project" : "Move to Global"}
+        onClose={() => setMoveTarget(null)}
+        actions={[
+          { label: "Cancel", onClick: () => setMoveTarget(null) },
+          {
+            label: "Move",
+            variant: "accent",
+            onClick: () => { handleConfirmMove().catch(console.error); },
+          },
+        ]}
+      >
+        <p className="modal-text">
+          Move <strong>{moveTarget?.name}</strong>{" "}
+          {moveTarget?.source.type === "global" ? "to project:" : "to global skills."}
+        </p>
+        {moveTarget?.source.type === "global" && (
+          <select
+            className="modal-select"
+            value={moveProjectPath}
+            onChange={(e) => setMoveProjectPath(e.target.value)}
+          >
+            {projects.map((p) => (
+              <option key={p.path} value={p.path}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        )}
+        {moveConflict && (
+          <input
+            className="modal-input"
+            placeholder="New skill name"
+            value={moveNewName}
+            onChange={(e) => setMoveNewName(e.target.value)}
+            spellCheck={false}
+            style={{ marginTop: 10 }}
+          />
+        )}
+        {moveError && <p className="modal-error">{moveError}</p>}
+      </Modal>
     </div>
   );
 }
@@ -531,7 +664,7 @@ export function SkillsSection() {
 
   const loadSkills = useSkillStore((s) => s.load);
   const skillsLoaded = useSkillStore((s) => s.loaded);
-  const getActiveAgent = useAgentStore((s) => s.getActiveAgent);
+  const projects = useProjectStore((s) => s.projects);
 
   // Load data on mount
   useEffect(() => {
@@ -539,12 +672,9 @@ export function SkillsSection() {
       loadPlugins().catch(console.error);
     }
     if (!skillsLoaded) {
-      const agent = getActiveAgent();
-      if (agent?.projectPath) {
-        loadSkills(agent.projectPath).catch(console.error);
-      }
+      loadSkills(projects.map((p) => ({ path: p.path, name: p.name }))).catch(console.error);
     }
-  }, [pluginsLoaded, skillsLoaded, loadPlugins, loadSkills, getActiveAgent]);
+  }, [pluginsLoaded, skillsLoaded, loadPlugins, loadSkills, projects]);
 
   return (
     <div className="skills-section">
