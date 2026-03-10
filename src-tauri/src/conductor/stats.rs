@@ -356,6 +356,14 @@ fn parse_and_cache(
     let mut sum_cache_read: u64 = 0;
     let mut found_any = false;
 
+    // Track the last assistant usage per turn; flush when we see a "user" event or EOF.
+    // CLI sends multiple assistant events per turn with repeated usage — only the last matters.
+    let mut turn_input: u64 = 0;
+    let mut turn_output: u64 = 0;
+    let mut turn_cache_creation: u64 = 0;
+    let mut turn_cache_read: u64 = 0;
+    let mut in_turn = false;
+
     for line in content.lines() {
         let parsed: JsonlLine = match serde_json::from_str(line) {
             Ok(v) => v,
@@ -373,6 +381,15 @@ fn parse_and_cache(
             }
         }
 
+        // On "user" event, flush the previous assistant turn
+        if parsed.line_type.as_deref() == Some("user") && in_turn {
+            sum_input += turn_input;
+            sum_output += turn_output;
+            sum_cache_creation += turn_cache_creation;
+            sum_cache_read += turn_cache_read;
+            in_turn = false;
+        }
+
         if parsed.line_type.as_deref() != Some("assistant") {
             continue;
         }
@@ -387,15 +404,25 @@ fn parse_and_cache(
         };
 
         found_any = true;
+        in_turn = true;
 
         if let Some(m) = &msg.model {
             model.clone_from(m);
         }
 
-        sum_input += usage.input_tokens;
-        sum_output += usage.output_tokens;
-        sum_cache_creation += usage.cache_creation_input_tokens;
-        sum_cache_read += usage.cache_read_input_tokens;
+        // Overwrite (not accumulate) — take the last usage in this turn
+        turn_input = usage.input_tokens;
+        turn_output = usage.output_tokens;
+        turn_cache_creation = usage.cache_creation_input_tokens;
+        turn_cache_read = usage.cache_read_input_tokens;
+    }
+
+    // Flush the final turn
+    if in_turn {
+        sum_input += turn_input;
+        sum_output += turn_output;
+        sum_cache_creation += turn_cache_creation;
+        sum_cache_read += turn_cache_read;
     }
 
     if !found_any || date.is_empty() {

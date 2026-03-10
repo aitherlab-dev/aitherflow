@@ -11,6 +11,10 @@ use crate::file_ops::atomic_write;
 static CHAT_LOCKS: LazyLock<Mutex<HashMap<String, Arc<Mutex<()>>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
+/// Global lock for index.json to prevent concurrent read-modify-write races
+/// when multiple chats are created/updated simultaneously.
+static INDEX_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
 /// Cached chat metadata to avoid re-reading the whole file in save_chat_messages.
 static META_CACHE: LazyLock<Mutex<HashMap<String, ChatFileMeta>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
@@ -138,6 +142,7 @@ fn get_or_rebuild_index() -> Result<Vec<ChatFileMeta>, String> {
 
 /// Update a single entry in the index (insert or replace by id)
 fn upsert_index_entry(meta: &ChatFileMeta) -> Result<(), String> {
+    let _guard = INDEX_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let mut index = get_or_rebuild_index()?;
     if let Some(pos) = index.iter().position(|e| e.id == meta.id) {
         index[pos] = meta.clone();
@@ -149,6 +154,7 @@ fn upsert_index_entry(meta: &ChatFileMeta) -> Result<(), String> {
 
 /// Remove an entry from the index by id
 fn remove_index_entry(chat_id: &str) -> Result<(), String> {
+    let _guard = INDEX_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let mut index = get_or_rebuild_index()?;
     index.retain(|e| e.id != chat_id);
     write_index(&index)
