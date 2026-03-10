@@ -7,6 +7,19 @@ use crate::file_ops::atomic_write;
 use super::marketplace::*;
 use super::types::*;
 
+/// Reject names containing path traversal sequences or separators
+fn validate_plugin_name(name: &str, label: &str) -> Result<(), String> {
+    if name.is_empty()
+        || name.contains('/')
+        || name.contains('\\')
+        || name.contains("..")
+        || name == "."
+    {
+        return Err(format!("Invalid {label}: '{name}'"));
+    }
+    Ok(())
+}
+
 /// Load all plugin data: installed, available from marketplaces, sources
 #[tauri::command]
 pub async fn load_plugins() -> Result<PluginsData, String> {
@@ -190,6 +203,8 @@ pub async fn load_plugins() -> Result<PluginsData, String> {
 /// Install a plugin from a marketplace
 #[tauri::command]
 pub async fn install_plugin(name: String, marketplace: String) -> Result<(), String> {
+    validate_plugin_name(&name, "plugin name")?;
+    validate_plugin_name(&marketplace, "marketplace")?;
     tokio::task::spawn_blocking(move || {
         let base = super::plugins_dir();
 
@@ -315,6 +330,8 @@ pub async fn install_plugin(name: String, marketplace: String) -> Result<(), Str
 /// Uninstall a plugin
 #[tauri::command]
 pub async fn uninstall_plugin(name: String, marketplace: String) -> Result<(), String> {
+    validate_plugin_name(&name, "plugin name")?;
+    validate_plugin_name(&marketplace, "marketplace")?;
     tokio::task::spawn_blocking(move || {
         let base = super::plugins_dir();
         let key = format!("{}@{}", name, marketplace);
@@ -362,6 +379,7 @@ pub async fn add_marketplace(
     source_type: String,
     url: String,
 ) -> Result<(), String> {
+    validate_plugin_name(&name, "marketplace name")?;
     tokio::task::spawn_blocking(move || {
         let base = super::plugins_dir();
         let target_dir = base.join("marketplaces").join(&name);
@@ -433,6 +451,7 @@ pub async fn add_marketplace(
 /// Remove a marketplace source
 #[tauri::command]
 pub async fn remove_marketplace(name: String) -> Result<(), String> {
+    validate_plugin_name(&name, "marketplace name")?;
     tokio::task::spawn_blocking(move || {
         let base = super::plugins_dir();
 

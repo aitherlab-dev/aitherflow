@@ -163,7 +163,10 @@ pub fn run() {
                     agents::ensure_agents_file();
 
                     telegram::is_enabled()
-                }).await.unwrap_or(false);
+                }).await.unwrap_or_else(|e| {
+                    eprintln!("[aitherflow] Setup task panicked: {e}");
+                    false
+                });
 
                 if tg_enabled {
                     match telegram::commands::start_telegram_bot().await {
@@ -177,5 +180,8 @@ pub fn run() {
             Ok(())
         })
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .unwrap_or_else(|e| {
+            eprintln!("[aitherflow] Fatal: failed to run application: {e}");
+            std::process::exit(1);
+        });
 }

@@ -1,19 +1,23 @@
 use rusqlite::Connection;
 use serde_json::Value;
-use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
 use super::db;
 
-/// Compute a fast content hash for a list of messages.
+/// Compute a deterministic content hash (FNV-1a) for a list of messages.
+/// Uses a fixed algorithm so hashes are stable across restarts.
 fn compute_content_hash(messages: &[(String, String, String, String)]) -> String {
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    const FNV_OFFSET: u64 = 0xcbf29ce484222325;
+    const FNV_PRIME: u64 = 0x00000100000001B3;
+
+    let mut h = FNV_OFFSET;
     for (_, role, text, ts) in messages {
-        role.hash(&mut hasher);
-        text.hash(&mut hasher);
-        ts.hash(&mut hasher);
+        for b in role.bytes().chain(text.bytes()).chain(ts.bytes()) {
+            h ^= b as u64;
+            h = h.wrapping_mul(FNV_PRIME);
+        }
     }
-    format!("{:016x}", hasher.finish())
+    format!("{:016x}", h)
 }
 
 /// Encode a project path the same way CLI does: slashes → dashes.
