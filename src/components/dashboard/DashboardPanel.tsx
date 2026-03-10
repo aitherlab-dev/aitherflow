@@ -1,8 +1,7 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useMcpStore } from "../../stores/mcpStore";
 import { useSkillStore } from "../../stores/skillStore";
 import { useAgentStore } from "../../stores/agentStore";
-import { TelegramCard } from "./cards/TelegramCard";
 import { McpCard } from "./cards/McpCard";
 import { SkillsCard } from "./cards/SkillsCard";
 import { TokensCard } from "./cards/TokensCard";
@@ -10,10 +9,9 @@ import { TokensCard } from "./cards/TokensCard";
 const EXPANDED_KEY = "aitherflow:dashboard:expanded";
 const ORDER_KEY = "aitherflow:dashboard:order";
 
-const DEFAULT_ORDER = ["telegram", "mcp", "skills", "tokens"];
+const DEFAULT_ORDER = ["mcp", "skills", "tokens"];
 
 const CARD_COMPONENTS: Record<string, React.ComponentType<{ expanded: boolean; onToggle: (id: string) => void }>> = {
-  telegram: TelegramCard,
   mcp: McpCard,
   skills: SkillsCard,
   tokens: TokensCard,
@@ -65,27 +63,6 @@ function findCardAtPoint(
   return null;
 }
 
-/** Mounts children with expanded=false, then flips to true on next frame for animation */
-const AnimatedContentItem = memo(function AnimatedContentItem({
-  Component,
-  onToggle,
-}: {
-  Component: React.ComponentType<{ expanded: boolean; onToggle: (id: string) => void }>;
-  onToggle: (id: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-
-  useLayoutEffect(() => {
-    requestAnimationFrame(() => setOpen(true));
-  }, []);
-
-  return (
-    <div className="dash-content-item">
-      <Component expanded={open} onToggle={onToggle} />
-    </div>
-  );
-});
-
 export const DashboardPanel = memo(function DashboardPanel() {
   const [expandedCards, setExpandedCards] = useState<Set<string>>(loadExpandedCards);
   const [cardOrder, setCardOrder] = useState<string[]>(loadOrder);
@@ -120,12 +97,6 @@ export const DashboardPanel = memo(function DashboardPanel() {
       skillsLoad(projectPath).catch(console.error);
     }
   }, [skillsLoaded, skillsLoad]);
-
-  // Expanded cards in cardOrder order (for content area)
-  const expandedList = useMemo(
-    () => cardOrder.filter((id) => expandedCards.has(id)),
-    [cardOrder, expandedCards],
-  );
 
   const handleToggle = useCallback((id: string) => {
     setExpandedCards((prev) => {
@@ -194,24 +165,7 @@ export const DashboardPanel = memo(function DashboardPanel() {
 
   return (
     <div className="dash-panel">
-      {/* Expanded content area — above the button grid */}
-      {expandedList.length > 0 && (
-        <div className="dash-content-area">
-          {expandedList.map((id) => {
-            const Component = CARD_COMPONENTS[id];
-            if (!Component) return null;
-            return (
-              <AnimatedContentItem
-                key={id}
-                Component={Component}
-                onToggle={handleToggle}
-              />
-            );
-          })}
-        </div>
-      )}
-
-      {/* Button grid — always stays in place */}
+      {/* Card list — each card expands/collapses in place */}
       <div className="dash-grid" ref={gridRef}>
         {cardOrder.map((id) => {
           const Component = CARD_COMPONENTS[id];
@@ -228,7 +182,7 @@ export const DashboardPanel = memo(function DashboardPanel() {
               onPointerUp={handlePointerUp}
               className={`dash-btn-wrapper${isActive ? " dash-btn-wrapper--active" : ""}${isDragging ? " dash-btn-wrapper--dragging" : ""}${isDropTarget ? " dash-btn-wrapper--drop-target" : ""}`}
             >
-              <Component expanded={false} onToggle={handleToggle} />
+              <Component expanded={isActive} onToggle={handleToggle} />
             </div>
           );
         })}

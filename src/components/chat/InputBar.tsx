@@ -1,9 +1,8 @@
 import { memo, useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { Plus, RotateCcw, Star, Mic, MicOff, ArrowUp, Square, MessageSquarePlus, Sparkles, Brain, Zap, Loader2, Slash } from "lucide-react";
+import { Plus, RotateCcw, Star, Mic, MicOff, ArrowUp, Square, MessageSquarePlus, Sparkles, Brain, Zap, Loader2 } from "lucide-react";
 import { openDialog } from "../../lib/transport";
-import { useChatStore, getToolLabel, selectRecentTools } from "../../stores/chatStore";
+import { useChatStore } from "../../stores/chatStore";
 import { sendMessage, stopGeneration, newChat, restartSession, switchPermissionMode } from "../../stores/chatService";
-import { useShallow } from "zustand/react/shallow";
 import { useAttachmentStore } from "../../stores/attachmentStore";
 import { useFileAttach } from "../../hooks/useFileAttach";
 import { usePasteHandler } from "../../hooks/usePasteHandler";
@@ -36,9 +35,9 @@ export const InputBar = memo(function InputBar() {
   const [commandsMenuRect, setCommandsMenuRect] = useState<DOMRect | null>(null);
   const modelBtnRef = useRef<HTMLButtonElement>(null);
   const skillsBtnRef = useRef<HTMLButtonElement>(null);
-  const commandsBtnRef = useRef<HTMLButtonElement>(null);
   const { attachments, processFromPaths, addAttachment, removeAttachment, clearAttachments } = useFileAttach();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
   const isThinking = useChatStore((s) => s.isThinking);
   const selectedModel = useConductorStore((s) => s.selectedModel);
   const selectedEffort = useConductorStore((s) => s.selectedEffort);
@@ -46,7 +45,6 @@ export const InputBar = memo(function InputBar() {
   const activeModel = useConductorStore((s) => s.model);
   const hasSession = useChatStore((s) => s.hasSession);
   const planMode = useChatStore((s) => s.planMode);
-
   // Voice input — insert appends, replace overwrites (for streaming interim)
   const handleVoiceInsert = useCallback((transcribed: string) => {
     setText((prev) => (prev ? prev + " " + transcribed : transcribed));
@@ -85,8 +83,6 @@ export const InputBar = memo(function InputBar() {
     }
     return selectedModel.charAt(0).toUpperCase() + selectedModel.slice(1);
   }, [hasSession, activeModel, selectedModel]);
-
-  const recentTools = useChatStore(useShallow(selectRecentTools));
 
   // Auto-resize textarea
   useEffect(() => {
@@ -185,6 +181,7 @@ export const InputBar = memo(function InputBar() {
 
   return (
     <div
+      ref={barRef}
       className={`input-bar ${isDragOver ? "input-bar-dragover" : ""}`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -200,7 +197,15 @@ export const InputBar = memo(function InputBar() {
         <textarea
           ref={textareaRef}
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => {
+            const val = e.target.value;
+            setText(val);
+            if (val === "/" && hasSession && barRef.current && !commandsMenuRect) {
+              setCommandsMenuRect(barRef.current.getBoundingClientRect());
+            } else if (!val.startsWith("/") && commandsMenuRect) {
+              setCommandsMenuRect(null);
+            }
+          }}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           placeholder="Message..."
@@ -229,21 +234,6 @@ export const InputBar = memo(function InputBar() {
               >
                 <RotateCcw size={16} />
               </button>
-              <button
-                ref={commandsBtnRef}
-                className="input-bar-btn"
-                title="CLI commands"
-                aria-label="CLI commands"
-                onClick={() => {
-                  if (commandsMenuRect) {
-                    setCommandsMenuRect(null);
-                  } else if (commandsBtnRef.current) {
-                    setCommandsMenuRect(commandsBtnRef.current.getBoundingClientRect());
-                  }
-                }}
-              >
-                <Slash size={16} />
-              </button>
             </>
           )}
           {hasSession && (
@@ -252,14 +242,6 @@ export const InputBar = memo(function InputBar() {
             </span>
           )}
           <ThinkingIndicator />
-        </div>
-        <div className="input-bar-cell input-bar-cell--status">
-          {recentTools[0] && (
-            <div className={`tool-status ${recentTools[0].result !== undefined ? "tool-status--done" : ""}`}>
-              <span className="tool-status-dot" />
-              <span className="tool-status-text">{getToolLabel(recentTools[0])}</span>
-            </div>
-          )}
         </div>
         <div className="input-bar-cell input-bar-cell--btns input-bar-cell--end">
           {isThinking ? (
@@ -349,14 +331,6 @@ export const InputBar = memo(function InputBar() {
             </span>
           </button>
         </div>
-        <div className="input-bar-cell input-bar-cell--status">
-          {recentTools[1] && (
-            <div className={`tool-status ${recentTools[1].result !== undefined ? "tool-status--done" : ""}`}>
-              <span className="tool-status-dot" />
-              <span className="tool-status-text">{getToolLabel(recentTools[1])}</span>
-            </div>
-          )}
-        </div>
         <div className="input-bar-cell input-bar-cell--btns input-bar-cell--end">
           <button
             ref={skillsBtnRef}
@@ -391,7 +365,10 @@ export const InputBar = memo(function InputBar() {
       {commandsMenuRect && (
         <CommandsMenu
           anchorRect={commandsMenuRect}
-          onClose={() => setCommandsMenuRect(null)}
+          onClose={() => {
+            setCommandsMenuRect(null);
+            if (text === "/") setText("");
+          }}
         />
       )}
     </div>

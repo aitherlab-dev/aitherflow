@@ -225,7 +225,6 @@ export function selectToolCount(s: ChatState): number {
 
 /** Last 2 tool activities from the latest assistant message (for InputBar). */
 export function selectRecentTools(s: ChatState): ToolActivity[] {
-  if (!s.isThinking) return [];
   if (s.streamingMessage?.role === "assistant" && s.streamingMessage.tools && s.streamingMessage.tools.length > 0) {
     return s.streamingMessage.tools.slice(-2);
   }

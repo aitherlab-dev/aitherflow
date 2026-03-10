@@ -291,66 +291,6 @@
   opacity: 0.3;
 }
 
-/* ── Agent Log resize handle ── */
-
-.fv-log-resize-handle {
-  flex-shrink: 0;
-  height: 4px;
-  cursor: row-resize;
-  background: var(--border);
-  transition: background 0.15s;
-}
-
-.fv-log-resize-handle:hover {
-  background: var(--fg-dim);
-}
-
-/* ── FileViewer Status Bar ── */
-
-.fv-statusbar {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  padding: 0 8px;
-  height: 26px;
-  border-top: 1px solid var(--border);
-  background: var(--bg-hard);
-}
-
-.fv-statusbar__btn {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 0;
-  background: none;
-  border: none;
-  color: var(--fg-dim);
-  font-size: 0.7rem;
-  cursor: pointer;
-  transition: color 0.15s;
-}
-
-.fv-statusbar__btn:hover {
-  color: var(--fg-muted);
-}
-
-.fv-statusbar__btn--active {
-  color: var(--fg-muted);
-}
-
-.fv-statusbar__badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 16px;
-  height: 14px;
-  padding: 0 4px;
-  border-radius: 7px;
-  background: var(--bg-hover);
-  font-size: 0.62rem;
-  font-weight: 600;
-  color: var(--fg-muted);
-}
 
 /* ── Code viewer ── */
 

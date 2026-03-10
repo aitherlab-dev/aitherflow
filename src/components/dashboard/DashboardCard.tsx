@@ -34,7 +34,7 @@ export const DashboardCard = memo(function DashboardCard({
   return (
     <div
       className={`dash-card ${expanded ? "dash-card--expanded" : ""}`}
-      onClick={() => onToggle(id)}
+      onClick={(e) => { if (!e.shiftKey) onToggle(id); }}
     >
       <div className="dash-card__header">
         <Icon size={14} className="dash-card__icon" />

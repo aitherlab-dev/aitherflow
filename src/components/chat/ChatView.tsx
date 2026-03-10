@@ -1,6 +1,7 @@
 import { memo, useCallback, useRef, useState } from "react";
 import { MessageList } from "./MessageList";
 import { InputBar } from "./InputBar";
+import { TaskBar } from "./TaskBar";
 import { useChatStore } from "../../stores/chatStore";
 import { useAttachmentStore } from "../../stores/attachmentStore";
 
@@ -62,6 +63,7 @@ export const ChatView = memo(function ChatView() {
           <div className="chat-error">{error}</div>
         )}
         <InputBar />
+        <TaskBar />
       </div>
     </div>
   );

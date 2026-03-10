@@ -1157,7 +1157,7 @@
 
 .dash-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 8px;
 }
 
@@ -1200,27 +1200,10 @@
   overflow: hidden;
 }
 
-/* ── Content area (above buttons) ── */
-
-.dash-content-area {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 8px;
-}
-
-.dash-content-item .dash-card {
-  cursor: default;
-  background: var(--tab-bg-hover);
-  border-color: var(--accent);
-}
-
-/* collapse animation handled by --open class from DashboardCard */
-
 /* ── Button grid (always in place) ── */
 
 .dash-btn-wrapper .dash-card__collapse {
-  display: none;
+  display: grid;
 }
 
 .dash-btn-wrapper {

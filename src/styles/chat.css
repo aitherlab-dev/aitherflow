@@ -560,7 +560,8 @@
 
 .input-bar-bottom {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto auto;
+  justify-content: space-between;
   align-items: center;
   gap: 10px 12px;
   padding: 10px 12px 12px;
@@ -582,11 +583,99 @@
   min-width: 36px;
 }
 
-.input-bar-cell--status {
-  min-width: 0;
-  overflow: hidden;
+
+/* ── TaskBar below input bar ── */
+
+.taskbar {
   display: flex;
-  justify-content: flex-end;
+  flex-direction: column;
+  padding: 4px 12px 6px;
+}
+
+.taskbar__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 0;
+}
+
+.taskbar__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.taskbar__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--fg-dim);
+  flex-shrink: 0;
+}
+
+.taskbar__dot--active {
+  background: var(--accent);
+  animation: tool-pulse 1.5s ease-in-out infinite;
+}
+
+.taskbar__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+.taskbar__count {
+  font-size: 0.7rem;
+  color: var(--fg-dim);
+}
+
+.taskbar__toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--fg-dim);
+  font-size: 0.7rem;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.taskbar__toggle:hover {
+  color: var(--fg);
+  border-color: var(--fg-dim);
+}
+
+.taskbar__toggle--active {
+  color: var(--accent-icon);
+  border-color: var(--accent);
+}
+
+.taskbar__badge {
+  font-size: 0.65rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.taskbar__recent {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 0;
+}
+
+.taskbar__recent .tool-status {
+  flex-direction: row;
+  justify-content: flex-start;
+}
+
+.taskbar__list {
+  max-height: 200px;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
 .input-bar-textarea {
@@ -815,63 +904,6 @@
 /* ═══════════════════════════════════════════
    Agent Log Panel
    ═══════════════════════════════════════════ */
-
-/* ── Agent Log Panel ── */
-
-.agent-log {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  border-top: 1px solid var(--border);
-  background: var(--bg-hard);
-  overflow: hidden;
-}
-
-.agent-log-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  border-bottom: 1px solid var(--border);
-}
-
-.agent-log-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--fg-dim);
-  flex-shrink: 0;
-}
-
-.agent-log-dot--active {
-  background: var(--accent);
-  animation: tool-pulse 1.5s ease-in-out infinite;
-}
-
-.agent-log-title {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--fg);
-}
-
-.agent-log-count {
-  font-size: 0.7rem;
-  color: var(--fg-dim);
-}
-
-.agent-log-body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  scrollbar-width: thin;
-}
-
-.agent-log-empty {
-  padding: 16px;
-  text-align: center;
-  font-size: 0.75rem;
-  color: var(--fg-dim);
-}
 
 /* ── Tool Card ── */
 
