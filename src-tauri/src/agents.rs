@@ -80,10 +80,6 @@ pub async fn save_agents(
 pub fn ensure_agents_file() {
     let path = agents_path();
 
-    if path.exists() {
-        return;
-    }
-
     let config = AgentsConfig {
         active_agent_id: None,
         agents: vec![],
