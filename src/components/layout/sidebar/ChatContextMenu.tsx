@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef, useState } from "react";
+import { useClickOutside } from "../../../hooks/useClickOutside";
 import { createPortal } from "react-dom";
 import { Pencil, Pin, Trash2 } from "lucide-react";
 import type { ChatMeta } from "../../../stores/chatStore";
@@ -37,20 +38,7 @@ export const ChatContextMenu = memo(function ChatContextMenu({
     setPos({ x: nx, y: ny });
   }, [x, y]);
 
-  useEffect(() => {
-    const handle = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
-    };
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.code === "Escape") onClose();
-    };
-    document.addEventListener("mousedown", handle);
-    document.addEventListener("keydown", handleKey);
-    return () => {
-      document.removeEventListener("mousedown", handle);
-      document.removeEventListener("keydown", handleKey);
-    };
-  }, [onClose]);
+  useClickOutside(ref, onClose);
 
   return createPortal(
     <div ref={ref} className="chat-context-menu" style={{ left: pos.x, top: pos.y }}>

@@ -1,4 +1,4 @@
-import { memo, useRef, useEffect, useCallback, useMemo } from "react";
+import { memo, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { Star } from "lucide-react";
 import { useSkillStore } from "../../stores/skillStore";
@@ -6,6 +6,7 @@ import { useAgentStore } from "../../stores/agentStore";
 import { sendMessage } from "../../stores/chatService";
 import { useTranslationStore } from "../../stores/translationStore";
 import type { SkillEntry } from "../../types/skills";
+import { useClickOutside } from "../../hooks/useClickOutside";
 
 interface SkillsMenuProps {
   anchorRect: DOMRect;
@@ -30,23 +31,7 @@ export const SkillsMenu = memo(function SkillsMenu({
   );
   const translations = useTranslationStore((s) => s.cache.entries);
 
-  // Close on click outside or Escape
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        onClose();
-      }
-    };
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.code === "Escape") onClose();
-    };
-    document.addEventListener("mousedown", handleClick, { capture: true });
-    document.addEventListener("keydown", handleKey);
-    return () => {
-      document.removeEventListener("mousedown", handleClick, { capture: true });
-      document.removeEventListener("keydown", handleKey);
-    };
-  }, [onClose]);
+  useClickOutside(menuRef, onClose, true);
 
   const handleSkillClick = useCallback(
     (skill: SkillEntry) => {

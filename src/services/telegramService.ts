@@ -192,6 +192,8 @@ async function handleText(msg: TgIncoming): Promise<void> {
         size: result.size,
         fileType: result.fileType as "image" | "text",
       });
+      // Clean up temp file after reading into memory
+      invoke("delete_file", { path: msg.attachment_path }).catch(console.error);
     } catch (e) {
       console.error("[TG] Failed to process attachment:", e);
     }

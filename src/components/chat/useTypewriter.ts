@@ -7,9 +7,9 @@ import { useState, useRef, useEffect, useCallback } from "react";
  */
 export function useTypewriter(targetText: string, isActive: boolean): string {
   // Start from current length on mount so re-mount doesn't replay from zero
-  const [visibleLen, setVisibleLen] = useState(() => isActive ? targetText.length : 0);
+  const [visibleLen, setVisibleLen] = useState(targetText.length);
   const targetLenRef = useRef(0);
-  const visibleLenRef = useRef(isActive ? targetText.length : 0);
+  const visibleLenRef = useRef(targetText.length);
   const rafRef = useRef<number | null>(null);
   const lastFlushRef = useRef(0);
 

@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef, useState } from "react";
+import { useClickOutside } from "../../../hooks/useClickOutside";
 import { createPortal } from "react-dom";
 import {
   Copy,
@@ -36,23 +37,7 @@ export const FileContextMenu = memo(function FileContextMenu({
 }) {
   const ref = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        onClose();
-      }
-    };
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.code === "Escape") onClose();
-    };
-    // Use capture so this fires before onClick handlers on buttons
-    document.addEventListener("mousedown", handleClick);
-    document.addEventListener("keydown", handleKey);
-    return () => {
-      document.removeEventListener("mousedown", handleClick);
-      document.removeEventListener("keydown", handleKey);
-    };
-  }, [onClose]);
+  useClickOutside(ref, onClose);
 
   // Adjust position so menu doesn't overflow viewport
   const [pos, setPos] = useState({ x: menu.x, y: menu.y });

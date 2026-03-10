@@ -292,6 +292,8 @@ function sanitizeHljsNode(source: Node, target: Node) {
   }
 }
 
+const sharedParser = new DOMParser();
+
 const LineContent = memo(function LineContent({ html }: { html: string }) {
   const ref = useRef<HTMLElement>(null);
 
@@ -302,7 +304,7 @@ const LineContent = memo(function LineContent({ html }: { html: string }) {
         ref.current.appendChild(document.createTextNode("\u00a0"));
         return;
       }
-      const doc = new DOMParser().parseFromString(html, "text/html");
+      const doc = sharedParser.parseFromString(html, "text/html");
       sanitizeHljsNode(doc.body, ref.current);
     }
   }, [html]);

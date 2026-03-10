@@ -1,7 +1,8 @@
-import { memo, useState, useRef, useEffect, useCallback } from "react";
+import { memo, useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronRight } from "lucide-react";
 import { useConductorStore } from "../../stores/conductorStore";
+import { useClickOutside } from "../../hooks/useClickOutside";
 
 interface ModelDef {
   id: string;
@@ -36,26 +37,7 @@ export const ModelMenu = memo(function ModelMenu({ anchorRect, onClose }: ModelM
   const [effortFor, setEffortFor] = useState<string | null>(null);
   const [subPos, setSubPos] = useState<{ x: number; y: number } | null>(null);
 
-  // Close on click outside or Escape
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (
-        menuRef.current && !menuRef.current.contains(e.target as Node) &&
-        (!subRef.current || !subRef.current.contains(e.target as Node))
-      ) {
-        onClose();
-      }
-    };
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.code === "Escape") onClose();
-    };
-    document.addEventListener("mousedown", handleClick, { capture: true });
-    document.addEventListener("keydown", handleKey);
-    return () => {
-      document.removeEventListener("mousedown", handleClick, { capture: true });
-      document.removeEventListener("keydown", handleKey);
-    };
-  }, [onClose]);
+  useClickOutside([menuRef, subRef], onClose, true);
 
   // Position menu above the anchor button
   const menuStyle: React.CSSProperties = {

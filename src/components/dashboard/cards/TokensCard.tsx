@@ -9,12 +9,7 @@ function formatTokens(n: number): string {
   return String(n);
 }
 
-const USAGE_COLORS = {
-  green: "var(--status-green)",
-  orange: "var(--status-orange)",
-  red: "var(--status-red)",
-  gray: "var(--fg-dim)",
-} as const;
+const COLOR_INACTIVE = "var(--fg-dim)";
 
 function getUsageColor(tokens: number): string {
   if (tokens >= 150_000) return "var(--status-red)";
@@ -46,7 +41,7 @@ export const TokensCard = memo(function TokensCard({
 
   const barColor = contextUsed > 0
     ? getUsageColor(contextUsed)
-    : USAGE_COLORS.gray;
+    : COLOR_INACTIVE;
 
   return (
     <DashboardCard

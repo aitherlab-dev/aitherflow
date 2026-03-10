@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { invoke, convertFileSrc } from "../lib/transport";
+import { invoke } from "../lib/transport";
 import type { FileTab, FileDiff, DiffEdit } from "../types/fileviewer";
 import { isImageFile } from "../types/fileviewer";
 
@@ -474,5 +474,3 @@ async function loadFileTab(
   }
 }
 
-// Re-export convertFileSrc for ImageViewer
-export { convertFileSrc };

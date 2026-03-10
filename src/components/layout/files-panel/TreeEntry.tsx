@@ -1,13 +1,13 @@
-import { memo, useCallback, useRef, useState } from "react";
+import { memo, useCallback } from "react";
 import {
   Folder,
   FolderOpen,
   File,
   ChevronRight,
 } from "lucide-react";
-import { useAttachmentStore } from "../../../stores/attachmentStore";
 import type { FileEntry } from "../../../types/files";
 import { InlineNameInput } from "./InlineNameInput";
+import { useFileEntryClick } from "../../../hooks/useFileEntryClick";
 
 export const TreeEntry = memo(function TreeEntry({
   entry,
@@ -35,38 +35,9 @@ export const TreeEntry = memo(function TreeEntry({
   children?: React.ReactNode;
 }) {
   const isRenaming = renamingPath === entry.path;
-  const [flash, setFlash] = useState(false);
-  const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const handleClick = useCallback(() => {
-    if (entry.isDir) {
-      onToggle(entry.path);
-      return;
-    }
-    // Single click with delay to detect double click
-    if (clickTimer.current) {
-      clearTimeout(clickTimer.current);
-      clickTimer.current = null;
-      onFileDblClick(entry.path);
-    } else {
-      clickTimer.current = setTimeout(() => {
-        clickTimer.current = null;
-        onFileClick(entry.path);
-        setFlash(true);
-        setTimeout(() => setFlash(false), 400);
-      }, 250);
-    }
-  }, [entry.isDir, entry.path, onToggle, onFileClick, onFileDblClick]);
-
-  const handleDragStart = useCallback((e: React.DragEvent) => {
-    e.dataTransfer.setData("text/plain", entry.path);
-    e.dataTransfer.effectAllowed = "copy";
-    useAttachmentStore.getState().setDragPath(entry.path);
-  }, [entry.path]);
-
-  const handleDragEnd = useCallback(() => {
-    useAttachmentStore.getState().setDragPath(null);
-  }, []);
+  const { flash, handleClick, handleDragStart, handleDragEnd } = useFileEntryClick(
+    entry.path, entry.isDir, onToggle, onFileClick, onFileDblClick,
+  );
 
   const handleContextMenu = useCallback(
     (e: React.MouseEvent) => onContextMenu(e, entry),

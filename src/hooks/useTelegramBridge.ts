@@ -19,22 +19,33 @@ export function useTelegramBridge() {
   const prevIsThinking = useRef(false);
   const abortRef = useRef(false);
 
-  // Poll incoming messages
+  // Poll incoming messages — fast (1s) when bot is running, slow (10s) when idle
   useEffect(() => {
     abortRef.current = false;
-    let timer: ReturnType<typeof setInterval> | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let botActive = false;
 
-    function poll() {
+    async function poll() {
       if (abortRef.current) return;
-      pollAndHandle().catch(console.error);
+      try {
+        const { isBotRunning } = await import("../services/telegramService");
+        const running = await isBotRunning();
+        botActive = running;
+        if (running) await pollAndHandle();
+      } catch (e) {
+        console.error("[TG] poll:", e);
+      }
+      if (!abortRef.current) {
+        timer = setTimeout(poll, botActive ? 1000 : 10000);
+      }
     }
 
-    timer = setInterval(poll, 1000);
+    timer = setTimeout(poll, 1000);
 
     return () => {
       abortRef.current = true;
       if (timer) {
-        clearInterval(timer);
+        clearTimeout(timer);
         timer = null;
       }
     };

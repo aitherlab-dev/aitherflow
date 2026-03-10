@@ -20,6 +20,9 @@ import { cancelStreamRaf, clearToolActivityTimer, syncThinkingIds } from "./chat
 
 // ── Helpers ──
 
+/** Guard to prevent duplicate chat creation on double-click Send */
+let isCreatingChat = false;
+
 function generateTitle(text: string): string {
   const max = 30;
   const singleLine = text.replace(/\n/g, " ").trim();
@@ -75,19 +78,25 @@ export async function sendMessage(text: string, allAttachments?: Attachment[]) {
   useChatStore.setState({ messages: [...state.messages, userMsg], error: null, isThinking: true });
 
   try {
-    // Lazy chat creation: create on first message
+    // Lazy chat creation: create on first message (guard against double-click)
     if (!chatId) {
-      const title = generateTitle(text);
-      const chat = await invoke<ChatMeta>("create_chat", {
-        projectPath: state.projectPath,
-        agentId: state.agentId,
-        title,
-      });
-      chatId = chat.id;
-      useChatStore.setState({ currentChatId: chatId });
-      useAgentStore.getState().updateChatLock(state.agentId, chatId);
-      useProjectStore.getState().setLastOpened(state.projectPath, chatId).catch(console.error);
-      loadChatList().catch(console.error);
+      if (isCreatingChat) return;
+      isCreatingChat = true;
+      try {
+        const title = generateTitle(text);
+        const chat = await invoke<ChatMeta>("create_chat", {
+          projectPath: state.projectPath,
+          agentId: state.agentId,
+          title,
+        });
+        chatId = chat.id;
+        useChatStore.setState({ currentChatId: chatId });
+        useAgentStore.getState().updateChatLock(state.agentId, chatId);
+        useProjectStore.getState().setLastOpened(state.projectPath, chatId).catch(console.error);
+        loadChatList().catch(console.error);
+      } finally {
+        isCreatingChat = false;
+      }
     }
 
     // Convert image attachments to payload format for Rust
@@ -182,10 +191,9 @@ export async function switchPermissionMode(mode: "default" | "plan") {
     console.error("Failed to stop session for mode switch:", e);
   }
 
-  // Wait for hasSession to become false (processExited), max 2s
+  // Wait for hasSession to become false (processExited), max 5s
   if (useChatStore.getState().hasSession) {
     await new Promise<void>((resolve) => {
-      const timeout = setTimeout(() => { unsub(); resolve(); }, 2000);
       const unsub = useChatStore.subscribe((s) => {
         if (!s.hasSession) {
           clearTimeout(timeout);
@@ -193,6 +201,12 @@ export async function switchPermissionMode(mode: "default" | "plan") {
           resolve();
         }
       });
+      const timeout = setTimeout(() => {
+        unsub();
+        // Force-clear session state if CLI didn't exit in time
+        useChatStore.setState({ hasSession: false });
+        resolve();
+      }, 5000);
     });
   }
 

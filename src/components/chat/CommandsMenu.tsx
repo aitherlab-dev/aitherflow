@@ -1,4 +1,4 @@
-import { memo, useRef, useEffect, useCallback, useMemo } from "react";
+import { memo, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { Terminal } from "lucide-react";
 import { useConductorStore } from "../../stores/conductorStore";
@@ -6,6 +6,7 @@ import { sendMessage } from "../../stores/chatService";
 import { useSkillStore } from "../../stores/skillStore";
 import { useTranslationStore } from "../../stores/translationStore";
 import { COMMAND_DESCRIPTIONS } from "../../data/commandDescriptions";
+import { useClickOutside } from "../../hooks/useClickOutside";
 
 interface CommandsMenuProps {
   anchorRect: DOMRect;
@@ -29,22 +30,7 @@ export const CommandsMenu = memo(function CommandsMenu({
     return allCommands.filter((cmd) => !skillCommands.has(cmd));
   }, [allCommands, allSkills]);
 
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        onClose();
-      }
-    };
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.code === "Escape") onClose();
-    };
-    document.addEventListener("mousedown", handleClick, { capture: true });
-    document.addEventListener("keydown", handleKey);
-    return () => {
-      document.removeEventListener("mousedown", handleClick, { capture: true });
-      document.removeEventListener("keydown", handleKey);
-    };
-  }, [onClose]);
+  useClickOutside(menuRef, onClose, true);
 
   const handleCommandClick = useCallback(
     (cmd: string) => {
