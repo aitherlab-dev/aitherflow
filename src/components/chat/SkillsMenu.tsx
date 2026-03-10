@@ -1,7 +1,8 @@
-import { memo, useRef, useEffect, useCallback } from "react";
+import { memo, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { Star } from "lucide-react";
 import { useSkillStore } from "../../stores/skillStore";
+import { useAgentStore } from "../../stores/agentStore";
 import { sendMessage } from "../../stores/chatService";
 import { useTranslationStore } from "../../stores/translationStore";
 import type { SkillEntry } from "../../types/skills";
@@ -17,7 +18,16 @@ export const SkillsMenu = memo(function SkillsMenu({
 }: SkillsMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const getFavorites = useSkillStore((s) => s.getFavorites);
-  const favorites = getFavorites();
+  const allFavorites = getFavorites();
+  const activeProjectPath = useAgentStore(
+    (s) => s.agents.find((a) => a.id === s.activeAgentId)?.projectPath,
+  );
+  const favorites = useMemo(
+    () => allFavorites.filter((s) =>
+      s.source.type !== "project" || s.source.projectPath === activeProjectPath,
+    ),
+    [allFavorites, activeProjectPath],
+  );
   const translations = useTranslationStore((s) => s.cache.entries);
 
   // Close on click outside or Escape

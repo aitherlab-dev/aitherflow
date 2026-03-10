@@ -107,6 +107,9 @@ export const SkillsCard = memo(function SkillsCard({
   const toggleFavorite = useSkillStore((s) => s.toggleFavorite);
 
   const activeAgentId = useAgentStore((s) => s.activeAgentId);
+  const activeProjectPath = useAgentStore(
+    (s) => s.agents.find((a) => a.id === s.activeAgentId)?.projectPath,
+  );
   const openSettings = useLayoutStore((s) => s.openSettings);
 
   const hasActiveAgent = Boolean(activeAgentId);
@@ -114,8 +117,11 @@ export const SkillsCard = memo(function SkillsCard({
     () => plugins.flatMap((pg: PluginSkillGroup) => pg.skills),
     [plugins],
   );
-  const projectSkillCount = projectGroups.reduce((n, pg) => n + pg.skills.length, 0);
-  const total = global.length + projectSkillCount + pluginSkills.length;
+  const activeProjectSkills = useMemo(
+    () => projectGroups.filter((pg) => pg.projectPath === activeProjectPath).flatMap((pg) => pg.skills),
+    [projectGroups, activeProjectPath],
+  );
+  const total = global.length + activeProjectSkills.length + pluginSkills.length;
 
   const favorites = useMemo(() => getFavorites(), [getFavorites, favoriteIds, global, projectGroups, plugins]);
 
@@ -188,8 +194,8 @@ export const SkillsCard = memo(function SkillsCard({
           ))}
         </SkillSection>
 
-        <SkillSection label="Project" count={projectGroups.reduce((n, pg) => n + pg.skills.length, 0)}>
-          {projectGroups.flatMap((pg) => pg.skills).map((s: SkillEntry) => (
+        <SkillSection label="Project" count={activeProjectSkills.length}>
+          {activeProjectSkills.map((s: SkillEntry) => (
             <SkillRowMini
               key={s.id}
               skill={s}
