@@ -160,7 +160,7 @@ pub async fn get_session_usage(
 ) -> Result<serde_json::Value, String> {
     tokio::task::spawn_blocking(move || {
         let home = crate::config::home_dir();
-        let encoded = crate::memory::indexer::encode_project_path(&project_path);
+        let encoded = project_path.replace(['/', '.', '_'], "-");
         let jsonl_path = home
             .join(".claude")
             .join("projects")

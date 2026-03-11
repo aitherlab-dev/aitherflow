@@ -96,16 +96,6 @@ pub async fn run_cli_session(
         args.push("--chrome".into());
     }
 
-    // Attach built-in memory MCP server if binary is available
-    // build_memory_mcp_config calls find_memory_binary which may run `which` (blocking I/O)
-    let pp_clone = project_path.clone();
-    if let Ok(Some(mcp_config)) = tokio::task::spawn_blocking(move || {
-        build_memory_mcp_config(pp_clone.as_deref())
-    }).await {
-        args.push("--mcp-config".into());
-        args.push(mcp_config);
-    }
-
     // Build command
     let mut cmd = Command::new("claude");
     cmd.args(&args)
@@ -253,14 +243,6 @@ pub async fn run_cli_session(
         // (CLI writes debug info to stderr with --verbose, which is normal)
     }
 
-    // Trigger background re-indexing for this project
-    if let Some(ref pp) = project_path {
-        let pp = pp.clone();
-        tokio::task::spawn_blocking(move || {
-            crate::memory::background_index(&pp);
-        });
-    }
-
     // Try to capture exit code before cleanup
     let exit_code = sessions.try_exit_code(&agent_id).await;
 
@@ -358,71 +340,3 @@ pub fn build_control_response(
     serde_json::to_string(&msg).map_err(|e| format!("Failed to serialize control_response: {e}"))
 }
 
-/// Try to find the aither-flow-memory binary.
-/// Checks: next to the current executable (with and without target triple), then in PATH.
-fn find_memory_binary() -> Option<String> {
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            // Production: Tauri externalBin adds target triple suffix
-            let target_triple = format!(
-                "{}-unknown-linux-gnu",
-                std::env::consts::ARCH
-            );
-            let sidecar = dir.join(format!("aither-flow-memory-{target_triple}"));
-            if sidecar.exists() {
-                return Some(sidecar.to_string_lossy().into_owned());
-            }
-
-            // Dev mode: cargo workspace puts both binaries in target/debug/
-            let dev = dir.join("aither-flow-memory");
-            if dev.exists() {
-                return Some(dev.to_string_lossy().into_owned());
-            }
-        }
-    }
-
-    // Fallback: check in PATH
-    if let Ok(output) = std::process::Command::new("which")
-        .arg("aither-flow-memory")
-        .output()
-    {
-        if output.status.success() {
-            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if !path.is_empty() {
-                return Some(path);
-            }
-        }
-    }
-
-    None
-}
-
-/// Build --mcp-config JSON string for the memory MCP server.
-fn build_memory_mcp_config(project_path: Option<&str>) -> Option<String> {
-    let binary = find_memory_binary()?;
-    let db_path = crate::memory::memory_db_path();
-    let project = project_path.unwrap_or("unknown");
-
-    let config = serde_json::json!({
-        "mcpServers": {
-            "aither-memory": {
-                "command": binary,
-                "args": [
-                    "--db", db_path.to_string_lossy(),
-                    "--project", project
-                ]
-            }
-        }
-    });
-
-    match serde_json::to_string(&config) {
-        Ok(s) => {
-            eprintln!("[conductor] Memory MCP: {s}");
-            Some(s)
-        }
-        Err(e) => {
-            eprintln!("[conductor] Failed to build MCP config: {e}");
-            None
-        }
-    }
-}

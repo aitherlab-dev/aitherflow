@@ -6,7 +6,6 @@ import { sendMessage, stopGeneration, newChat, switchPermissionMode } from "../.
 import { useAttachmentStore } from "../../stores/attachmentStore";
 import { useFileAttach } from "../../hooks/useFileAttach";
 import { usePasteHandler } from "../../hooks/usePasteHandler";
-import { useTauriDragDrop } from "../../hooks/useTauriDragDrop";
 import { ThinkingIndicator } from "./ThinkingIndicator";
 import { AttachmentList } from "./AttachmentList";
 import { ModelMenu } from "./ModelMenu";
@@ -93,9 +92,6 @@ export const InputBar = memo(function InputBar() {
     }
   }, [text]);
 
-  // Tauri drag-drop
-  const { isDragOver, setIsDragOver } = useTauriDragDrop(processFromPaths);
-
   // Paste handler
   const handlePaste = usePasteHandler(textareaRef, setText, addAttachment);
 
@@ -162,32 +158,11 @@ export const InputBar = memo(function InputBar() {
     [handleSend],
   );
 
-  // DOM drag events (visual feedback only)
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(true);
-  }, [setIsDragOver]);
-
-  const handleDragLeave = useCallback(() => {
-    setIsDragOver(false);
-  }, [setIsDragOver]);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
-  }, [setIsDragOver]);
-
   return (
     <div
       ref={barRef}
-      className={`input-bar ${isDragOver ? "input-bar-dragover" : ""}`}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
+      className="input-bar"
     >
-      {isDragOver && (
-        <div className="input-bar-drop-overlay">Drop files here</div>
-      )}
 
       <AttachmentList attachments={attachments} onRemove={removeAttachment} />
 

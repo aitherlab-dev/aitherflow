@@ -9,15 +9,14 @@ aitherflow — десктопная GUI-обёртка для Claude Code CLI. C
 - **Бэкенд:** Rust / Tauri 2
 - **Фронтенд:** React 19 + TypeScript + Vite + Tailwind CSS v4
 - **Тема:** тёплая палитра (dark: кофейные тона, light: aitherlab.org), CSS-переменные
-- **Данные:** JSON (чаты, настройки), SQLite+FTS5 (session memory)
+- **Данные:** JSON (чаты, настройки)
 - **Платформы:** Linux (macOS планируется)
 
 ## Структура
 
 - `src/components/` — React: `chat/`, `layout/`, `settings/`, `fileviewer/`, `dashboard/`
 - `src/hooks/` — React-хуки, `src/stores/` — Zustand-сторы, `src/types/` — TypeScript-типы
-- `src-tauri/src/` — Tauri-команды + модули: `conductor/` (ядро), `memory/`, `plugins/`, `telegram/`, `voice/`
-- `src-tauri/crates/` — крейты: `memory-mcp`
+- `src-tauri/src/` — Tauri-команды + модули: `conductor/` (ядро), `plugins/`, `telegram/`, `voice/`
 
 ## Команды
 

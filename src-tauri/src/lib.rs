@@ -10,7 +10,6 @@ mod file_watcher;
 mod files;
 mod hooks;
 mod mcp;
-mod memory;
 mod plugins;
 mod projects;
 mod secrets;
@@ -91,11 +90,6 @@ pub fn run() {
             translations::load_translations,
             translations::translate_content,
             translations::clear_translations,
-            memory::memory_search,
-            memory::memory_list_sessions,
-            memory::memory_get_session,
-            memory::memory_stats,
-            memory::memory_index_project,
             voice::recording::voice_start,
             voice::recording::voice_stop,
             voice::groq::voice_transcribe,
@@ -157,9 +151,6 @@ pub fn run() {
                         }
                     }
 
-                    if let Err(e) = memory::init() {
-                        eprintln!("[aitherflow] memory::init failed: {e}");
-                    }
                     attachments::cleanup_old_temp(3600);
                     if let Err(e) = projects::ensure_projects_file() {
                         eprintln!("[aitherflow] ensure_projects_file failed: {e}");

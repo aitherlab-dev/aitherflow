@@ -7,7 +7,6 @@ import {
   FolderOpen,
   Sparkles,
   Languages,
-  Brain,
   Mic,
   Send,
   Cable,
@@ -19,7 +18,6 @@ import { ProjectsSection } from "./ProjectsSection";
 import { GeneralSection } from "./GeneralSection";
 import { SkillsSection } from "./SkillsSection";
 import { LanguageSection } from "./LanguageSection";
-import { MemorySection } from "./MemorySection";
 import { VoiceSection } from "./VoiceSection";
 import { TelegramSection } from "./TelegramSection";
 import { HooksSection } from "./hooks";
@@ -36,7 +34,6 @@ const NAV_ITEMS = [
   { id: "skills", label: "Skills", icon: Sparkles },
   { id: "projects", label: "Projects", icon: FolderOpen },
   { id: "language", label: "Language", icon: Languages },
-  { id: "memory", label: "Memory", icon: Brain },
   { id: "voice", label: "Voice", icon: Mic },
   { id: "telegram", label: "Telegram", icon: Send },
   { id: "claude-md", label: "CLAUDE.MD", icon: FileText },
@@ -110,9 +107,6 @@ function SectionContent({ section }: { section: string }) {
   }
   if (section === "language") {
     return <LanguageSection />;
-  }
-  if (section === "memory") {
-    return <MemorySection />;
   }
   if (section === "voice") {
     return <VoiceSection />;
