@@ -17,7 +17,7 @@ pub(crate) fn get_bot_connection() -> Result<(String, i64, reqwest::Client), Str
         let client = state
             .http_client
             .clone()
-            .unwrap_or_else(reqwest::Client::new);
+            .unwrap_or_else(|| super::HTTP_CLIENT.clone());
         Ok((token, chat_id, client))
     })
 }
@@ -30,7 +30,7 @@ pub(super) async fn bot_loop(
     incoming_tx: mpsc::UnboundedSender<TgIncoming>,
     mut outgoing_rx: mpsc::UnboundedReceiver<TgOutgoing>,
 ) {
-    let client = reqwest::Client::new();
+    let client = super::HTTP_CLIENT.clone();
     let mut update_offset: i64 = 0;
     let mut error_backoff_secs: u64 = 0;
 

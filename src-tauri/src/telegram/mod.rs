@@ -3,7 +3,7 @@ mod bot;
 pub mod commands;
 mod handlers;
 
-use std::sync::Mutex;
+use std::sync::{LazyLock, Mutex};
 
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
@@ -11,6 +11,9 @@ use tokio::sync::mpsc;
 use crate::config;
 use crate::file_ops::atomic_write;
 use crate::secrets;
+
+/// Shared HTTP client — reuses connection pool and TLS state.
+pub(crate) static HTTP_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(reqwest::Client::new);
 
 // ── Public types (shared with frontend via serde) ──
 

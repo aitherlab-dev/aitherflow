@@ -87,7 +87,7 @@ pub async fn start_telegram_bot() -> Result<TelegramStatus, String> {
         .await
         .unwrap_or_default();
 
-    let client = reqwest::Client::new();
+    let client = super::HTTP_CLIENT.clone();
     let me = tg_get_me(&client, &token).await?;
 
     let (incoming_tx, incoming_rx) = mpsc::unbounded_channel::<TgIncoming>();
