@@ -24,9 +24,6 @@ impl EventSink {
         }
     }
 
-    fn tag(&self) -> &str {
-        "conductor"
-    }
 }
 
 /// Configuration for a CLI session.
@@ -51,7 +48,7 @@ pub async fn run_cli_session(
     sessions: SessionManager,
     config: CliSessionConfig,
 ) -> Result<(), String> {
-    let tag = sink.tag();
+    let tag = "conductor";
     let CliSessionConfig {
         agent_id,
         prompt,
