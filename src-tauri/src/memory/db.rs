@@ -85,7 +85,9 @@ pub fn message_count_for_session(conn: &Connection, session_id: &str) -> usize {
         params![session_id],
         |row| row.get::<_, i64>(0),
     )
-    .unwrap_or(0) as usize
+    .unwrap_or(0)
+    .try_into()
+    .unwrap_or(0)
 }
 
 /// Get the stored content hash for a session.

@@ -333,7 +333,9 @@ pub async fn create_chat(
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_millis() as u64;
+            .as_millis()
+            .try_into()
+            .unwrap_or(u64::MAX);
 
         let chat = ChatFile {
             id: id.clone(),

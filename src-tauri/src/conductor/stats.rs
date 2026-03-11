@@ -195,7 +195,7 @@ fn aggregate_cli_stats_inner(days: u32) -> Result<AggregatedStats, String> {
     }
 
     let cutoff = chrono::Utc::now() - chrono::Duration::days(i64::from(days));
-    let cutoff_secs = cutoff.timestamp().max(0) as u64;
+    let cutoff_secs = u64::try_from(cutoff.timestamp().max(0)).unwrap_or(0);
     let cutoff_str = cutoff.format("%Y-%m-%d").to_string();
 
     let mut disk_cache = load_disk_cache();
