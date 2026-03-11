@@ -17,7 +17,7 @@ export interface DiffEdit {
 }
 
 /** Status of a diff from CLI */
-export type DiffStatus = "pending" | "accepted" | "rejected";
+type DiffStatus = "pending" | "accepted" | "rejected";
 
 /** A file diff created by CLI agent (Edit/Write/MultiEdit) */
 export interface FileDiff {

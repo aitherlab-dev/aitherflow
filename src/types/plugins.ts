@@ -43,7 +43,7 @@ export interface AvailablePlugin {
 }
 
 /** Source type for marketplace */
-export type MarketplaceSourceType = "github" | "git";
+type MarketplaceSourceType = "github" | "git";
 
 /** A marketplace source (from known_marketplaces.json) */
 export interface MarketplaceSource {

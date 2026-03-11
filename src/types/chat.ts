@@ -1,5 +1,5 @@
 /** Roles in the chat */
-export type MessageRole = "user" | "assistant";
+type MessageRole = "user" | "assistant";
 
 /** File attachment (image or text) */
 export interface Attachment {
