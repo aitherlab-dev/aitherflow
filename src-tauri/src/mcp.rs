@@ -83,11 +83,6 @@ fn claude_json_path() -> PathBuf {
     crate::config::home_dir().join(".claude.json")
 }
 
-fn read_json_file(path: &Path) -> Option<serde_json::Value> {
-    let data = std::fs::read_to_string(path).ok()?;
-    serde_json::from_str(&data).ok()
-}
-
 /// Extract mcpServers map from a JSON value that has { "mcpServers": { ... } }.
 fn extract_servers(val: &serde_json::Value) -> Vec<McpServer> {
     let Some(obj) = val.get("mcpServers").and_then(|v| v.as_object()) else {
@@ -120,7 +115,8 @@ pub async fn list_mcp_servers(project_path: Option<String>) -> Result<McpData, S
         let global_path_str = claude_path.to_string_lossy().to_string();
 
         // Global servers: top-level mcpServers in ~/.claude.json
-        let global = read_json_file(&claude_path)
+        let global = crate::file_ops::read_json::<serde_json::Value>(&claude_path)
+            .ok()
             .map(|v| extract_servers(&v))
             .unwrap_or_default();
 
@@ -129,7 +125,8 @@ pub async fn list_mcp_servers(project_path: Option<String>) -> Result<McpData, S
             Some(pp) => {
                 match mcp_json_path(pp) {
                     Ok(p) => {
-                        let servers = read_json_file(&p)
+                        let servers = crate::file_ops::read_json::<serde_json::Value>(&p)
+                            .ok()
                             .map(|v| extract_servers(&v))
                             .unwrap_or_default();
                         (servers, Some(p.to_string_lossy().to_string()))

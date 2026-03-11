@@ -122,38 +122,44 @@ export function syncThinkingIds() {
   }
 }
 
-// ── Background agent event processor (updates Map directly, no Zustand reactivity) ──
+// ── Core event processor — shared logic for active and background agents ──
+// `apply` writes state: Zustand setState for active, Object.assign for background.
 
-function processBackgroundEvent(agentState: AgentChatState, e: CliEvent) {
+function processEventCore(
+  e: CliEvent,
+  sm: ChatMessage | null,
+  messages: ChatMessage[],
+  apply: (patch: Partial<AgentChatState>) => void,
+): void {
   switch (e.type) {
     case "sessionId":
-      agentState.hasSession = true;
+      apply({ hasSession: true });
       break;
 
     case "streamChunk": {
-      const sm = agentState.streamingMessage;
       if (sm) {
-        agentState.streamingMessage = { ...sm, text: sm.text + e.text };
+        apply({ streamingMessage: { ...sm, text: sm.text + e.text }, isThinking: true });
       } else {
-        agentState.streamingMessage = {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          text: e.text,
-          timestamp: Date.now(),
-          isStreaming: true,
-          tools: [],
-        };
+        apply({
+          streamingMessage: {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            text: e.text,
+            timestamp: Date.now(),
+            isStreaming: true,
+            tools: [],
+          },
+          isThinking: true,
+        });
       }
       break;
     }
 
     case "messageComplete": {
-      const sm = agentState.streamingMessage;
       const completed: ChatMessage = sm
         ? { ...sm, text: e.text, isStreaming: false }
         : { id: crypto.randomUUID(), role: "assistant", text: e.text, timestamp: Date.now(), isStreaming: false };
-      agentState.messages = [...agentState.messages, completed];
-      agentState.streamingMessage = null;
+      apply({ messages: [...messages, completed], streamingMessage: null });
       break;
     }
 
@@ -163,13 +169,13 @@ function processBackgroundEvent(agentState: AgentChatState, e: CliEvent) {
         toolName: e.tool_name,
         toolInput: e.tool_input,
       };
-      const sm = agentState.streamingMessage;
+      let newSm: ChatMessage;
       if (sm) {
         const existing = sm.tools ?? [];
         if (existing.some((t) => t.toolUseId === activity.toolUseId)) break;
-        agentState.streamingMessage = { ...sm, tools: [...existing, activity] };
+        newSm = { ...sm, tools: [...existing, activity] };
       } else {
-        agentState.streamingMessage = {
+        newSm = {
           id: crypto.randomUUID(),
           role: "assistant",
           text: "",
@@ -177,35 +183,34 @@ function processBackgroundEvent(agentState: AgentChatState, e: CliEvent) {
           isStreaming: true,
           tools: [activity],
         };
+        apply({ isThinking: true });
       }
-
-      if (e.tool_name === "EnterPlanMode") agentState.planMode = true;
-      if (e.tool_name === "ExitPlanMode") agentState.planMode = false;
+      if (e.tool_name === "EnterPlanMode") apply({ planMode: true });
+      if (e.tool_name === "ExitPlanMode") apply({ planMode: false });
+      apply({ streamingMessage: newSm });
       break;
     }
 
     case "toolResult": {
-      const sm = agentState.streamingMessage;
       if (sm?.tools) {
         const tools = sm.tools.map((t) =>
           t.toolUseId === e.tool_use_id
             ? { ...t, result: e.output_preview, isError: e.is_error }
             : t,
         );
-        agentState.streamingMessage = { ...sm, tools };
+        apply({ streamingMessage: { ...sm, tools } });
       }
       break;
     }
 
     case "controlRequest": {
-      const sm = agentState.streamingMessage;
       if (sm?.tools?.some((t) => t.toolUseId === e.tool_use_id)) {
         const tools = sm.tools.map((t) =>
           t.toolUseId === e.tool_use_id ? { ...t, requestId: e.request_id } : t,
         );
-        agentState.streamingMessage = { ...sm, tools };
+        apply({ streamingMessage: { ...sm, tools } });
       } else {
-        const msgs = [...agentState.messages];
+        const msgs = [...messages];
         for (let i = msgs.length - 1; i >= 0; i--) {
           const msg = msgs[i];
           if (msg.role === "assistant" && msg.tools?.some((t) => t.toolUseId === e.tool_use_id)) {
@@ -213,7 +218,7 @@ function processBackgroundEvent(agentState: AgentChatState, e: CliEvent) {
               t.toolUseId === e.tool_use_id ? { ...t, requestId: e.request_id } : t,
             );
             msgs[i] = { ...msg, tools };
-            agentState.messages = msgs;
+            apply({ messages: msgs });
             break;
           }
         }
@@ -222,31 +227,19 @@ function processBackgroundEvent(agentState: AgentChatState, e: CliEvent) {
     }
 
     case "turnComplete": {
-      agentState.isThinking = false;
-      agentState.currentToolActivity = null;
-      if (agentState.streamingMessage) {
-        agentState.messages = [...agentState.messages, { ...agentState.streamingMessage, isStreaming: false }];
-        agentState.streamingMessage = null;
-      }
-      persistAgentMessages(e.agent_id).catch(console.error);
+      const finalMsgs = sm ? [...messages, { ...sm, isStreaming: false }] : messages;
+      apply({ messages: finalMsgs, streamingMessage: null, isThinking: false, currentToolActivity: null });
       break;
     }
 
     case "processExited": {
-      agentState.hasSession = false;
-      agentState.isThinking = false;
-      agentState.currentToolActivity = null;
-      if (agentState.streamingMessage) {
-        agentState.messages = [...agentState.messages, { ...agentState.streamingMessage, isStreaming: false }];
-        agentState.streamingMessage = null;
-      }
-      persistAgentMessages(e.agent_id).catch(console.error);
+      const finalMsgs = sm ? [...messages, { ...sm, isStreaming: false }] : messages;
+      apply({ messages: finalMsgs, streamingMessage: null, hasSession: false, isThinking: false, planMode: false, currentToolActivity: null });
       break;
     }
 
     case "error":
-      agentState.isThinking = false;
-      agentState.error = e.message;
+      apply({ isThinking: false, error: e.message });
       break;
   }
 }
@@ -254,25 +247,48 @@ function processBackgroundEvent(agentState: AgentChatState, e: CliEvent) {
 // ── Single event handler for ALL agents ──
 
 function handleCliEvent(e: CliEvent) {
-  const isActive = e.agent_id === useChatStore.getState().agentId;
+  const { getState: get, setState: set } = useChatStore;
+  const isActive = e.agent_id === get().agentId;
 
-  // Background agent → update Map directly
+  // ── Background agent → update Map directly via core processor ──
   if (!isActive) {
     const agentState = agentStates.get(e.agent_id);
     if (!agentState) return;
     const wasThinking = agentState.isThinking;
-    processBackgroundEvent(agentState, e);
+    processEventCore(e, agentState.streamingMessage, agentState.messages,
+      (patch) => Object.assign(agentState, patch));
     if (wasThinking !== agentState.isThinking) syncThinkingIds();
+    if (e.type === "turnComplete" || e.type === "processExited") {
+      persistAgentMessages(e.agent_id).catch(console.error);
+    }
     return;
   }
 
-  // Active agent → update Zustand
-  const { getState: get, setState: set } = useChatStore;
+  // ── Active agent: streamChunk uses RAF batching ──
+  if (e.type === "streamChunk") {
+    const isNew = !get().streamingMessage;
+    streamBuffer = (streamBuffer ?? "") + e.text;
+    if (isNew) streamBufferIsNew = true;
+    if (rafId === null) {
+      rafId = requestAnimationFrame(flushStreamBuffer);
+    }
+    return;
+  }
+
+  // Cancel RAF before finalizing events
+  if (e.type === "messageComplete" || e.type === "turnComplete" || e.type === "processExited") {
+    cancelStreamRaf();
+  }
+
   const state = get();
 
+  // Core state transitions via Zustand
+  processEventCore(e, state.streamingMessage, state.messages,
+    (patch) => set(patch as Record<string, unknown>));
+
+  // ── Active-only side effects ──
   switch (e.type) {
     case "sessionId": {
-      set({ hasSession: true });
       const chatId = get().currentChatId;
       if (chatId) {
         invoke("update_chat_session", { chatId, sessionId: e.session_id }).catch(console.error);
@@ -285,56 +301,7 @@ function handleCliEvent(e: CliEvent) {
       break;
     }
 
-    case "streamChunk": {
-      const isNew = !state.streamingMessage;
-      streamBuffer = (streamBuffer ?? "") + e.text;
-      if (isNew) streamBufferIsNew = true;
-      if (rafId === null) {
-        rafId = requestAnimationFrame(flushStreamBuffer);
-      }
-      break;
-    }
-
-    case "messageComplete": {
-      cancelStreamRaf();
-      const sm = state.streamingMessage;
-      const completed: ChatMessage = sm
-        ? { ...sm, text: e.text, isStreaming: false }
-        : {
-            id: crypto.randomUUID(),
-            role: "assistant",
-            text: e.text,
-            timestamp: Date.now(),
-            isStreaming: false,
-          };
-      set((prev) => ({ messages: [...prev.messages, completed], streamingMessage: null }));
-      break;
-    }
-
     case "toolUse": {
-      const activity: ToolActivity = {
-        toolUseId: e.tool_use_id,
-        toolName: e.tool_name,
-        toolInput: e.tool_input,
-      };
-
-      let sm = state.streamingMessage;
-      if (sm) {
-        const existing = sm.tools ?? [];
-        if (existing.some((t) => t.toolUseId === activity.toolUseId)) break;
-        sm = { ...sm, tools: [...existing, activity] };
-      } else {
-        sm = {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          text: "",
-          timestamp: Date.now(),
-          isStreaming: true,
-          tools: [activity],
-        };
-        set({ isThinking: true });
-      }
-
       set((prev) => ({ toolCount: prev.toolCount + 1 }));
 
       // Bridge to file viewer for file-editing tools
@@ -364,13 +331,11 @@ function handleCliEvent(e: CliEvent) {
         }
       }
 
-      // Track plan mode transitions
+      // Track plan mode in conductor
       if (e.tool_name === "EnterPlanMode") {
-        set({ planMode: true });
         useConductorStore.getState().setSelectedPermissionMode("plan");
       }
       if (e.tool_name === "ExitPlanMode") {
-        set({ planMode: false });
         useConductorStore.getState().setSelectedPermissionMode("default");
       }
 
@@ -380,8 +345,9 @@ function handleCliEvent(e: CliEvent) {
           clearTimeout(toolActivityTimer);
           toolActivityTimer = null;
         }
-        set({ streamingMessage: sm, currentToolActivity: activity });
+        set({ currentToolActivity: { toolUseId: e.tool_use_id, toolName: e.tool_name, toolInput: e.tool_input } });
       } else {
+        const sm = get().streamingMessage;
         if (sm) {
           set((prev) => ({
             messages: [...prev.messages, { ...sm, isStreaming: false }],
@@ -395,16 +361,6 @@ function handleCliEvent(e: CliEvent) {
     }
 
     case "toolResult": {
-      const sm = state.streamingMessage;
-      if (sm?.tools) {
-        const tools = sm.tools.map((t) =>
-          t.toolUseId === e.tool_use_id
-            ? { ...t, result: e.output_preview, isError: e.is_error }
-            : t,
-        );
-        set({ streamingMessage: { ...sm, tools } });
-      }
-
       // Refresh file viewer after file-editing tool completes
       import("./fileViewerStore").then(({ useFileViewerStore }) => {
         useFileViewerStore
@@ -424,60 +380,13 @@ function handleCliEvent(e: CliEvent) {
       break;
     }
 
-    case "controlRequest": {
-      const sm = state.streamingMessage;
-      if (sm?.tools?.some((t) => t.toolUseId === e.tool_use_id)) {
-        const tools = sm.tools.map((t) =>
-          t.toolUseId === e.tool_use_id ? { ...t, requestId: e.request_id } : t,
-        );
-        set({ streamingMessage: { ...sm, tools } });
-      } else {
-        set((prev) => {
-          const msgs = [...prev.messages];
-          for (let i = msgs.length - 1; i >= 0; i--) {
-            const msg = msgs[i];
-            if (msg.role === "assistant" && msg.tools?.some((t) => t.toolUseId === e.tool_use_id)) {
-              const tools = msg.tools.map((t) =>
-                t.toolUseId === e.tool_use_id ? { ...t, requestId: e.request_id } : t,
-              );
-              msgs[i] = { ...msg, tools };
-              return { messages: msgs };
-            }
-          }
-          return {};
-        });
-      }
-      break;
-    }
-
-    case "turnComplete": {
-      cancelStreamRaf();
-      set((prev) => {
-        const msgs = prev.streamingMessage
-          ? [...prev.messages, { ...prev.streamingMessage, isStreaming: false }]
-          : prev.messages;
-        return { messages: msgs, streamingMessage: null, isThinking: false, currentToolActivity: null };
-      });
+    case "turnComplete":
+    case "processExited":
       persistMessages().catch(console.error);
       syncThinkingIds();
       break;
-    }
-
-    case "processExited": {
-      cancelStreamRaf();
-      set((prev) => {
-        const msgs = prev.streamingMessage
-          ? [...prev.messages, { ...prev.streamingMessage, isStreaming: false }]
-          : prev.messages;
-        return { messages: msgs, streamingMessage: null, hasSession: false, isThinking: false, planMode: false, currentToolActivity: null };
-      });
-      persistMessages().catch(console.error);
-      syncThinkingIds();
-      break;
-    }
 
     case "error":
-      set({ error: e.message, isThinking: false });
       syncThinkingIds();
       break;
   }

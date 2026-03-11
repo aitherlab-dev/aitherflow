@@ -32,7 +32,7 @@ export interface FileDiff {
 }
 
 /** Image file extensions */
-export const IMAGE_EXTENSIONS = new Set([
+const IMAGE_EXTENSIONS = new Set([
   "png", "jpg", "jpeg", "gif", "webp", "svg",
 ]);
 
