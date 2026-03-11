@@ -19,6 +19,19 @@ import { useConductorStore } from "./conductorStore";
 import { useProjectStore } from "./projectStore";
 import { cancelStreamRaf, clearToolActivityTimer, syncThinkingIds } from "./chatStreamHandler";
 
+// Cached settings to avoid re-reading on every new session
+let cachedSettings: { bypassPermissions: boolean; enableChrome: boolean } | null = null;
+let settingsCacheTime = 0;
+const SETTINGS_CACHE_TTL = 10_000; // 10 seconds
+
+async function getSettings() {
+  if (!cachedSettings || Date.now() - settingsCacheTime > SETTINGS_CACHE_TTL) {
+    cachedSettings = await invoke<{ bypassPermissions: boolean; enableChrome: boolean }>("load_settings");
+    settingsCacheTime = Date.now();
+  }
+  return cachedSettings;
+}
+
 // ── Helpers ──
 
 /** Guard to prevent duplicate chat creation on double-click Send */
@@ -128,7 +141,7 @@ export async function sendMessage(text: string, allAttachments?: Attachment[]) {
       let enableChrome = true;
       let settingsPermMode: string | undefined;
       try {
-        const settings = await invoke<{ bypassPermissions: boolean; enableChrome: boolean }>("load_settings");
+        const settings = await getSettings();
         if (settings.bypassPermissions) {
           settingsPermMode = "bypassPermissions";
         }
@@ -513,6 +526,14 @@ async function switchAgentInner(
 }
 
 export function clearAgentState(agentId: string) {
+  // Save background agent messages before discarding state
+  const state = agentStates.get(agentId);
+  if (state?.chatId && state.messages.length > 0) {
+    invoke("save_chat_messages", {
+      chatId: state.chatId,
+      messages: messagesToStored(state.messages),
+    }).catch(console.error);
+  }
   agentStates.delete(agentId);
   const { thinkingAgentIds } = useChatStore.getState();
   const ids = thinkingAgentIds.filter((id) => id !== agentId);
