@@ -15,9 +15,9 @@ Aither Flow — десктопная GUI-обёртка для Claude Code CLI. 
 ## Структура
 
 - `src/components/` — React: `chat/`, `layout/`, `settings/`, `fileviewer/`, `dashboard/`
-- `src/stores/` — Zustand-сторы, `src/types/` — TypeScript-типы
+- `src/hooks/` — React-хуки, `src/stores/` — Zustand-сторы, `src/types/` — TypeScript-типы
 - `src-tauri/src/` — Tauri-команды + модули: `conductor/` (ядро), `memory/`, `plugins/`, `telegram/`, `voice/`
-- `src-tauri/crates/` — крейты: `memory-mcp`, `aither-flow-perms`
+- `src-tauri/crates/` — крейты: `memory-mcp`
 
 ## Команды
 
@@ -65,7 +65,7 @@ CI: `tsc --noEmit` + `eslint` + `cargo clippy -D warnings`
 
 ## Дизайн-система
 
-CSS-переменные: `:root` (тёмная) и `[data-theme="light"]`. Слои: `--bg` → `--bg-soft`/`--bg-hard` → `--bg-card` → `--bg-hover` → `--input-bg`. Акцент: `--accent`, `--accent-stroke`, `--accent-icon`. НЕ хардкодить цвета. Палитра: `MEMORY/palette.md` (auto-memory)
+CSS-переменные: `:root` (тёмная) и `[data-theme="light"]`. Слои: `--bg` → `--bg-soft`/`--bg-hard` → `--bg-card` → `--bg-hover` → `--input-bg`. Акцент: `--accent`, `--accent-stroke`, `--accent-icon`. НЕ хардкодить цвета. Палитра: `memory/palette.md` (auto-memory)
 
 ## Работа с пользователем
 

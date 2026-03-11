@@ -27,14 +27,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "aither-flow-perms"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "aitherflow"
 version = "0.3.0"
 dependencies = [
