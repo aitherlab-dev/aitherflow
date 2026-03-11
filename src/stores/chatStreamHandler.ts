@@ -39,7 +39,7 @@ function flushStreamBuffer() {
   const existing = get().streamingMessage;
 
   if (!isNew && existing) {
-    set({ streamingMessage: { ...existing, text }, isThinking: true });
+    set({ streamingMessage: { ...existing, text: existing.text + text }, isThinking: true });
   } else if (isNew) {
     set({
       streamingMessage: {
@@ -133,7 +133,7 @@ function processBackgroundEvent(agentState: AgentChatState, e: CliEvent) {
     case "streamChunk": {
       const sm = agentState.streamingMessage;
       if (sm) {
-        agentState.streamingMessage = { ...sm, text: e.text };
+        agentState.streamingMessage = { ...sm, text: sm.text + e.text };
       } else {
         agentState.streamingMessage = {
           id: crypto.randomUUID(),
@@ -287,7 +287,7 @@ function handleCliEvent(e: CliEvent) {
 
     case "streamChunk": {
       const isNew = !state.streamingMessage;
-      streamBuffer = e.text;
+      streamBuffer = (streamBuffer ?? "") + e.text;
       if (isNew) streamBufferIsNew = true;
       if (rafId === null) {
         rafId = requestAnimationFrame(flushStreamBuffer);
@@ -334,6 +334,8 @@ function handleCliEvent(e: CliEvent) {
         };
         set({ isThinking: true });
       }
+
+      set((prev) => ({ toolCount: prev.toolCount + 1 }));
 
       // Bridge to file viewer for file-editing tools
       if (FILE_EDIT_TOOLS.has(e.tool_name)) {

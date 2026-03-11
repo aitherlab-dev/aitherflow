@@ -106,14 +106,6 @@ pub async fn run_cli_session(
         args.push(mcp_config);
     }
 
-    // Index any previously-unindexed sessions for this project (runs in background)
-    if let Some(ref pp) = project_path {
-        let pp = pp.clone();
-        tokio::task::spawn_blocking(move || {
-            crate::memory::background_index(&pp);
-        });
-    }
-
     // Build command
     let mut cmd = Command::new("claude");
     cmd.args(&args)

@@ -28,6 +28,7 @@ export interface AgentChatState {
   isThinking: boolean;
   planMode: boolean;
   currentToolActivity: ToolActivity | null;
+  toolCount: number;
   error: string | null;
 }
 
@@ -46,6 +47,7 @@ export function getOrCreateAgentState(agentId: string): AgentChatState {
       isThinking: false,
       planMode: false,
       currentToolActivity: null,
+      toolCount: 0,
       error: null,
     };
     agentStates.set(agentId, state);
@@ -78,6 +80,7 @@ export interface ChatState {
   isThinking: boolean;
   planMode: boolean;
   currentToolActivity: ToolActivity | null;
+  toolCount: number;
   error: string | null;
   thinkingAgentIds: string[];
 }
@@ -192,6 +195,7 @@ export const useChatStore = create<ChatState>(() => ({
   isThinking: false,
   planMode: false,
   currentToolActivity: null,
+  toolCount: 0,
   error: null,
   thinkingAgentIds: [],
 }));
@@ -213,14 +217,9 @@ export function selectToolActivities(s: ChatState): ToolActivity[] {
   return all;
 }
 
-/** Total tool count across all messages + streaming. */
+/** Total tool count (maintained incrementally, not recomputed). */
 export function selectToolCount(s: ChatState): number {
-  let count = 0;
-  for (const msg of s.messages) {
-    if (msg.tools) count += msg.tools.length;
-  }
-  if (s.streamingMessage?.tools) count += s.streamingMessage.tools.length;
-  return count;
+  return s.toolCount;
 }
 
 /** Last 2 tool activities from the latest assistant message (for InputBar). */

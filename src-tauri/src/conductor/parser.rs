@@ -68,10 +68,9 @@ pub fn parse_line(
                 .and_then(|v| v.as_str())
             {
                 delta_text.push_str(chunk);
-                combine_text_into(combined_buf, completed_text, delta_text);
                 events.push(CliEvent::StreamChunk {
                     agent_id: agent_id.to_string(),
-                    text: std::mem::take(combined_buf),
+                    text: chunk.to_string(),
                 });
             }
         }
@@ -97,12 +96,11 @@ pub fn parse_line(
                 completed_text.push_str(&turn_text);
             }
 
-            // If no streaming deltas came, send the text as a chunk
+            // If no streaming deltas came, send the text as a chunk (delta only)
             if !had_deltas && !text.is_empty() {
-                combine_text_into(combined_buf, completed_text, "");
                 events.push(CliEvent::StreamChunk {
                     agent_id: agent_id.to_string(),
-                    text: std::mem::take(combined_buf),
+                    text: text.clone(),
                 });
             }
 
@@ -444,11 +442,11 @@ mod tests {
         }
         assert_eq!(delta, "Hello ");
 
-        // Second delta accumulates
+        // Second delta — StreamChunk carries only the new delta, not accumulated
         let line2 = r#"{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"world!"}}}"#;
         let events2 = pl(line2, "default", &mut completed, &mut delta).unwrap();
         match &events2[0] {
-            CliEvent::StreamChunk { text, .. } => assert_eq!(text, "Hello world!"),
+            CliEvent::StreamChunk { text, .. } => assert_eq!(text, "world!"),
             other => panic!("Expected StreamChunk, got {other:?}"),
         }
     }
@@ -596,18 +594,16 @@ mod tests {
         let d2 = r#"{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"Found it."}}}"#;
         let events = pl(d2, "a", &mut completed, &mut delta).unwrap();
 
-        // StreamChunk should contain both turns separated by turn marker
+        // StreamChunk now carries only the delta text
         match &events[0] {
             CliEvent::StreamChunk { text, .. } => {
-                assert!(text.contains("Looking..."), "should contain turn 1 text");
-                assert!(text.contains("Found it."), "should contain turn 2 text");
-                assert!(
-                    text.contains("<!-- turn -->"),
-                    "should contain turn separator"
-                );
+                assert_eq!(text, "Found it.", "should contain only the delta");
             }
             other => panic!("Expected StreamChunk, got {other:?}"),
         }
+        // completed_text still tracks full history across turns
+        assert!(completed.contains("Looking..."), "completed should have turn 1");
+        assert_eq!(delta, "Found it.", "delta should have turn 2 text");
     }
 
     #[test]

@@ -322,6 +322,7 @@ export async function switchChat(chatId: string) {
       isThinking: false,
       planMode: false,
       currentToolActivity: null,
+      toolCount: messages.reduce((n, m) => n + (m.tools?.length ?? 0), 0),
       error: null,
     });
 
@@ -363,6 +364,7 @@ export async function newChat() {
     isThinking: false,
     planMode: false,
     currentToolActivity: null,
+    toolCount: 0,
     error: null,
   });
 
@@ -384,6 +386,7 @@ export async function deleteChat(chatId: string) {
         hasSession: false,
         planMode: false,
         currentToolActivity: null,
+        toolCount: 0,
         error: null,
       });
       useAgentStore.getState().updateChatLock(state.agentId, null);
@@ -458,6 +461,7 @@ async function switchAgentInner(
     isThinking: state.isThinking,
     planMode: state.planMode,
     currentToolActivity: state.currentToolActivity,
+    toolCount: state.toolCount,
     error: state.error,
   });
 
@@ -491,6 +495,7 @@ async function switchAgentInner(
       isThinking: target.isThinking,
       planMode: target.planMode,
       currentToolActivity: target.currentToolActivity,
+      toolCount: target.messages.reduce((n: number, m: ChatMessage) => n + (m.tools?.length ?? 0), 0),
       error: null,
     });
 
@@ -508,6 +513,7 @@ async function switchAgentInner(
       isThinking: false,
       planMode: false,
       currentToolActivity: null,
+      toolCount: 0,
       error: null,
     });
 
@@ -574,7 +580,8 @@ export async function respondToCard(agentId: string, toolUseId: string, response
 
   // Update the correct store
   if (isActive) {
-    useChatStore.setState({ messages: msgs, isThinking: true });
+    const tc = msgs.reduce((n, m) => n + (m.tools?.length ?? 0), 0);
+    useChatStore.setState({ messages: msgs, isThinking: true, toolCount: tc });
   } else {
     const bgState = agentStates.get(agentId);
     if (bgState) {

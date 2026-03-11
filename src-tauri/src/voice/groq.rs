@@ -45,7 +45,8 @@ pub async fn voice_transcribe(
         .map_err(|e| format!("Failed to read response: {e}"))?;
 
     if !status.is_success() {
-        return Err(format!("Groq API error ({status}): {body}"));
+        eprintln!("[groq] API error ({status}): {body}");
+        return Err(format!("Groq API error ({status})"));
     }
 
     let parsed: serde_json::Value =
@@ -53,7 +54,10 @@ pub async fn voice_transcribe(
 
     let raw_text = parsed["text"]
         .as_str()
-        .ok_or_else(|| format!("Unexpected response format: {body}"))?;
+        .ok_or_else(|| {
+            eprintln!("[groq] Unexpected response format: {body}");
+            "Unexpected Groq response format".to_string()
+        })?;
 
     if raw_text.trim().is_empty() {
         return Ok(String::new());
