@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { Menu } from "lucide-react";
 import { useTelegramBridge } from "../../hooks/useTelegramBridge";
 import { useIsMobile } from "../../hooks/useIsMobile";
@@ -34,31 +33,10 @@ export function AppLayout() {
 
   const showPanel = fileViewerVisible && fileViewerHasContent;
 
-  const mainContent = useMemo(() => {
-    if (activeView === "welcome") {
-      return <WelcomeScreen />;
-    }
-    if (activeView === "settings") {
-      return <SettingsView />;
-    }
-    const panelStyle =
-      fileViewerPosition === "right"
-        ? { width: fileViewerSize, minWidth: 250 }
-        : { height: fileViewerSize, minHeight: 150 };
-    return (
-      <div className={`main-split main-split--${fileViewerPosition}`}>
-        <ChatView />
-        {showPanel && (
-          <>
-            <FileViewerResizeHandle />
-            <div className="file-viewer-wrapper" style={panelStyle}>
-              <FileViewerPanel />
-            </div>
-          </>
-        )}
-      </div>
-    );
-  }, [activeView, fileViewerPosition, fileViewerSize, showPanel]);
+  const panelStyle =
+    fileViewerPosition === "right"
+      ? { width: fileViewerSize, minWidth: 250 }
+      : { height: fileViewerSize, minHeight: 150 };
 
   return (
     <div className="app-layout">
@@ -66,7 +44,23 @@ export function AppLayout() {
       <Header />
       <Sidebar />
       <main className="app-main">
-        {mainContent}
+        {activeView === "welcome" ? (
+          <WelcomeScreen />
+        ) : activeView === "settings" ? (
+          <SettingsView />
+        ) : (
+          <div className={`main-split main-split--${fileViewerPosition}`}>
+            <ChatView />
+            {showPanel && (
+              <>
+                <FileViewerResizeHandle />
+                <div className="file-viewer-wrapper" style={panelStyle}>
+                  <FileViewerPanel />
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </main>
       <BrandFooter />
 
