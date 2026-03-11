@@ -389,21 +389,26 @@ pub async fn save_chat_messages(
     .map_err(|e| format!("Task join error: {e}"))?
 }
 
+/// Lock → read → mutate → cache → index → write.
+fn modify_chat(chat_id: &str, mutate: impl FnOnce(&mut ChatFile)) -> Result<(), String> {
+    let lock = chat_lock(chat_id);
+    let _guard = lock.lock().map_err(|e| format!("Chat lock poisoned: {e}"))?;
+    let mut chat = read_chat_file(chat_id)
+        .ok_or_else(|| format!("Chat {chat_id} not found"))?;
+    mutate(&mut chat);
+    let meta = ChatFileMeta::from_chat(&chat);
+    cache_meta(&chat);
+    upsert_index_entry(&meta)
+        .map_err(|e| eprintln!("[chats] Failed to update chat index: {e}"))
+        .ok();
+    write_json(&chat_path(chat_id), &chat)
+}
+
 /// Save session_id from CLI to chat
 #[tauri::command]
 pub async fn update_chat_session(chat_id: String, session_id: String) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
-        let lock = chat_lock(&chat_id);
-        let _guard = lock.lock().map_err(|e| format!("Chat lock poisoned: {e}"))?;
-        let mut chat = read_chat_file(&chat_id)
-            .ok_or_else(|| format!("Chat {chat_id} not found"))?;
-        chat.session_id = Some(session_id);
-        let meta = ChatFileMeta::from_chat(&chat);
-        cache_meta(&chat);
-        upsert_index_entry(&meta)
-            .map_err(|e| eprintln!("[chats] Failed to update chat index: {e}"))
-            .ok();
-        write_json(&chat_path(&chat_id), &chat)
+        modify_chat(&chat_id, |chat| chat.session_id = Some(session_id))
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
@@ -438,22 +443,14 @@ pub async fn delete_chat(chat_id: String) -> Result<(), String> {
 #[tauri::command]
 pub async fn rename_chat(chat_id: String, custom_title: String) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
-        let lock = chat_lock(&chat_id);
-        let _guard = lock.lock().map_err(|e| format!("Chat lock poisoned: {e}"))?;
-        let mut chat = read_chat_file(&chat_id)
-            .ok_or_else(|| format!("Chat {chat_id} not found"))?;
-        let trimmed = custom_title.trim();
-        chat.custom_title = if trimmed.is_empty() {
-            None
-        } else {
-            Some(trimmed.to_string())
-        };
-        let meta = ChatFileMeta::from_chat(&chat);
-        cache_meta(&chat);
-        upsert_index_entry(&meta)
-            .map_err(|e| eprintln!("[chats] Failed to update chat index: {e}"))
-            .ok();
-        write_json(&chat_path(&chat_id), &chat)
+        modify_chat(&chat_id, |chat| {
+            let trimmed = custom_title.trim();
+            chat.custom_title = if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_string())
+            };
+        })
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
@@ -463,17 +460,9 @@ pub async fn rename_chat(chat_id: String, custom_title: String) -> Result<(), St
 #[tauri::command]
 pub async fn toggle_chat_pin(chat_id: String, pinned: bool) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
-        let lock = chat_lock(&chat_id);
-        let _guard = lock.lock().map_err(|e| format!("Chat lock poisoned: {e}"))?;
-        let mut chat = read_chat_file(&chat_id)
-            .ok_or_else(|| format!("Chat {chat_id} not found"))?;
-        chat.pinned = if pinned { Some(true) } else { None };
-        let meta = ChatFileMeta::from_chat(&chat);
-        cache_meta(&chat);
-        upsert_index_entry(&meta)
-            .map_err(|e| eprintln!("[chats] Failed to update chat index: {e}"))
-            .ok();
-        write_json(&chat_path(&chat_id), &chat)
+        modify_chat(&chat_id, |chat| {
+            chat.pinned = if pinned { Some(true) } else { None };
+        })
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
