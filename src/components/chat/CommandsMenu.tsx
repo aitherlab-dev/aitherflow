@@ -5,6 +5,9 @@ import { useConductorStore } from "../../stores/conductorStore";
 import { sendMessage } from "../../stores/chatService";
 import { useSkillStore } from "../../stores/skillStore";
 import { useTranslationStore } from "../../stores/translationStore";
+
+const getSkillCommands = () =>
+  new Set(useSkillStore.getState().allSkills().map((s) => s.command.replace(/^\//, "")));
 import { COMMAND_DESCRIPTIONS } from "../../data/commandDescriptions";
 import { useClickOutside } from "../../hooks/useClickOutside";
 
@@ -20,15 +23,12 @@ export const CommandsMenu = memo(function CommandsMenu({
   const menuRef = useRef<HTMLDivElement>(null);
   const allCommands = useConductorStore((s) => s.slashCommands);
   const translations = useTranslationStore((s) => s.cache.entries);
-  const allSkills = useSkillStore((s) => s.allSkills);
 
   // Filter out skills — keep only built-in CLI commands
   const commands = useMemo(() => {
-    const skillCommands = new Set(
-      allSkills().map((s) => s.command.replace(/^\//, "")),
-    );
+    const skillCommands = getSkillCommands();
     return allCommands.filter((cmd) => !skillCommands.has(cmd));
-  }, [allCommands, allSkills]);
+  }, [allCommands]);
 
   useClickOutside(menuRef, onClose, true);
 
