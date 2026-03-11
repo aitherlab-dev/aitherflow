@@ -111,7 +111,7 @@ const ThinkingToggle = memo(function ThinkingToggle({
       {open && (
         <div className="thinking-toggle-content">
           {thinking.map((block, i) => (
-            <div key={i} className="thinking-block">
+            <div key={`think-${i}-${block.length}`} className="thinking-block">
               <InlineMarkdown content={block} />
             </div>
           ))}
