@@ -275,12 +275,19 @@ pub async fn copy_entry(src: String, dest_dir: String) -> Result<String, String>
     .map_err(|e| format!("Task join error: {e}"))?
 }
 
-/// Recursively copy a directory
+/// Recursively copy a directory (skips symlinks to prevent traversal attacks)
 pub fn copy_dir_recursive(src: &Path, dest: &Path) -> Result<(), String> {
     fs::create_dir_all(dest).map_err(|e| format!("Failed to create dir: {e}"))?;
     for entry in fs::read_dir(src).map_err(|e| format!("Failed to read dir: {e}"))? {
         let entry = entry.map_err(|e| format!("Failed to read entry: {e}"))?;
         let ft = entry.file_type().map_err(|e| format!("Failed to get file type: {e}"))?;
+        if ft.is_symlink() {
+            eprintln!(
+                "[file_ops] Skipping symlink: {}",
+                entry.path().display()
+            );
+            continue;
+        }
         let dest_child = dest.join(entry.file_name());
         if ft.is_dir() {
             copy_dir_recursive(&entry.path(), &dest_child)?;

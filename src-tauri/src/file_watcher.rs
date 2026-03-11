@@ -1,3 +1,4 @@
+use crate::files::validate_path_safe;
 use notify_debouncer_mini::{new_debouncer, DebouncedEventKind};
 use serde::Serialize;
 use std::collections::HashSet;
@@ -82,6 +83,10 @@ pub async fn watch_directories(
         let mut watched_paths = Vec::new();
         for p in &paths {
             let path = PathBuf::from(p);
+            if let Err(e) = validate_path_safe(&path) {
+                eprintln!("[watcher] Rejected path {p}: {e}");
+                continue;
+            }
             if path.is_dir() {
                 debouncer
                     .watcher()

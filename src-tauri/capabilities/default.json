@@ -6,7 +6,13 @@
   "permissions": [
     "core:default",
     "opener:default",
-    "shell:allow-spawn",
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
+        { "name": "run_claude", "cmd": "claude", "args": true },
+        { "name": "run_git", "cmd": "git", "args": true }
+      ]
+    },
     "shell:allow-stdin-write",
     "shell:allow-kill",
     "shell:allow-open",

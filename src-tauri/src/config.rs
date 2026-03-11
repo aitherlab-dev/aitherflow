@@ -1,8 +1,19 @@
 use std::path::PathBuf;
 
-/// Fallback home when $HOME is unset (containers, systemd units)
+/// Fallback home when $HOME is unset (containers, systemd units).
+/// Uses XDG_RUNTIME_DIR (/run/user/{UID}) which is per-user and mode 0700.
 fn fallback_home() -> PathBuf {
-    PathBuf::from("/tmp")
+    if let Some(dir) = std::env::var_os("XDG_RUNTIME_DIR") {
+        return PathBuf::from(dir);
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        if let Ok(meta) = std::fs::metadata("/proc/self") {
+            return PathBuf::from(format!("/run/user/{}", meta.uid()));
+        }
+    }
+    PathBuf::from("/tmp/aither-flow-fallback")
 }
 
 /// XDG config directory: ~/.config/aither-flow/

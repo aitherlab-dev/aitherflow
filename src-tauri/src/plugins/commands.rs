@@ -20,6 +20,20 @@ fn validate_plugin_name(name: &str, label: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Only allow https:// URLs for git clone (blocks file://, ssh://, git://, etc.)
+fn validate_git_url(url: &str) -> Result<(), String> {
+    if !url.starts_with("https://") {
+        return Err(format!(
+            "Only HTTPS git URLs are allowed, got: {}",
+            url.chars().take(60).collect::<String>()
+        ));
+    }
+    if url.contains("..") {
+        return Err("Git URL contains path traversal".to_string());
+    }
+    Ok(())
+}
+
 /// Load all plugin data: installed, available from marketplaces, sources
 #[tauri::command]
 pub async fn load_plugins() -> Result<PluginsData, String> {
@@ -220,6 +234,7 @@ pub async fn install_plugin(name: String, marketplace: String) -> Result<(), Str
                             name, marketplace
                         )
                     })?;
+                validate_git_url(&remote_url)?;
 
                 let clone_dir = base.join("cache").join(&marketplace).join(&name).join("repo");
                 if clone_dir.exists() {
@@ -394,6 +409,7 @@ pub async fn add_marketplace(
             "git" => url.clone(),
             _ => return Err(format!("Unknown source type: {}", source_type)),
         };
+        validate_git_url(&git_url)?;
 
         // Git clone
         fs::create_dir_all(&target_dir)
