@@ -11,7 +11,6 @@ export const TaskBar = memo(function TaskBar() {
   const toolCount = useChatStore(selectToolCount);
   const runningId = useChatStore((s) => s.currentToolActivity?.toolUseId ?? null);
   const agentLogOpen = useLayoutStore((s) => s.agentLogOpen);
-  const toggleAgentLog = useLayoutStore((s) => s.toggleAgentLog);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const count = activities.length;
@@ -36,7 +35,7 @@ export const TaskBar = memo(function TaskBar() {
         </div>
         <button
           className={`taskbar__toggle ${agentLogOpen ? "taskbar__toggle--active" : ""}`}
-          onClick={toggleAgentLog}
+          onClick={() => useLayoutStore.getState().toggleAgentLog()}
           title="Agent Log (Alt+L)"
         >
           <List size={12} />
