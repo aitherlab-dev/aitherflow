@@ -49,6 +49,14 @@ pub struct PluginsData {
     pub sources: Vec<MarketplaceSource>,
 }
 
+/// Parse "name@marketplace" key into (name, marketplace) tuple.
+pub(crate) fn parse_plugin_key(key: &str) -> (String, String) {
+    match key.split_once('@') {
+        Some((name, marketplace)) => (name.to_string(), marketplace.to_string()),
+        None => (key.to_string(), String::new()),
+    }
+}
+
 // ── JSON structures on disk (CLI-managed files) ──
 
 #[derive(Deserialize, Debug)]

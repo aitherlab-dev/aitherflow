@@ -47,11 +47,7 @@ pub async fn load_plugins() -> Result<PluginsData, String> {
 
             let mut result = Vec::new();
             for (key, entries) in &file.plugins {
-                // key format: "plugin-name@marketplace"
-                let (plugin_name, marketplace) = match key.split_once('@') {
-                    Some((p, m)) => (p.to_string(), m.to_string()),
-                    None => (key.clone(), String::new()),
-                };
+                let (plugin_name, marketplace) = super::types::parse_plugin_key(key);
 
                 // Use first (most recent) entry
                 if let Some(entry) = entries.first() {

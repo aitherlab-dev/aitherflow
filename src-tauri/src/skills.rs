@@ -246,11 +246,7 @@ fn scan_plugin_skills() -> Vec<PluginSkillGroup> {
     let mut groups: Vec<PluginSkillGroup> = Vec::new();
 
     for (key, entries) in &manifest.plugins {
-        // key format: "pluginName@marketplace"
-        let (plugin_name, marketplace) = match key.split_once('@') {
-            Some((p, m)) => (p.to_string(), m.to_string()),
-            None => (key.clone(), String::new()),
-        };
+        let (plugin_name, marketplace) = crate::plugins::types::parse_plugin_key(key);
 
         // Use the first (most recent) entry
         let install_path = match entries.first() {
