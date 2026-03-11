@@ -68,13 +68,19 @@ export const DashboardPanel = memo(function DashboardPanel() {
     gridRef, dragElRef, handlePointerDown, handlePointerMove, handlePointerUp,
   } = useDragReorder<string>("card-id", handleReorder);
 
+  const activeProjectPath = useAgentStore((s) => {
+    const agent = s.agents.find((a) => a.id === s.activeAgentId);
+    return agent?.projectPath ?? null;
+  });
+
   useEffect(() => {
-    const agentState = useAgentStore.getState();
-    const projectPath = agentState.agents.find((a) => a.id === agentState.activeAgentId)?.projectPath;
     const mcpState = useMcpStore.getState();
-    if (mcpState.needsReload(projectPath)) {
-      mcpState.load(projectPath).catch(console.error);
+    if (mcpState.needsReload(activeProjectPath ?? undefined)) {
+      mcpState.load(activeProjectPath ?? undefined).catch(console.error);
     }
+  }, [activeProjectPath]);
+
+  useEffect(() => {
     const skillState = useSkillStore.getState();
     if (!skillState.loaded) {
       const allProjects = useProjectStore.getState().projects;
