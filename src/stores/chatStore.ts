@@ -35,26 +35,6 @@ export interface AgentChatState {
 /** Module-level map: stores state for ALL agents. Background agents updated directly by events, active agent snapshotted on switch. */
 export const agentStates = new Map<string, AgentChatState>();
 
-/** Get or create a state entry for an agent */
-export function getOrCreateAgentState(agentId: string): AgentChatState {
-  let state = agentStates.get(agentId);
-  if (!state) {
-    state = {
-      messages: [],
-      streamingMessage: null,
-      chatId: null,
-      hasSession: false,
-      isThinking: false,
-      planMode: false,
-      currentToolActivity: null,
-      toolCount: 0,
-      error: null,
-    };
-    agentStates.set(agentId, state);
-  }
-  return state;
-}
-
 // ── Types ──
 
 /** Chat metadata for sidebar listing (no messages) */
