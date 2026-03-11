@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import {
   ArrowRightLeft,
   ChevronRight,
@@ -125,17 +126,17 @@ const UserSkillCard = memo(function UserSkillCard({
 // ── Installed tab ──
 
 function InstalledTab() {
-  const installed = usePluginStore((s) => s.installed);
-  const uninstalling = usePluginStore((s) => s.uninstalling);
+  const installed = usePluginStore(useShallow((s) => s.installed));
+  const uninstalling = usePluginStore(useShallow((s) => s.uninstalling));
   const uninstall = usePluginStore((s) => s.uninstall);
 
-  const globalSkills = useSkillStore((s) => s.global);
-  const projectGroups = useSkillStore((s) => s.projects);
-  const pluginGroups = useSkillStore((s) => s.plugins);
+  const globalSkills = useSkillStore(useShallow((s) => s.global));
+  const projectGroups = useSkillStore(useShallow((s) => s.projects));
+  const pluginGroups = useSkillStore(useShallow((s) => s.plugins));
   const deleteSkill = useSkillStore((s) => s.deleteSkill);
   const moveSkill = useSkillStore((s) => s.moveSkill);
 
-  const projects = useProjectStore((s) => s.projects);
+  const projects = useProjectStore(useShallow((s) => s.projects));
 
   // Total project skill count
   const totalProjectSkills = useMemo(
@@ -664,7 +665,7 @@ export function SkillsSection() {
 
   const loadSkills = useSkillStore((s) => s.load);
   const skillsLoaded = useSkillStore((s) => s.loaded);
-  const projects = useProjectStore((s) => s.projects);
+  const projects = useProjectStore(useShallow((s) => s.projects));
 
   // Load data on mount
   useEffect(() => {
