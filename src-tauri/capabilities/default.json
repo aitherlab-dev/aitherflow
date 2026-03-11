@@ -10,7 +10,21 @@
       "identifier": "shell:allow-spawn",
       "allow": [
         { "name": "run_claude", "cmd": "claude", "args": true },
-        { "name": "run_git", "cmd": "git", "args": true }
+        {
+          "name": "run_git_clone",
+          "cmd": "git",
+          "args": ["clone", { "validator": ".*" }]
+        },
+        {
+          "name": "run_git_rev_parse",
+          "cmd": "git",
+          "args": ["rev-parse", { "validator": ".*" }]
+        },
+        {
+          "name": "run_git_pull",
+          "cmd": "git",
+          "args": ["pull", { "validator": ".*" }]
+        }
       ]
     },
     "shell:allow-stdin-write",
