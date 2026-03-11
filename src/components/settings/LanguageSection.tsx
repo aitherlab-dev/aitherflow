@@ -30,12 +30,9 @@ export function LanguageSection() {
   const updateTranslations = useTranslationStore((s) => s.updateTranslations);
 
   // Count total translatable items
-  const allSkills = useSkillStore((s) => s.allSkills);
-  const installed = usePluginStore((s) => s.installed);
-  const available = usePluginStore((s) => s.available);
-
   const totalItems = useMemo(() => {
-    const skills = allSkills();
+    const skills = useSkillStore.getState().allSkills();
+    const { installed, available } = usePluginStore.getState();
     let count = 0;
     for (const s of skills) {
       if (s.description) count++;
@@ -47,7 +44,7 @@ export function LanguageSection() {
       if (p.description) count++;
     }
     return count;
-  }, [allSkills, installed, available]);
+  }, []);
 
   const translatedCount = useMemo(
     () => Object.keys(cacheEntries).length,
