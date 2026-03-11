@@ -110,10 +110,10 @@ pub async fn save_projects(
 
 /// Initialize projects.json with Workspace if it doesn't exist yet.
 /// Called from setup().
-pub fn ensure_projects_file() {
+pub fn ensure_projects_file() -> Result<(), String> {
     let path = projects_path();
     if path.exists() {
-        return;
+        return Ok(());
     }
     let workspace = config::workspace_dir().to_string_lossy().into_owned();
     let config = ProjectsConfig {
@@ -126,12 +126,8 @@ pub fn ensure_projects_file() {
         last_opened_chat_id: None,
         welcome_cards: Vec::new(),
     };
-    match serde_json::to_string_pretty(&config) {
-        Ok(data) => {
-            if let Err(e) = atomic_write(&path, data.as_bytes()) {
-                eprintln!("[aitherflow] Failed to write projects.json: {e}");
-            }
-        }
-        Err(e) => eprintln!("[aitherflow] Failed to serialize projects: {e}"),
-    }
+    let data = serde_json::to_string_pretty(&config)
+        .map_err(|e| format!("Failed to serialize projects: {e}"))?;
+    atomic_write(&path, data.as_bytes())
+        .map_err(|e| format!("Failed to write projects.json: {e}"))
 }

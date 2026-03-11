@@ -77,7 +77,7 @@ pub async fn save_agents(
 /// from the Welcome screen, which creates the first tab.
 ///
 /// Called from setup().
-pub fn ensure_agents_file() {
+pub fn ensure_agents_file() -> Result<(), String> {
     let path = agents_path();
 
     let config = AgentsConfig {
@@ -85,13 +85,9 @@ pub fn ensure_agents_file() {
         agents: vec![],
     };
 
-    match serde_json::to_string_pretty(&config) {
-        Ok(data) => {
-            if let Err(e) = atomic_write(&path, data.as_bytes()) {
-                eprintln!("[aitherflow] Failed to write agents.json: {e}");
-            }
-        }
-        Err(e) => eprintln!("[aitherflow] Failed to serialize agents: {e}"),
-    }
+    let data = serde_json::to_string_pretty(&config)
+        .map_err(|e| format!("Failed to serialize agents: {e}"))?;
+    atomic_write(&path, data.as_bytes())
+        .map_err(|e| format!("Failed to write agents.json: {e}"))
 }
 

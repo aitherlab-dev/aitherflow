@@ -161,8 +161,12 @@ pub fn run() {
                         eprintln!("[aitherflow] memory::init failed: {e}");
                     }
                     attachments::cleanup_old_temp(3600);
-                    projects::ensure_projects_file();
-                    agents::ensure_agents_file();
+                    if let Err(e) = projects::ensure_projects_file() {
+                        eprintln!("[aitherflow] ensure_projects_file failed: {e}");
+                    }
+                    if let Err(e) = agents::ensure_agents_file() {
+                        eprintln!("[aitherflow] ensure_agents_file failed: {e}");
+                    }
 
                     telegram::is_enabled()
                 }).await.unwrap_or_else(|e| {
