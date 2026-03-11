@@ -1,8 +1,9 @@
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 import { useMcpStore } from "../../stores/mcpStore";
 import { useSkillStore } from "../../stores/skillStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { useProjectStore } from "../../stores/projectStore";
+import { useDragReorder } from "../../hooks/useDragReorder";
 import { McpCard } from "./cards/McpCard";
 import { SkillsCard } from "./cards/SkillsCard";
 import { TokensCard } from "./cards/TokensCard";
@@ -46,36 +47,26 @@ function saveOrder(order: string[]) {
   localStorage.setItem(ORDER_KEY, JSON.stringify(order));
 }
 
-/** Find which card element the pointer is currently over */
-function findCardAtPoint(
-  container: HTMLElement,
-  x: number,
-  y: number,
-  excludeId: string,
-): string | null {
-  const cards = container.querySelectorAll<HTMLElement>("[data-card-id]");
-  for (const card of cards) {
-    if (card.dataset.cardId === excludeId) continue;
-    const rect = card.getBoundingClientRect();
-    if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
-      return card.dataset.cardId ?? null;
-    }
-  }
-  return null;
-}
-
 export const DashboardPanel = memo(function DashboardPanel() {
   const [expandedCards, setExpandedCards] = useState<Set<string>>(loadExpandedCards);
   const [cardOrder, setCardOrder] = useState<string[]>(loadOrder);
 
-  // Pointer-based drag state
-  const [dragId, setDragId] = useState<string | null>(null);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
-  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
-  const gridRef = useRef<HTMLDivElement>(null);
-  const dragElRef = useRef<HTMLElement | null>(null);
-  const [dragging, setDragging] = useState(false);
+  const handleReorder = useCallback((fromId: string, toId: string) => {
+    setCardOrder((prev) => {
+      const next = [...prev];
+      const fromIdx = next.indexOf(fromId);
+      const toIdx = next.indexOf(toId);
+      if (fromIdx === -1 || toIdx === -1) return prev;
+      next.splice(fromIdx, 1);
+      next.splice(toIdx, 0, fromId);
+      saveOrder(next);
+      return next;
+    });
+  }, []);
+  const {
+    dragId, dragPos, dragOffset, dropTargetId, dragging,
+    gridRef, dragElRef, handlePointerDown, handlePointerMove, handlePointerUp,
+  } = useDragReorder<string>("card-id", handleReorder);
 
   const mcpNeedsReload = useMcpStore((s) => s.needsReload);
   const mcpLoad = useMcpStore((s) => s.load);
@@ -108,60 +99,6 @@ export const DashboardPanel = memo(function DashboardPanel() {
     });
   }, []);
 
-  // Pointer down: if Shift held, start drag
-  const handlePointerDown = useCallback((e: React.PointerEvent, id: string) => {
-    if (!e.shiftKey) return;
-    e.preventDefault();
-    e.stopPropagation();
-
-    const target = (e.currentTarget as HTMLElement);
-    const rect = target.getBoundingClientRect();
-
-    dragElRef.current = target;
-    setDragging(false);
-    setDragId(id);
-    setDragOffset({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-    setDragPos({ x: e.clientX, y: e.clientY });
-
-    target.setPointerCapture(e.pointerId);
-  }, []);
-
-  const handlePointerMove = useCallback((e: React.PointerEvent) => {
-    if (!dragId) return;
-    setDragging(true);
-    setDragPos({ x: e.clientX, y: e.clientY });
-
-    if (gridRef.current) {
-      const target = findCardAtPoint(gridRef.current, e.clientX, e.clientY, dragId);
-      setDropTargetId(target);
-    }
-  }, [dragId]);
-
-  const handlePointerUp = useCallback((e: React.PointerEvent) => {
-    if (!dragId) return;
-
-    if (dragElRef.current) {
-      dragElRef.current.releasePointerCapture(e.pointerId);
-    }
-
-    if (dragging && dropTargetId) {
-      setCardOrder((prev) => {
-        const next = [...prev];
-        const fromIdx = next.indexOf(dragId);
-        const toIdx = next.indexOf(dropTargetId);
-        if (fromIdx === -1 || toIdx === -1) return prev;
-        next.splice(fromIdx, 1);
-        next.splice(toIdx, 0, dragId);
-        saveOrder(next);
-        return next;
-      });
-    }
-
-    setDragId(null);
-    setDropTargetId(null);
-    dragElRef.current = null;
-    setDragging(false);
-  }, [dragId, dragging, dropTargetId]);
 
   return (
     <div className="dash-panel">

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { FolderOpen, FolderPlus, Plus, X, Sparkles, CornerDownLeft } from "lucide-react";
 import { useProjectStore } from "../../stores/projectStore";
@@ -7,6 +7,7 @@ import { switchChat } from "../../stores/chatService";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useSkillStore } from "../../stores/skillStore";
 import { openDialog } from "../../lib/transport";
+import { useDragReorder } from "../../hooks/useDragReorder";
 
 export function WelcomeScreen() {
   const projects = useProjectStore(useShallow((s) => s.projects));
@@ -23,59 +24,14 @@ export function WelcomeScreen() {
 
   const [showPicker, setShowPicker] = useState(false);
 
-  // Pointer-based drag (Shift+drag, same as dashboard)
-  const [dragIdx, setDragIdx] = useState<number | null>(null);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const [dragPos, setDragPos] = useState({ x: 0, y: 0 });
-  const [dropTargetIdx, setDropTargetIdx] = useState<number | null>(null);
-  const [dragging, setDragging] = useState(false);
-  const dragElRef = useRef<HTMLElement | null>(null);
-  const gridRef = useRef<HTMLDivElement>(null);
-
-  const findCardAtPoint = useCallback((x: number, y: number, excludeIdx: number): number | null => {
-    if (!gridRef.current) return null;
-    const cards = gridRef.current.querySelectorAll<HTMLElement>("[data-card-idx]");
-    for (const card of cards) {
-      const idx = Number(card.dataset.cardIdx);
-      if (idx === excludeIdx) continue;
-      const rect = card.getBoundingClientRect();
-      if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) return idx;
-    }
-    return null;
-  }, []);
-
-  const handlePointerDown = useCallback((e: React.PointerEvent, idx: number) => {
-    if (!e.shiftKey) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const target = e.currentTarget as HTMLElement;
-    const rect = target.getBoundingClientRect();
-    dragElRef.current = target;
-    setDragging(false);
-    setDragIdx(idx);
-    setDragOffset({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-    setDragPos({ x: e.clientX, y: e.clientY });
-    target.setPointerCapture(e.pointerId);
-  }, []);
-
-  const handlePointerMove = useCallback((e: React.PointerEvent) => {
-    if (dragIdx === null) return;
-    setDragging(true);
-    setDragPos({ x: e.clientX, y: e.clientY });
-    setDropTargetIdx(findCardAtPoint(e.clientX, e.clientY, dragIdx));
-  }, [dragIdx, findCardAtPoint]);
-
-  const handlePointerUp = useCallback((e: React.PointerEvent) => {
-    if (dragIdx === null) return;
-    if (dragElRef.current) dragElRef.current.releasePointerCapture(e.pointerId);
-    if (dragging && dropTargetIdx !== null && dropTargetIdx !== dragIdx) {
-      reorderWelcomeCards(dragIdx, dropTargetIdx).catch(console.error);
-    }
-    setDragIdx(null);
-    setDropTargetIdx(null);
-    dragElRef.current = null;
-    setDragging(false);
-  }, [dragIdx, dragging, dropTargetIdx, reorderWelcomeCards]);
+  const handleReorder = useCallback(
+    (from: number, to: number) => { reorderWelcomeCards(from, to).catch(console.error); },
+    [reorderWelcomeCards],
+  );
+  const {
+    dragId: dragIdx, dragPos, dragOffset, dropTargetId: dropTargetIdx, dragging,
+    gridRef, dragElRef, handlePointerDown, handlePointerMove, handlePointerUp,
+  } = useDragReorder<number>("card-idx", handleReorder);
 
   // Workspace is always the first project
   const workspace = projects[0];
