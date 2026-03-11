@@ -73,6 +73,16 @@ fn get_cached_meta(chat_id: &str) -> Option<ChatFileMeta> {
     META_CACHE.lock().ok()?.get(chat_id).cloned()
 }
 
+/// Remove entries from CHAT_LOCKS and META_CACHE that are not in the index.
+fn purge_stale_caches(live_ids: &std::collections::HashSet<String>) {
+    if let Ok(mut map) = CHAT_LOCKS.lock() {
+        map.retain(|id, _| live_ids.contains(id));
+    }
+    if let Ok(mut map) = META_CACHE.lock() {
+        map.retain(|id, _| live_ids.contains(id));
+    }
+}
+
 /// Path to the lightweight index file
 fn index_path() -> PathBuf {
     chats_dir().join("index.json")
@@ -282,6 +292,11 @@ fn read_chat_file(chat_id: &str) -> Option<ChatFile> {
 pub async fn list_chats(project_path: String) -> Result<Vec<ChatMeta>, String> {
     tokio::task::spawn_blocking(move || {
         let index = get_or_rebuild_index()?;
+
+        // Purge cache entries for chats no longer in the index
+        let live_ids: std::collections::HashSet<String> =
+            index.iter().map(|e| e.id.clone()).collect();
+        purge_stale_caches(&live_ids);
 
         let mut chats: Vec<ChatMeta> = index
             .into_iter()
