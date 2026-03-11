@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { FolderOpen, FolderPlus, Plus, X, Sparkles, CornerDownLeft } from "lucide-react";
 import { useProjectStore } from "../../stores/projectStore";
 import { useAgentStore } from "../../stores/agentStore";
@@ -8,11 +9,11 @@ import { useSkillStore } from "../../stores/skillStore";
 import { openDialog } from "../../lib/transport";
 
 export function WelcomeScreen() {
-  const projects = useProjectStore((s) => s.projects);
+  const projects = useProjectStore(useShallow((s) => s.projects));
   const addProject = useProjectStore((s) => s.addProject);
   const lastOpenedProject = useProjectStore((s) => s.lastOpenedProject);
   const lastOpenedChatId = useProjectStore((s) => s.lastOpenedChatId);
-  const welcomeCards = useProjectStore((s) => s.welcomeCards);
+  const welcomeCards = useProjectStore(useShallow((s) => s.welcomeCards));
   const addWelcomeCard = useProjectStore((s) => s.addWelcomeCard);
   const removeWelcomeCard = useProjectStore((s) => s.removeWelcomeCard);
   const reorderWelcomeCards = useProjectStore((s) => s.reorderWelcomeCards);

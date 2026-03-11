@@ -60,6 +60,10 @@ export function cancelStreamRaf() {
     cancelAnimationFrame(rafId);
     rafId = null;
   }
+  // Flush any pending buffer before discarding, so streamingMessage stays up-to-date
+  if (streamBuffer !== null) {
+    flushStreamBuffer();
+  }
   streamBuffer = null;
   streamBufferIsNew = false;
 }
@@ -269,13 +273,14 @@ function handleCliEvent(e: CliEvent) {
   switch (e.type) {
     case "sessionId": {
       set({ hasSession: true });
-      const chatId = state.currentChatId;
+      const chatId = get().currentChatId;
       if (chatId) {
         invoke("update_chat_session", { chatId, sessionId: e.session_id }).catch(console.error);
-        const chatList = state.chatList.map((c) =>
-          c.id === chatId ? { ...c, sessionId: e.session_id } : c,
-        );
-        set({ chatList });
+        set((prev) => ({
+          chatList: prev.chatList.map((c) =>
+            c.id === chatId ? { ...c, sessionId: e.session_id } : c,
+          ),
+        }));
       }
       break;
     }

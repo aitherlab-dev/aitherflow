@@ -19,7 +19,7 @@ pub struct AnthropicAuthStatus {
 fn read_oauth_token() -> Result<(String, u64), String> {
     use std::os::unix::fs::MetadataExt;
 
-    let home = dirs::home_dir().ok_or("Cannot determine home directory")?;
+    let home = crate::config::home_dir();
     let cred_path = home.join(".claude").join(".credentials.json");
 
     // Check file permissions before reading sensitive data
@@ -291,7 +291,10 @@ fn run_audio_capture(
         let raw_samples: Vec<f32> = {
             let mut b = match shared_buf.lock() {
                 Ok(b) => b,
-                Err(_) => break,
+                Err(e) => {
+                    eprintln!("[voice] Audio buffer mutex poisoned: {e}");
+                    break;
+                }
             };
             std::mem::take(&mut *b)
         };
@@ -481,7 +484,10 @@ async fn run_websocket(
 fn handle_anthropic_message(text: &str, app: &tauri::AppHandle) {
     let parsed: serde_json::Value = match serde_json::from_str(text) {
         Ok(v) => v,
-        Err(_) => return,
+        Err(e) => {
+            eprintln!("[voice] Failed to parse Anthropic message: {e}");
+            return;
+        }
     };
 
     let msg_type = parsed["type"].as_str().unwrap_or("");
@@ -513,7 +519,10 @@ fn handle_anthropic_message(text: &str, app: &tauri::AppHandle) {
 fn handle_deepgram_message(text: &str, app: &tauri::AppHandle) {
     let parsed: serde_json::Value = match serde_json::from_str(text) {
         Ok(v) => v,
-        Err(_) => return,
+        Err(e) => {
+            eprintln!("[voice] Failed to parse Deepgram message: {e}");
+            return;
+        }
     };
 
     let msg_type = parsed["type"].as_str().unwrap_or("");

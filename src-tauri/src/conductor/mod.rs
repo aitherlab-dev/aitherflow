@@ -159,7 +159,7 @@ pub async fn get_session_usage(
     project_path: String,
 ) -> Result<serde_json::Value, String> {
     tokio::task::spawn_blocking(move || {
-        let home = dirs::home_dir().ok_or("No home directory")?;
+        let home = crate::config::home_dir();
         let encoded = crate::memory::indexer::encode_project_path(&project_path);
         let jsonl_path = home
             .join(".claude")
@@ -201,7 +201,10 @@ pub async fn get_session_usage(
 
             let parsed: serde_json::Value = match serde_json::from_str(line) {
                 Ok(v) => v,
-                Err(_) => continue,
+                Err(e) => {
+                    eprintln!("[conductor] Failed to parse JSONL line: {e}");
+                    continue;
+                }
             };
 
             let event_type = parsed.get("type").and_then(|t| t.as_str()).unwrap_or("");

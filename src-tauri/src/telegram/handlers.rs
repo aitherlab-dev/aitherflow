@@ -274,7 +274,7 @@ pub(super) async fn handle_document_image(
                 .and_then(|n| n.to_str())
                 .filter(|n| !n.is_empty() && *n != "." && *n != "..")
                 .unwrap_or("photo.jpg");
-            let filename = format!("tg_{safe_name}");
+            let filename = format!("tg_{}_{safe_name}", now_millis());
             match save_to_tmp(&bytes, &filename) {
                 Ok(path) => {
                     let text = match caption {

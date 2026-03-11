@@ -154,28 +154,39 @@ fn file_mtime_secs(path: &std::path::Path) -> u64 {
 }
 
 /// Return cached stats if fresh, otherwise compute and cache.
-/// Holds lock during computation to prevent stampede.
+/// Lock is only held briefly for cache read/write, not during computation.
 pub fn aggregate_cli_stats(days: u32) -> Result<AggregatedStats, String> {
-    let mut guard = STATS_CACHE.lock().unwrap_or_else(|e| {
-        eprintln!("[stats] WARNING: STATS_CACHE mutex was poisoned, recovering");
-        e.into_inner()
-    });
-
-    if let Some((cached_days, computed_at, ref stats)) = *guard {
-        if cached_days == days && computed_at.elapsed().as_secs() < CACHE_TTL_SECS {
-            return Ok(stats.clone());
+    // Check cache with short lock
+    {
+        let guard = STATS_CACHE.lock().unwrap_or_else(|e| {
+            eprintln!("[stats] WARNING: STATS_CACHE mutex was poisoned, recovering");
+            e.into_inner()
+        });
+        if let Some((cached_days, computed_at, ref stats)) = *guard {
+            if cached_days == days && computed_at.elapsed().as_secs() < CACHE_TTL_SECS {
+                return Ok(stats.clone());
+            }
         }
     }
 
+    // Compute without holding lock
     let stats = aggregate_cli_stats_inner(days)?;
-    *guard = Some((days, Instant::now(), stats.clone()));
+
+    // Update cache with short lock
+    {
+        let mut guard = STATS_CACHE.lock().unwrap_or_else(|e| {
+            eprintln!("[stats] WARNING: STATS_CACHE mutex was poisoned, recovering");
+            e.into_inner()
+        });
+        *guard = Some((days, Instant::now(), stats.clone()));
+    }
     Ok(stats)
 }
 
 /// Scan all JSONL files in ~/.claude/projects/ and aggregate stats.
 /// Uses disk cache to avoid re-parsing unchanged files.
 fn aggregate_cli_stats_inner(days: u32) -> Result<AggregatedStats, String> {
-    let home = dirs::home_dir().ok_or("No home directory")?;
+    let home = crate::config::home_dir();
     let projects_dir = home.join(".claude").join("projects");
 
     if !projects_dir.exists() {
@@ -183,7 +194,7 @@ fn aggregate_cli_stats_inner(days: u32) -> Result<AggregatedStats, String> {
     }
 
     let cutoff = chrono::Utc::now() - chrono::Duration::days(i64::from(days));
-    let cutoff_secs = cutoff.timestamp() as u64;
+    let cutoff_secs = cutoff.timestamp().max(0) as u64;
     let cutoff_str = cutoff.format("%Y-%m-%d").to_string();
 
     let mut disk_cache = load_disk_cache();
@@ -367,7 +378,10 @@ fn parse_and_cache(
     for line in content.lines() {
         let parsed: JsonlLine = match serde_json::from_str(line) {
             Ok(v) => v,
-            Err(_) => continue,
+            Err(e) => {
+                eprintln!("[stats] Failed to parse JSONL line: {e}");
+                continue;
+            }
         };
 
         if date.is_empty() {
@@ -449,7 +463,10 @@ fn collect_jsonl_recursive(dir: &std::path::Path) -> Vec<PathBuf> {
     let mut result = Vec::new();
     let entries = match std::fs::read_dir(dir) {
         Ok(e) => e,
-        Err(_) => return result,
+        Err(e) => {
+            eprintln!("[stats] Failed to read dir {}: {e}", dir.display());
+            return result;
+        }
     };
     for entry in entries.filter_map(|e| e.ok()) {
         let path = entry.path();

@@ -63,8 +63,9 @@ impl ChatFileMeta {
 }
 
 fn cache_meta(chat: &ChatFile) {
-    if let Ok(mut map) = META_CACHE.lock() {
-        map.insert(chat.id.clone(), ChatFileMeta::from_chat(chat));
+    match META_CACHE.lock() {
+        Ok(mut map) => { map.insert(chat.id.clone(), ChatFileMeta::from_chat(chat)); }
+        Err(e) => eprintln!("[chats] META_CACHE lock poisoned: {e}"),
     }
 }
 
@@ -81,8 +82,14 @@ fn index_path() -> PathBuf {
 fn read_index() -> Vec<ChatFileMeta> {
     let path = index_path();
     match fs::read_to_string(&path) {
-        Ok(data) => serde_json::from_str(&data).unwrap_or_default(),
-        Err(_) => Vec::new(),
+        Ok(data) => serde_json::from_str(&data).unwrap_or_else(|e| {
+            eprintln!("[chats] Failed to parse index {}: {e}", path.display());
+            Vec::new()
+        }),
+        Err(e) => {
+            eprintln!("[chats] Failed to read index {}: {e}", path.display());
+            Vec::new()
+        }
     }
 }
 
@@ -382,7 +389,8 @@ pub async fn save_chat_messages(
             chat
         };
 
-        let data = serde_json::to_string_pretty(&chat)
+        // Use compact JSON — called frequently on every turn
+        let data = serde_json::to_string(&chat)
             .map_err(|e| format!("Failed to serialize chat: {e}"))?;
         atomic_write(&chat_path(&chat_id), data.as_bytes())
     })

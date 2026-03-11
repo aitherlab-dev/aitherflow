@@ -210,7 +210,10 @@ pub async fn run_cli_session(
                     }
                     buf.push_str(&line);
                 }
-                Err(_) => break,
+                Err(e) => {
+                    eprintln!("[conductor] stderr read error: {e}");
+                    break;
+                }
             }
         }
         buf

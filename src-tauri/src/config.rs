@@ -1,5 +1,10 @@
 use std::path::PathBuf;
 
+/// Home directory with fallback for environments where $HOME is unset.
+pub fn home_dir() -> PathBuf {
+    dirs::home_dir().unwrap_or_else(fallback_home)
+}
+
 /// Fallback home when $HOME is unset (containers, systemd units).
 /// Uses XDG_RUNTIME_DIR (/run/user/{UID}) which is per-user and mode 0700.
 fn fallback_home() -> PathBuf {
@@ -13,7 +18,9 @@ fn fallback_home() -> PathBuf {
             return PathBuf::from(format!("/run/user/{}", meta.uid()));
         }
     }
-    PathBuf::from("/tmp/aither-flow-fallback")
+    let p = PathBuf::from("/tmp/aither-flow-fallback");
+    eprintln!("[config] WARNING: $HOME unset, falling back to {}", p.display());
+    p
 }
 
 /// XDG config directory: ~/.config/aither-flow/
@@ -43,7 +50,5 @@ pub fn get_workspace_path() -> String {
 
 /// Claude CLI home: ~/.claude/
 pub fn claude_home() -> PathBuf {
-    dirs::home_dir()
-        .unwrap_or_else(fallback_home)
-        .join(".claude")
+    home_dir().join(".claude")
 }

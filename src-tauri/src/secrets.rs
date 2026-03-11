@@ -17,7 +17,7 @@ pub fn set_secret(key: &str, value: &str) -> Result<bool, String> {
         }
         Err(e) => {
             eprintln!("[secrets] Keyring unavailable for '{key}': {e}");
-            Ok(false)
+            Err(format!("Keyring unavailable for '{key}': {e}"))
         }
     }
 }
@@ -49,6 +49,9 @@ pub fn delete_secret(key: &str) -> Result<(), String> {
             Err(keyring::Error::NoEntry) => Ok(()),
             Err(e) => Err(format!("Failed to delete secret '{key}': {e}")),
         },
-        Err(_) => Ok(()),
+        Err(e) => {
+            eprintln!("[secrets] Failed to create keyring entry for '{key}': {e}");
+            Err(format!("Failed to access keyring for '{key}': {e}"))
+        }
     }
 }

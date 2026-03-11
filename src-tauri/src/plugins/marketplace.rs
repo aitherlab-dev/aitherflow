@@ -61,11 +61,17 @@ pub(super) fn load_install_counts() -> HashMap<String, u64> {
     let path = super::plugins_dir().join("install-counts-cache.json");
     let data = match fs::read_to_string(&path) {
         Ok(d) => d,
-        Err(_) => return HashMap::new(),
+        Err(e) => {
+            eprintln!("[plugins] Failed to read install counts cache: {e}");
+            return HashMap::new();
+        }
     };
     let file: InstallCountsFile = match serde_json::from_str(&data) {
         Ok(f) => f,
-        Err(_) => return HashMap::new(),
+        Err(e) => {
+            eprintln!("[plugins] Failed to parse install counts cache: {e}");
+            return HashMap::new();
+        }
     };
     file.counts
         .into_iter()

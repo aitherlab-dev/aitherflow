@@ -136,7 +136,10 @@ impl SessionManager {
                     false
                 }
                 Ok(None) => true, // Still running
-                Err(_) => false,
+                Err(e) => {
+                    eprintln!("[conductor] try_wait failed for agent {agent_id}: {e}");
+                    false
+                }
             }
         } else {
             false

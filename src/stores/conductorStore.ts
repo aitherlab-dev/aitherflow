@@ -3,8 +3,11 @@ import { invoke, listen } from "../lib/transport";
 import type { CliEvent } from "../types/conductor";
 import { useChatStore } from "./chatStore";
 
-/** Maximum number of raw events to keep in the log */
+/** Maximum number of raw events to keep in the log (debug only, not in store) */
 const MAX_EVENT_LOG = 200;
+
+/** Module-level event log — not in Zustand because nothing renders it */
+const eventLog: CliEvent[] = [];
 
 /** Default context window size (fallback when CLI doesn't report it) */
 const DEFAULT_CONTEXT_WINDOW = 200_000;
@@ -52,7 +55,6 @@ interface ConductorState {
   contextMax: number;
   costUsd: number;
   slashCommands: string[];
-  events: CliEvent[];
 
   // Actions
   setSelectedModel: (model: string) => void;
@@ -80,7 +82,6 @@ export const useConductorStore = create<ConductorState>((set, get) => ({
   contextMax: DEFAULT_CONTEXT_WINDOW,
   costUsd: 0,
   slashCommands: [],
-  events: [],
 
   setSelectedModel: (model: string) => set({ selectedModel: model }),
   setSelectedEffort: (effort: string) => set({ selectedEffort: effort }),
@@ -99,7 +100,6 @@ export const useConductorStore = create<ConductorState>((set, get) => ({
       contextMax: DEFAULT_CONTEXT_WINDOW,
       costUsd: 0,
       slashCommands: [],
-      events: [],
     }),
 
   saveUsageForAgent: (agentId: string) => {
@@ -203,12 +203,11 @@ listen<CliEvent>("cli-event", (event) => {
   // All other events: only process for active agent
   if (e.agent_id !== activeAgentId) return;
 
-  const { setState: set, getState: get } = useConductorStore;
+  const { setState: set } = useConductorStore;
 
-  // Keep event log capped — immutable update
-  const prev = get().events;
-  const trimmed = prev.length >= MAX_EVENT_LOG ? prev.slice(1) : prev;
-  set({ events: [...trimmed, e] });
+  // Keep event log capped (module-level, not in store — nothing renders it)
+  if (eventLog.length >= MAX_EVENT_LOG) eventLog.shift();
+  eventLog.push(e);
 
   switch (e.type) {
     case "sessionId":

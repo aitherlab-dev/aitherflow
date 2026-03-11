@@ -14,15 +14,13 @@ pub fn memory_db_path() -> std::path::PathBuf {
 
 /// Initialize the memory database (create if needed).
 /// Call from app setup.
-pub fn init() {
+pub fn init() -> Result<(), String> {
     let db_path = memory_db_path();
-    match db::open_db(&db_path) {
-        Ok(conn) => {
-            eprintln!("[memory] Database ready: {}", db_path.display());
-            *DB.lock().expect("DB mutex poisoned") = Some(conn);
-        }
-        Err(e) => eprintln!("[memory] Database init failed: {e}"),
-    }
+    let conn = db::open_db(&db_path).map_err(|e| format!("Database init failed: {e}"))?;
+    eprintln!("[memory] Database ready: {}", db_path.display());
+    let mut guard = DB.lock().map_err(|e| format!("DB mutex poisoned: {e}"))?;
+    *guard = Some(conn);
+    Ok(())
 }
 
 /// Run a closure with the shared database connection.

@@ -29,9 +29,8 @@ pub fn encode_project_path(project_path: &str) -> String {
 /// Find the CLI projects directory for a given project path.
 /// Returns `~/.claude/projects/<encoded-path>/`
 fn cli_sessions_dir(project_path: &str) -> Option<PathBuf> {
-    let home = dirs::home_dir()?;
     let encoded = encode_project_path(project_path);
-    let dir = home.join(".claude").join("projects").join(encoded);
+    let dir = crate::config::home_dir().join(".claude").join("projects").join(encoded);
     if dir.is_dir() {
         Some(dir)
     } else {
@@ -44,19 +43,21 @@ fn cli_sessions_dir(project_path: &str) -> Option<PathBuf> {
 fn load_history_index(project_path: &str) -> std::collections::HashMap<String, (String, String)> {
     let mut map = std::collections::HashMap::new();
 
-    let home = match dirs::home_dir() {
-        Some(h) => h,
-        None => return map,
-    };
+    let home = crate::config::home_dir();
 
     let history_path = home.join(".claude").join("history.jsonl");
-    let content = match std::fs::read_to_string(&history_path) {
-        Ok(c) => c,
-        Err(_) => return map,
+    let file = match std::fs::File::open(&history_path) {
+        Ok(f) => f,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return map,
+        Err(e) => {
+            eprintln!("[memory] Failed to read {}: {e}", history_path.display());
+            return map;
+        }
     };
 
-    for line in content.lines() {
-        if let Ok(v) = serde_json::from_str::<Value>(line) {
+    use std::io::BufRead;
+    for line in std::io::BufReader::new(file).lines().map_while(Result::ok) {
+        if let Ok(v) = serde_json::from_str::<Value>(&line) {
             let project = v.get("project").and_then(|p| p.as_str()).unwrap_or("");
             if project != project_path {
                 continue;
@@ -110,7 +111,10 @@ fn parse_session_file(
 
         let v: Value = match serde_json::from_str(line) {
             Ok(v) => v,
-            Err(_) => continue,
+            Err(e) => {
+                eprintln!("[memory] Failed to parse JSONL line: {e}");
+                continue;
+            }
         };
 
         let msg_type = match v.get("type").and_then(|t| t.as_str()) {

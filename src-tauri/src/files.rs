@@ -29,7 +29,7 @@ pub fn validate_path_safe(path: &Path) -> Result<(), String> {
         .canonicalize()
         .map_err(|e| format!("Cannot resolve path: {e}"))?;
 
-    let home = dirs::home_dir().ok_or("Cannot determine home directory")?;
+    let home = crate::config::home_dir();
     let allowed: &[&Path] = &[
         &home,
         Path::new("/tmp"),
@@ -96,7 +96,7 @@ pub async fn list_mounts() -> Result<Vec<MountEntry>, String> {
 /// Return the user's home directory path.
 #[tauri::command]
 pub async fn get_home_path() -> Result<String, String> {
-    let home = dirs::home_dir().ok_or("Cannot determine home directory")?;
+    let home = crate::config::home_dir();
     Ok(home.to_string_lossy().into_owned())
 }
 
@@ -165,7 +165,7 @@ mod tests {
 
     #[test]
     fn validate_path_safe_home() {
-        let home = dirs::home_dir().expect("home dir");
+        let home = crate::config::home_dir();
         assert!(validate_path_safe(&home).is_ok());
     }
 
@@ -186,7 +186,7 @@ mod tests {
 
     #[test]
     fn validate_path_safe_traversal_rejected() {
-        let home = dirs::home_dir().expect("home dir");
+        let home = crate::config::home_dir();
         let evil = home.join("..").join("..").join("etc").join("passwd");
         assert!(validate_path_safe(&evil).is_err());
     }

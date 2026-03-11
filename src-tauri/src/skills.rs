@@ -107,7 +107,10 @@ fn scan_skills_dir(dir: &Path) -> Vec<(String, String, String, String)> {
 
     let entries = match fs::read_dir(dir) {
         Ok(e) => e,
-        Err(_) => return results,
+        Err(e) => {
+            eprintln!("[skills] Failed to read skills dir {}: {e}", dir.display());
+            return results;
+        }
     };
 
     for entry in entries.flatten() {
@@ -164,14 +167,24 @@ fn scan_commands_dir(dir: &Path) -> Vec<(String, String, String, String)> {
 
     let entries = match fs::read_dir(dir) {
         Ok(e) => e,
-        Err(_) => return results,
+        Err(e) => {
+            eprintln!("[skills] Failed to read commands dir {}: {e}", dir.display());
+            return results;
+        }
     };
 
     for entry in entries.flatten() {
+        let ft = match entry.file_type() {
+            Ok(ft) => ft,
+            Err(e) => {
+                eprintln!("[skills] file_type() failed for {:?}: {e}", entry.path());
+                continue;
+            }
+        };
         let path = entry.path();
 
         // Commands can be either commands/name.md or commands/name/COMMAND.md
-        let (cmd_name, md_path) = if path.is_file()
+        let (cmd_name, md_path) = if ft.is_file()
             && path.extension().and_then(|e| e.to_str()) == Some("md")
         {
             let name = path
@@ -180,7 +193,7 @@ fn scan_commands_dir(dir: &Path) -> Vec<(String, String, String, String)> {
                 .to_string_lossy()
                 .to_string();
             (name, path.clone())
-        } else if path.is_dir() {
+        } else if ft.is_dir() {
             let command_md = path.join("COMMAND.md");
             if command_md.exists() {
                 let name = entry.file_name().to_string_lossy().to_string();
@@ -194,7 +207,10 @@ fn scan_commands_dir(dir: &Path) -> Vec<(String, String, String, String)> {
 
         let content = match fs::read_to_string(&md_path) {
             Ok(c) => c,
-            Err(_) => continue,
+            Err(e) => {
+                eprintln!("[skills] Failed to read {}: {e}", md_path.display());
+                continue;
+            }
         };
 
         let (name, description) = parse_frontmatter(&content);
@@ -221,7 +237,10 @@ fn scan_plugin_skills() -> Vec<PluginSkillGroup> {
     let plugins_file = config::claude_home().join("plugins/installed_plugins.json");
     let data = match fs::read_to_string(&plugins_file) {
         Ok(d) => d,
-        Err(_) => return Vec::new(),
+        Err(e) => {
+            eprintln!("[skills] Failed to read {}: {e}", plugins_file.display());
+            return Vec::new();
+        }
     };
 
     let manifest: InstalledPluginsFile = match serde_json::from_str(&data) {

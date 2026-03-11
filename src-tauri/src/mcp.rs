@@ -80,9 +80,7 @@ pub struct McpTestResult {
 // ─── helpers ───
 
 fn claude_json_path() -> PathBuf {
-    dirs::home_dir()
-        .unwrap_or_else(|| PathBuf::from("/tmp"))
-        .join(".claude.json")
+    crate::config::home_dir().join(".claude.json")
 }
 
 fn read_json_file(path: &Path) -> Option<serde_json::Value> {

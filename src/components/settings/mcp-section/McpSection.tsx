@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { Plus, RotateCcw } from "lucide-react";
 import { useMcpStore } from "../../../stores/mcpStore";
 import { useAgentStore } from "../../../stores/agentStore";
@@ -14,8 +15,8 @@ export function McpSection() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [strict, setStrict] = useState(false);
 
-  const globalServers = useMcpStore((s) => s.global);
-  const projectServers = useMcpStore((s) => s.project);
+  const globalServers = useMcpStore(useShallow((s) => s.global));
+  const projectServers = useMcpStore(useShallow((s) => s.project));
   const globalPath = useMcpStore((s) => s.globalPath);
   const projectPath = useMcpStore((s) => s.projectPath);
   const needsReload = useMcpStore((s) => s.needsReload);

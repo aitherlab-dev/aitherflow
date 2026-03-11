@@ -157,7 +157,9 @@ pub fn run() {
                         }
                     }
 
-                    memory::init();
+                    if let Err(e) = memory::init() {
+                        eprintln!("[aitherflow] memory::init failed: {e}");
+                    }
                     attachments::cleanup_old_temp(3600);
                     projects::ensure_projects_file();
                     agents::ensure_agents_file();

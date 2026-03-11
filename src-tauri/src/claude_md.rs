@@ -20,8 +20,7 @@ pub async fn list_claude_md_files() -> Result<Vec<ClaudeMdEntry>, String> {
         let mut entries = Vec::new();
 
         // Global ~/.claude/CLAUDE.md
-        let global = dirs::home_dir()
-            .unwrap_or_default()
+        let global = crate::config::home_dir()
             .join(".claude")
             .join("CLAUDE.md");
         entries.push(ClaudeMdEntry {

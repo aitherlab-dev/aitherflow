@@ -400,7 +400,30 @@ export async function toggleChatPin(chatId: string, pinned: boolean) {
   }
 }
 
+let switchAgentLock: Promise<void> | null = null;
+
 export async function switchAgent(
+  agentId: string,
+  projectPath: string,
+  projectName: string,
+  savedChatId: string | null,
+) {
+  // Serialize concurrent switchAgent calls to prevent race conditions
+  while (switchAgentLock) await switchAgentLock;
+  let unlock: () => void;
+  switchAgentLock = new Promise((r) => { unlock = r; });
+  try {
+    await switchAgentInner(agentId, projectPath, projectName, savedChatId);
+  } catch (e) {
+    console.error("[switchAgent] Failed:", e);
+    throw e;
+  } finally {
+    unlock!();
+    switchAgentLock = null;
+  }
+}
+
+async function switchAgentInner(
   agentId: string,
   projectPath: string,
   projectName: string,
