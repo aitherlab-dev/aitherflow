@@ -1,8 +1,18 @@
 use rusqlite::Connection;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 use super::db;
+
+/// Cached history index: global byte offset + accumulated entries per session.
+static HISTORY_CACHE: Mutex<Option<HistoryCache>> = Mutex::new(None);
+
+struct HistoryCache {
+    byte_offset: u64,
+    /// session_id → (display_text, timestamp_iso)
+    entries: std::collections::HashMap<String, (String, String)>,
+}
 
 /// Compute a deterministic content hash (FNV-1a) for a list of messages.
 /// Uses a fixed algorithm so hashes are stable across restarts.
@@ -40,24 +50,57 @@ fn cli_sessions_dir(project_path: &str) -> Option<PathBuf> {
 }
 
 /// Load the global history index to get first_message and created_at for sessions.
+/// Uses incremental reading: remembers byte offset and only reads new lines on subsequent calls.
 /// Returns a map: session_id → (display_text, timestamp_iso)
-fn load_history_index(project_path: &str) -> std::collections::HashMap<String, (String, String)> {
-    let mut map = std::collections::HashMap::new();
+fn load_history_index() -> std::collections::HashMap<String, (String, String)> {
+    use std::io::{BufRead, Seek, SeekFrom};
 
     let home = crate::config::home_dir();
-
     let history_path = home.join(".claude").join("history.jsonl");
-    let file = match std::fs::File::open(&history_path) {
+
+    let mut file = match std::fs::File::open(&history_path) {
         Ok(f) => f,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return map,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return std::collections::HashMap::new();
+        }
         Err(e) => {
             eprintln!("[memory] Failed to read {}: {e}", history_path.display());
-            return map;
+            return std::collections::HashMap::new();
         }
     };
 
-    use std::io::BufRead;
-    for line in std::io::BufReader::new(file).lines().map_while(Result::ok) {
+    let file_len = file.metadata().map(|m| m.len()).unwrap_or(0);
+
+    let mut cache = HISTORY_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+    let cache_inner = cache.get_or_insert_with(|| HistoryCache {
+        byte_offset: 0,
+        entries: std::collections::HashMap::new(),
+    });
+
+    // If file was truncated/rotated, reset offset
+    if file_len < cache_inner.byte_offset {
+        cache_inner.byte_offset = 0;
+        cache_inner.entries.clear();
+    }
+
+    // Nothing new to read
+    if file_len == cache_inner.byte_offset {
+        return cache_inner
+            .entries
+            .iter()
+            .filter(|(_, (_, _))| true) // return all, caller filters by project
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+    }
+
+    // Seek to last known offset and read only new lines
+    if let Err(e) = file.seek(SeekFrom::Start(cache_inner.byte_offset)) {
+        eprintln!("[memory] Failed to seek history.jsonl: {e}");
+        return cache_inner.entries.clone();
+    }
+
+    let reader = std::io::BufReader::new(&file);
+    for line in reader.lines().map_while(Result::ok) {
         let v: Value = match serde_json::from_str(&line) {
             Ok(v) => v,
             Err(e) => {
@@ -65,23 +108,24 @@ fn load_history_index(project_path: &str) -> std::collections::HashMap<String, (
                 continue;
             }
         };
-        let project = v.get("project").and_then(|p| p.as_str()).unwrap_or("");
-        if project != project_path {
-            continue;
-        }
         if let (Some(sid), Some(display), Some(ts)) = (
             v.get("sessionId").and_then(|s| s.as_str()),
             v.get("display").and_then(|d| d.as_str()),
             v.get("timestamp").and_then(|t| t.as_u64()),
         ) {
-            // Convert millis timestamp to ISO string
             let secs = ts / 1000;
             let iso = timestamp_to_iso(secs);
-            map.insert(sid.to_string(), (display.to_string(), iso));
+            cache_inner
+                .entries
+                .insert(sid.to_string(), (display.to_string(), iso));
         }
     }
 
-    map
+    cache_inner.byte_offset = file_len;
+
+    // Filter by project path — history.jsonl contains all projects
+    // but we store all entries in cache for reuse across projects
+    cache_inner.entries.clone()
 }
 
 /// Convert unix timestamp (seconds) to ISO 8601 string.
@@ -204,7 +248,7 @@ pub fn index_project(conn: &Connection, project_path: &str) -> Result<usize, Str
     };
 
     // Load history index for first_message / created_at
-    let history = load_history_index(project_path);
+    let history = load_history_index();
 
     // Find all .jsonl files
     let entries: Vec<_> = match std::fs::read_dir(&sessions_dir) {
