@@ -5,6 +5,7 @@
 
 import { invoke } from "../lib/transport";
 import type { StartSessionOptions, SendMessageOptions } from "../types/conductor";
+import { toFileType } from "../types/chat";
 import type { Attachment, ChatMessage } from "../types/chat";
 import type { AttachmentPayload } from "../types/conductor";
 import {
@@ -296,7 +297,7 @@ export async function switchChat(chatId: string) {
             name: a.name,
             content: a.content,
             size: a.size,
-            fileType: a.fileType as "image" | "text",
+            fileType: toFileType(a.fileType),
           }))
         : undefined,
     }));

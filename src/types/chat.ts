@@ -1,6 +1,14 @@
 /** Roles in the chat */
 type MessageRole = "user" | "assistant";
 
+/** Valid file types for attachments */
+const VALID_FILE_TYPES = new Set(["image", "text"]);
+
+/** Safely cast a string to Attachment fileType with runtime check */
+export function toFileType(value: string): "image" | "text" {
+  return VALID_FILE_TYPES.has(value) ? (value as "image" | "text") : "text";
+}
+
 /** File attachment (image or text) */
 export interface Attachment {
   id: string;

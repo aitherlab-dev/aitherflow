@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { invoke } from "../lib/transport";
+import { toFileType } from "../types/chat";
 import type { Attachment } from "../types/chat";
 import type { ProcessFileResult } from "../types/files";
 
@@ -16,7 +17,7 @@ export function useFileAttach() {
           name: result.name,
           content: result.content,
           size: result.size,
-          fileType: result.fileType as "image" | "text",
+          fileType: toFileType(result.fileType),
         };
         setAttachments((prev) => [...prev, att]);
       } catch (e) {

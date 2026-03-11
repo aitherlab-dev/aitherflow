@@ -12,6 +12,7 @@ import { useProjectStore } from "../stores/projectStore";
 import { useConductorStore } from "../stores/conductorStore";
 import { useSkillStore } from "../stores/skillStore";
 import { sendMessage } from "../stores/chatService";
+import { toFileType } from "../types/chat";
 import type { Attachment } from "../types/chat";
 import type { ProcessFileResult } from "../types/files";
 
@@ -198,7 +199,7 @@ async function handleText(msg: TgIncoming): Promise<void> {
         name: result.name,
         content: result.content,
         size: result.size,
-        fileType: result.fileType as "image" | "text",
+        fileType: toFileType(result.fileType),
       });
       // Clean up temp file after reading into memory
       invoke("delete_file", { path: msg.attachment_path }).catch(console.error);
