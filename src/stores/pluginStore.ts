@@ -26,11 +26,7 @@ interface PluginState {
   uninstall: (name: string, marketplace: string) => Promise<void>;
 
   /** Add a new marketplace source */
-  addSource: (
-    name: string,
-    sourceType: string,
-    url: string,
-  ) => Promise<void>;
+  addSource: (url: string) => Promise<void>;
 
   /** Remove a marketplace source */
   removeSource: (name: string) => Promise<void>;
@@ -105,9 +101,9 @@ export const usePluginStore = create<PluginState>((set, get) => ({
     }
   },
 
-  addSource: async (name, sourceType, url) => {
+  addSource: async (url) => {
     try {
-      await invoke("add_marketplace", { name, sourceType, url });
+      await invoke("add_marketplace", { url });
       await get().load();
     } catch (e) {
       console.error("Failed to add marketplace:", e);

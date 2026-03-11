@@ -352,15 +352,50 @@ pub async fn uninstall_plugin(name: String, marketplace: String) -> Result<(), S
     .map_err(|e| format!("Task join error: {e}"))?
 }
 
+/// Normalize any GitHub URL variant into (owner, repo) pair.
+/// Accepts: "owner/repo", "https://github.com/owner/repo", "https://github.com/owner/repo.git"
+fn parse_github_url(input: &str) -> Result<(String, String), String> {
+    let s = input.trim().trim_end_matches('/');
+
+    // Strip common prefixes
+    let path = s
+        .strip_prefix("https://github.com/")
+        .or_else(|| s.strip_prefix("http://github.com/"))
+        .or_else(|| s.strip_prefix("github.com/"))
+        .unwrap_or(s);
+
+    // Strip .git suffix
+    let path = path.strip_suffix(".git").unwrap_or(path);
+
+    // Should be "owner/repo" now
+    let parts: Vec<&str> = path.split('/').filter(|p| !p.is_empty()).collect();
+    if parts.len() != 2 {
+        return Err(format!(
+            "Could not parse GitHub repo from '{}'. Expected format: owner/repo or https://github.com/owner/repo",
+            input
+        ));
+    }
+
+    let owner = parts[0].to_string();
+    let repo = parts[1].to_string();
+
+    if owner.contains('.') || repo.contains("..") {
+        return Err("Invalid characters in owner/repo".to_string());
+    }
+
+    Ok((owner, repo))
+}
+
 /// Add a new marketplace source (git clone)
 #[tauri::command]
-pub async fn add_marketplace(
-    name: String,
-    source_type: String,
-    url: String,
-) -> Result<(), String> {
-    validate_plugin_name(&name, "marketplace name")?;
+pub async fn add_marketplace(url: String) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
+        let (owner, repo) = parse_github_url(&url)?;
+        let name = format!("{}-{}", owner, repo);
+        let owner_repo = format!("{}/{}", owner, repo);
+
+        validate_plugin_name(&name, "marketplace name")?;
+
         let base = super::plugins_dir();
         let target_dir = base.join("marketplaces").join(&name);
 
@@ -368,12 +403,7 @@ pub async fn add_marketplace(
             return Err(format!("Marketplace '{}' already exists", name));
         }
 
-        // Determine git URL
-        let git_url = match source_type.as_str() {
-            "github" => format!("https://github.com/{}.git", url),
-            "git" => url.clone(),
-            _ => return Err(format!("Unknown source type: {}", source_type)),
-        };
+        let git_url = format!("https://github.com/{}.git", owner_repo);
         validate_git_url(&git_url)?;
 
         // Git clone
@@ -387,7 +417,6 @@ pub async fn add_marketplace(
             .map_err(|e| format!("Failed to run git clone: {e}"))?;
 
         if !output.status.success() {
-            // Clean up on failure
             if let Err(e) = fs::remove_dir_all(&target_dir) {
                 eprintln!(
                     "[plugins] Failed to clean up {}: {e}",
@@ -406,14 +435,9 @@ pub async fn add_marketplace(
             serde_json::json!({})
         };
 
-        let source_obj = match source_type.as_str() {
-            "github" => serde_json::json!({ "source": "github", "repo": url }),
-            _ => serde_json::json!({ "source": "git", "url": url }),
-        };
-
         let now = chrono_now();
         file[&name] = serde_json::json!({
-            "source": source_obj,
+            "source": { "source": "github", "repo": owner_repo },
             "installLocation": target_dir.to_string_lossy(),
             "lastUpdated": now
         });

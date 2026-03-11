@@ -531,9 +531,7 @@ function SourcesTab() {
   const updateSources = usePluginStore((s) => s.updateSources);
 
   const [adding, setAdding] = useState(false);
-  const [newName, setNewName] = useState("");
   const [newUrl, setNewUrl] = useState("");
-  const [newType, setNewType] = useState<"github" | "git">("github");
   const [addError, setAddError] = useState("");
 
   const handleRemove = useCallback(
@@ -548,22 +546,20 @@ function SourcesTab() {
   }, [updateSources]);
 
   const handleAdd = useCallback(async () => {
-    const trimName = newName.trim();
     const trimUrl = newUrl.trim();
-    if (!trimName || !trimUrl) {
-      setAddError("Name and URL are required");
+    if (!trimUrl) {
+      setAddError("Paste a GitHub repo URL");
       return;
     }
     setAddError("");
     try {
-      await addSource(trimName, newType, trimUrl);
+      await addSource(trimUrl);
       setAdding(false);
-      setNewName("");
       setNewUrl("");
     } catch (e) {
       setAddError(String(e));
     }
-  }, [newName, newUrl, newType, addSource]);
+  }, [newUrl, addSource]);
 
   const handleAddKey = useCallback(
     (e: React.KeyboardEvent) => {
@@ -589,36 +585,14 @@ function SourcesTab() {
       {adding ? (
         <div className="source-add-form">
           <div className="source-add-form__row">
-            <select
-              className="source-add-form__select"
-              value={newType}
-              onChange={(e) => setNewType(e.target.value as "github" | "git")}
-            >
-              <option value="github">GitHub</option>
-              <option value="git">Git URL</option>
-            </select>
-            <input
-              className="source-add-form__input"
-              placeholder="Name (e.g. my-skills)"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={handleAddKey}
-              spellCheck={false}
-              autoFocus
-            />
-          </div>
-          <div className="source-add-form__row">
             <input
               className="source-add-form__input source-add-form__input--wide"
-              placeholder={
-                newType === "github"
-                  ? "owner/repo (e.g. anthropics/claude-plugins-official)"
-                  : "https://github.com/user/repo.git"
-              }
+              placeholder="https://github.com/owner/repo"
               value={newUrl}
               onChange={(e) => setNewUrl(e.target.value)}
               onKeyDown={handleAddKey}
               spellCheck={false}
+              autoFocus
             />
           </div>
           {addError && <p className="source-add-form__error">{addError}</p>}
