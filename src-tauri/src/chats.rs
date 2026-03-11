@@ -47,19 +47,6 @@ impl ChatFileMeta {
         }
     }
 
-    fn into_chat_file(self, messages: Vec<ChatMessageStored>) -> ChatFile {
-        ChatFile {
-            id: self.id,
-            project_path: self.project_path,
-            agent_id: self.agent_id,
-            title: self.title,
-            created_at: self.created_at,
-            session_id: self.session_id,
-            custom_title: self.custom_title,
-            pinned: self.pinned,
-            messages,
-        }
-    }
 }
 
 fn cache_meta(chat: &ChatFile) {
@@ -386,20 +373,25 @@ pub async fn save_chat_messages(
 
         // Try cached metadata first (avoids reading+parsing the whole file)
         let meta = get_cached_meta(&chat_id);
-        let chat = if let Some(meta) = meta {
-            meta.into_chat_file(messages)
+        let meta = if let Some(m) = meta {
+            m
         } else {
             // Cache miss: fall back to full read (first save before load_chat)
-            let mut chat = read_chat_file(&chat_id)
+            let chat = read_chat_file(&chat_id)
                 .ok_or_else(|| format!("Chat {chat_id} not found"))?;
-            chat.messages = messages;
             cache_meta(&chat);
-            chat
+            ChatFileMeta::from_chat(&chat)
         };
 
-        // Use compact JSON — called frequently on every turn
-        let data = serde_json::to_string(&chat)
-            .map_err(|e| format!("Failed to serialize chat: {e}"))?;
+        // Serialize metadata and messages separately, then combine.
+        // This avoids building the full ChatFile struct just to serialize it.
+        let meta_json = serde_json::to_string(&meta)
+            .map_err(|e| format!("Failed to serialize meta: {e}"))?;
+        let msgs_json = serde_json::to_string(&messages)
+            .map_err(|e| format!("Failed to serialize messages: {e}"))?;
+
+        // meta_json is like {"id":"...", ...} — inject "messages" field
+        let data = format!("{},\"messages\":{}}}", &meta_json[..meta_json.len() - 1], msgs_json);
         atomic_write(&chat_path(&chat_id), data.as_bytes())
     })
     .await
