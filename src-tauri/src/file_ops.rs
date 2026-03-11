@@ -1,3 +1,4 @@
+use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::fs;
 use std::io::Write;
@@ -79,6 +80,21 @@ pub fn atomic_write(path: &Path, data: &[u8]) -> Result<(), String> {
         format!("Failed to rename temp file: {e}")
     })?;
     Ok(())
+}
+
+/// Read a JSON file and deserialize into T.
+pub fn read_json<T: DeserializeOwned>(path: &Path) -> Result<T, String> {
+    let data = fs::read_to_string(path)
+        .map_err(|e| format!("Failed to read {}: {e}", path.display()))?;
+    serde_json::from_str(&data)
+        .map_err(|e| format!("Failed to parse {}: {e}", path.display()))
+}
+
+/// Serialize T as pretty JSON and write atomically.
+pub fn write_json<T: Serialize + ?Sized>(path: &Path, value: &T) -> Result<(), String> {
+    let data = serde_json::to_string_pretty(value)
+        .map_err(|e| format!("Failed to serialize {}: {e}", path.display()))?;
+    atomic_write(path, data.as_bytes())
 }
 
 /// Read file content with size/binary checks and language detection

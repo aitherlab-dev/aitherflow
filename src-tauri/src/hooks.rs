@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 use crate::config;
-use crate::file_ops::atomic_write;
+use crate::file_ops::{read_json, write_json};
 
 // ── Types ──
 
@@ -44,19 +44,11 @@ fn read_settings_json(path: &std::path::Path) -> Result<serde_json::Value, Strin
     if !path.exists() {
         return Ok(serde_json::json!({}));
     }
-    let data = std::fs::read_to_string(path)
-        .map_err(|e| format!("Failed to read {}: {e}", path.display()))?;
-    if data.trim().is_empty() {
+    let val: serde_json::Value = read_json(path)?;
+    if val.is_null() {
         return Ok(serde_json::json!({}));
     }
-    serde_json::from_str(&data)
-        .map_err(|e| format!("Failed to parse {}: {e}", path.display()))
-}
-
-fn write_settings_json(path: &std::path::Path, value: &serde_json::Value) -> Result<(), String> {
-    let json = serde_json::to_string_pretty(value)
-        .map_err(|e| format!("Failed to serialize: {e}"))?;
-    atomic_write(path, json.as_bytes())
+    Ok(val)
 }
 
 // ── Tauri commands ──
@@ -88,7 +80,7 @@ pub async fn save_hooks(
             .as_object_mut()
             .ok_or("Settings file is not a JSON object")?;
         obj.insert("hooks".to_string(), hooks);
-        write_settings_json(&path, &settings)
+        write_json(&path, &settings)
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?

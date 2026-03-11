@@ -1,9 +1,8 @@
 use serde::{Deserialize, Serialize};
-use std::fs;
 use std::path::PathBuf;
 
 use crate::config;
-use crate::file_ops::atomic_write;
+use crate::file_ops::{read_json, write_json};
 
 /// A single agent entry (tab in sidebar)
 #[derive(Serialize, Deserialize, Clone)]
@@ -44,9 +43,7 @@ pub async fn load_agents() -> Result<AgentsConfig, String> {
             });
         }
 
-        let data = fs::read_to_string(&path)
-            .map_err(|e| format!("Failed to read agents.json: {e}"))?;
-        serde_json::from_str(&data).map_err(|e| format!("Failed to parse agents.json: {e}"))
+        read_json(&path)
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
@@ -63,9 +60,7 @@ pub async fn save_agents(
             agents,
             active_agent_id,
         };
-        let data = serde_json::to_string_pretty(&config)
-            .map_err(|e| format!("Failed to serialize agents: {e}"))?;
-        atomic_write(&agents_path(), data.as_bytes())
+        write_json(&agents_path(), &config)
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
@@ -85,9 +80,6 @@ pub fn ensure_agents_file() -> Result<(), String> {
         agents: vec![],
     };
 
-    let data = serde_json::to_string_pretty(&config)
-        .map_err(|e| format!("Failed to serialize agents: {e}"))?;
-    atomic_write(&path, data.as_bytes())
-        .map_err(|e| format!("Failed to write agents.json: {e}"))
+    write_json(&path, &config)
 }
 

@@ -1,9 +1,8 @@
 use serde::{Deserialize, Serialize};
-use std::fs;
 use std::path::PathBuf;
 
 use crate::config;
-use crate::file_ops::atomic_write;
+use crate::file_ops::{read_json, write_json};
 
 /// A single project bookmark
 #[derive(Serialize, Deserialize, Clone)]
@@ -61,10 +60,7 @@ pub async fn load_projects() -> Result<ProjectsConfig, String> {
             });
         }
 
-        let data = fs::read_to_string(&path)
-            .map_err(|e| format!("Failed to read projects.json: {e}"))?;
-        let mut config: ProjectsConfig =
-            serde_json::from_str(&data).map_err(|e| format!("Failed to parse projects.json: {e}"))?;
+        let mut config: ProjectsConfig = read_json(&path)?;
 
         // Ensure Workspace is always present as first project
         let workspace = config::workspace_dir().to_string_lossy().into_owned();
@@ -100,9 +96,7 @@ pub async fn save_projects(
             last_opened_chat_id,
             welcome_cards,
         };
-        let data = serde_json::to_string_pretty(&config)
-            .map_err(|e| format!("Failed to serialize projects: {e}"))?;
-        atomic_write(&projects_path(), data.as_bytes())
+        write_json(&projects_path(), &config)
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
@@ -126,8 +120,5 @@ pub fn ensure_projects_file() -> Result<(), String> {
         last_opened_chat_id: None,
         welcome_cards: Vec::new(),
     };
-    let data = serde_json::to_string_pretty(&config)
-        .map_err(|e| format!("Failed to serialize projects: {e}"))?;
-    atomic_write(&path, data.as_bytes())
-        .map_err(|e| format!("Failed to write projects.json: {e}"))
+    write_json(&path, &config)
 }

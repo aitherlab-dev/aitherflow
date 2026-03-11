@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::config;
-use crate::file_ops::atomic_write;
+use crate::file_ops::{read_json, write_json};
 use crate::plugins::types::InstalledPluginsFile;
 
 // ── Types ──
@@ -235,18 +235,10 @@ fn scan_commands_dir(dir: &Path) -> Vec<(String, String, String, String)> {
 /// Read installed_plugins.json and collect skills from each plugin
 fn scan_plugin_skills() -> Vec<PluginSkillGroup> {
     let plugins_file = config::claude_home().join("plugins/installed_plugins.json");
-    let data = match fs::read_to_string(&plugins_file) {
-        Ok(d) => d,
-        Err(e) => {
-            eprintln!("[skills] Failed to read {}: {e}", plugins_file.display());
-            return Vec::new();
-        }
-    };
-
-    let manifest: InstalledPluginsFile = match serde_json::from_str(&data) {
+    let manifest: InstalledPluginsFile = match read_json(&plugins_file) {
         Ok(m) => m,
         Err(e) => {
-            eprintln!("[aitherflow] Failed to parse installed_plugins.json: {e}");
+            eprintln!("[skills] {e}");
             return Vec::new();
         }
     };
@@ -432,10 +424,7 @@ pub async fn load_skill_favorites() -> Result<SkillFavorites, String> {
         if !path.exists() {
             return Ok(SkillFavorites::default());
         }
-        let data = fs::read_to_string(&path)
-            .map_err(|e| format!("Failed to read skill-favorites.json: {e}"))?;
-        serde_json::from_str(&data)
-            .map_err(|e| format!("Failed to parse skill-favorites.json: {e}"))
+        read_json(&path)
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
@@ -548,9 +537,7 @@ pub async fn move_skill(
 pub async fn save_skill_favorites(ids: Vec<String>) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
         let favs = SkillFavorites { ids };
-        let data = serde_json::to_string_pretty(&favs)
-            .map_err(|e| format!("Failed to serialize favorites: {e}"))?;
-        atomic_write(&favorites_path(), data.as_bytes())
+        write_json(&favorites_path(), &favs)
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?

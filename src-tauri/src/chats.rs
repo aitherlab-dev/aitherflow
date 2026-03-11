@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, LazyLock, Mutex};
 
 use crate::config;
-use crate::file_ops::atomic_write;
+use crate::file_ops::{atomic_write, read_json, write_json};
 
 /// Per-chat-id lock to prevent concurrent read-modify-write races.
 static CHAT_LOCKS: LazyLock<Mutex<HashMap<String, Arc<Mutex<()>>>>> =
@@ -81,23 +81,18 @@ fn index_path() -> PathBuf {
 /// Read index from disk (returns empty vec on any error)
 fn read_index() -> Vec<ChatFileMeta> {
     let path = index_path();
-    match fs::read_to_string(&path) {
-        Ok(data) => serde_json::from_str(&data).unwrap_or_else(|e| {
-            eprintln!("[chats] Failed to parse index {}: {e}", path.display());
-            Vec::new()
-        }),
-        Err(e) => {
-            eprintln!("[chats] Failed to read index {}: {e}", path.display());
-            Vec::new()
-        }
+    if !path.exists() {
+        return Vec::new();
     }
+    read_json(&path).unwrap_or_else(|e| {
+        eprintln!("[chats] {e}");
+        Vec::new()
+    })
 }
 
 /// Write index to disk
 fn write_index(entries: &[ChatFileMeta]) -> Result<(), String> {
-    let data = serde_json::to_string_pretty(entries)
-        .map_err(|e| format!("Failed to serialize index: {e}"))?;
-    atomic_write(&index_path(), data.as_bytes())
+    write_json(&index_path(), entries)
 }
 
 /// Rebuild index by scanning all chat files (fallback when index.json is missing)
@@ -279,9 +274,7 @@ fn chat_path(chat_id: &str) -> PathBuf {
 
 /// Read a single chat file
 fn read_chat_file(chat_id: &str) -> Option<ChatFile> {
-    let path = chat_path(chat_id);
-    let data = fs::read_to_string(&path).ok()?;
-    serde_json::from_str(&data).ok()
+    read_json(&chat_path(chat_id)).ok()
 }
 
 /// List chats for a project (metadata only, sorted newest first)
@@ -339,9 +332,7 @@ pub async fn create_chat(
             messages: Vec::new(),
         };
 
-        let data = serde_json::to_string_pretty(&chat)
-            .map_err(|e| format!("Failed to serialize chat: {e}"))?;
-        atomic_write(&chat_path(&id), data.as_bytes())?;
+        write_json(&chat_path(&id), &chat)?;
 
         cache_meta(&chat);
         upsert_index_entry(&ChatFileMeta::from_chat(&chat))
@@ -412,9 +403,7 @@ pub async fn update_chat_session(chat_id: String, session_id: String) -> Result<
         upsert_index_entry(&meta)
             .map_err(|e| eprintln!("[chats] Failed to update chat index: {e}"))
             .ok();
-        let data = serde_json::to_string_pretty(&chat)
-            .map_err(|e| format!("Failed to serialize chat: {e}"))?;
-        atomic_write(&chat_path(&chat_id), data.as_bytes())
+        write_json(&chat_path(&chat_id), &chat)
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
@@ -464,9 +453,7 @@ pub async fn rename_chat(chat_id: String, custom_title: String) -> Result<(), St
         upsert_index_entry(&meta)
             .map_err(|e| eprintln!("[chats] Failed to update chat index: {e}"))
             .ok();
-        let data = serde_json::to_string_pretty(&chat)
-            .map_err(|e| format!("Failed to serialize chat: {e}"))?;
-        atomic_write(&chat_path(&chat_id), data.as_bytes())
+        write_json(&chat_path(&chat_id), &chat)
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
@@ -486,9 +473,7 @@ pub async fn toggle_chat_pin(chat_id: String, pinned: bool) -> Result<(), String
         upsert_index_entry(&meta)
             .map_err(|e| eprintln!("[chats] Failed to update chat index: {e}"))
             .ok();
-        let data = serde_json::to_string_pretty(&chat)
-            .map_err(|e| format!("Failed to serialize chat: {e}"))?;
-        atomic_write(&chat_path(&chat_id), data.as_bytes())
+        write_json(&chat_path(&chat_id), &chat)
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?

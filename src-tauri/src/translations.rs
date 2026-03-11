@@ -4,7 +4,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use crate::config;
-use crate::file_ops::atomic_write;
+use crate::file_ops::{read_json, write_json};
 
 /// Cached translations stored on disk
 #[derive(Default, Serialize, Deserialize, Clone)]
@@ -31,20 +31,12 @@ fn load_cache() -> TranslationCache {
     if !path.exists() {
         return TranslationCache::default();
     }
-    match fs::read_to_string(&path) {
-        Ok(data) => serde_json::from_str(&data).unwrap_or_default(),
-        Err(e) => {
-            eprintln!("[translations] Failed to read cache: {e}");
-            TranslationCache::default()
-        }
-    }
+    read_json(&path).unwrap_or_default()
 }
 
 /// Save the translation cache to disk
 fn save_cache(cache: &TranslationCache) -> Result<(), String> {
-    let data = serde_json::to_string_pretty(cache)
-        .map_err(|e| format!("Failed to serialize translations: {e}"))?;
-    atomic_write(&cache_path(), data.as_bytes())
+    write_json(&cache_path(), cache)
 }
 
 /// Language code to full name for the translation prompt

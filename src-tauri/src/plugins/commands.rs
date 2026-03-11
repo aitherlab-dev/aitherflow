@@ -2,7 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
-use crate::file_ops::atomic_write;
+use crate::file_ops::{read_json, write_json};
 
 use super::marketplace::*;
 use super::types::*;
@@ -43,10 +43,7 @@ pub async fn load_plugins() -> Result<PluginsData, String> {
         // ── Installed plugins ──
         let installed_path = base.join("installed_plugins.json");
         let installed: Vec<InstalledPlugin> = if installed_path.exists() {
-            let data = fs::read_to_string(&installed_path)
-                .map_err(|e| format!("Failed to read installed_plugins.json: {e}"))?;
-            let file: InstalledPluginsFile = serde_json::from_str(&data)
-                .map_err(|e| format!("Failed to parse installed_plugins.json: {e}"))?;
+            let file: InstalledPluginsFile = read_json(&installed_path)?;
 
             let mut result = Vec::new();
             for (key, entries) in &file.plugins {
@@ -116,25 +113,11 @@ pub async fn load_plugins() -> Result<PluginsData, String> {
                         continue;
                     }
 
-                    let manifest_data = match fs::read_to_string(&manifest_path) {
-                        Ok(d) => d,
-                        Err(e) => {
-                            eprintln!(
-                                "[aitherflow] Failed to read {}: {e}",
-                                manifest_path.display()
-                            );
-                            continue;
-                        }
-                    };
-
                     let manifest: MarketplaceManifest =
-                        match serde_json::from_str(&manifest_data) {
+                        match read_json(&manifest_path) {
                             Ok(m) => m,
                             Err(e) => {
-                                eprintln!(
-                                    "[aitherflow] Failed to parse {}: {e}",
-                                    manifest_path.display()
-                                );
+                                eprintln!("[aitherflow] {e}");
                                 continue;
                             }
                         };
@@ -169,10 +152,7 @@ pub async fn load_plugins() -> Result<PluginsData, String> {
         // ── Sources (known marketplaces) ──
         let sources_path = base.join("known_marketplaces.json");
         let sources: Vec<MarketplaceSource> = if sources_path.exists() {
-            let data = fs::read_to_string(&sources_path)
-                .map_err(|e| format!("Failed to read known_marketplaces.json: {e}"))?;
-            let file: KnownMarketplacesFile = serde_json::from_str(&data)
-                .map_err(|e| format!("Failed to parse known_marketplaces.json: {e}"))?;
+            let file: KnownMarketplacesFile = read_json(&sources_path)?;
 
             let mut result: Vec<MarketplaceSource> = file
                 .0
@@ -268,9 +248,8 @@ pub async fn install_plugin(name: String, marketplace: String) -> Result<(), Str
             .join(&marketplace)
             .join(".claude-plugin/marketplace.json");
         let version = if manifest_path.exists() {
-            let data = fs::read_to_string(&manifest_path).unwrap_or_default();
             let manifest: MarketplaceManifest =
-                serde_json::from_str(&data).unwrap_or(MarketplaceManifest { plugins: vec![] });
+                read_json(&manifest_path).unwrap_or(MarketplaceManifest { plugins: vec![] });
             manifest
                 .plugins
                 .iter()
@@ -308,10 +287,7 @@ pub async fn install_plugin(name: String, marketplace: String) -> Result<(), Str
         // Update installed_plugins.json
         let installed_path = base.join("installed_plugins.json");
         let mut file: serde_json::Value = if installed_path.exists() {
-            let data = fs::read_to_string(&installed_path)
-                .map_err(|e| format!("Failed to read installed_plugins.json: {e}"))?;
-            serde_json::from_str(&data)
-                .map_err(|e| format!("Failed to parse installed_plugins.json: {e}"))?
+            read_json(&installed_path)?
         } else {
             serde_json::json!({ "version": 2, "plugins": {} })
         };
@@ -332,9 +308,7 @@ pub async fn install_plugin(name: String, marketplace: String) -> Result<(), Str
             plugins[&key] = entry;
         }
 
-        let json_str = serde_json::to_string_pretty(&file)
-            .map_err(|e| format!("Failed to serialize: {e}"))?;
-        atomic_write(&installed_path, json_str.as_bytes())?;
+        write_json(&installed_path, &file)?;
 
         Ok(())
     })
@@ -357,18 +331,13 @@ pub async fn uninstall_plugin(name: String, marketplace: String) -> Result<(), S
             return Err("No installed plugins file found".to_string());
         }
 
-        let data = fs::read_to_string(&installed_path)
-            .map_err(|e| format!("Failed to read installed_plugins.json: {e}"))?;
-        let mut file: serde_json::Value = serde_json::from_str(&data)
-            .map_err(|e| format!("Failed to parse installed_plugins.json: {e}"))?;
+        let mut file: serde_json::Value = read_json(&installed_path)?;
 
         if let Some(plugins) = file.get_mut("plugins").and_then(|p| p.as_object_mut()) {
             plugins.remove(&key);
         }
 
-        let json_str = serde_json::to_string_pretty(&file)
-            .map_err(|e| format!("Failed to serialize: {e}"))?;
-        atomic_write(&installed_path, json_str.as_bytes())?;
+        write_json(&installed_path, &file)?;
 
         // Optionally remove cache directory
         let cache_dir = base.join("cache").join(&marketplace).join(&name);
@@ -436,8 +405,7 @@ pub async fn add_marketplace(
         // Update known_marketplaces.json
         let sources_path = base.join("known_marketplaces.json");
         let mut file: serde_json::Value = if sources_path.exists() {
-            let data = fs::read_to_string(&sources_path).unwrap_or_default();
-            serde_json::from_str(&data).unwrap_or(serde_json::json!({}))
+            read_json(&sources_path).unwrap_or(serde_json::json!({}))
         } else {
             serde_json::json!({})
         };
@@ -454,9 +422,7 @@ pub async fn add_marketplace(
             "lastUpdated": now
         });
 
-        let json_str = serde_json::to_string_pretty(&file)
-            .map_err(|e| format!("Failed to serialize: {e}"))?;
-        atomic_write(&sources_path, json_str.as_bytes())?;
+        write_json(&sources_path, &file)?;
 
         Ok(())
     })
@@ -474,18 +440,13 @@ pub async fn remove_marketplace(name: String) -> Result<(), String> {
         // Remove from known_marketplaces.json
         let sources_path = base.join("known_marketplaces.json");
         if sources_path.exists() {
-            let data = fs::read_to_string(&sources_path)
-                .map_err(|e| format!("Failed to read: {e}"))?;
-            let mut file: serde_json::Value = serde_json::from_str(&data)
-                .map_err(|e| format!("Failed to parse: {e}"))?;
+            let mut file: serde_json::Value = read_json(&sources_path)?;
 
             if let Some(obj) = file.as_object_mut() {
                 obj.remove(&name);
             }
 
-            let json_str = serde_json::to_string_pretty(&file)
-                .map_err(|e| format!("Failed to serialize: {e}"))?;
-            atomic_write(&sources_path, json_str.as_bytes())?;
+            write_json(&sources_path, &file)?;
         }
 
         // Remove the cloned repo
@@ -550,24 +511,20 @@ pub async fn update_marketplaces() -> Result<(), String> {
         // Update lastUpdated in known_marketplaces.json
         let sources_path = base.join("known_marketplaces.json");
         if sources_path.exists() {
-            if let Ok(data) = fs::read_to_string(&sources_path) {
-                if let Ok(mut file) = serde_json::from_str::<serde_json::Value>(&data) {
-                    let now = chrono_now();
-                    if let Some(obj) = file.as_object_mut() {
-                        for (_, entry) in obj.iter_mut() {
-                            if let Some(e) = entry.as_object_mut() {
-                                e.insert(
-                                    "lastUpdated".to_string(),
-                                    serde_json::Value::String(now.clone()),
-                                );
-                            }
+            if let Ok(mut file) = read_json::<serde_json::Value>(&sources_path) {
+                let now = chrono_now();
+                if let Some(obj) = file.as_object_mut() {
+                    for (_, entry) in obj.iter_mut() {
+                        if let Some(e) = entry.as_object_mut() {
+                            e.insert(
+                                "lastUpdated".to_string(),
+                                serde_json::Value::String(now.clone()),
+                            );
                         }
                     }
-                    if let Ok(json_str) = serde_json::to_string_pretty(&file) {
-                        if let Err(e) = atomic_write(&sources_path, json_str.as_bytes()) {
-                            eprintln!("[plugins] Failed to save marketplace metadata: {e}");
-                        }
-                    }
+                }
+                if let Err(e) = write_json(&sources_path, &file) {
+                    eprintln!("[plugins] Failed to save marketplace metadata: {e}");
                 }
             }
         }
