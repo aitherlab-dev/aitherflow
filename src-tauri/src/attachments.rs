@@ -7,7 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Temp directory for paste images
 fn temp_dir() -> PathBuf {
-    PathBuf::from("/tmp/aither-flow")
+    std::env::temp_dir().join("aither-flow")
 }
 
 /// Delete temp files older than `max_age_secs`
@@ -246,7 +246,7 @@ pub async fn read_clipboard_text() -> Result<String, String> {
     .map_err(|e| format!("Task join error: {e}"))?
 }
 
-/// Delete a temp file (only within /tmp/aither-flow/)
+/// Delete a temp file (only within the aither-flow temp dir)
 #[tauri::command]
 pub async fn cleanup_temp_file(path: String) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
