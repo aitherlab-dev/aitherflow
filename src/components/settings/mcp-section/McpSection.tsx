@@ -3,6 +3,8 @@ import { useShallow } from "zustand/react/shallow";
 import { Plus, RotateCcw } from "lucide-react";
 import { useMcpStore } from "../../../stores/mcpStore";
 import { useAgentStore } from "../../../stores/agentStore";
+
+const getProjectDir = () => useAgentStore.getState().getActiveAgent()?.projectPath;
 import type { McpServer } from "../../../types/mcp";
 import type { McpScope } from "./types";
 import { McpServerCard } from "./McpServerCard";
@@ -26,12 +28,7 @@ export function McpSection() {
   const testing = useMcpStore((s) => s.testing);
   const testResults = useMcpStore((s) => s.testResults);
   const resetChoices = useMcpStore((s) => s.resetChoices);
-  const getActiveAgent = useAgentStore((s) => s.getActiveAgent);
-
-  const projectDir = useMemo(() => {
-    const agent = getActiveAgent();
-    return agent?.projectPath;
-  }, [getActiveAgent]);
+  const projectDir = useMemo(() => getProjectDir(), []);
 
   useEffect(() => {
     if (needsReload(projectDir)) {
