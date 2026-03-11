@@ -18,9 +18,6 @@ export function WelcomeScreen() {
   const addWelcomeCard = useProjectStore((s) => s.addWelcomeCard);
   const removeWelcomeCard = useProjectStore((s) => s.removeWelcomeCard);
   const reorderWelcomeCards = useProjectStore((s) => s.reorderWelcomeCards);
-  const closeWelcome = useLayoutStore((s) => s.closeWelcome);
-  const createAgent = useAgentStore((s) => s.createAgent);
-  const loadSkills = useSkillStore((s) => s.load);
 
   const [showPicker, setShowPicker] = useState(false);
 
@@ -44,7 +41,7 @@ export function WelcomeScreen() {
   const openProject = useCallback(
     async (projectPath: string, projectName: string, chatId?: string | null) => {
       // Create agent for this project
-      await createAgent(projectPath, projectName);
+      await useAgentStore.getState().createAgent(projectPath, projectName);
 
       // If we have a specific chat to restore, switch to it
       if (chatId) {
@@ -57,12 +54,12 @@ export function WelcomeScreen() {
 
       // Reload skills for all projects
       const allProjects = useProjectStore.getState().projects;
-      loadSkills(allProjects.map((p) => ({ path: p.path, name: p.name }))).catch(console.error);
+      useSkillStore.getState().load(allProjects.map((p) => ({ path: p.path, name: p.name }))).catch(console.error);
 
       // Switch to chat view
-      closeWelcome();
+      useLayoutStore.getState().closeWelcome();
     },
-    [createAgent, loadSkills, closeWelcome],
+    [],
   );
 
   const openWorkspace = useCallback(async () => {
@@ -77,13 +74,13 @@ export function WelcomeScreen() {
         if (showPicker) {
           setShowPicker(false);
         } else {
-          closeWelcome();
+          useLayoutStore.getState().closeWelcome();
         }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [showPicker, closeWelcome]);
+  }, [showPicker]);
 
   const openLastProject = useCallback(async () => {
     if (!lastProject) return;
