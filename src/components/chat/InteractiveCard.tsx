@@ -8,6 +8,20 @@ import type {
 } from "../../types/chat";
 import { respondToCard } from "../../stores/chatService";
 
+function asAskInput(input: Record<string, unknown>): AskUserQuestionInput | null {
+  if (input && Array.isArray(input.questions)) {
+    return input as unknown as AskUserQuestionInput;
+  }
+  return null;
+}
+
+function asExitPlanInput(input: Record<string, unknown>): ExitPlanModeInput {
+  if (input && Array.isArray(input.allowedPrompts)) {
+    return input as unknown as ExitPlanModeInput;
+  }
+  return {};
+}
+
 interface InteractiveCardProps {
   tool: ToolActivity;
   agentId: string;
@@ -29,7 +43,7 @@ export const InteractiveCard = memo(function InteractiveCard({
 // ── AskUserQuestion ──
 
 function AskUserQuestionCard({ tool, agentId }: { tool: ToolActivity; agentId: string }) {
-  const input = tool.toolInput as unknown as AskUserQuestionInput;
+  const input = asAskInput(tool.toolInput);
   const questions = input?.questions;
   const answered = !!tool.userResponse;
 
@@ -133,7 +147,7 @@ function QuestionBlock({
 // ── ExitPlanMode ──
 
 function ExitPlanModeCard({ tool, agentId }: { tool: ToolActivity; agentId: string }) {
-  const input = tool.toolInput as unknown as ExitPlanModeInput;
+  const input = asExitPlanInput(tool.toolInput);
 
   const answered = !!tool.userResponse;
   const [rejecting, setRejecting] = useState(false);
