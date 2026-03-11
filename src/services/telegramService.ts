@@ -144,6 +144,14 @@ export function cleanupStreaming(): void {
   }
 }
 
+/** Reset all module state when switching agents */
+export function resetTelegramState(): void {
+  cleanupStreaming();
+  lastFromTelegram = false;
+  lastStreamText = "";
+  lastSentMessageId = null;
+}
+
 // ── Incoming message handlers ──
 
 async function handleIncoming(msg: TgIncoming): Promise<void> {

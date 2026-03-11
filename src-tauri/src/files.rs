@@ -24,10 +24,30 @@ const IGNORED: &[&str] = &[
 ];
 
 /// Check that path is under $HOME, /tmp, /mnt, or /run/media (canonicalized).
+/// For nonexistent paths (e.g. new file creation), resolves the nearest existing ancestor.
 pub fn validate_path_safe(path: &Path) -> Result<(), String> {
-    let canonical = path
-        .canonicalize()
-        .map_err(|e| format!("Cannot resolve path: {e}"))?;
+    let canonical = match path.canonicalize() {
+        Ok(c) => c,
+        Err(_) => {
+            // Path doesn't exist — resolve nearest existing ancestor
+            let mut resolved = None;
+            for ancestor in path.ancestors().skip(1) {
+                if let Ok(c) = ancestor.canonicalize() {
+                    if let Ok(rest) = path.strip_prefix(ancestor) {
+                        // Reject ".." in the non-existent portion to prevent traversal
+                        for component in rest.components() {
+                            if matches!(component, std::path::Component::ParentDir) {
+                                return Err("Path traversal in non-existent portion".into());
+                            }
+                        }
+                        resolved = Some(c.join(rest));
+                    }
+                    break;
+                }
+            }
+            resolved.ok_or_else(|| "Cannot resolve path: no existing ancestor".to_string())?
+        }
+    };
 
     let home = crate::config::home_dir();
     let allowed: &[&Path] = &[
@@ -192,9 +212,23 @@ mod tests {
     }
 
     #[test]
-    fn validate_path_safe_nonexistent() {
+    fn validate_path_safe_nonexistent_under_allowed() {
         let path = PathBuf::from("/tmp/nonexistent_test_dir_12345");
-        // canonicalize fails for nonexistent paths
+        // Nonexistent path under /tmp should pass (validates via ancestor)
+        assert!(validate_path_safe(&path).is_ok());
+    }
+
+    #[test]
+    fn validate_path_safe_nonexistent_outside_allowed() {
+        let path = PathBuf::from("/etc/nonexistent_test_dir_12345");
+        assert!(validate_path_safe(&path).is_err());
+    }
+
+    #[test]
+    fn validate_path_safe_nonexistent_traversal() {
+        let home = crate::config::home_dir();
+        // Nonexistent path with ".." in non-existent portion
+        let path = home.join("nonexistent_dir").join("..").join("..").join("etc");
         assert!(validate_path_safe(&path).is_err());
     }
 }

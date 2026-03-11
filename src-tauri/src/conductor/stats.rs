@@ -156,12 +156,16 @@ fn file_mtime_secs(path: &std::path::Path) -> u64 {
 /// Return cached stats if fresh, otherwise compute and cache.
 /// Lock is only held briefly for cache read/write, not during computation.
 pub fn aggregate_cli_stats(days: u32) -> Result<AggregatedStats, String> {
-    // Check cache with short lock
-    {
-        let guard = STATS_CACHE.lock().unwrap_or_else(|e| {
+    let lock = || {
+        STATS_CACHE.lock().unwrap_or_else(|e| {
             eprintln!("[stats] WARNING: STATS_CACHE mutex was poisoned, recovering");
             e.into_inner()
-        });
+        })
+    };
+
+    // Check cache with short lock
+    {
+        let guard = lock();
         if let Some((cached_days, computed_at, ref stats)) = *guard {
             if cached_days == days && computed_at.elapsed().as_secs() < CACHE_TTL_SECS {
                 return Ok(stats.clone());
@@ -174,10 +178,7 @@ pub fn aggregate_cli_stats(days: u32) -> Result<AggregatedStats, String> {
 
     // Update cache with short lock
     {
-        let mut guard = STATS_CACHE.lock().unwrap_or_else(|e| {
-            eprintln!("[stats] WARNING: STATS_CACHE mutex was poisoned, recovering");
-            e.into_inner()
-        });
+        let mut guard = lock();
         *guard = Some((days, Instant::now(), stats.clone()));
     }
     Ok(stats)
@@ -375,11 +376,15 @@ fn parse_and_cache(
     let mut turn_cache_read: u64 = 0;
     let mut in_turn = false;
 
+    let mut parse_errors: u32 = 0;
     for line in content.lines() {
         let parsed: JsonlLine = match serde_json::from_str(line) {
             Ok(v) => v,
             Err(e) => {
-                eprintln!("[stats] Failed to parse JSONL line: {e}");
+                if parse_errors == 0 {
+                    eprintln!("[stats] Failed to parse JSONL line in {}: {e}", path.display());
+                }
+                parse_errors += 1;
                 continue;
             }
         };
@@ -429,6 +434,10 @@ fn parse_and_cache(
         turn_output = usage.output_tokens;
         turn_cache_creation = usage.cache_creation_input_tokens;
         turn_cache_read = usage.cache_read_input_tokens;
+    }
+
+    if parse_errors > 1 {
+        eprintln!("[stats] ... and {n} more parse errors in {p}", n = parse_errors - 1, p = path.display());
     }
 
     // Flush the final turn

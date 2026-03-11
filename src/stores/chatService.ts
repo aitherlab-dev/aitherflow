@@ -67,6 +67,9 @@ export async function sendMessage(text: string, allAttachments?: Attachment[]) {
     useFileViewerStore.getState().acceptAllPending();
   }).catch(console.error);
 
+  // Guard against double-click during chat creation
+  if (!chatId && isCreatingChat) return;
+
   // Add user message immediately
   const userMsg: ChatMessage = {
     id: crypto.randomUUID(),
@@ -80,7 +83,6 @@ export async function sendMessage(text: string, allAttachments?: Attachment[]) {
   try {
     // Lazy chat creation: create on first message (guard against double-click)
     if (!chatId) {
-      if (isCreatingChat) return;
       isCreatingChat = true;
       try {
         const title = generateTitle(text);
@@ -203,7 +205,7 @@ export async function switchPermissionMode(mode: "default" | "plan") {
       });
       const timeout = setTimeout(() => {
         unsub();
-        // Force-clear session state if CLI didn't exit in time
+        console.warn("[chatService] CLI process did not exit within 5s, force-clearing session state");
         useChatStore.setState({ hasSession: false });
         resolve();
       }, 5000);
@@ -450,6 +452,11 @@ async function switchAgentInner(
   clearToolActivityTimer();
   cancelStreamRaf();
 
+  // Reset telegram state on agent switch
+  import("../services/telegramService").then(({ resetTelegramState }) => {
+    resetTelegramState();
+  }).catch(console.error);
+
   // Clear file viewer on agent switch
   import("./fileViewerStore").then(({ useFileViewerStore }) => {
     useFileViewerStore.getState().clearAll();
@@ -548,7 +555,11 @@ export async function respondToCard(agentId: string, toolUseId: string, response
     useChatStore.setState({ messages: msgs, isThinking: true });
   } else {
     const bgState = agentStates.get(agentId);
-    if (bgState) bgState.messages = msgs;
+    if (bgState) {
+      bgState.messages = msgs;
+      bgState.isThinking = true;
+    }
+    syncThinkingIds();
   }
 
   if (!requestId) {

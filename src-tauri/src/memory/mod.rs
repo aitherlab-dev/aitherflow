@@ -31,6 +31,7 @@ where
 {
     let mut guard = DB.lock().map_err(|e| format!("DB mutex poisoned: {e}"))?;
     if guard.is_none() {
+        eprintln!("[memory] Re-opening DB connection (init was not called or failed)");
         let db_path = memory_db_path();
         let conn = db::open_db(&db_path)?;
         *guard = Some(conn);

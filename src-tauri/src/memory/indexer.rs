@@ -20,8 +20,9 @@ fn compute_content_hash(messages: &[(String, String, String, String)]) -> String
     format!("{:016x}", h)
 }
 
-/// Encode a project path the same way CLI does: slashes → dashes.
+/// Encode a project path the same way CLI does: `/`, `.`, `_` → `-`.
 /// e.g. `/home/sasha/WORK/AITHEFLOW` → `-home-sasha-WORK-AITHEFLOW`
+/// e.g. `/home/sasha/.config/aither-flow` → `-home-sasha--config-aither-flow`
 pub fn encode_project_path(project_path: &str) -> String {
     project_path.replace(['/', '.', '_'], "-")
 }
@@ -57,21 +58,26 @@ fn load_history_index(project_path: &str) -> std::collections::HashMap<String, (
 
     use std::io::BufRead;
     for line in std::io::BufReader::new(file).lines().map_while(Result::ok) {
-        if let Ok(v) = serde_json::from_str::<Value>(&line) {
-            let project = v.get("project").and_then(|p| p.as_str()).unwrap_or("");
-            if project != project_path {
+        let v: Value = match serde_json::from_str(&line) {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("[memory] Failed to parse history.jsonl line: {e}");
                 continue;
             }
-            if let (Some(sid), Some(display), Some(ts)) = (
-                v.get("sessionId").and_then(|s| s.as_str()),
-                v.get("display").and_then(|d| d.as_str()),
-                v.get("timestamp").and_then(|t| t.as_u64()),
-            ) {
-                // Convert millis timestamp to ISO string
-                let secs = ts / 1000;
-                let iso = timestamp_to_iso(secs);
-                map.insert(sid.to_string(), (display.to_string(), iso));
-            }
+        };
+        let project = v.get("project").and_then(|p| p.as_str()).unwrap_or("");
+        if project != project_path {
+            continue;
+        }
+        if let (Some(sid), Some(display), Some(ts)) = (
+            v.get("sessionId").and_then(|s| s.as_str()),
+            v.get("display").and_then(|d| d.as_str()),
+            v.get("timestamp").and_then(|t| t.as_u64()),
+        ) {
+            // Convert millis timestamp to ISO string
+            let secs = ts / 1000;
+            let iso = timestamp_to_iso(secs);
+            map.insert(sid.to_string(), (display.to_string(), iso));
         }
     }
 
@@ -112,7 +118,7 @@ fn parse_session_file(
         let v: Value = match serde_json::from_str(line) {
             Ok(v) => v,
             Err(e) => {
-                eprintln!("[memory] Failed to parse JSONL line: {e}");
+                eprintln!("[memory] Failed to parse JSONL line in {}: {e}", path.display());
                 continue;
             }
         };
@@ -218,6 +224,7 @@ pub fn index_project(conn: &Connection, project_path: &str) -> Result<usize, Str
     };
 
     let mut total_messages = 0usize;
+    let mut updated_sessions = 0usize;
 
     for entry in &entries {
         let path = entry.path();
@@ -252,6 +259,7 @@ pub fn index_project(conn: &Connection, project_path: &str) -> Result<usize, Str
             let count = db::insert_messages(conn, &messages)?;
             db::set_content_hash(conn, &session_id, &compute_content_hash(&messages))?;
             total_messages += count;
+            updated_sessions += 1;
         } else {
             // Resumed session — check for new or rewritten messages
             let existing_count = db::message_count_for_session(conn, &session_id);
@@ -264,20 +272,21 @@ pub fn index_project(conn: &Connection, project_path: &str) -> Result<usize, Str
                 let count = db::insert_messages(conn, new_messages)?;
                 db::set_content_hash(conn, &session_id, &new_hash)?;
                 total_messages += count;
+                updated_sessions += 1;
             } else if stored_hash.as_deref() != Some(&new_hash) {
                 // Content changed (different count or same count but different hash) — re-index
                 db::delete_messages_for_session(conn, &session_id)?;
                 let count = db::insert_messages(conn, &messages)?;
                 db::set_content_hash(conn, &session_id, &new_hash)?;
                 total_messages += count;
+                updated_sessions += 1;
             }
         }
     }
 
     if total_messages > 0 {
         eprintln!(
-            "[memory] Indexed {total_messages} messages from {} new sessions for {project_path}",
-            entries.len()
+            "[memory] Indexed {total_messages} messages from {updated_sessions} sessions for {project_path}",
         );
     }
 

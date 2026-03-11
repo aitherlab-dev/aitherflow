@@ -142,25 +142,39 @@ pub async fn translate_content(
 
         let lang_name = language_name(&language);
 
-        // Process in batches
-        for chunk in to_translate.chunks(BATCH_SIZE) {
-            let texts: Vec<&str> = chunk.iter().map(|item| item.text.as_str()).collect();
+        // Process batches in parallel using scoped threads
+        let batch_chunks: Vec<Vec<(&str, String)>> = to_translate
+            .chunks(BATCH_SIZE)
+            .map(|chunk| {
+                chunk.iter().map(|item| (item.text.as_str(), item.key.clone())).collect()
+            })
+            .collect();
 
-            match translate_batch(&texts, lang_name) {
-                Ok(translations) => {
-                    // Match translations to keys (as many as we got back)
-                    let count = translations.len().min(chunk.len());
-                    for i in 0..count {
-                        cache
-                            .entries
-                            .insert(chunk[i].key.clone(), translations[i].clone());
-                    }
-                    if translations.len() != chunk.len() {
+        let results: Vec<Result<Vec<(String, String)>, String>> = std::thread::scope(|s| {
+            let handles: Vec<_> = batch_chunks.iter().map(|chunk| {
+                let texts: Vec<&str> = chunk.iter().map(|(text, _)| *text).collect();
+                let keys: Vec<String> = chunk.iter().map(|(_, key)| key.clone()).collect();
+                s.spawn(move || {
+                    let translations = translate_batch(&texts, lang_name)?;
+                    let count = translations.len().min(keys.len());
+                    if translations.len() != keys.len() {
                         eprintln!(
                             "[translations] Warning: expected {} translations, got {}",
-                            chunk.len(),
+                            keys.len(),
                             translations.len()
                         );
+                    }
+                    Ok(keys.into_iter().take(count).zip(translations).collect())
+                })
+            }).collect();
+            handles.into_iter().map(|h| h.join().unwrap_or_else(|_| Err("Thread panicked".into()))).collect()
+        });
+
+        for result in results {
+            match result {
+                Ok(pairs) => {
+                    for (key, translation) in pairs {
+                        cache.entries.insert(key, translation);
                     }
                 }
                 Err(e) => {

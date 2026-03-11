@@ -226,7 +226,9 @@ pub(super) async fn handle_photo(
 ) {
     match tg_download_file(client, token, file_id).await {
         Ok((bytes, ext)) => {
-            let filename = format!("tg_photo_{}.{ext}", now_millis());
+            use std::sync::atomic::{AtomicU64, Ordering};
+            static SEQ: AtomicU64 = AtomicU64::new(0);
+            let filename = format!("tg_photo_{}_{}_{}.{ext}", now_millis(), std::process::id(), SEQ.fetch_add(1, Ordering::Relaxed));
             match save_to_tmp(&bytes, &filename) {
                 Ok(path) => {
                     let text = match caption {

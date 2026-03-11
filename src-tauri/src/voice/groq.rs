@@ -6,11 +6,12 @@ static HTTP_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(reqwest::Client::n
 #[tauri::command]
 pub async fn voice_transcribe(
     audio_data: Vec<u8>,
-    api_key: String,
     language: String,
     post_process: bool,
     post_model: String,
 ) -> Result<String, String> {
+    let api_key = crate::secrets::get_secret("groq_api_key")
+        .unwrap_or_default();
     if api_key.is_empty() {
         return Err("Groq API key is not set. Go to Settings → Voice.".into());
     }

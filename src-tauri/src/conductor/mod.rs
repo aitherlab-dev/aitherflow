@@ -182,20 +182,27 @@ pub async fn get_session_usage(
                 file.seek(SeekFrom::End(-(TAIL_SIZE as i64)))
                     .map_err(|e| format!("Seek failed: {e}"))?;
             }
-            let mut buf = String::new();
-            file.read_to_string(&mut buf)
+            let mut raw = Vec::new();
+            file.read_to_end(&mut raw)
                 .map_err(|e| format!("Failed to read JSONL tail: {e}"))?;
-            buf
+            // After seek we land mid-line; skip to first \n to get a clean JSONL start
+            let start = if len > TAIL_SIZE {
+                raw.iter().position(|&b| b == b'\n').map(|p| p + 1).unwrap_or(0)
+            } else {
+                0
+            };
+            String::from_utf8_lossy(&raw[start..]).into_owned()
         };
 
         let mut context_usage: Option<serde_json::Value> = None;
         let mut cost_usd: f64 = 0.0;
         let mut context_window: u64 = 0;
+        let mut result_found = false;
 
         // Iterate in reverse: find last assistant (context) and last result (cost/window)
         for line in tail.lines().rev() {
             // Stop early if we have everything
-            if context_usage.is_some() && (cost_usd > 0.0 || context_window > 0) {
+            if context_usage.is_some() && result_found {
                 break;
             }
 
@@ -240,7 +247,8 @@ pub async fn get_session_usage(
             }
 
             // Last result event → cost and context window
-            if event_type == "result" && cost_usd == 0.0 {
+            if event_type == "result" && !result_found {
+                result_found = true;
                 cost_usd = parsed
                     .get("total_cost_usd")
                     .and_then(|v| v.as_f64())

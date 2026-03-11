@@ -9,13 +9,16 @@ pub fn home_dir() -> PathBuf {
 /// Uses XDG_RUNTIME_DIR (/run/user/{UID}) which is per-user and mode 0700.
 fn fallback_home() -> PathBuf {
     if let Some(dir) = std::env::var_os("XDG_RUNTIME_DIR") {
+        eprintln!("[config] WARNING: $HOME unset, using XDG_RUNTIME_DIR={}", dir.to_string_lossy());
         return PathBuf::from(dir);
     }
     #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt;
         if let Ok(meta) = std::fs::metadata("/proc/self") {
-            return PathBuf::from(format!("/run/user/{}", meta.uid()));
+            let p = PathBuf::from(format!("/run/user/{}", meta.uid()));
+            eprintln!("[config] WARNING: $HOME unset, falling back to {}", p.display());
+            return p;
         }
     }
     let p = PathBuf::from("/tmp/aither-flow-fallback");

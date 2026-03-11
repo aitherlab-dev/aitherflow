@@ -1,4 +1,4 @@
-import { memo, useState, useCallback, useRef, type ReactNode } from "react";
+import { memo, useState, useCallback, useRef, useEffect, type ReactNode } from "react";
 import { Copy, Check } from "lucide-react";
 import { extractText } from "./utils";
 
@@ -12,6 +12,8 @@ export const CodeBlock = memo(function CodeBlock({ language, children }: CodeBlo
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const rawText = extractText(children).replace(/\n$/, "");
+
+  useEffect(() => () => clearTimeout(timerRef.current), []);
 
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(rawText).catch(console.error);

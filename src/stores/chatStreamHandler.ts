@@ -332,6 +332,7 @@ function handleCliEvent(e: CliEvent) {
           isStreaming: true,
           tools: [activity],
         };
+        set({ isThinking: true });
       }
 
       // Bridge to file viewer for file-editing tools
@@ -379,11 +380,13 @@ function handleCliEvent(e: CliEvent) {
         }
         set({ streamingMessage: sm, currentToolActivity: activity });
       } else {
-        set((prev) => ({
-          messages: [...prev.messages, { ...sm!, isStreaming: false }],
-          streamingMessage: null,
-          isThinking: false,
-        }));
+        if (sm) {
+          set((prev) => ({
+            messages: [...prev.messages, { ...sm, isStreaming: false }],
+            streamingMessage: null,
+            isThinking: false,
+          }));
+        }
         syncThinkingIds();
       }
       break;

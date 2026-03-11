@@ -31,24 +31,31 @@ pub async fn list_claude_md_files() -> Result<Vec<ClaudeMdEntry>, String> {
 
         // Per-project: read projects.json and check each
         let projects_path = config::config_dir().join("projects.json");
-        if let Ok(data) = fs::read_to_string(&projects_path) {
-            if let Ok(config) = serde_json::from_str::<serde_json::Value>(&data) {
-                if let Some(projects) = config.get("projects").and_then(|v| v.as_array()) {
-                    for proj in projects {
-                        let name = proj.get("name").and_then(|v| v.as_str()).unwrap_or("?");
-                        let path = proj.get("path").and_then(|v| v.as_str()).unwrap_or("");
-                        if path.is_empty() {
-                            continue;
+        match fs::read_to_string(&projects_path) {
+            Ok(data) => match serde_json::from_str::<serde_json::Value>(&data) {
+                Ok(config) => {
+                    if let Some(projects) = config.get("projects").and_then(|v| v.as_array()) {
+                        for proj in projects {
+                            let name = proj.get("name").and_then(|v| v.as_str()).unwrap_or("?");
+                            let path = proj.get("path").and_then(|v| v.as_str()).unwrap_or("");
+                            if path.is_empty() {
+                                continue;
+                            }
+                            let claude_md = PathBuf::from(path).join("CLAUDE.md");
+                            entries.push(ClaudeMdEntry {
+                                label: name.to_string(),
+                                path: claude_md.to_string_lossy().into_owned(),
+                                exists: claude_md.exists(),
+                            });
                         }
-                        let claude_md = PathBuf::from(path).join("CLAUDE.md");
-                        entries.push(ClaudeMdEntry {
-                            label: name.to_string(),
-                            path: claude_md.to_string_lossy().into_owned(),
-                            exists: claude_md.exists(),
-                        });
                     }
                 }
+                Err(e) => eprintln!("[claude_md] Failed to parse {}: {e}", projects_path.display()),
+            },
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+                eprintln!("[claude_md] Failed to read {}: {e}", projects_path.display());
             }
+            _ => {}
         }
 
         Ok(entries)

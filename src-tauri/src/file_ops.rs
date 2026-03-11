@@ -58,11 +58,26 @@ pub fn atomic_write(path: &Path, data: &[u8]) -> Result<(), String> {
     let tmp = path.with_extension(format!("aither_tmp_{pid}_{seq}"));
     let mut file =
         fs::File::create(&tmp).map_err(|e| format!("Failed to create temp file: {e}"))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        file.set_permissions(fs::Permissions::from_mode(0o600))
+            .map_err(|e| format!("Failed to set temp file permissions: {e}"))?;
+    }
     file.write_all(data)
-        .map_err(|e| format!("Failed to write temp file: {e}"))?;
+        .map_err(|e| {
+            let _ = fs::remove_file(&tmp);
+            format!("Failed to write temp file: {e}")
+        })?;
     file.sync_all()
-        .map_err(|e| format!("Failed to sync temp file: {e}"))?;
-    fs::rename(&tmp, path).map_err(|e| format!("Failed to rename temp file: {e}"))?;
+        .map_err(|e| {
+            let _ = fs::remove_file(&tmp);
+            format!("Failed to sync temp file: {e}")
+        })?;
+    fs::rename(&tmp, path).map_err(|e| {
+        let _ = fs::remove_file(&tmp);
+        format!("Failed to rename temp file: {e}")
+    })?;
     Ok(())
 }
 

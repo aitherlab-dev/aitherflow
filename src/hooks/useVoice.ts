@@ -57,7 +57,6 @@ export function useVoice(
 
       const text = await invoke<string>("voice_transcribe", {
         audioData,
-        apiKey: settings.groqApiKey,
         language: settings.voiceLanguage,
         postProcess: settings.voicePostProcess ?? true,
         postModel: settings.voicePostModel || "llama-3.3-70b-versatile",
@@ -139,6 +138,8 @@ export function useVoice(
       unlisteners.push(
         await listen<string>("voice-error", (event) => {
           console.error("Voice stream error:", event.payload);
+          cleanupStreamListeners();
+          setVoiceState("idle");
         })
       );
 

@@ -185,9 +185,14 @@ pub fn run() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())
         .unwrap_or_else(|e| {
-            eprintln!("[aitherflow] Fatal: failed to run application: {e}");
+            eprintln!("[aitherflow] Fatal: failed to build application: {e}");
             std::process::exit(1);
+        })
+        .run(|_app, event| {
+            if let tauri::RunEvent::Exit = event {
+                devtools::stop_all_dev_servers();
+            }
         });
 }

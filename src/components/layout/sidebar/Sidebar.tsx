@@ -199,7 +199,7 @@ export const Sidebar = memo(function Sidebar() {
 
       const refs = agentRefs.current;
       let newDrop = agentDragRef.current.fromIndex;
-      for (let i = 0; i < refs.length; i++) {
+      for (let i = 0; i < Math.min(refs.length, agents.length); i++) {
         const ref = refs[i];
         if (!ref) continue;
         const rect = ref.getBoundingClientRect();

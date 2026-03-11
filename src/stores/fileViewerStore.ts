@@ -231,7 +231,8 @@ export const useFileViewerStore = create<FileViewerState>((set, get) => ({
     toolName: string,
     toolInput: Record<string, unknown>,
   ) => {
-    const filePath = (toolInput.file_path as string) ?? (toolInput.path as string);
+    const rawPath = toolInput.file_path ?? toolInput.path;
+    const filePath = typeof rawPath === "string" ? rawPath : undefined;
     if (!filePath) return;
 
     const state = get();
@@ -314,10 +315,11 @@ export const useFileViewerStore = create<FileViewerState>((set, get) => ({
         path: diff.filePath,
       });
       if (result.content !== null) {
-        const newTabs = state.tabs.map((t) =>
-          t.id === tab.id ? { ...t, content: result.content } : t,
-        );
-        set({ tabs: newTabs });
+        set((s) => ({
+          tabs: s.tabs.map((t) =>
+            t.id === tab.id ? { ...t, content: result.content } : t,
+          ),
+        }));
       }
     } catch (e) {
       console.error("Failed to refresh file after tool result:", e);

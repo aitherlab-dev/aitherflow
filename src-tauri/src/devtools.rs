@@ -7,6 +7,24 @@ use crate::config;
 static DEV_SERVER_PIDS: std::sync::LazyLock<std::sync::Mutex<HashMap<String, u32>>> =
     std::sync::LazyLock::new(|| std::sync::Mutex::new(HashMap::new()));
 
+/// Kill all running dev servers (called on app exit)
+pub fn stop_all_dev_servers() {
+    let pids: Vec<u32> = {
+        let mut guard = DEV_SERVER_PIDS.lock().unwrap_or_else(|e| e.into_inner());
+        let pids: Vec<u32> = guard.values().copied().collect();
+        guard.clear();
+        pids
+    };
+    for pid in pids {
+        if let Err(e) = std::process::Command::new("kill")
+            .args(["--", &format!("-{pid}")])
+            .output()
+        {
+            eprintln!("[devtools] Failed to kill process group {pid}: {e}");
+        }
+    }
+}
+
 #[tauri::command]
 pub async fn self_build(app: tauri::AppHandle) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {

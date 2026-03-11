@@ -12,11 +12,15 @@ fn temp_dir() -> PathBuf {
 
 /// Delete temp files older than `max_age_secs`
 pub fn cleanup_old_temp(max_age_secs: u64) {
-    let dir = temp_dir();
+    cleanup_dir_old_files(&temp_dir(), max_age_secs);
+    cleanup_dir_old_files(&std::env::temp_dir().join("aitherflow-tg"), max_age_secs);
+}
+
+fn cleanup_dir_old_files(dir: &Path, max_age_secs: u64) {
     if !dir.exists() {
         return;
     }
-    let Ok(entries) = fs::read_dir(&dir) else {
+    let Ok(entries) = fs::read_dir(dir) else {
         return;
     };
     let now = SystemTime::now()
