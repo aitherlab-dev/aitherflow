@@ -25,18 +25,9 @@ pnpm-debug.log*
 *.local
 
 # Internal docs (not public)
-ARCHITECTURE.md
-ROADMAP.md
 devlog/
+FEATURES.md
+AUDIT-*.md
 
 # Claude Code local files (personal, not part of the project)
 .claude/
-
-# Audit reports (internal)
-reports/
-docs/
-
-# Feature ideas (local only)
-IDEAS.md
-AUDIT-2026-03-10.md
-AUDIT-STATUS.md

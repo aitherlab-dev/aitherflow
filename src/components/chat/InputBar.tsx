@@ -14,13 +14,11 @@ import { SkillsMenu } from "./SkillsMenu";
 import { CommandsMenu } from "./CommandsMenu";
 import { useConductorStore } from "../../stores/conductorStore";
 import { useVoice } from "../../hooks/useVoice";
+import { IMAGE_EXTENSIONS } from "../../types/fileviewer";
 
 
 /** Max textarea height in px (8 full lines) */
 const MAX_HEIGHT = 210;
-
-/** Image extensions for file picker filter */
-const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "gif", "webp", "svg"];
 /** Text extensions for file picker filter */
 const TEXT_EXTENSIONS = [
   "txt", "log", "rs", "ts", "tsx", "js", "jsx", "py", "md", "toml",

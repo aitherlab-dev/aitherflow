@@ -31,13 +31,13 @@ export interface FileDiff {
   snapshot: string | null;
 }
 
-/** Image file extensions */
-const IMAGE_EXTENSIONS = new Set([
-  "png", "jpg", "jpeg", "gif", "webp", "svg",
-]);
+/** Image file extensions (shared between file viewer and input bar) */
+export const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "gif", "webp", "svg"];
+
+const IMAGE_SET = new Set(IMAGE_EXTENSIONS);
 
 /** Check if a file path is an image */
 export function isImageFile(filePath: string): boolean {
   const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
-  return IMAGE_EXTENSIONS.has(ext);
+  return IMAGE_SET.has(ext);
 }

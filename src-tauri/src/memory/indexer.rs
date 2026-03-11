@@ -49,11 +49,14 @@ fn cli_sessions_dir(project_path: &str) -> Option<PathBuf> {
     }
 }
 
-/// Load the global history index to get first_message and created_at for sessions.
+/// Load the global history index and pass a reference to the caller via closure.
 /// Uses incremental reading: remembers byte offset and only reads new lines on subsequent calls.
-/// Returns a map: session_id → (display_text, timestamp_iso)
-fn load_history_index() -> std::collections::HashMap<String, (String, String)> {
+/// Avoids cloning the entire HashMap — the closure receives a borrowed reference while the lock is held.
+fn with_history_index<R>(f: impl FnOnce(&std::collections::HashMap<String, (String, String)>) -> R) -> R {
     use std::io::{BufRead, Seek, SeekFrom};
+
+    static EMPTY: std::sync::LazyLock<std::collections::HashMap<String, (String, String)>> =
+        std::sync::LazyLock::new(std::collections::HashMap::new);
 
     let home = crate::config::home_dir();
     let history_path = home.join(".claude").join("history.jsonl");
@@ -61,11 +64,11 @@ fn load_history_index() -> std::collections::HashMap<String, (String, String)> {
     let mut file = match std::fs::File::open(&history_path) {
         Ok(f) => f,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            return std::collections::HashMap::new();
+            return f(&EMPTY);
         }
         Err(e) => {
             eprintln!("[memory] Failed to read {}: {e}", history_path.display());
-            return std::collections::HashMap::new();
+            return f(&EMPTY);
         }
     };
 
@@ -85,18 +88,13 @@ fn load_history_index() -> std::collections::HashMap<String, (String, String)> {
 
     // Nothing new to read
     if file_len == cache_inner.byte_offset {
-        return cache_inner
-            .entries
-            .iter()
-            .filter(|(_, (_, _))| true) // return all, caller filters by project
-            .map(|(k, v)| (k.clone(), v.clone()))
-            .collect();
+        return f(&cache_inner.entries);
     }
 
     // Seek to last known offset and read only new lines
     if let Err(e) = file.seek(SeekFrom::Start(cache_inner.byte_offset)) {
         eprintln!("[memory] Failed to seek history.jsonl: {e}");
-        return cache_inner.entries.clone();
+        return f(&cache_inner.entries);
     }
 
     let reader = std::io::BufReader::new(&file);
@@ -123,9 +121,7 @@ fn load_history_index() -> std::collections::HashMap<String, (String, String)> {
 
     cache_inner.byte_offset = file_len;
 
-    // Filter by project path — history.jsonl contains all projects
-    // but we store all entries in cache for reuse across projects
-    cache_inner.entries.clone()
+    f(&cache_inner.entries)
 }
 
 /// Convert unix timestamp (seconds) to ISO 8601 string.
@@ -247,9 +243,6 @@ pub fn index_project(conn: &Connection, project_path: &str) -> Result<usize, Str
         }
     };
 
-    // Load history index for first_message / created_at
-    let history = load_history_index();
-
     // Find all .jsonl files
     let entries: Vec<_> = match std::fs::read_dir(&sessions_dir) {
         Ok(rd) => rd
@@ -266,6 +259,19 @@ pub fn index_project(conn: &Connection, project_path: &str) -> Result<usize, Str
             return Ok(0);
         }
     };
+
+    // Pre-fetch history entries only for sessions we have on disk (avoids cloning entire HashMap)
+    let session_ids: Vec<String> = entries
+        .iter()
+        .filter_map(|e| e.path().file_stem().and_then(|s| s.to_str()).map(String::from))
+        .collect();
+    let history: std::collections::HashMap<String, (String, String)> =
+        with_history_index(|all| {
+            session_ids
+                .iter()
+                .filter_map(|id| all.get(id).map(|v| (id.clone(), v.clone())))
+                .collect()
+        });
 
     let mut total_messages = 0usize;
     let mut updated_sessions = 0usize;
