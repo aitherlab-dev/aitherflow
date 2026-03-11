@@ -10,7 +10,7 @@ pub async fn voice_transcribe(
     post_process: bool,
     post_model: String,
 ) -> Result<String, String> {
-    let api_key = crate::secrets::get_secret("groq_api_key")
+    let api_key = crate::secrets::get_secret("groq-api-key")
         .unwrap_or_default();
     if api_key.is_empty() {
         return Err("Groq API key is not set. Go to Settings → Voice.".into());
