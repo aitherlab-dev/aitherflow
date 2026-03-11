@@ -1,4 +1,5 @@
 import { memo, useRef, useEffect, useCallback, useState, useMemo } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { ArrowDown } from "lucide-react";
 import { MessageBubble } from "./MessageBubble";
 import { useChatStore } from "../../stores/chatStore";
@@ -14,7 +15,7 @@ const StreamingBubble = memo(function StreamingBubble({ agentId }: { agentId: st
 });
 
 export const MessageList = memo(function MessageList() {
-  const messages = useChatStore((s) => s.messages);
+  const messages = useChatStore(useShallow((s) => s.messages));
   const hasStreamingMessage = useChatStore((s) => s.streamingMessage !== null);
   const agentId = useChatStore((s) => s.agentId);
   const containerRef = useRef<HTMLDivElement>(null);

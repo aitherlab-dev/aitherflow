@@ -20,14 +20,15 @@ export const SkillsMenu = memo(function SkillsMenu({
   const menuRef = useRef<HTMLDivElement>(null);
   const getFavorites = useSkillStore((s) => s.getFavorites);
   const allFavorites = getFavorites();
-  const activeProjectPath = useAgentStore(
-    (s) => s.agents.find((a) => a.id === s.activeAgentId)?.projectPath,
-  );
   const favorites = useMemo(
-    () => allFavorites.filter((s) =>
-      s.source.type !== "project" || s.source.projectPath === activeProjectPath,
-    ),
-    [allFavorites, activeProjectPath],
+    () => {
+      const agentState = useAgentStore.getState();
+      const projectPath = agentState.agents.find((a) => a.id === agentState.activeAgentId)?.projectPath;
+      return allFavorites.filter((s) =>
+        s.source.type !== "project" || s.source.projectPath === projectPath,
+      );
+    },
+    [allFavorites],
   );
   const translations = useTranslationStore((s) => s.cache.entries);
 

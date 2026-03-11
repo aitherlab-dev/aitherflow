@@ -28,7 +28,8 @@ const IGNORED: &[&str] = &[
 pub fn validate_path_safe(path: &Path) -> Result<(), String> {
     let canonical = match path.canonicalize() {
         Ok(c) => c,
-        Err(_) => {
+        Err(e) => {
+            eprintln!("[files] Cannot canonicalize {}: {e}", path.display());
             // Path doesn't exist — resolve nearest existing ancestor
             let mut resolved = None;
             for ancestor in path.ancestors().skip(1) {

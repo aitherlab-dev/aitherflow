@@ -63,10 +63,13 @@ pub async fn voice_check_anthropic_auth() -> Result<AnthropicAuthStatus, String>
                 expired: expires_at > 0 && now_ms > expires_at,
             })
         }
-        Err(_) => Ok(AnthropicAuthStatus {
-            available: false,
-            expired: false,
-        }),
+        Err(e) => {
+            eprintln!("[voice] Anthropic auth check failed: {e}");
+            Ok(AnthropicAuthStatus {
+                available: false,
+                expired: false,
+            })
+        }
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?

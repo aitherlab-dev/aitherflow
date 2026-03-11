@@ -68,26 +68,19 @@ export const DashboardPanel = memo(function DashboardPanel() {
     gridRef, dragElRef, handlePointerDown, handlePointerMove, handlePointerUp,
   } = useDragReorder<string>("card-id", handleReorder);
 
-  const mcpNeedsReload = useMcpStore((s) => s.needsReload);
-  const mcpLoad = useMcpStore((s) => s.load);
-  const skillsLoaded = useSkillStore((s) => s.loaded);
-  const skillsLoad = useSkillStore((s) => s.load);
-  const activeProjectPath = useAgentStore(
-    (s) => s.agents.find((a) => a.id === s.activeAgentId)?.projectPath,
-  );
-
   useEffect(() => {
-    if (mcpNeedsReload(activeProjectPath)) {
-      mcpLoad(activeProjectPath).catch(console.error);
+    const agentState = useAgentStore.getState();
+    const projectPath = agentState.agents.find((a) => a.id === agentState.activeAgentId)?.projectPath;
+    const mcpState = useMcpStore.getState();
+    if (mcpState.needsReload(projectPath)) {
+      mcpState.load(projectPath).catch(console.error);
     }
-  }, [activeProjectPath, mcpNeedsReload, mcpLoad]);
-
-  useEffect(() => {
-    if (!skillsLoaded) {
+    const skillState = useSkillStore.getState();
+    if (!skillState.loaded) {
       const allProjects = useProjectStore.getState().projects;
-      skillsLoad(allProjects.map((p) => ({ path: p.path, name: p.name }))).catch(console.error);
+      skillState.load(allProjects.map((p) => ({ path: p.path, name: p.name }))).catch(console.error);
     }
-  }, [skillsLoaded, skillsLoad]);
+  }, []);
 
   const handleToggle = useCallback((id: string) => {
     setExpandedCards((prev) => {

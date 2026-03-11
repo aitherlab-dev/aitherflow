@@ -1,4 +1,5 @@
 import { memo, useCallback, useMemo, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { ChevronRight, Settings, Sparkles, Star } from "lucide-react";
 import { useSkillStore } from "../../../stores/skillStore";
 import { useAgentStore } from "../../../stores/agentStore";
@@ -99,10 +100,10 @@ export const SkillsCard = memo(function SkillsCard({
   expanded: boolean;
   onToggle: (id: string) => void;
 }) {
-  const global = useSkillStore((s) => s.global);
-  const projectGroups = useSkillStore((s) => s.projects);
-  const plugins = useSkillStore((s) => s.plugins);
-  const favoriteIds = useSkillStore((s) => s.favoriteIds);
+  const global = useSkillStore(useShallow((s) => s.global));
+  const projectGroups = useSkillStore(useShallow((s) => s.projects));
+  const plugins = useSkillStore(useShallow((s) => s.plugins));
+  const favoriteIds = useSkillStore(useShallow((s) => s.favoriteIds));
   const getFavorites = useSkillStore((s) => s.getFavorites);
   const toggleFavorite = useSkillStore((s) => s.toggleFavorite);
 
@@ -110,7 +111,6 @@ export const SkillsCard = memo(function SkillsCard({
   const activeProjectPath = useAgentStore(
     (s) => s.agents.find((a) => a.id === s.activeAgentId)?.projectPath,
   );
-  const openSettings = useLayoutStore((s) => s.openSettings);
 
   const hasActiveAgent = Boolean(activeAgentId);
   const pluginSkills = useMemo(
@@ -141,9 +141,9 @@ export const SkillsCard = memo(function SkillsCard({
   const handleSettingsClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      openSettings("skills");
+      useLayoutStore.getState().openSettings("skills");
     },
-    [openSettings],
+    [],
   );
 
   return (
