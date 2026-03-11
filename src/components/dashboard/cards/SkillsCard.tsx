@@ -111,7 +111,6 @@ export const SkillsCard = memo(function SkillsCard({
   const activeProjectPath = useAgentStore(
     (s) => s.agents.find((a) => a.id === s.activeAgentId)?.projectPath,
   );
-  const openSettings = useLayoutStore((s) => s.openSettings);
 
   const hasActiveAgent = Boolean(activeAgentId);
   const pluginSkills = useMemo(
@@ -142,9 +141,9 @@ export const SkillsCard = memo(function SkillsCard({
   const handleSettingsClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      openSettings("skills");
+      useLayoutStore.getState().openSettings("skills");
     },
-    [openSettings],
+    [],
   );
 
   return (
