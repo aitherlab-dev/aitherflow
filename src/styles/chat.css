@@ -1037,7 +1037,7 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 4px 0;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-sm);
 }
 
 .model-menu__item {
@@ -1095,7 +1095,7 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 4px 0;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-sm);
 }
 
 .skills-menu__empty {
@@ -1152,7 +1152,7 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 4px 0;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-sm);
 }
 
 .commands-menu__empty {

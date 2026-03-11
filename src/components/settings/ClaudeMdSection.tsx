@@ -72,7 +72,7 @@ export function ClaudeMdSection() {
   // Ctrl+S to save
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === "KeyS" && (e.ctrlKey || e.metaKey)) {
+      if (e.code === "KeyS" && e.ctrlKey) {
         e.preventDefault();
         handleSave();
       }

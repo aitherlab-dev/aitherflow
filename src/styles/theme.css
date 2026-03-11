@@ -164,12 +164,15 @@
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
   --shadow-md: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
   --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.18), 0 4px 12px rgba(0, 0, 0, 0.1);
+  --shadow-panel: 8px 0 32px rgba(0, 0, 0, 0.15);
+  --shadow-card: -6px 4px 20px rgba(0, 0, 0, 0.15);
+  --selection-bg: rgba(168, 78, 28, 0.3);
 
   color-scheme: light;
 }
 
 [data-theme="light"] ::selection {
-  background: rgba(168, 78, 28, 0.3);
+  background: var(--selection-bg);
   color: inherit;
 }
 
@@ -179,12 +182,12 @@
 }
 
 [data-theme="light"] .app-sidebar {
-  box-shadow: 8px 0 32px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-panel);
   z-index: 2;
 }
 
 [data-theme="light"] .app-header {
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-md);
   z-index: 3;
 }
 
@@ -195,12 +198,12 @@
 [data-theme="light"] .welcome-new-project,
 [data-theme="light"] .input-bar,
 [data-theme="light"] .chat-message {
-  box-shadow: -6px 4px 20px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-card);
 }
 
 
 [data-theme="light"] .devtools-btn {
-  background: #f2ece4;
+  background: var(--bg-soft);
 }
 
 [data-theme="light"] .input-bar-row {

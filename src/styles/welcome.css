@@ -73,7 +73,7 @@
   border-color: var(--accent-stroke);
   color: var(--fg);
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-sm);
 }
 
 .welcome-new-project:active {
@@ -123,12 +123,12 @@
   background: var(--bg-hover);
   border-color: var(--fg-dim);
   transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-md);
 }
 
 .welcome-card:active {
   transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-sm);
 }
 
 .welcome-card--fixed {
@@ -180,7 +180,7 @@
   border: 1px solid var(--accent);
   border-radius: 12px;
   opacity: 0.85;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-md);
 }
 
 .welcome-card-icon {

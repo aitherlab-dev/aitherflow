@@ -358,7 +358,13 @@ fn parse_and_cache(
     mtime: u64,
     cutoff_date: &str,
 ) -> Option<CachedSession> {
-    let content = std::fs::read_to_string(path).ok()?;
+    let file = match std::fs::File::open(path) {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("[stats] Failed to open {}: {e}", path.display());
+            return None;
+        }
+    };
 
     let mut model = String::new();
     let mut date = String::new();
@@ -377,8 +383,19 @@ fn parse_and_cache(
     let mut in_turn = false;
 
     let mut parse_errors: u32 = 0;
-    for line in content.lines() {
-        let parsed: JsonlLine = match serde_json::from_str(line) {
+    use std::io::BufRead;
+    for line in std::io::BufReader::new(file).lines() {
+        let line = match line {
+            Ok(l) => l,
+            Err(e) => {
+                if parse_errors == 0 {
+                    eprintln!("[stats] Failed to read line in {}: {e}", path.display());
+                }
+                parse_errors += 1;
+                continue;
+            }
+        };
+        let parsed: JsonlLine = match serde_json::from_str(&line) {
             Ok(v) => v,
             Err(e) => {
                 if parse_errors == 0 {
