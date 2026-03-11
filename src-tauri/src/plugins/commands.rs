@@ -7,6 +7,33 @@ use crate::file_ops::{read_json, write_json};
 use super::marketplace::*;
 use super::types::*;
 
+/// Add or remove a plugin key in ~/.claude/settings.json → enabledPlugins
+fn set_enabled_plugin(key: &str, enable: bool) -> Result<(), String> {
+    let path = crate::config::claude_home().join("settings.json");
+
+    let mut settings: serde_json::Value = if path.exists() {
+        read_json(&path)?
+    } else {
+        serde_json::json!({})
+    };
+
+    let plugins = settings
+        .as_object_mut()
+        .ok_or("settings.json is not an object")?
+        .entry("enabledPlugins")
+        .or_insert_with(|| serde_json::json!({}));
+
+    if let Some(obj) = plugins.as_object_mut() {
+        if enable {
+            obj.insert(key.to_string(), serde_json::Value::Bool(true));
+        } else {
+            obj.remove(key);
+        }
+    }
+
+    write_json(&path, &settings)
+}
+
 /// Reject names containing path traversal sequences or separators
 fn validate_plugin_name(name: &str, label: &str) -> Result<(), String> {
     if name.is_empty()
@@ -306,6 +333,8 @@ pub async fn install_plugin(name: String, marketplace: String) -> Result<(), Str
 
         write_json(&installed_path, &file)?;
 
+        set_enabled_plugin(&key, true)?;
+
         Ok(())
     })
     .await
@@ -334,6 +363,8 @@ pub async fn uninstall_plugin(name: String, marketplace: String) -> Result<(), S
         }
 
         write_json(&installed_path, &file)?;
+
+        set_enabled_plugin(&key, false)?;
 
         // Optionally remove cache directory
         let cache_dir = base.join("cache").join(&marketplace).join(&name);

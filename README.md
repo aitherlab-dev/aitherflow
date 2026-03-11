@@ -11,7 +11,6 @@ Not a replacement — a visual interface on top of the CLI. Claude Code remains 
 - Model selector (Sonnet / Opus / Haiku) and reasoning effort control
 - Interactive permission prompts and plan/edit mode toggle
 - Skill browser with favorites, plugin management
-- Session memory — SQLite + FTS5 search across past sessions
 - Telegram bot integration
 - Voice input (Groq)
 - Dark and light themes (warm palette)
@@ -50,7 +49,7 @@ pnpm tauri dev
 | Styling | Tailwind CSS v4 |
 | State | Zustand |
 | Icons | Lucide React |
-| Data | SQLite + FTS5, JSON |
+| Data | JSON |
 
 ## Platforms
 

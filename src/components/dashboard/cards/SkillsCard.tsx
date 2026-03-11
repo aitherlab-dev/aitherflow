@@ -113,15 +113,15 @@ export const SkillsCard = memo(function SkillsCard({
   );
 
   const hasActiveAgent = Boolean(activeAgentId);
-  const pluginSkills = useMemo(
-    () => plugins.flatMap((pg: PluginSkillGroup) => pg.skills),
+  const pluginSkillCount = useMemo(
+    () => plugins.reduce((sum: number, pg: PluginSkillGroup) => sum + pg.skills.length, 0),
     [plugins],
   );
   const activeProjectSkills = useMemo(
     () => projectGroups.filter((pg) => pg.projectPath === activeProjectPath).flatMap((pg) => pg.skills),
     [projectGroups, activeProjectPath],
   );
-  const total = global.length + activeProjectSkills.length + pluginSkills.length;
+  const total = global.length + activeProjectSkills.length + pluginSkillCount;
 
   const favorites = useMemo(() => getFavorites(), [getFavorites, favoriteIds, global, projectGroups, plugins]);
 
@@ -207,16 +207,20 @@ export const SkillsCard = memo(function SkillsCard({
           ))}
         </SkillSection>
 
-        <SkillSection label="Plugins" count={pluginSkills.length}>
-          {pluginSkills.map((s) => (
-            <SkillRowMini
-              key={s.id}
-              skill={s}
-              isFavorite={favoriteIds.includes(s.id)}
-              disabled={!hasActiveAgent}
-              onToggleFav={handleToggleFav}
-              onInvoke={handleInvoke}
-            />
+        <SkillSection label="Plugins" count={pluginSkillCount}>
+          {plugins.map((pg: PluginSkillGroup) => (
+            <SkillSection key={pg.pluginName} label={pg.pluginName} count={pg.skills.length}>
+              {pg.skills.map((s) => (
+                <SkillRowMini
+                  key={s.id}
+                  skill={s}
+                  isFavorite={favoriteIds.includes(s.id)}
+                  disabled={!hasActiveAgent}
+                  onToggleFav={handleToggleFav}
+                  onInvoke={handleInvoke}
+                />
+              ))}
+            </SkillSection>
           ))}
         </SkillSection>
 
