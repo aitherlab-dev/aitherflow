@@ -146,6 +146,29 @@ impl SessionManager {
         }
     }
 
+    /// Kill all sessions synchronously (called on app exit).
+    /// Uses `try_lock` + `start_kill` to avoid async runtime dependency.
+    pub fn kill_all_sync(&self) {
+        let children: Vec<(String, Child)> = {
+            let Ok(mut map) = self.sessions.try_lock() else {
+                eprintln!("[conductor] Could not lock sessions for cleanup");
+                return;
+            };
+            map.drain()
+                .map(|(id, s)| {
+                    drop(s.stdin);
+                    (id, s.child)
+                })
+                .collect()
+        };
+
+        for (agent_id, mut child) in children {
+            if let Err(e) = child.start_kill() {
+                eprintln!("[conductor] Failed to kill process for {agent_id}: {e}");
+            }
+        }
+    }
+
     /// Try to get the exit code of the child process without killing it.
     pub async fn try_exit_code(&self, agent_id: &str) -> Option<i32> {
         let mut map = self.sessions.lock().await;
