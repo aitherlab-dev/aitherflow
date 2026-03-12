@@ -72,9 +72,11 @@ export const CodeEditor = memo(function CodeEditor({
   const onSaveRef = useRef(onSave);
   const suppressRef = useRef(false);
   const themeCompartmentRef = useRef(new Compartment());
+  const contentRef = useRef(content);
 
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
+  contentRef.current = content;
 
   const createEditor = useCallback(() => {
     if (!containerRef.current) return;
@@ -129,7 +131,7 @@ export const CodeEditor = memo(function CodeEditor({
     ];
 
     const state = EditorState.create({
-      doc: content,
+      doc: contentRef.current,
       extensions,
     });
 
@@ -137,7 +139,7 @@ export const CodeEditor = memo(function CodeEditor({
       state,
       parent: containerRef.current,
     });
-  }, [content, language, readOnly]);
+  }, [language, readOnly]);
 
   // Create editor on mount, recreate on language/readOnly change
   useEffect(() => {
