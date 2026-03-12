@@ -306,10 +306,40 @@ pub async fn create_worktree(options: CreateWorktreeOptions) -> Result<CreateWor
     .map_err(|e| format!("Task join error: {e}"))?
 }
 
-/// Remove a git worktree.
+/// Remove a git worktree and its associated branch.
 #[tauri::command]
 pub async fn remove_worktree(project_path: String, worktree_path: String) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
+        // First, find which branch is attached to this worktree
+        let list_output = Command::new("git")
+            .args(["worktree", "list", "--porcelain"])
+            .current_dir(&project_path)
+            .output()
+            .map_err(|e| format!("Failed to run git worktree list: {e}"))?;
+
+        let list_text = String::from_utf8_lossy(&list_output.stdout);
+        let mut branch_to_delete: Option<String> = None;
+        let mut found_path = false;
+
+        for line in list_text.lines() {
+            if let Some(path) = line.strip_prefix("worktree ") {
+                found_path = path == worktree_path;
+            } else if found_path {
+                if let Some(branch_ref) = line.strip_prefix("branch ") {
+                    branch_to_delete = Some(
+                        branch_ref
+                            .strip_prefix("refs/heads/")
+                            .unwrap_or(branch_ref)
+                            .to_string(),
+                    );
+                    break;
+                } else if line.is_empty() {
+                    break;
+                }
+            }
+        }
+
+        // Remove the worktree
         let output = Command::new("git")
             .args(["worktree", "remove", &worktree_path, "--force"])
             .current_dir(&project_path)
@@ -319,6 +349,20 @@ pub async fn remove_worktree(project_path: String, worktree_path: String) -> Res
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             return Err(format!("git worktree remove failed: {stderr}"));
+        }
+
+        // Delete the branch that was attached to this worktree
+        if let Some(branch) = branch_to_delete {
+            let del_output = Command::new("git")
+                .args(["branch", "-d", &branch])
+                .current_dir(&project_path)
+                .output()
+                .map_err(|e| format!("Failed to delete branch: {e}"))?;
+
+            if !del_output.status.success() {
+                let stderr = String::from_utf8_lossy(&del_output.stderr);
+                log::warn!("Could not delete branch '{branch}': {stderr}");
+            }
         }
 
         Ok(())
