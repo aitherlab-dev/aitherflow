@@ -135,6 +135,10 @@ function dispatch(action: HotkeyAction) {
       break;
     }
 
+    case "toggleChatPanel":
+      layout.toggleChatPanel();
+      break;
+
     default: {
       // switchAgent1..9
       const match = action.match(/^switchAgent(\d)$/);

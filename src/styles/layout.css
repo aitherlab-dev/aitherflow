@@ -5,7 +5,7 @@
 .app-layout {
   display: grid;
   grid-template-rows: 40px 1fr 28px;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto 1fr auto;
   height: 100vh;
   overflow: hidden;
 }
@@ -13,7 +13,7 @@
 /* ── Header ── */
 
 .app-header {
-  grid-column: 2;
+  grid-column: 2 / -1;
   grid-row: 1;
   display: flex;
   align-items: center;
@@ -511,16 +511,18 @@
 }
 
 /* ═══════════════════════════════════════════
-   Chat Panel (sidebar)
+   Chat Panel (right column)
    ═══════════════════════════════════════════ */
 
-.chat-panel-accordion {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: hidden;
+.chat-panel-column {
+  grid-column: 3;
+  grid-row: 2 / 3;
+  width: 260px;
   display: flex;
   flex-direction: column;
-  border-top: 1px solid var(--border);
+  overflow: hidden;
+  background: var(--bg-soft);
+  border-left: 1px solid var(--border);
 }
 
 .chat-panel {
@@ -597,6 +599,7 @@
 /* ── Main zone ── */
 
 .app-main {
+  grid-column: 2;
   display: flex;
   flex-direction: column;
   overflow: hidden;

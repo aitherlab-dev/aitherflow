@@ -7,7 +7,7 @@ import { useChatStore } from "../../../stores/chatStore";
 import { useAgentStore } from "../../../stores/agentStore";
 import { ResizeHandle } from "../ResizeHandle";
 import { FilesPanel } from "../files-panel";
-import { ChatPanel } from "../chat-panel";
+
 import { DashboardPanel } from "../../dashboard/DashboardPanel";
 import { AgentTab } from "./AgentTab";
 import { WorktreeTab } from "./WorktreeTab";
@@ -23,7 +23,6 @@ export const Sidebar = memo(function Sidebar() {
     closeSettings,
     openWelcome,
     closeWelcome,
-    chatPanelVisible,
   } = useLayoutStore(useShallow((s) => ({
     sidebarOpen: s.sidebarOpen,
     sidebarWidth: s.sidebarWidth,
@@ -33,7 +32,6 @@ export const Sidebar = memo(function Sidebar() {
     closeSettings: s.closeSettings,
     openWelcome: s.openWelcome,
     closeWelcome: s.closeWelcome,
-    chatPanelVisible: s.chatPanelVisible,
   })));
 
   /** Close sidebar on mobile after navigation actions */
@@ -256,13 +254,6 @@ export const Sidebar = memo(function Sidebar() {
               );
             })}
           </div>
-
-          {/* Chat panel */}
-          {chatPanelVisible && (
-            <div className="chat-panel-accordion">
-              <ChatPanel />
-            </div>
-          )}
 
           {/* Spacer — absorbs free space between agents and bottom items */}
           <div className="sidebar-spacer" />
