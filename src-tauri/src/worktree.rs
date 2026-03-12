@@ -361,7 +361,7 @@ pub async fn remove_worktree(project_path: String, worktree_path: String) -> Res
 
             if !del_output.status.success() {
                 let stderr = String::from_utf8_lossy(&del_output.stderr);
-                log::warn!("Could not delete branch '{branch}': {stderr}");
+                eprintln!("Could not delete branch '{branch}': {stderr}");
             }
         }
 

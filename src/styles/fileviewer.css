@@ -158,6 +158,93 @@
   color: var(--fg);
 }
 
+/* ── Save button ── */
+
+.fv-save-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+  margin: 0 4px;
+}
+
+.fv-save-btn:hover {
+  background: var(--bg-hover);
+}
+
+/* ── Unsaved changes modal ── */
+
+.fv-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fv-confirm-modal {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  min-width: 300px;
+  box-shadow: var(--shadow-lg);
+}
+
+.fv-confirm-text {
+  margin: 0 0 16px;
+  font-size: 14px;
+  color: var(--fg);
+}
+
+.fv-confirm-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.fv-confirm-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.fv-confirm-btn:hover {
+  background: var(--bg-hover);
+}
+
+.fv-confirm-btn--save {
+  background: var(--accent);
+  color: var(--fg-on-accent);
+  border-color: var(--accent);
+}
+
+.fv-confirm-btn--save:hover {
+  opacity: 0.9;
+}
+
+.fv-confirm-btn--discard {
+  color: var(--red);
+  border-color: var(--red);
+}
+
+.fv-confirm-btn--discard:hover {
+  background: var(--diff-remove-bg);
+}
+
 /* ── Changed files dropdown ── */
 
 .fv-changed-trigger {
