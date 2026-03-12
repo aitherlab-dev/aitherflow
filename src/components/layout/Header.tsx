@@ -6,6 +6,7 @@ import {
   PanelRightClose,
   PanelBottom,
   PanelBottomClose,
+  MessageSquare,
   Sun,
   Moon,
 } from "lucide-react";
@@ -15,11 +16,14 @@ import { useShallow } from "zustand/react/shallow";
 export const Header = memo(function Header() {
   const {
     sidebarOpen, toggleSidebar,
+    chatPanelVisible, toggleChatPanel,
     fileViewerVisible, fileViewerPosition,
     toggleFileViewer, setFileViewerPosition,
   } = useLayoutStore(useShallow((s) => ({
     sidebarOpen: s.sidebarOpen,
     toggleSidebar: s.toggleSidebar,
+    chatPanelVisible: s.chatPanelVisible,
+    toggleChatPanel: s.toggleChatPanel,
     fileViewerVisible: s.fileViewerVisible,
     fileViewerPosition: s.fileViewerPosition,
     toggleFileViewer: s.toggleFileViewer,
@@ -62,6 +66,14 @@ export const Header = memo(function Header() {
   return (
     <header className="app-header" data-tauri-drag-region>
       <div className="header-right">
+        <button
+          className={`header-btn ${chatPanelVisible ? "header-btn--active" : ""}`}
+          onClick={toggleChatPanel}
+          title={chatPanelVisible ? "Hide chat list" : "Show chat list"}
+          aria-label="Toggle chat panel"
+        >
+          <MessageSquare size={16} />
+        </button>
         <button
           className="header-btn"
           onClick={handleTogglePosition}

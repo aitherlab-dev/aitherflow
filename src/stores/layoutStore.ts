@@ -29,6 +29,9 @@ interface LayoutState {
   // Agent log panel
   agentLogOpen: boolean;
 
+  // Chat panel
+  chatPanelVisible: boolean;
+
   toggleSidebar: () => void;
   setSidebarWidth: (width: number) => void;
   openWelcome: () => void;
@@ -40,6 +43,9 @@ interface LayoutState {
 
   // Agent log actions
   toggleAgentLog: () => void;
+
+  // Chat panel actions
+  toggleChatPanel: () => void;
 
   // File viewer actions
   toggleFileViewer: () => void;
@@ -80,6 +86,17 @@ function saveFileViewerPrefs(visible: boolean, position: FileViewerPosition) {
   }
 }
 
+/** Restore chat panel visibility from localStorage */
+function loadChatPanelVisible(): boolean {
+  try {
+    const raw = localStorage.getItem("aitherflow:chatpanel");
+    if (raw !== null) return JSON.parse(raw) as boolean;
+  } catch {
+    // ignore
+  }
+  return true;
+}
+
 const prefs = loadFileViewerPrefs();
 
 export const useLayoutStore = create<LayoutState>((set, get) => ({
@@ -96,6 +113,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   fileViewerHasContent: false,
 
   agentLogOpen: false,
+  chatPanelVisible: loadChatPanelVisible(),
 
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
 
@@ -119,6 +137,12 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   setSidebarPanel: (panel) => set({ sidebarPanel: panel }),
 
   toggleAgentLog: () => set((s) => ({ agentLogOpen: !s.agentLogOpen })),
+
+  toggleChatPanel: () => {
+    const next = !get().chatPanelVisible;
+    set({ chatPanelVisible: next });
+    try { localStorage.setItem("aitherflow:chatpanel", JSON.stringify(next)); } catch { /* ignore */ }
+  },
 
   toggleFileViewer: () => {
     const next = !get().fileViewerVisible;
