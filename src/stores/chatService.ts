@@ -258,8 +258,11 @@ export async function switchPermissionMode(mode: "default" | "plan") {
 
 export async function switchChat(chatId: string) {
   const state = useChatStore.getState();
-  if (state.isThinking) return;
   if (state.currentChatId === chatId) return;
+
+  if (state.isThinking) {
+    useChatStore.setState({ isThinking: false, currentToolActivity: null });
+  }
 
   await persistMessages();
 
