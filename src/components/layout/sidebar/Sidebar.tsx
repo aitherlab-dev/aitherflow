@@ -4,10 +4,10 @@ import { Home, Settings, FolderOpen, LayoutDashboard } from "lucide-react";
 import { useIsMobile } from "../../../hooks/useIsMobile";
 import { useLayoutStore } from "../../../stores/layoutStore";
 import { useChatStore } from "../../../stores/chatStore";
-import { newChat, switchChat, deleteChat, renameChat, toggleChatPin } from "../../../stores/chatService";
 import { useAgentStore } from "../../../stores/agentStore";
 import { ResizeHandle } from "../ResizeHandle";
 import { FilesPanel } from "../files-panel";
+import { ChatPanel } from "../chat-panel";
 import { DashboardPanel } from "../../dashboard/DashboardPanel";
 import { AgentTab } from "./AgentTab";
 import { WorktreeTab } from "./WorktreeTab";
@@ -23,6 +23,7 @@ export const Sidebar = memo(function Sidebar() {
     closeSettings,
     openWelcome,
     closeWelcome,
+    chatPanelVisible,
   } = useLayoutStore(useShallow((s) => ({
     sidebarOpen: s.sidebarOpen,
     sidebarWidth: s.sidebarWidth,
@@ -32,6 +33,7 @@ export const Sidebar = memo(function Sidebar() {
     closeSettings: s.closeSettings,
     openWelcome: s.openWelcome,
     closeWelcome: s.closeWelcome,
+    chatPanelVisible: s.chatPanelVisible,
   })));
 
   /** Close sidebar on mobile after navigation actions */
@@ -42,11 +44,9 @@ export const Sidebar = memo(function Sidebar() {
   const {
     agents,
     activeAgentId,
-    getLockedChatIds,
   } = useAgentStore(useShallow((s) => ({
     agents: s.agents,
     activeAgentId: s.activeAgentId,
-    getLockedChatIds: s.getLockedChatIds,
   })));
 
   // Split agents into root (no parent) and children grouped by parent
@@ -66,10 +66,8 @@ export const Sidebar = memo(function Sidebar() {
     return map;
   }, [agents]);
 
-  const { chatList, currentChatId, isThinking, thinkingAgentIds } = useChatStore(
+  const { isThinking, thinkingAgentIds } = useChatStore(
     useShallow((s) => ({
-      chatList: s.chatList,
-      currentChatId: s.currentChatId,
       isThinking: s.isThinking,
       thinkingAgentIds: s.thinkingAgentIds,
     })),
@@ -77,7 +75,6 @@ export const Sidebar = memo(function Sidebar() {
 
   const [filesOpen, setFilesOpen] = useState(false);
   const [dashboardOpen, setDashboardOpen] = useState(true);
-  const filesOpenBeforeChats = useRef(false);
 
   // Listen for hotkey:toggleDashboard custom event
   useEffect(() => {
@@ -102,40 +99,6 @@ export const Sidebar = memo(function Sidebar() {
       useAgentStore.getState().removeAgent(agentId).catch(console.error);
     },
     [agents.length, openWelcome],
-  );
-
-  const handleNewChat = useCallback(() => {
-    if (!isThinking) newChat().catch(console.error);
-  }, [isThinking, newChat]);
-
-  const handleSelectChat = useCallback(
-    (id: string) => {
-      if (activeView === "settings") closeSettings();
-      switchChat(id).catch(console.error);
-      closeMobile();
-    },
-    [activeView, closeSettings, switchChat, closeMobile],
-  );
-
-  const handleDeleteChat = useCallback(
-    (id: string) => {
-      deleteChat(id).catch(console.error);
-    },
-    [deleteChat],
-  );
-
-  const handleRenameChat = useCallback(
-    (id: string, newTitle: string) => {
-      renameChat(id, newTitle).catch(console.error);
-    },
-    [renameChat],
-  );
-
-  const handleToggleChatPin = useCallback(
-    (id: string, pinned: boolean) => {
-      toggleChatPin(id, pinned).catch(console.error);
-    },
-    [toggleChatPin],
   );
 
   const handleSettingsClick = useCallback(() => {
@@ -163,18 +126,6 @@ export const Sidebar = memo(function Sidebar() {
   const handleDashboardClick = useCallback(() => {
     setDashboardOpen((prev) => !prev);
   }, []);
-
-  const handleChatExpand = useCallback((expanded: boolean) => {
-    if (expanded) {
-      filesOpenBeforeChats.current = filesOpen;
-      if (filesOpen) setFilesOpen(false);
-    } else {
-      if (filesOpenBeforeChats.current) {
-        setFilesOpen(true);
-        filesOpenBeforeChats.current = false;
-      }
-    }
-  }, [filesOpen]);
 
   // ── Shift+drag reorder for agent tabs ──
 
@@ -284,19 +235,10 @@ export const Sidebar = memo(function Sidebar() {
                       agentId={agent.id}
                       projectName={agent.projectName}
                       isActive={agent.id === activeAgentId}
-                      chatList={agent.id === activeAgentId ? chatList : []}
-                      currentChatId={agent.id === activeAgentId ? currentChatId : null}
                       isThinking={agent.id === activeAgentId && isThinking}
                       isBackgroundThinking={thinkingAgentIds.includes(agent.id)}
-                      lockedChatIds={activeAgentId ? getLockedChatIds(activeAgentId) : []}
                       onActivate={handleActivateAgent}
                       onClose={handleCloseAgent}
-                      onNewChat={handleNewChat}
-                      onSelectChat={handleSelectChat}
-                      onDeleteChat={handleDeleteChat}
-                      onRenameChat={handleRenameChat}
-                      onToggleChatPin={handleToggleChatPin}
-                      onToggleExpand={handleChatExpand}
                     />
                   </div>
                   {children.map((child) => (
@@ -314,6 +256,13 @@ export const Sidebar = memo(function Sidebar() {
               );
             })}
           </div>
+
+          {/* Chat panel */}
+          {chatPanelVisible && (
+            <div className="chat-panel-accordion">
+              <ChatPanel />
+            </div>
+          )}
 
           {/* Spacer — absorbs free space between agents and bottom items */}
           <div className="sidebar-spacer" />
