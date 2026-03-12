@@ -453,9 +453,7 @@ async function switchAgentInner(
 ) {
   const state = useChatStore.getState();
 
-  await persistMessages();
-
-  // Snapshot current Zustand state → Map for the outgoing agent
+  // Snapshot BEFORE any async work to prevent race with event handlers
   agentStates.set(state.agentId, {
     messages: state.messages,
     streamingMessage: state.streamingMessage,
@@ -467,6 +465,8 @@ async function switchAgentInner(
     toolCount: state.toolCount,
     error: state.error,
   });
+
+  await persistMessages();
 
   useConductorStore.getState().saveUsageForAgent(state.agentId);
 

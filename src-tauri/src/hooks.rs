@@ -51,6 +51,38 @@ fn read_settings_json(path: &std::path::Path) -> Result<serde_json::Value, Strin
     Ok(val)
 }
 
+// ── Command validation ──
+
+const MAX_HOOK_COMMAND_LEN: usize = 1024;
+
+/// Shell meta-characters that enable command chaining / injection.
+const SHELL_INJECTION_CHARS: &[char] = &[';', '|', '`', '>', '<', '&'];
+
+fn validate_hook_command(command: &str) -> Result<(), String> {
+    let cmd = command.trim();
+    if cmd.is_empty() {
+        return Err("Hook command is empty".into());
+    }
+    if cmd.len() > MAX_HOOK_COMMAND_LEN {
+        return Err(format!(
+            "Hook command too long ({} chars, max {MAX_HOOK_COMMAND_LEN})",
+            cmd.len()
+        ));
+    }
+    // Block shell injection patterns: $() ${} and meta-chars
+    if cmd.contains("$(") || cmd.contains("${") {
+        return Err("Hook command must not contain subshell expansions ($() or ${})".into());
+    }
+    for ch in SHELL_INJECTION_CHARS {
+        if cmd.contains(*ch) {
+            return Err(format!(
+                "Hook command must not contain shell meta-character '{ch}'"
+            ));
+        }
+    }
+    Ok(())
+}
+
 // ── Tauri commands ──
 
 #[tauri::command]
@@ -92,6 +124,8 @@ pub async fn test_hook_command(
     cwd: Option<String>,
 ) -> Result<HookTestResult, String> {
     tokio::task::spawn_blocking(move || {
+        validate_hook_command(&command)?;
+
         let mut cmd = std::process::Command::new("sh");
         cmd.arg("-c").arg(&command);
         if let Some(ref dir) = cwd {

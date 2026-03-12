@@ -7,6 +7,20 @@ use crate::secrets;
 
 const KEY_GROQ: &str = "groq-api-key";
 const KEY_DEEPGRAM: &str = "deepgram-api-key";
+const KEY_MASK_PREFIX: &str = "****";
+
+/// Return masked version of an API key for frontend display.
+/// e.g. "gsk_abc123xyz" → "****3xyz", empty → empty.
+fn mask_key(key: &str) -> String {
+    if key.is_empty() {
+        return String::new();
+    }
+    if key.len() > 4 {
+        format!("{KEY_MASK_PREFIX}{}", &key[key.len() - 4..])
+    } else {
+        KEY_MASK_PREFIX.to_string()
+    }
+}
 
 /// App-wide settings stored on disk
 #[derive(Default, Serialize, Deserialize, Clone)]
@@ -109,6 +123,10 @@ pub async fn load_settings() -> Result<AppSettings, String> {
             }
         }
 
+        // Mask keys before sending to frontend
+        settings.groq_api_key = mask_key(&settings.groq_api_key);
+        settings.deepgram_api_key = mask_key(&settings.deepgram_api_key);
+
         Ok(settings)
     })
     .await
@@ -120,12 +138,16 @@ pub async fn load_settings() -> Result<AppSettings, String> {
 #[tauri::command]
 pub async fn save_settings(settings: AppSettings) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
-        // Store secrets in keyring
-        if let Err(e) = secrets::set_secret(KEY_GROQ, &settings.groq_api_key) {
-            eprintln!("[settings] Failed to store groq key: {e}");
+        // Only update keyring if user provided a real key (not a mask from load_settings)
+        if !settings.groq_api_key.starts_with(KEY_MASK_PREFIX) {
+            if let Err(e) = secrets::set_secret(KEY_GROQ, &settings.groq_api_key) {
+                eprintln!("[settings] Failed to store groq key: {e}");
+            }
         }
-        if let Err(e) = secrets::set_secret(KEY_DEEPGRAM, &settings.deepgram_api_key) {
-            eprintln!("[settings] Failed to store deepgram key: {e}");
+        if !settings.deepgram_api_key.starts_with(KEY_MASK_PREFIX) {
+            if let Err(e) = secrets::set_secret(KEY_DEEPGRAM, &settings.deepgram_api_key) {
+                eprintln!("[settings] Failed to store deepgram key: {e}");
+            }
         }
 
         // Write JSON without secrets

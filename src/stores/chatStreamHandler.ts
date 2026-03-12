@@ -256,8 +256,8 @@ function handleCliEvent(e: CliEvent) {
     if (!agentState) return;
     const wasThinking = agentState.isThinking;
     processEventCore(e, agentState.streamingMessage, agentState.messages,
-      (patch) => Object.assign(agentState, patch));
-    if (wasThinking !== agentState.isThinking) syncThinkingIds();
+      (patch) => agentStates.set(e.agent_id, { ...agentState, ...patch }));
+    if (wasThinking !== (agentStates.get(e.agent_id)?.isThinking ?? false)) syncThinkingIds();
     if (e.type === "turnComplete" || e.type === "processExited") {
       persistAgentMessages(e.agent_id).catch(console.error);
     }

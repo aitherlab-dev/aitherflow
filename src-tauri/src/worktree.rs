@@ -26,6 +26,7 @@ pub struct GitStatus {
 #[tauri::command]
 pub async fn get_worktrees(project_path: String) -> Result<Vec<WorktreeEntry>, String> {
     tokio::task::spawn_blocking(move || {
+        crate::files::validate_path_safe(Path::new(&project_path))?;
         let output = Command::new("git")
             .args(["worktree", "list", "--porcelain"])
             .current_dir(&project_path)
@@ -88,6 +89,7 @@ pub async fn get_worktrees(project_path: String) -> Result<Vec<WorktreeEntry>, S
 pub async fn get_git_status(project_path: String) -> Result<GitStatus, String> {
     tokio::task::spawn_blocking(move || {
         let dir = Path::new(&project_path);
+        crate::files::validate_path_safe(dir)?;
 
         // Current branch
         let branch_output = Command::new("git")
@@ -184,6 +186,7 @@ pub async fn get_worktree_details(
 ) -> Result<WorktreeDetails, String> {
     tokio::task::spawn_blocking(move || {
         let dir = Path::new(&worktree_path);
+        crate::files::validate_path_safe(dir)?;
         let n = commit_count.unwrap_or(5);
 
         // Changed files via git status --short
@@ -265,6 +268,7 @@ pub struct CreateWorktreeOptions {
 pub async fn create_worktree(options: CreateWorktreeOptions) -> Result<CreateWorktreeResult, String> {
     tokio::task::spawn_blocking(move || {
         let project = Path::new(&options.project_path);
+        crate::files::validate_path_safe(project)?;
         let parent = project
             .parent()
             .ok_or_else(|| "Cannot determine parent directory".to_string())?;
@@ -310,6 +314,9 @@ pub async fn create_worktree(options: CreateWorktreeOptions) -> Result<CreateWor
 #[tauri::command]
 pub async fn remove_worktree(project_path: String, worktree_path: String) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
+        crate::files::validate_path_safe(Path::new(&project_path))?;
+        crate::files::validate_path_safe(Path::new(&worktree_path))?;
+
         // First, find which branch is attached to this worktree
         let list_output = Command::new("git")
             .args(["worktree", "list", "--porcelain"])

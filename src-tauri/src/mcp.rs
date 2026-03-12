@@ -227,6 +227,82 @@ pub async fn test_mcp_server(config: McpServerConfig) -> Result<McpTestResult, S
     .map_err(|e| format!("Task join error: {e}"))?
 }
 
+/// Env vars that can hijack process loading or escalate privileges.
+const DANGEROUS_ENV_VARS: &[&str] = &[
+    "LD_PRELOAD",
+    "LD_LIBRARY_PATH",
+    "DYLD_INSERT_LIBRARIES",
+    "DYLD_LIBRARY_PATH",
+    "PATH",
+];
+
+fn validate_stdio_command(cmd: &str, env: &HashMap<String, String>) -> Result<(), String> {
+    if cmd.is_empty() {
+        return Err("Empty command".into());
+    }
+    // If absolute path — validate it lands in an allowed directory
+    if cmd.starts_with('/') {
+        crate::files::validate_path_safe(Path::new(cmd))?;
+    }
+    // Block shell meta-characters in command name
+    if cmd.contains(';') || cmd.contains('|') || cmd.contains('`') || cmd.contains("$(") {
+        return Err(format!("Command contains shell meta-characters: {cmd}"));
+    }
+    // Block dangerous env vars
+    for key in env.keys() {
+        let upper = key.to_uppercase();
+        if DANGEROUS_ENV_VARS.contains(&upper.as_str()) {
+            return Err(format!("Env variable '{key}' is not allowed"));
+        }
+    }
+    Ok(())
+}
+
+fn validate_http_url(url: &str) -> Result<(), String> {
+    // Only http/https schemes
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return Err(format!("Only http/https URLs allowed, got: {url}"));
+    }
+    // Extract host portion (after scheme, before port/path)
+    let after_scheme = url
+        .strip_prefix("http://")
+        .or_else(|| url.strip_prefix("https://"))
+        .unwrap_or(url);
+    let host = after_scheme
+        .split('/')
+        .next()
+        .unwrap_or("")
+        .split(':')
+        .next()
+        .unwrap_or("");
+    let host_lower = host.to_lowercase();
+
+    // Block localhost and loopback
+    if host_lower == "localhost"
+        || host_lower.ends_with(".localhost")
+        || host_lower == "[::1]"
+    {
+        return Err("Localhost URLs are not allowed".into());
+    }
+
+    // Block private/link-local IPs
+    if let Ok(ip) = host.parse::<std::net::Ipv4Addr>() {
+        if ip.is_loopback()           // 127.0.0.0/8
+            || ip.is_private()         // 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+            || ip.is_link_local()      // 169.254.0.0/16 (includes AWS metadata)
+        {
+            return Err(format!("Private/loopback IP not allowed: {ip}"));
+        }
+    }
+    if let Ok(ip) = host.parse::<std::net::Ipv6Addr>() {
+        if ip.is_loopback() {
+            return Err(format!("Loopback IPv6 not allowed: {ip}"));
+        }
+    }
+
+    Ok(())
+}
+
 fn test_stdio(config: &McpServerConfig) -> Result<McpTestResult, String> {
     let Some(cmd) = &config.command else {
         return Ok(McpTestResult {
@@ -234,6 +310,8 @@ fn test_stdio(config: &McpServerConfig) -> Result<McpTestResult, String> {
             message: "No command specified".into(),
         });
     };
+
+    validate_stdio_command(cmd, &config.env)?;
 
     let mut command = Command::new(cmd);
     if let Some(args) = &config.args {
@@ -317,6 +395,8 @@ fn test_http(config: &McpServerConfig) -> Result<McpTestResult, String> {
             message: "No URL specified".into(),
         });
     };
+
+    validate_http_url(url)?;
 
     // Use curl for HTTP test to avoid pulling in reqwest
     let mut cmd = Command::new("curl");
