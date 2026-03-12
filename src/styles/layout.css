@@ -922,6 +922,12 @@
    Files Panel (sidebar)
    ═══════════════════════════════════════════ */
 
+/* Files toggle button — dash-card style in sidebar */
+.sidebar-files-toggle {
+  margin: 4px 12px 0;
+  flex-shrink: 0;
+}
+
 /* Accordion wrapper in sidebar */
 .files-accordion {
   flex: 0 1 auto;

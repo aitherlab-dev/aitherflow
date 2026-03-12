@@ -241,24 +241,27 @@ export const Sidebar = memo(function Sidebar() {
                 </div>
               );
             })}
+
           </div>
 
-          {/* Spacer — absorbs free space between agents and bottom items */}
-          <div className="sidebar-spacer" />
-
-          {/* Bottom items: Files, Dashboard, Settings — pinned to bottom */}
+          {/* Files — dash-card style button, accordion expands below */}
+          <div
+            className={`dash-card sidebar-files-toggle ${filesOpen ? "dash-card--expanded" : ""}`}
+            onClick={handleFilesClick}
+          >
+            <div className="dash-card__header">
+              <FolderOpen size={14} className="dash-card__icon" />
+              <span className="dash-card__title">Files</span>
+            </div>
+          </div>
           {filesOpen && (
             <div className="files-accordion">
               <FilesPanel />
             </div>
           )}
-          <button
-            className={`sidebar-tab ${filesOpen ? "sidebar-tab--active" : ""}`}
-            onClick={handleFilesClick}
-          >
-            <FolderOpen size={16} />
-            <span>Files</span>
-          </button>
+
+          {/* Spacer — absorbs free space between agents and bottom items */}
+          <div className="sidebar-spacer" />
           <div className="dashboard-accordion">
             <DashboardPanel />
           </div>
