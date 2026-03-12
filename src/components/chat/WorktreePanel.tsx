@@ -104,7 +104,7 @@ const WorktreeItemDetails = memo(function WorktreeItemDetails({ worktreePath }: 
   );
 });
 
-export const WorktreePanel = memo(function WorktreePanel() {
+export const WorktreePanel = memo(function WorktreePanel({ embedded = false }: { embedded?: boolean }) {
   const projectPath = useChatStore((s) => s.projectPath);
   const { agents, activeAgentId } = useAgentStore(useShallow((s) => ({
     agents: s.agents,
@@ -224,6 +224,69 @@ export const WorktreePanel = memo(function WorktreePanel() {
 
   const totalChanges = status.changedFiles + status.untrackedFiles + status.stagedFiles;
 
+  const listContent = (
+    <div className="worktree-panel__list">
+      {worktrees.filter((w) => !w.isBare).map((wt) => (
+        <div key={wt.path} className="worktree-panel__entry">
+          <div className="worktree-panel__item-row">
+            <button
+              className="worktree-panel__item-expand"
+              onClick={() => handleToggleDetails(wt.path)}
+            >
+              <ChevronRight
+                size={11}
+                className={`worktree-panel__item-chevron ${expandedWt === wt.path ? "worktree-panel__item-chevron--open" : ""}`}
+              />
+            </button>
+            <button
+              className={`worktree-panel__item ${wt.path === projectPath ? "worktree-panel__item--active" : ""}`}
+              onClick={() => handleSwitch(wt)}
+            >
+              <FolderGit2 size={13} />
+              <span className="worktree-panel__item-branch">{wt.branch || "(detached)"}</span>
+              <span className="worktree-panel__item-path">{wt.path.split("/").pop()}</span>
+            </button>
+            {/* Don't allow removing the root worktree */}
+            {wt.path !== rootProjectPath && (
+              <button
+                className="worktree-panel__item-remove"
+                onClick={() => handleRemove(wt)}
+                title="Remove worktree"
+              >
+                <Trash2 size={12} />
+              </button>
+            )}
+          </div>
+          {expandedWt === wt.path && (
+            <WorktreeItemDetails worktreePath={wt.path} />
+          )}
+        </div>
+      ))}
+
+      {creating ? (
+        <div className="worktree-panel__create-input">
+          <GitBranch size={13} />
+          <input
+            ref={inputRef}
+            className="worktree-panel__input"
+            value={newBranch}
+            onChange={(e) => setNewBranch(e.target.value)}
+            onKeyDown={handleCreateKeyDown}
+            onBlur={() => { setCreating(false); setNewBranch(""); }}
+            placeholder="branch name"
+          />
+        </div>
+      ) : (
+        <button className="worktree-panel__add" onClick={handleCreate}>
+          <Plus size={13} />
+          <span>Add worktree</span>
+        </button>
+      )}
+    </div>
+  );
+
+  if (embedded) return listContent;
+
   return (
     <div className="worktree-panel">
       <div className="worktree-panel__pill">
@@ -239,66 +302,7 @@ export const WorktreePanel = memo(function WorktreePanel() {
         <ChevronRight size={14} className={`worktree-panel__chevron ${expanded ? "worktree-panel__chevron--open" : ""}`} />
       </button>
 
-      {expanded && (
-        <div className="worktree-panel__list">
-          {worktrees.filter((w) => !w.isBare).map((wt) => (
-            <div key={wt.path} className="worktree-panel__entry">
-              <div className="worktree-panel__item-row">
-                <button
-                  className="worktree-panel__item-expand"
-                  onClick={() => handleToggleDetails(wt.path)}
-                >
-                  <ChevronRight
-                    size={11}
-                    className={`worktree-panel__item-chevron ${expandedWt === wt.path ? "worktree-panel__item-chevron--open" : ""}`}
-                  />
-                </button>
-                <button
-                  className={`worktree-panel__item ${wt.path === projectPath ? "worktree-panel__item--active" : ""}`}
-                  onClick={() => handleSwitch(wt)}
-                >
-                  <FolderGit2 size={13} />
-                  <span className="worktree-panel__item-branch">{wt.branch || "(detached)"}</span>
-                  <span className="worktree-panel__item-path">{wt.path.split("/").pop()}</span>
-                </button>
-                {/* Don't allow removing the root worktree */}
-                {wt.path !== rootProjectPath && (
-                  <button
-                    className="worktree-panel__item-remove"
-                    onClick={() => handleRemove(wt)}
-                    title="Remove worktree"
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                )}
-              </div>
-              {expandedWt === wt.path && (
-                <WorktreeItemDetails worktreePath={wt.path} />
-              )}
-            </div>
-          ))}
-
-          {creating ? (
-            <div className="worktree-panel__create-input">
-              <GitBranch size={13} />
-              <input
-                ref={inputRef}
-                className="worktree-panel__input"
-                value={newBranch}
-                onChange={(e) => setNewBranch(e.target.value)}
-                onKeyDown={handleCreateKeyDown}
-                onBlur={() => { setCreating(false); setNewBranch(""); }}
-                placeholder="branch name"
-              />
-            </div>
-          ) : (
-            <button className="worktree-panel__add" onClick={handleCreate}>
-              <Plus size={13} />
-              <span>Add worktree</span>
-            </button>
-          )}
-        </div>
-      )}
+      {expanded && listContent}
       </div>
     </div>
   );

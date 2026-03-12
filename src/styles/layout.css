@@ -919,6 +919,27 @@
 }
 
 /* ═══════════════════════════════════════════
+   Branches Panel (sidebar)
+   ═══════════════════════════════════════════ */
+
+.sidebar-branches-toggle {
+  margin: 4px 12px 0;
+  flex-shrink: 0;
+}
+
+.worktree-accordion {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0 12px;
+}
+
+.worktree-accordion .worktree-panel__list {
+  border-top: none;
+  padding: 4px 4px 6px;
+}
+
+/* ═══════════════════════════════════════════
    Files Panel (sidebar)
    ═══════════════════════════════════════════ */
 

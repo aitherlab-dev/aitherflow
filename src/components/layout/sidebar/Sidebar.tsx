@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { Home, Settings, FolderOpen } from "lucide-react";
+import { Home, Settings, FolderOpen, GitBranch } from "lucide-react";
 import { useIsMobile } from "../../../hooks/useIsMobile";
 import { useLayoutStore } from "../../../stores/layoutStore";
 import { useChatStore } from "../../../stores/chatStore";
@@ -9,6 +9,7 @@ import { ResizeHandle } from "../ResizeHandle";
 import { FilesPanel } from "../files-panel";
 
 import { DashboardPanel } from "../../dashboard/DashboardPanel";
+import { WorktreePanel } from "../../chat/WorktreePanel";
 import { AgentTab } from "./AgentTab";
 import { WorktreeTab } from "./WorktreeTab";
 
@@ -72,6 +73,7 @@ export const Sidebar = memo(function Sidebar() {
   );
 
   const [filesOpen, setFilesOpen] = useState(false);
+  const [branchesOpen, setBranchesOpen] = useState(false);
 
   const handleActivateAgent = useCallback(
     (agentId: string) => {
@@ -111,6 +113,10 @@ export const Sidebar = memo(function Sidebar() {
 
   const handleFilesClick = useCallback(() => {
     setFilesOpen((prev) => !prev);
+  }, []);
+
+  const handleBranchesClick = useCallback(() => {
+    setBranchesOpen((prev) => !prev);
   }, []);
 
   // ── Shift+drag reorder for agent tabs ──
@@ -243,6 +249,22 @@ export const Sidebar = memo(function Sidebar() {
             })}
 
           </div>
+
+          {/* Branches — dash-card style, accordion expands below */}
+          <div
+            className={`dash-card sidebar-branches-toggle ${branchesOpen ? "dash-card--expanded" : ""}`}
+            onClick={handleBranchesClick}
+          >
+            <div className="dash-card__header">
+              <GitBranch size={14} className="dash-card__icon" />
+              <span className="dash-card__title">Branches</span>
+            </div>
+          </div>
+          {branchesOpen && (
+            <div className="worktree-accordion">
+              <WorktreePanel embedded />
+            </div>
+          )}
 
           {/* Files — dash-card style button, accordion expands below */}
           <div
