@@ -2,7 +2,8 @@ import { memo, useCallback } from "react";
 import { useFileViewerStore } from "../../stores/fileViewerStore";
 import { useShallow } from "zustand/react/shallow";
 import { TabBar } from "./TabBar";
-import { CodeViewer } from "./CodeViewer";
+import { CodeEditor } from "./CodeEditor";
+import { DiffViewer } from "./DiffViewer";
 import { ImageViewer } from "./ImageViewer";
 import { FileWarning } from "lucide-react";
 
@@ -22,16 +23,6 @@ export const FileViewerPanel = memo(function FileViewerPanel() {
       )
     : null;
 
-  const handleLineEdit = useCallback(
-    (lineIndex: number, newText: string) => {
-      if (!activeTab?.content) return;
-      const lines = activeTab.content.split("\n");
-      lines[lineIndex] = newText;
-      updateTabContent(activeTab.id, lines.join("\n"));
-    },
-    [activeTab, updateTabContent],
-  );
-
   const handleSave = useCallback(() => {
     if (!activeTab) return;
     saveFile(activeTab.id).catch(console.error);
@@ -50,13 +41,18 @@ export const FileViewerPanel = memo(function FileViewerPanel() {
             <FileWarning size={32} className="fv-empty__icon" />
             <span>Binary file — cannot preview</span>
           </div>
+        ) : activeDiff ? (
+          <DiffViewer
+            content={activeTab.content}
+            diffEdits={activeDiff.edits}
+            snapshot={activeDiff.snapshot ?? null}
+          />
         ) : (
-          <CodeViewer
+          <CodeEditor
             content={activeTab.content}
             language={activeTab.language}
-            diffEdits={activeDiff?.edits}
-            snapshot={activeDiff?.snapshot ?? null}
-            onLineEdit={handleLineEdit}
+            readOnly={false}
+            onChange={(newContent) => updateTabContent(activeTab.id, newContent)}
             onSave={handleSave}
           />
         )}

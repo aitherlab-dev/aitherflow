@@ -292,6 +292,21 @@
 }
 
 
+/* ── Code editor (CodeMirror) ── */
+
+.fv-code-editor {
+  height: 100%;
+  overflow: hidden;
+}
+
+.fv-code-editor .cm-editor {
+  height: 100%;
+}
+
+.fv-code-editor .cm-scroller {
+  overflow: auto;
+}
+
 /* ── Code viewer ── */
 
 .fv-code-viewer {
@@ -341,23 +356,6 @@
 
 .fv-line-content code {
   font-family: inherit;
-}
-
-/* ── Line editor (textarea) ── */
-
-.fv-line-editor {
-  width: 100%;
-  border: 1px solid var(--accent);
-  border-radius: 2px;
-  background: var(--input-bg);
-  color: var(--fg);
-  font-family: inherit;
-  font-size: inherit;
-  line-height: inherit;
-  padding: 0;
-  margin: 0;
-  resize: none;
-  outline: none;
 }
 
 /* ── Image viewer ── */
@@ -416,30 +414,3 @@
   transition: transform 0.1s ease;
 }
 
-/* ── highlight.js theme (warm dark) ── */
-
-.fv-code-viewer .hljs-keyword { color: var(--red); }
-.fv-code-viewer .hljs-string { color: var(--green); }
-.fv-code-viewer .hljs-number { color: var(--purple); }
-.fv-code-viewer .hljs-comment { color: var(--gray); font-style: italic; }
-.fv-code-viewer .hljs-function { color: var(--green); }
-.fv-code-viewer .hljs-title { color: var(--green); }
-.fv-code-viewer .hljs-type { color: var(--yellow); }
-.fv-code-viewer .hljs-built_in { color: var(--yellow); }
-.fv-code-viewer .hljs-literal { color: var(--purple); }
-.fv-code-viewer .hljs-params { color: var(--fg); }
-.fv-code-viewer .hljs-meta { color: var(--aqua); }
-.fv-code-viewer .hljs-attr { color: var(--yellow); }
-.fv-code-viewer .hljs-attribute { color: var(--aqua); }
-.fv-code-viewer .hljs-selector-class { color: var(--green); }
-.fv-code-viewer .hljs-selector-tag { color: var(--red); }
-.fv-code-viewer .hljs-tag { color: var(--red); }
-.fv-code-viewer .hljs-name { color: var(--red); }
-.fv-code-viewer .hljs-variable { color: var(--blue); }
-.fv-code-viewer .hljs-property { color: var(--blue); }
-.fv-code-viewer .hljs-punctuation { color: var(--fg-muted); }
-.fv-code-viewer .hljs-operator { color: var(--aqua); }
-.fv-code-viewer .hljs-regexp { color: var(--aqua); }
-.fv-code-viewer .hljs-symbol { color: var(--purple); }
-.fv-code-viewer .hljs-section { color: var(--green); font-weight: bold; }
-.fv-code-viewer .hljs-link { color: var(--blue); text-decoration: underline; }
