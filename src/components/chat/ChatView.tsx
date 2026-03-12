@@ -2,6 +2,7 @@ import { memo, useCallback, useRef, useState } from "react";
 import { MessageList } from "./MessageList";
 import { InputBar } from "./InputBar";
 import { TaskBar } from "./TaskBar";
+import { WorktreePanel } from "./WorktreePanel";
 import { useChatStore } from "../../stores/chatStore";
 import { useAttachmentStore } from "../../stores/attachmentStore";
 import { useTauriDragDrop } from "../../hooks/useTauriDragDrop";
@@ -68,6 +69,7 @@ export const ChatView = memo(function ChatView() {
           <div className="chat-drop-zone">Drop file to attach</div>
         </div>
       )}
+      <WorktreePanel />
       <MessageList />
 
       <div className="chat-bottom">

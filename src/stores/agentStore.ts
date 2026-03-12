@@ -33,6 +33,9 @@ interface AgentState {
   /** Update chatLock for the active agent (called by chatStore on chat switch) */
   updateChatLock: (agentId: string, chatId: string | null) => void;
 
+  /** Create a worktree child agent under a parent */
+  createWorktreeAgent: (parentAgentId: string, worktreePath: string, branchName: string) => Promise<void>;
+
   /** Move agent from one index to another */
   reorderAgent: (fromIndex: number, toIndex: number) => Promise<void>;
 
@@ -40,9 +43,13 @@ interface AgentState {
   renameProjectInAgents: (projectPath: string, newName: string) => Promise<void>;
 }
 
-/** Persist current agents state to disk */
+/** Persist current agents state to disk (worktree children are excluded) */
 async function persist(agents: AgentEntry[], activeAgentId: string | null) {
-  await invoke("save_agents", { agents, activeAgentId });
+  const diskAgents = agents.filter((a) => !a.parentAgentId);
+  const diskActive = diskAgents.find((a) => a.id === activeAgentId)
+    ? activeAgentId
+    : diskAgents[0]?.id ?? null;
+  await invoke("save_agents", { agents: diskAgents, activeAgentId: diskActive });
 }
 
 export const useAgentStore = create<AgentState>((set, get) => ({
@@ -92,26 +99,73 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     useProjectStore.getState().setLastOpened(projectPath, null).catch(console.error);
   },
 
+  createWorktreeAgent: async (parentAgentId, worktreePath, branchName) => {
+    const { agents, activeAgentId, chatLocks } = get();
+    const parent = agents.find((a) => a.id === parentAgentId);
+    if (!parent) return;
+
+    // Check if a child agent for this path already exists
+    const existing = agents.find(
+      (a) => a.parentAgentId === parentAgentId && a.projectPath === worktreePath,
+    );
+    if (existing) {
+      // Just switch to it
+      await get().setActiveAgent(existing.id);
+      return;
+    }
+
+    const newAgent: AgentEntry = {
+      id: crypto.randomUUID(),
+      projectPath: worktreePath,
+      projectName: branchName,
+      createdAt: Date.now(),
+      order: agents.length,
+      parentAgentId,
+    };
+
+    // Save current chat position for the old agent
+    if (activeAgentId) {
+      const currentChatId = useChatStore.getState().currentChatId;
+      set({
+        chatLocks: { ...chatLocks, [activeAgentId]: currentChatId },
+      });
+    }
+
+    const updated = [...agents, newAgent];
+    set({ agents: updated, activeAgentId: newAgent.id });
+    await persist(updated, newAgent.id);
+
+    await switchAgent(newAgent.id, newAgent.projectPath, newAgent.projectName, null);
+  },
+
   removeAgent: async (agentId) => {
     const { agents, activeAgentId, chatLocks } = get();
 
-    // Stop CLI for this agent and clean up background buffer
-    try {
-      await invoke("stop_session", { agentId });
-    } catch (e) {
-      console.error(`[agentStore] stop_session for ${agentId}:`, e);
+    // Collect this agent + any worktree children
+    const idsToRemove = new Set([agentId]);
+    for (const a of agents) {
+      if (a.parentAgentId === agentId) idsToRemove.add(a.id);
     }
-    clearAgentState(agentId);
 
-    const updated = agents.filter((a) => a.id !== agentId);
+    // Stop CLI and clean up for all removed agents
+    const remainingLocks = { ...chatLocks };
+    for (const id of idsToRemove) {
+      try {
+        await invoke("stop_session", { agentId: id });
+      } catch (e) {
+        console.error(`[agentStore] stop_session for ${id}:`, e);
+      }
+      clearAgentState(id);
+      delete remainingLocks[id];
+    }
+
+    const updated = agents.filter((a) => !idsToRemove.has(a.id));
     let newActiveId = activeAgentId;
 
-    // Clean up chat lock for removed agent
-    const { [agentId]: _, ...remainingLocks } = chatLocks;
     set({ chatLocks: remainingLocks });
 
     // If removing the active agent, switch to first available
-    if (activeAgentId === agentId) {
+    if (activeAgentId && idsToRemove.has(activeAgentId)) {
       newActiveId = updated[0]?.id ?? null;
     }
 
@@ -119,7 +173,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     await persist(updated, newActiveId);
 
     // If we changed active agent, tell chatStore
-    if (activeAgentId === agentId && newActiveId) {
+    if (activeAgentId && idsToRemove.has(activeAgentId) && newActiveId) {
       const newAgent = updated.find((a) => a.id === newActiveId);
       if (newAgent) {
         const savedChatId = remainingLocks[newActiveId] ?? null;

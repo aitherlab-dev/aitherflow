@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { Home, Settings, FolderOpen, LayoutDashboard } from "lucide-react";
 import { useIsMobile } from "../../../hooks/useIsMobile";
@@ -10,6 +10,7 @@ import { ResizeHandle } from "../ResizeHandle";
 import { FilesPanel } from "../files-panel";
 import { DashboardPanel } from "../../dashboard/DashboardPanel";
 import { AgentTab } from "./AgentTab";
+import { WorktreeTab } from "./WorktreeTab";
 
 export const Sidebar = memo(function Sidebar() {
   const isMobile = useIsMobile();
@@ -47,6 +48,23 @@ export const Sidebar = memo(function Sidebar() {
     activeAgentId: s.activeAgentId,
     getLockedChatIds: s.getLockedChatIds,
   })));
+
+  // Split agents into root (no parent) and children grouped by parent
+  const rootAgents = useMemo(
+    () => agents.filter((a) => !a.parentAgentId),
+    [agents],
+  );
+  const childrenByParent = useMemo(() => {
+    const map = new Map<string, typeof agents>();
+    for (const a of agents) {
+      if (a.parentAgentId) {
+        const list = map.get(a.parentAgentId) ?? [];
+        list.push(a);
+        map.set(a.parentAgentId, list);
+      }
+    }
+    return map;
+  }, [agents]);
 
   const { chatList, currentChatId, isThinking, thinkingAgentIds } = useChatStore(
     useShallow((s) => ({
@@ -253,33 +271,48 @@ export const Sidebar = memo(function Sidebar() {
 
           {/* Agent block */}
           <div className="sidebar-content">
-            {agents.map((agent, index) => (
-              <div
-                key={agent.id}
-                ref={(el) => { agentRefs.current[index] = el; }}
-                className={`sidebar-agent-slot ${agentDragIndex === index ? "sidebar-agent-slot--dragging" : ""} ${agentDropIndex === index && agentDragIndex !== null && agentDragIndex !== index ? "sidebar-agent-slot--drop-target" : ""}`}
-                onMouseDown={(e) => handleAgentMouseDown(e, index)}
-              >
-                <AgentTab
-                  agentId={agent.id}
-                  projectName={agent.projectName}
-                  isActive={agent.id === activeAgentId}
-                  chatList={agent.id === activeAgentId ? chatList : []}
-                  currentChatId={agent.id === activeAgentId ? currentChatId : null}
-                  isThinking={agent.id === activeAgentId && isThinking}
-                  isBackgroundThinking={thinkingAgentIds.includes(agent.id)}
-                  lockedChatIds={activeAgentId ? getLockedChatIds(activeAgentId) : []}
-                  onActivate={handleActivateAgent}
-                  onClose={handleCloseAgent}
-                  onNewChat={handleNewChat}
-                  onSelectChat={handleSelectChat}
-                  onDeleteChat={handleDeleteChat}
-                  onRenameChat={handleRenameChat}
-                  onToggleChatPin={handleToggleChatPin}
-                  onToggleExpand={handleChatExpand}
-                />
-              </div>
-            ))}
+            {rootAgents.map((agent, index) => {
+              const children = childrenByParent.get(agent.id) ?? [];
+              return (
+                <div key={agent.id}>
+                  <div
+                    ref={(el) => { agentRefs.current[index] = el; }}
+                    className={`sidebar-agent-slot ${agentDragIndex === index ? "sidebar-agent-slot--dragging" : ""} ${agentDropIndex === index && agentDragIndex !== null && agentDragIndex !== index ? "sidebar-agent-slot--drop-target" : ""}`}
+                    onMouseDown={(e) => handleAgentMouseDown(e, index)}
+                  >
+                    <AgentTab
+                      agentId={agent.id}
+                      projectName={agent.projectName}
+                      isActive={agent.id === activeAgentId}
+                      chatList={agent.id === activeAgentId ? chatList : []}
+                      currentChatId={agent.id === activeAgentId ? currentChatId : null}
+                      isThinking={agent.id === activeAgentId && isThinking}
+                      isBackgroundThinking={thinkingAgentIds.includes(agent.id)}
+                      lockedChatIds={activeAgentId ? getLockedChatIds(activeAgentId) : []}
+                      onActivate={handleActivateAgent}
+                      onClose={handleCloseAgent}
+                      onNewChat={handleNewChat}
+                      onSelectChat={handleSelectChat}
+                      onDeleteChat={handleDeleteChat}
+                      onRenameChat={handleRenameChat}
+                      onToggleChatPin={handleToggleChatPin}
+                      onToggleExpand={handleChatExpand}
+                    />
+                  </div>
+                  {children.map((child) => (
+                    <WorktreeTab
+                      key={child.id}
+                      agentId={child.id}
+                      branchName={child.projectName}
+                      isActive={child.id === activeAgentId}
+                      isBackgroundThinking={thinkingAgentIds.includes(child.id)}
+                      onActivate={handleActivateAgent}
+                      onClose={handleCloseAgent}
+                    />
+                  ))}
+                </div>
+              );
+            })}
           </div>
 
           {/* Spacer — absorbs free space between agents and bottom items */}
