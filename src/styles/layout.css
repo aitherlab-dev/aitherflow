@@ -208,7 +208,7 @@
 
 .app-sidebar {
   grid-column: 1;
-  grid-row: 2;
+  grid-row: 2 / 3;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -338,6 +338,50 @@
 
 @keyframes bg-spinner-spin {
   to { transform: rotate(360deg); }
+}
+
+/* ── Worktree child tabs (sidebar) ── */
+
+.sidebar-worktree-wrapper {
+  margin-left: 20px;
+}
+
+.sidebar-worktree {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.sidebar-worktree:hover {
+  background: var(--tab-bg-hover);
+  color: var(--fg);
+}
+
+.sidebar-worktree--active {
+  background: var(--tab-bg-active);
+  color: var(--fg);
+  border-color: var(--accent);
+}
+
+.sidebar-worktree__icon {
+  color: var(--accent-stroke);
+  flex-shrink: 0;
+}
+
+.sidebar-worktree__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ── Agent slot drag-and-drop ── */

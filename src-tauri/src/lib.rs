@@ -18,6 +18,7 @@ mod skills;
 mod telegram;
 mod translations;
 mod voice;
+mod worktree;
 
 use conductor::session::SessionManager;
 
@@ -124,6 +125,11 @@ pub fn run() {
             claude_md::list_claude_md_files,
             claude_md::read_claude_md,
             claude_md::save_claude_md,
+            worktree::get_worktrees,
+            worktree::get_git_status,
+            worktree::get_worktree_details,
+            worktree::create_worktree,
+            worktree::remove_worktree,
         ])
         .setup(move |_app| {
             // Keep `sessions` alive until setup completes (State already holds a clone via .manage())

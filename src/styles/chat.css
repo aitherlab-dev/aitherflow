@@ -250,12 +250,13 @@
 }
 
 /* Empty state: center input vertically */
-.chat-view--empty {
-  justify-content: center;
-}
-
 .chat-view--empty .message-list {
   display: none;
+}
+
+.chat-view--empty .chat-bottom {
+  margin-top: auto;
+  margin-bottom: auto;
 }
 
 .chat-error {
