@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::file_ops::{read_json, write_json};
@@ -307,6 +307,9 @@ pub async fn install_plugin(name: String, marketplace: String) -> Result<(), Str
             crate::file_ops::copy_dir_recursive(&marketplace_plugin_dir, &cache_dir)?;
         }
 
+        // Normalize: if root SKILL.md exists but skills/ is empty, copy into skills/<name>/
+        normalize_plugin_skills(&cache_dir, &name);
+
         // Update installed_plugins.json
         let installed_path = base.join("installed_plugins.json");
         let mut file: serde_json::Value = if installed_path.exists() {
@@ -339,6 +342,45 @@ pub async fn install_plugin(name: String, marketplace: String) -> Result<(), Str
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// If root SKILL.md exists but skills/ is empty, copy it into skills/<name>/SKILL.md
+/// so CLI can discover the skill. Also copies related dirs (references/, prompts/, etc.)
+fn normalize_plugin_skills(install_dir: &Path, plugin_name: &str) {
+    let root_skill = install_dir.join("SKILL.md");
+    if !root_skill.exists() {
+        return;
+    }
+
+    let skills_dir = install_dir.join("skills");
+    // If skills/ already has subdirs with SKILL.md, nothing to do
+    if skills_dir.is_dir() {
+        if let Ok(entries) = fs::read_dir(&skills_dir) {
+            let has_skills = entries
+                .flatten()
+                .any(|e| e.file_type().is_ok_and(|ft| ft.is_dir()) && e.path().join("SKILL.md").exists());
+            if has_skills {
+                return;
+            }
+        }
+    }
+
+    let target_dir = skills_dir.join(plugin_name);
+    if let Err(e) = fs::create_dir_all(&target_dir) {
+        eprintln!("[plugins] Failed to create {}: {e}", target_dir.display());
+        return;
+    }
+    if let Err(e) = fs::copy(&root_skill, target_dir.join("SKILL.md")) {
+        eprintln!("[plugins] Failed to copy SKILL.md: {e}");
+        return;
+    }
+    for dir_name in &["references", "prompts", "examples", "templates"] {
+        let src = install_dir.join(dir_name);
+        if src.is_dir() {
+            let _ = crate::file_ops::copy_dir_recursive(&src, &target_dir.join(dir_name))
+                .map_err(|e| eprintln!("[plugins] Failed to copy {dir_name}/: {e}"));
+        }
+    }
 }
 
 /// Uninstall a plugin

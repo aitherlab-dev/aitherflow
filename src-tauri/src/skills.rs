@@ -260,31 +260,7 @@ fn scan_plugin_skills() -> Vec<PluginSkillGroup> {
 
         let mut skills: Vec<SkillEntry> = Vec::new();
 
-        // Check for SKILL.md at plugin root (single-skill plugins)
-        let root_skill = install_path.join("SKILL.md");
-        if root_skill.exists() {
-            if let Ok(content) = fs::read_to_string(&root_skill) {
-                let (name, description) = parse_frontmatter(&content);
-                let display_name = if name.is_empty() {
-                    plugin_name.clone()
-                } else {
-                    name
-                };
-                skills.push(SkillEntry {
-                    id: plugin_name.clone(),
-                    name: display_name,
-                    description,
-                    command: format!("/{}", plugin_name),
-                    source: SkillSource::Plugin {
-                        plugin_name: plugin_name.clone(),
-                        marketplace: marketplace.clone(),
-                    },
-                    file_path: root_skill.to_string_lossy().to_string(),
-                });
-            }
-        }
-
-        // Scan skills/ directory
+        // Scan skills/ directory first
         let skills_dir = install_path.join("skills");
         for (dir_name, name, description, file_path) in scan_skills_dir(&skills_dir) {
             let id = format!("{}:{}", plugin_name, dir_name);
@@ -300,6 +276,32 @@ fn scan_plugin_skills() -> Vec<PluginSkillGroup> {
                 },
                 file_path,
             });
+        }
+
+        // Fallback: root SKILL.md only when skills/ had nothing
+        if skills.is_empty() {
+            let root_skill = install_path.join("SKILL.md");
+            if root_skill.exists() {
+                if let Ok(content) = fs::read_to_string(&root_skill) {
+                    let (name, description) = parse_frontmatter(&content);
+                    let display_name = if name.is_empty() {
+                        plugin_name.clone()
+                    } else {
+                        name
+                    };
+                    skills.push(SkillEntry {
+                        id: plugin_name.clone(),
+                        name: display_name,
+                        description,
+                        command: format!("/{}", plugin_name),
+                        source: SkillSource::Plugin {
+                            plugin_name: plugin_name.clone(),
+                            marketplace: marketplace.clone(),
+                        },
+                        file_path: root_skill.to_string_lossy().to_string(),
+                    });
+                }
+            }
         }
 
         // Scan commands/ directory

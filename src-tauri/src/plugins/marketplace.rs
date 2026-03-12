@@ -23,6 +23,11 @@ pub(super) fn count_skills(install_path: &Path) -> usize {
         }
     }
 
+    // Fallback: count root SKILL.md only if skills/ had nothing
+    if count == 0 && install_path.join("SKILL.md").exists() {
+        count += 1;
+    }
+
     // Count commands/ (flat .md or nested COMMAND.md)
     let commands_dir = install_path.join("commands");
     if commands_dir.is_dir() {
