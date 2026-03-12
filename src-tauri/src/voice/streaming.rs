@@ -89,7 +89,6 @@ pub async fn voice_start_stream(
     state: tauri::State<'_, VoiceState>,
     language: String,
     provider: String,
-    api_key: String,
 ) -> Result<(), String> {
     let mut guard = state.stream_state.lock().await;
     if guard.is_some() {
@@ -127,6 +126,11 @@ pub async fn voice_start_stream(
             (url, format!("Bearer {token}"))
         }
         "deepgram" => {
+            let api_key = tokio::task::spawn_blocking(|| {
+                crate::secrets::get_secret("deepgram-api-key").unwrap_or_default()
+            })
+            .await
+            .map_err(|e| format!("Task join error: {e}"))?;
             if api_key.is_empty() {
                 return Err("Deepgram API key is not set. Go to Settings → Voice.".into());
             }

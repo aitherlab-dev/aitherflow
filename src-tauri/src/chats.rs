@@ -339,9 +339,10 @@ pub async fn create_chat(
         write_json(&chat_path(&id), &chat)?;
 
         cache_meta(&chat);
-        upsert_index_entry(&ChatFileMeta::from_chat(&chat))
-            .map_err(|e| eprintln!("[chats] Failed to update chat index: {e}"))
-            .ok();
+        upsert_index_entry(&ChatFileMeta::from_chat(&chat)).map_err(|e| {
+            eprintln!("[chats] Failed to update chat index: {e}");
+            e
+        })?;
         Ok(chat)
     })
     .await
@@ -407,9 +408,10 @@ fn modify_chat(chat_id: &str, mutate: impl FnOnce(&mut ChatFile)) -> Result<(), 
     mutate(&mut chat);
     let meta = ChatFileMeta::from_chat(&chat);
     cache_meta(&chat);
-    upsert_index_entry(&meta)
-        .map_err(|e| eprintln!("[chats] Failed to update chat index: {e}"))
-        .ok();
+    upsert_index_entry(&meta).map_err(|e| {
+        eprintln!("[chats] Failed to update chat index: {e}");
+        e
+    })?;
     write_json(&chat_path(chat_id), &chat)
 }
 
@@ -439,9 +441,10 @@ pub async fn delete_chat(chat_id: String) -> Result<(), String> {
         if let Ok(mut map) = META_CACHE.lock() {
             map.remove(&chat_id);
         }
-        remove_index_entry(&chat_id)
-            .map_err(|e| eprintln!("[chats] Failed to update chat index: {e}"))
-            .ok();
+        remove_index_entry(&chat_id).map_err(|e| {
+            eprintln!("[chats] Failed to update chat index: {e}");
+            e
+        })?;
         Ok(())
     })
     .await

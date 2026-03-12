@@ -148,7 +148,6 @@ export function useVoice(
       await invoke("voice_start_stream", {
         language: settings.voiceLanguage || "en",
         provider,
-        apiKey: provider === "deepgram" ? settings.deepgramApiKey : "",
       });
 
       setVoiceState("streaming");

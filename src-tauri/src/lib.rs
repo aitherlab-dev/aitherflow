@@ -21,6 +21,7 @@ mod voice;
 mod worktree;
 
 use conductor::session::SessionManager;
+use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -187,9 +188,10 @@ pub fn run() {
             eprintln!("[aitherflow] Fatal: failed to build application: {e}");
             std::process::exit(1);
         })
-        .run(|_app, event| {
+        .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
                 devtools::stop_all_dev_servers();
+                app.state::<SessionManager>().kill_all_sync();
             }
         });
 }
