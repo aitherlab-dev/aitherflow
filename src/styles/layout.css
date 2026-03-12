@@ -230,7 +230,6 @@
   flex: 0 0 auto;
 }
 
-
 /* Agent tab wrapper (project button + close) */
 .sidebar-project-wrapper {
   position: relative;
@@ -294,8 +293,6 @@
 .sidebar-project__close:hover {
   color: var(--fg);
 }
-
-
 
 .sidebar-project__name {
   overflow: hidden;
@@ -364,7 +361,6 @@
   transition: transform 0.15s, opacity 0.15s;
 }
 
-
 .sidebar-agent-slot--dragging {
   opacity: 0.5;
   transform: scale(0.97);
@@ -373,7 +369,6 @@
 .sidebar-agent-slot--drop-target {
   box-shadow: 0 -2px 0 0 var(--accent);
 }
-
 
 @keyframes chat-item-in {
   from { opacity: 0; }
@@ -689,7 +684,6 @@
 .sidebar-spacer {
   flex: 1;
 }
-
 
 /* ═══════════════════════════════════════════
    Skills Panel (sidebar)
