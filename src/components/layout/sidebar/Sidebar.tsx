@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { Home, Settings, FolderOpen, LayoutDashboard } from "lucide-react";
+import { Home, Settings, FolderOpen } from "lucide-react";
 import { useIsMobile } from "../../../hooks/useIsMobile";
 import { useLayoutStore } from "../../../stores/layoutStore";
 import { useChatStore } from "../../../stores/chatStore";
@@ -72,14 +72,6 @@ export const Sidebar = memo(function Sidebar() {
   );
 
   const [filesOpen, setFilesOpen] = useState(false);
-  const [dashboardOpen, setDashboardOpen] = useState(true);
-
-  // Listen for hotkey:toggleDashboard custom event
-  useEffect(() => {
-    const handler = () => setDashboardOpen((prev) => !prev);
-    window.addEventListener("hotkey:toggleDashboard", handler);
-    return () => window.removeEventListener("hotkey:toggleDashboard", handler);
-  }, []);
 
   const handleActivateAgent = useCallback(
     (agentId: string) => {
@@ -119,10 +111,6 @@ export const Sidebar = memo(function Sidebar() {
 
   const handleFilesClick = useCallback(() => {
     setFilesOpen((prev) => !prev);
-  }, []);
-
-  const handleDashboardClick = useCallback(() => {
-    setDashboardOpen((prev) => !prev);
   }, []);
 
   // ── Shift+drag reorder for agent tabs ──
@@ -271,18 +259,9 @@ export const Sidebar = memo(function Sidebar() {
             <FolderOpen size={16} />
             <span>Files</span>
           </button>
-          {dashboardOpen && (
-            <div className="dashboard-accordion">
-              <DashboardPanel />
-            </div>
-          )}
-          <button
-            className="sidebar-tab"
-            onClick={handleDashboardClick}
-          >
-            <LayoutDashboard size={16} />
-            <span>Dashboard</span>
-          </button>
+          <div className="dashboard-accordion">
+            <DashboardPanel />
+          </div>
           <button
             className={`sidebar-tab ${activeView === "settings" ? "sidebar-tab--active" : ""}`}
             onClick={handleSettingsClick}

@@ -12,7 +12,6 @@ export type HotkeyAction =
   | "newAgent"
   | "restartSession"
   | "stopGeneration"
-  | "toggleDashboard"
   | "toggleFileViewer"
   | "toggleFileViewerLayout"
   | "toggleChatPanel"
@@ -38,7 +37,6 @@ export const HOTKEY_LABELS: Record<HotkeyAction, string> = {
   newAgent: "New Agent",
   restartSession: "Restart Session",
   stopGeneration: "Stop Generation",
-  toggleDashboard: "Toggle Dashboard",
   toggleFileViewer: "Toggle File Viewer",
   toggleFileViewerLayout: "Toggle File Viewer Layout",
   toggleChatPanel: "Toggle Chat Panel",
@@ -110,7 +108,6 @@ const DEFAULT_BINDINGS: Record<HotkeyAction, HotkeyBinding> = {
   newAgent: { ctrl: false, alt: true, shift: false, code: "KeyA" },
   restartSession: { ctrl: false, alt: true, shift: false, code: "KeyR" },
   stopGeneration: { ctrl: false, alt: false, shift: false, code: "Escape" },
-  toggleDashboard: { ctrl: false, alt: true, shift: false, code: "KeyD" },
   toggleFileViewer: { ctrl: false, alt: true, shift: false, code: "KeyE" },
   toggleFileViewerLayout: { ctrl: false, alt: true, shift: false, code: "KeyW" },
   toggleChatPanel: { ctrl: false, alt: true, shift: false, code: "KeyC" },
@@ -262,7 +259,6 @@ export const HOTKEY_ACTION_ORDER: HotkeyAction[] = [
   "newAgent",
   "restartSession",
   "stopGeneration",
-  "toggleDashboard",
   "toggleFileViewer",
   "toggleFileViewerLayout",
   "toggleChatPanel",

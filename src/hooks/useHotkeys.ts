@@ -121,10 +121,6 @@ function dispatch(action: HotkeyAction) {
       }
       break;
 
-    case "toggleDashboard":
-      window.dispatchEvent(new CustomEvent("hotkey:toggleDashboard"));
-      break;
-
     case "toggleFileViewer":
       layout.toggleFileViewer();
       break;
