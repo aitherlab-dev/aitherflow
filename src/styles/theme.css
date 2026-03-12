@@ -19,6 +19,7 @@
   --fg-dim: #665c54;
 
   --accent: #a84e1c;
+  --accent-soft: #8a4218;
   --accent-stroke: #cacaca;
   --accent-icon: #d97a4b;
   --accent-dim: #af3a03;
@@ -29,9 +30,11 @@
   --header-bg: #282623;
   --chat-list-bg: #1f1d1a;
 
-  --tab-bg: #504e4b;
-  --tab-bg-active: #5c564e;
+  --tab-bg: #363430;
+  --tab-bg-active: #736c62;
+  --tab-bg-active-hover: #7f776c;
   --tab-bg-hover: #3c3a37;
+  --card-bg: #46443f;
 
   --red: #fb4934;
   --green: #b8bb26;
@@ -95,6 +98,7 @@
   --fg-dim: #8a7e72;
 
   --accent: #a84e1c;
+  --accent-soft: #8a4218;
   --accent-stroke: #cacaca;
   --accent-icon: #d97a4b;
   --accent-dim: #af3a03;
@@ -108,6 +112,7 @@
   --tab-bg: #f2ece4;
   --tab-bg-active: #f7f0e6;
   --tab-bg-hover: #e8e2d8;
+  --card-bg: #f2ece4;
   --accent-stroke: #5a5248;
 
   --red: #cc241d;

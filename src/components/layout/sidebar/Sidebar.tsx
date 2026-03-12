@@ -204,13 +204,15 @@ export const Sidebar = memo(function Sidebar() {
       {open && (
         <>
           {/* Home — pinned to top */}
-          <button
-            className="sidebar-tab sidebar-tab--active"
+          <div
+            className="dash-card dash-card--home sidebar-nav-card"
             onClick={handleWelcomeClick}
           >
-            <Home size={16} />
-            <span>Home</span>
-          </button>
+            <div className="dash-card__header">
+              <Home size={14} className="dash-card__icon" />
+              <span className="dash-card__title">Home</span>
+            </div>
+          </div>
 
           {/* Agent block */}
           <div className="sidebar-content">
@@ -287,13 +289,15 @@ export const Sidebar = memo(function Sidebar() {
           <div className="dashboard-accordion">
             <DashboardPanel />
           </div>
-          <button
-            className={`sidebar-tab ${activeView === "settings" ? "sidebar-tab--active" : ""}`}
+          <div
+            className="dash-card sidebar-nav-card"
             onClick={handleSettingsClick}
           >
-            <Settings size={16} />
-            <span>Settings</span>
-          </button>
+            <div className="dash-card__header">
+              <Settings size={14} className="dash-card__icon" />
+              <span className="dash-card__title">Settings</span>
+            </div>
+          </div>
 
           <ResizeHandle />
         </>

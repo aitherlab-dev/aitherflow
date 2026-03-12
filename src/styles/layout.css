@@ -212,8 +212,9 @@
   position: relative;
   display: flex;
   flex-direction: column;
+  gap: 8px;
   overflow: hidden;
-  padding-top: 8px;
+  padding: 8px 0;
   background: var(--bg-soft);
   border-right: 1px solid var(--border);
   transition: width 0.2s ease;
@@ -224,8 +225,8 @@
   padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin: 8px 0 16px;
+  gap: 8px;
+  margin: 0;
   min-height: 0;
   flex: 0 0 auto;
 }
@@ -242,28 +243,34 @@
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 16px 8px;
+  padding: 10px 12px;
   border: 1px solid var(--accent);
   border-radius: 10px;
-  background: var(--tab-bg-hover);
+  background: var(--tab-bg);
   color: var(--fg);
   font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s, transform 0.25s ease-out;
+  transition: background 0.2s, transform 0.3s ease-out;
 }
 
 .sidebar-project--active {
   background: var(--tab-bg-active);
+  border-left: 3px solid var(--accent);
+}
+
+:root .sidebar-project--active {
+  background: var(--tab-bg-active);
 }
 
 .sidebar-project:hover {
-  background: var(--tab-bg);
-  transform: scale(1.04);
+  background: var(--tab-bg-hover);
+  transform: scale(1.025);
 }
 
 .sidebar-project--active:hover {
-  transform: none;
+  background: var(--tab-bg-active-hover);
+  transform: scale(1.025);
 }
 
 /* Close button on agent tabs */
@@ -314,6 +321,7 @@
 
 .sidebar-worktree-wrapper {
   margin-left: 20px;
+  margin-top: 4px;
 }
 
 .sidebar-worktree {
@@ -329,12 +337,13 @@
   font-size: 0.8rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s, color 0.15s, transform 0.3s ease-out;
 }
 
 .sidebar-worktree:hover {
   background: var(--tab-bg-hover);
   color: var(--fg);
+  transform: scale(1.025);
 }
 
 .sidebar-worktree--active {
@@ -922,8 +931,15 @@
    Branches Panel (sidebar)
    ═══════════════════════════════════════════ */
 
+/* Uniform spacing for all sidebar nav cards */
+.sidebar-nav-card {
+  margin: 0 12px;
+  flex-shrink: 0;
+}
+
+
 .sidebar-branches-toggle {
-  margin: 4px 12px 0;
+  margin: 0 12px;
   flex-shrink: 0;
 }
 
@@ -945,7 +961,7 @@
 
 /* Files toggle button — dash-card style in sidebar */
 .sidebar-files-toggle {
-  margin: 4px 12px 0;
+  margin: 0 12px;
   flex-shrink: 0;
 }
 
@@ -1226,18 +1242,58 @@
 /* ── Dashboard card ── */
 
 .dash-card {
-  background: var(--tab-bg);
+  background: var(--card-bg);
   border: 1px solid var(--accent);
   border-radius: 10px;
   padding: 10px 12px;
   cursor: pointer;
-  transition: background 0.2s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  transition: background 0.2s ease, border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease-out;
   min-width: 0;
   min-height: 40px;
 }
 
+/* Dark theme: utility cards (Branches, Files) dimmer than agents */
+:root .sidebar-branches-toggle,
+:root .sidebar-files-toggle {
+  background: var(--card-bg);
+}
+
+:root .sidebar-branches-toggle:hover,
+:root .sidebar-files-toggle:hover {
+  background: var(--tab-bg-hover);
+}
+
+/* Settings — same style as Home */
+:root .sidebar-nav-card:not(.dash-card--home) {
+  background: var(--accent-soft);
+  border-color: var(--accent-soft);
+  color: var(--fg);
+}
+
+:root .sidebar-nav-card:not(.dash-card--home):hover {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
 .dash-card:hover {
   background: var(--tab-bg-hover);
+  transform: scale(1.025);
+}
+
+.dash-card--home {
+  background: var(--accent-soft);
+  border-color: var(--accent-soft);
+  color: var(--fg);
+}
+
+.dash-card--home:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.dash-card--home .dash-card__icon,
+.dash-card--home .dash-card__title {
+  color: inherit;
 }
 
 .dash-card--expanded,
