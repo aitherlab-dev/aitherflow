@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::net::TcpListener;
 use std::path::PathBuf;
 
 use crate::config;
@@ -6,6 +7,16 @@ use crate::config;
 // Track dev server PIDs per project path
 static DEV_SERVER_PIDS: std::sync::LazyLock<std::sync::Mutex<HashMap<String, u32>>> =
     std::sync::LazyLock::new(|| std::sync::Mutex::new(HashMap::new()));
+
+/// Find a free TCP port starting from `start`, trying up to 100 ports.
+fn find_free_port(start: u16) -> u16 {
+    for port in start..start.saturating_add(100) {
+        if TcpListener::bind(("127.0.0.1", port)).is_ok() {
+            return port;
+        }
+    }
+    start // fallback — let the dev server report the error
+}
 
 /// Kill all running dev servers (called on app exit)
 pub fn stop_all_dev_servers() {
@@ -154,7 +165,21 @@ pub async fn self_dev(project_path: String) -> Result<String, String> {
             "npm"
         };
 
-        let (cmd_name, cmd_args) = if is_tauri {
+        // Auto-install dependencies if node_modules is missing
+        if !project_dir.join("node_modules").exists() {
+            let install_status = std::process::Command::new(pm)
+                .arg("install")
+                .current_dir(&project_dir)
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .map_err(|e| format!("Failed to run '{pm} install': {e}"))?;
+            if !install_status.success() {
+                return Err(format!("'{pm} install' failed with exit code {:?}", install_status.code()));
+            }
+        }
+
+        let (cmd_name, mut cmd_args) = if is_tauri {
             (pm.to_string(), vec!["tauri".to_string(), "dev".to_string()])
         } else {
             let has_dev = pkg
@@ -168,10 +193,24 @@ pub async fn self_dev(project_path: String) -> Result<String, String> {
             }
         };
 
+        // Find a free port starting from 1420
+        let dev_port = find_free_port(1420);
+
+        // For Tauri projects, override devUrl via --config if port differs
+        if is_tauri && dev_port != 1420 {
+            cmd_args.push("--config".to_string());
+            cmd_args.push(format!(
+                r#"{{"build":{{"devUrl":"http://localhost:{dev_port}"}}}}"#
+            ));
+        }
+
         let display = format!("{} {}", cmd_name, cmd_args.join(" "));
 
         let mut dev_cmd = std::process::Command::new(&cmd_name);
         dev_cmd.args(&cmd_args).current_dir(&project_dir);
+
+        // Pass port to Vite via env variable
+        dev_cmd.env("VITE_PORT", dev_port.to_string());
 
         // WebKitGTK workarounds for Tauri projects (Linux-only)
         #[cfg(target_os = "linux")]
