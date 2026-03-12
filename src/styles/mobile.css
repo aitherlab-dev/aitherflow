@@ -15,7 +15,8 @@
   .app-header,
   .brand-footer,
   .file-viewer-wrapper,
-  .fv-resize-handle {
+  .fv-resize-handle,
+  .chat-panel-column {
     display: none !important;
   }
 
