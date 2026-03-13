@@ -121,12 +121,17 @@ pub async fn team_claim_task(
     .map_err(|e| format!("Task join error: {e}"))?
 }
 
-/// Complete a task
+/// Complete a task (only the owner can complete it)
 #[tauri::command]
-pub async fn team_complete_task(team: String, task_id: String) -> Result<TeamTask, String> {
+pub async fn team_complete_task(
+    team: String,
+    task_id: String,
+    agent_id: String,
+) -> Result<TeamTask, String> {
     tokio::task::spawn_blocking(move || {
         validate_name(&team, "team")?;
         validate_name(&task_id, "task_id")?;
+        validate_name(&agent_id, "agent_id")?;
 
         let key = task_lock_key(&team, &task_id);
         let lock = task_lock(&key);
@@ -136,6 +141,18 @@ pub async fn team_complete_task(team: String, task_id: String) -> Result<TeamTas
 
         let path = task_path(&team, &task_id);
         let mut task: TeamTask = read_json(&path)?;
+
+        match &task.owner {
+            Some(owner) if owner == &agent_id => {}
+            Some(owner) => {
+                return Err(format!(
+                    "Task {task_id} is owned by {owner}, not {agent_id}"
+                ));
+            }
+            None => {
+                return Err(format!("Task {task_id} has no owner, cannot complete"));
+            }
+        }
 
         task.status = TaskStatus::Completed;
         task.completed_at = Some(chrono::Utc::now().to_rfc3339());
