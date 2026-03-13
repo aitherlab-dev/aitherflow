@@ -279,6 +279,11 @@ pub async fn team_remove_agent(
     // Kill session first (stops process + polling). Safe to call if no session exists.
     sessions.kill(&agent_id).await;
 
+    // Unregister from MCP server
+    if let Some(mcp) = super::mcp_server::get_state() {
+        mcp.unregister_agent(&agent_id).await;
+    }
+
     // Then remove from team config
     tokio::task::spawn_blocking(move || {
         validate_name(&team_id, "team_id")?;
@@ -373,7 +378,7 @@ pub async fn team_start_agent(
     // Atomic: check not running + set Running under one lock (prevents TOCTOU on double-click)
     let tid = team_id.clone();
     let aid = agent_id.clone();
-    let (project_path, team_name) = tokio::task::spawn_blocking(move || {
+    let (project_path, team_name, team_agent_ids) = tokio::task::spawn_blocking(move || {
         // Atomically claim the agent (fails if already Running)
         try_set_running_sync(&tid, &aid)?;
 
@@ -391,10 +396,19 @@ pub async fn team_start_agent(
             team.project_path.clone()
         };
 
-        Ok::<_, String>((path, team.name))
+        let agent_ids: Vec<String> =
+            team.agents.iter().map(|a| a.agent_id.clone()).collect();
+
+        Ok::<_, String>((path, team.name, agent_ids))
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))??;
+
+    // Register agent in MCP server so it can use teamwork tools
+    if let Some(mcp) = super::mcp_server::get_state() {
+        mcp.register_agent(&agent_id, &team_name, team_agent_ids)
+            .await;
+    }
 
     // Spawn CLI session in background
     let sessions_owned = sessions.inner().clone();
@@ -440,6 +454,11 @@ pub async fn team_start_agent(
             }
         }
 
+        // Unregister from MCP server
+        if let Some(mcp) = super::mcp_server::get_state() {
+            mcp.unregister_agent(&agent_id_spawn).await;
+        }
+
         // Process exited — reset to idle only if still Running (Stopped stays Stopped)
         let tid = team_id_spawn;
         let aid = agent_id_spawn;
@@ -463,6 +482,11 @@ pub async fn team_stop_agent(
     agent_id: String,
 ) -> Result<(), String> {
     sessions.kill(&agent_id).await;
+
+    // Unregister from MCP server
+    if let Some(mcp) = super::mcp_server::get_state() {
+        mcp.unregister_agent(&agent_id).await;
+    }
 
     tokio::task::spawn_blocking(move || {
         update_agent_status_sync(&team_id, &agent_id, AgentStatus::Stopped)

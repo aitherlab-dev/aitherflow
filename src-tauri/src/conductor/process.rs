@@ -124,6 +124,42 @@ pub async fn run_cli_session(
     // Add role-based args from team config (e.g. --allowedTools)
     args.extend(team_extra_args);
 
+    // Create MCP config file for team agents (points to the built-in MCP server)
+    let mcp_config_path = if team_id.is_some() {
+        if let Some(port) = crate::teamwork::mcp_server::get_mcp_port() {
+            let path =
+                std::env::temp_dir().join(format!("aitherflow-mcp-{agent_id}.json"));
+            let config_json = serde_json::json!({
+                "mcpServers": {
+                    "teamwork": {
+                        "type": "http",
+                        "url": format!("http://127.0.0.1:{port}/mcp/{agent_id}")
+                    }
+                }
+            });
+            let path_clone = path.clone();
+            tokio::task::spawn_blocking(move || {
+                std::fs::write(
+                    &path_clone,
+                    serde_json::to_string_pretty(&config_json)
+                        .expect("Failed to serialize MCP config"),
+                )
+                .map_err(|e| format!("Failed to write MCP config: {e}"))
+            })
+            .await
+            .map_err(|e| format!("MCP config task panic: {e}"))??;
+
+            args.push("--mcp-config".into());
+            args.push(path.to_string_lossy().into_owned());
+            Some(path)
+        } else {
+            eprintln!("[{tag}] MCP server not running, skipping --mcp-config for team agent");
+            None
+        }
+    } else {
+        None
+    };
+
     // Build command
     let mut cmd = Command::new("claude");
     cmd.args(&args)
@@ -363,6 +399,16 @@ pub async fn run_cli_session(
 
     // Clean up session — only if it's still ours (same generation)
     sessions.cleanup(&agent_id, generation).await;
+
+    // Clean up MCP config temp file
+    if let Some(path) = mcp_config_path {
+        let _ = tokio::task::spawn_blocking(move || {
+            if let Err(e) = std::fs::remove_file(&path) {
+                eprintln!("[conductor] Failed to cleanup MCP config: {e}");
+            }
+        })
+        .await;
+    }
 
     Ok(())
 }

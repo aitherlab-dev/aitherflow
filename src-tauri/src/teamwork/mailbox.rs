@@ -105,6 +105,40 @@ fn append_to_inbox(team: &str, msg: &TeamMessage) -> Result<(), String> {
     Ok(())
 }
 
+/// Send a message (sync, for use inside spawn_blocking).
+pub(crate) fn send_message_sync(
+    team: &str,
+    from: &str,
+    to: &str,
+    text: &str,
+) -> Result<(), String> {
+    validate_name(team, "team")?;
+    validate_name(from, "from")?;
+    validate_name(to, "to")?;
+    let msg = new_message(from, to, text);
+    append_to_inbox(team, &msg)
+}
+
+/// Broadcast a message to specified agents except sender (sync).
+pub(crate) fn broadcast_sync(
+    team: &str,
+    from: &str,
+    text: &str,
+    agent_ids: &[String],
+) -> Result<(), String> {
+    validate_name(team, "team")?;
+    validate_name(from, "from")?;
+    for agent_id in agent_ids {
+        validate_name(agent_id, "agent_id")?;
+        if agent_id == from {
+            continue;
+        }
+        let msg = new_message(from, agent_id, text);
+        append_to_inbox(team, &msg)?;
+    }
+    Ok(())
+}
+
 /// Send a message from one agent to another
 #[tauri::command]
 pub async fn team_send_message(

@@ -1,4 +1,5 @@
 pub mod mailbox;
+pub mod mcp_server;
 pub mod tasks;
 pub mod team;
 

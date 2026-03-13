@@ -154,6 +154,11 @@ pub fn run() {
             // Keep `sessions` alive until setup completes (State already holds a clone via .manage())
             let _sessions = sessions;
             tauri::async_runtime::spawn(async move {
+                // Start MCP server for team agent communication
+                if let Err(e) = teamwork::mcp_server::start_mcp_server().await {
+                    eprintln!("[aitherflow] Failed to start MCP server: {e}");
+                }
+
                 let tg_enabled = tokio::task::spawn_blocking(|| {
                     let cfg_dir = config::config_dir();
                     let data_dir = config::data_dir();

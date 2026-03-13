@@ -58,6 +58,137 @@ fn task_lock_key(team: &str, task_id: &str) -> String {
     format!("{team}/{task_id}")
 }
 
+/// Create a new task (sync, for use inside spawn_blocking).
+pub(crate) fn create_task_sync(
+    team: &str,
+    title: String,
+    description: String,
+) -> Result<TeamTask, String> {
+    validate_name(team, "team")?;
+    let task = TeamTask {
+        id: uuid::Uuid::new_v4().to_string(),
+        title,
+        description,
+        status: TaskStatus::Pending,
+        owner: None,
+        blocked_by: Vec::new(),
+        created_at: chrono::Utc::now().to_rfc3339(),
+        completed_at: None,
+    };
+    write_json(&task_path(team, &task.id), &task)?;
+    Ok(task)
+}
+
+/// Claim a task for an agent (sync, with lock to prevent double-claim).
+pub(crate) fn claim_task_sync(
+    team: &str,
+    task_id: &str,
+    agent_id: &str,
+) -> Result<TeamTask, String> {
+    validate_name(team, "team")?;
+    validate_name(task_id, "task_id")?;
+    validate_name(agent_id, "agent_id")?;
+
+    let key = task_lock_key(team, task_id);
+    let lock = task_lock(&key);
+    let _guard = lock
+        .lock()
+        .map_err(|e| format!("Task lock poisoned: {e}"))?;
+
+    let path = task_path(team, task_id);
+    let mut task: TeamTask = read_json(&path)?;
+
+    if task.status != TaskStatus::Pending {
+        return Err(format!("Task {task_id} is not pending, cannot claim"));
+    }
+
+    task.status = TaskStatus::InProgress;
+    task.owner = Some(agent_id.to_string());
+    write_json(&path, &task)?;
+    Ok(task)
+}
+
+/// Complete a task (sync, only the owner can complete it).
+pub(crate) fn complete_task_sync(
+    team: &str,
+    task_id: &str,
+    agent_id: &str,
+) -> Result<TeamTask, String> {
+    validate_name(team, "team")?;
+    validate_name(task_id, "task_id")?;
+    validate_name(agent_id, "agent_id")?;
+
+    let key = task_lock_key(team, task_id);
+    let lock = task_lock(&key);
+    let _guard = lock
+        .lock()
+        .map_err(|e| format!("Task lock poisoned: {e}"))?;
+
+    let path = task_path(team, task_id);
+    let mut task: TeamTask = read_json(&path)?;
+
+    match &task.owner {
+        Some(owner) if owner == agent_id => {}
+        Some(owner) => {
+            return Err(format!(
+                "Task {task_id} is owned by {owner}, not {agent_id}"
+            ));
+        }
+        None => {
+            return Err(format!("Task {task_id} has no owner, cannot complete"));
+        }
+    }
+
+    task.status = TaskStatus::Completed;
+    task.completed_at = Some(chrono::Utc::now().to_rfc3339());
+    write_json(&path, &task)?;
+    Ok(task)
+}
+
+/// List all tasks for a team (sync).
+pub(crate) fn list_tasks_sync(team: &str) -> Result<Vec<TeamTask>, String> {
+    validate_name(team, "team")?;
+
+    let dir = tasks_dir(team);
+    if !dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    let entries =
+        fs::read_dir(&dir).map_err(|e| format!("Failed to read tasks dir: {e}"))?;
+
+    let mut tasks = Vec::new();
+    for entry in entries.flatten() {
+        let ft = entry
+            .file_type()
+            .map_err(|e| format!("Failed to get file type: {e}"))?;
+        if ft.is_symlink() || ft.is_dir() {
+            continue;
+        }
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("json") {
+            continue;
+        }
+        match read_json::<TeamTask>(&path) {
+            Ok(task) => tasks.push(task),
+            Err(e) => eprintln!("[teamwork] Bad task file {}: {e}", path.display()),
+        }
+    }
+
+    tasks.sort_by(|a, b| {
+        let order = |s: &TaskStatus| match s {
+            TaskStatus::Pending => 0,
+            TaskStatus::InProgress => 1,
+            TaskStatus::Completed => 2,
+        };
+        order(&a.status)
+            .cmp(&order(&b.status))
+            .then_with(|| a.created_at.cmp(&b.created_at))
+    });
+
+    Ok(tasks)
+}
+
 /// Create a new task
 #[tauri::command]
 pub async fn team_create_task(
