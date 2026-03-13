@@ -159,6 +159,15 @@
   gap: 4px;
 }
 
+.team-agent-card--clickable {
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.team-agent-card--clickable:hover {
+  border-color: var(--accent-stroke);
+}
+
 .team-agent-card__top {
   display: flex;
   align-items: center;
@@ -481,4 +490,19 @@
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+/* ── Team badge in chat view ── */
+
+.team-chat-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }

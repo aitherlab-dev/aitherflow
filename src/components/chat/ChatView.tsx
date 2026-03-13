@@ -1,10 +1,37 @@
 import { memo, useCallback, useRef, useState } from "react";
+import { Code, Eye, Compass } from "lucide-react";
 import { MessageList } from "./MessageList";
 import { InputBar } from "./InputBar";
 import { TaskBar } from "./TaskBar";
 import { useChatStore } from "../../stores/chatStore";
+import { useAgentStore } from "../../stores/agentStore";
 import { useAttachmentStore } from "../../stores/attachmentStore";
 import { useTauriDragDrop } from "../../hooks/useTauriDragDrop";
+import type { AgentEntry } from "../../types/agents";
+
+const TEAM_ROLE_ICON: Record<string, React.ElementType> = {
+  coder: Code,
+  reviewer: Eye,
+  architect: Compass,
+};
+
+function TeamBadge() {
+  const agent = useAgentStore((s) => {
+    const a = s.agents.find((e) => e.id === s.activeAgentId);
+    return a?.teamRole ? a : null;
+  }) as AgentEntry | null;
+
+  if (!agent?.teamRole) return null;
+
+  const RoleIcon = TEAM_ROLE_ICON[agent.teamRole];
+
+  return (
+    <div className="team-chat-badge">
+      {RoleIcon && <RoleIcon size={14} />}
+      <span>{agent.projectName}</span>
+    </div>
+  );
+}
 
 export const ChatView = memo(function ChatView() {
   const error = useChatStore((s) => s.error);
@@ -68,6 +95,7 @@ export const ChatView = memo(function ChatView() {
           <div className="chat-drop-zone">Drop file to attach</div>
         </div>
       )}
+      <TeamBadge />
       <MessageList />
 
       <div className="chat-bottom">

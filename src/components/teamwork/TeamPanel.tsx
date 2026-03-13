@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useTeamStore } from "../../stores/teamStore";
 import { useLayoutStore } from "../../stores/layoutStore";
+import { useAgentStore } from "../../stores/agentStore";
 import type { Team, TeamAgent, AgentRole, TeamTask, TeamMessage } from "../../types/team";
 
 const ROLE_ICON: Record<AgentRole, React.ElementType> = {
@@ -150,19 +151,20 @@ function TeamList({
 function CreateTeamButton() {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
-  const [path, setPath] = useState("");
 
   const handleCreate = useCallback(async () => {
-    if (!name.trim() || !path.trim()) return;
+    if (!name.trim()) return;
+    const activeAgent = useAgentStore.getState().getActiveAgent();
+    const projectPath = activeAgent?.projectPath ?? "";
+    if (!projectPath) return;
     try {
-      await useTeamStore.getState().createTeam(name.trim(), path.trim());
+      await useTeamStore.getState().createTeam(name.trim(), projectPath);
       setName("");
-      setPath("");
       setOpen(false);
     } catch (e) {
       console.error("[TeamPanel] createTeam:", e);
     }
-  }, [name, path]);
+  }, [name]);
 
   if (!open) {
     return (
@@ -181,12 +183,6 @@ function CreateTeamButton() {
         value={name}
         onChange={(e) => setName(e.target.value)}
         autoFocus
-      />
-      <input
-        className="team-input"
-        placeholder="Project path"
-        value={path}
-        onChange={(e) => setPath(e.target.value)}
       />
       <div className="team-create-form__actions">
         <button className="team-btn team-btn--primary" onClick={handleCreate}>
@@ -228,13 +224,29 @@ function AgentsSection({ team }: { team: Team }) {
 
   const handleStart = useCallback(
     async (agentId: string) => {
+      const agent = team.agents.find((a) => a.agent_id === agentId);
+      if (!agent) return;
+
       try {
         await useTeamStore.getState().startAgent(team.id, agentId);
       } catch (e) {
-        console.error("[TeamPanel] startAgent:", e);
+        // Already running — still switch to chat
+        if (!String(e).includes("already running")) {
+          console.error("[TeamPanel] startAgent:", e);
+          return;
+        }
       }
+
+      await useAgentStore.getState().registerTeamAgent(
+        agentId,
+        team.project_path,
+        `${ROLE_LABEL[agent.role]} · ${team.name}`,
+        team.id,
+        agent.role,
+      );
+      useLayoutStore.getState().closeTeamwork();
     },
-    [team.id],
+    [team],
   );
 
   const handleStop = useCallback(
@@ -246,6 +258,17 @@ function AgentsSection({ team }: { team: Team }) {
       }
     },
     [team.id],
+  );
+
+  const handleCardClick = useCallback(
+    (agentId: string) => {
+      const agents = useAgentStore.getState().agents;
+      const exists = agents.some((a) => a.id === agentId);
+      if (!exists) return;
+      useAgentStore.getState().setActiveAgent(agentId).catch(console.error);
+      useLayoutStore.getState().closeTeamwork();
+    },
+    [],
   );
 
   return (
@@ -285,6 +308,7 @@ function AgentsSection({ team }: { team: Team }) {
             onRemove={handleRemove}
             onStart={handleStart}
             onStop={handleStop}
+            onCardClick={handleCardClick}
           />
         ))}
         {team.agents.length === 0 && (
@@ -300,17 +324,22 @@ function AgentCard({
   onRemove,
   onStart,
   onStop,
+  onCardClick,
 }: {
   agent: TeamAgent;
   onRemove: (id: string) => void;
   onStart: (id: string) => void;
   onStop: (id: string) => void;
+  onCardClick: (id: string) => void;
 }) {
   const RoleIcon = ROLE_ICON[agent.role];
   const isRunning = agent.status === "running";
 
   return (
-    <div className="team-agent-card">
+    <div
+      className="team-agent-card team-agent-card--clickable"
+      onClick={() => onCardClick(agent.agent_id)}
+    >
       <div className="team-agent-card__top">
         <RoleIcon size={14} className="team-agent-card__role-icon" />
         <span className="team-agent-card__role">{ROLE_LABEL[agent.role]}</span>
@@ -325,7 +354,7 @@ function AgentCard({
         {isRunning ? (
           <button
             className="team-icon-btn team-icon-btn--danger"
-            onClick={() => onStop(agent.agent_id)}
+            onClick={(e) => { e.stopPropagation(); onStop(agent.agent_id); }}
             title="Stop agent"
           >
             <Square size={12} />
@@ -333,7 +362,7 @@ function AgentCard({
         ) : (
           <button
             className="team-icon-btn team-icon-btn--accent"
-            onClick={() => onStart(agent.agent_id)}
+            onClick={(e) => { e.stopPropagation(); onStart(agent.agent_id); }}
             title="Start agent"
           >
             <Play size={12} />
@@ -341,7 +370,7 @@ function AgentCard({
         )}
         <button
           className="team-icon-btn team-icon-btn--danger"
-          onClick={() => onRemove(agent.agent_id)}
+          onClick={(e) => { e.stopPropagation(); onRemove(agent.agent_id); }}
           title="Remove agent"
         >
           <Trash2 size={12} />
