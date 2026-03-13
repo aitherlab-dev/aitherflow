@@ -104,20 +104,16 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     const parent = agents.find((a) => a.id === parentAgentId);
     if (!parent) return;
 
-    // Check if a child agent for this path already exists
-    const existing = agents.find(
+    // Count existing agents for this worktree to generate unique name
+    const siblings = agents.filter(
       (a) => a.parentAgentId === parentAgentId && a.projectPath === worktreePath,
     );
-    if (existing) {
-      // Just switch to it
-      await get().setActiveAgent(existing.id);
-      return;
-    }
+    const displayName = siblings.length === 0 ? branchName : `${branchName}-${siblings.length + 1}`;
 
     const newAgent: AgentEntry = {
       id: crypto.randomUUID(),
       projectPath: worktreePath,
-      projectName: branchName,
+      projectName: displayName,
       createdAt: Date.now(),
       order: agents.length,
       parentAgentId,
