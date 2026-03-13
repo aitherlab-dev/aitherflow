@@ -16,7 +16,9 @@ aitherflow — десктопная GUI-обёртка для Claude Code CLI. C
 
 - `src/components/` — React: `chat/`, `layout/`, `settings/`, `fileviewer/`, `dashboard/`
 - `src/hooks/` — React-хуки, `src/stores/` — Zustand-сторы, `src/types/` — TypeScript-типы
+- `src/lib/` — транспорт, `src/services/` — Telegram-сервис, `src/data/` — описания команд
 - `src-tauri/src/` — Tauri-команды + модули: `conductor/` (ядро), `plugins/`, `telegram/`, `voice/`, `worktree.rs`
+  Отдельные модули: `agents.rs`, `chats.rs`, `config.rs`, `file_ops.rs`, `files.rs`, `mcp.rs`, `settings.rs`, `skills.rs`, `hooks.rs`, `projects.rs`, `secrets.rs`, `attachments.rs`, `translations.rs`
 
 ## Команды
 
@@ -64,7 +66,7 @@ CI: `tsc --noEmit` + `eslint` + `cargo clippy -D warnings`
 
 ## Дизайн-система
 
-CSS-переменные: `:root` (тёмная) и `[data-theme="light"]`. Слои: `--bg` → `--bg-soft`/`--bg-hard` → `--bg-card` → `--bg-hover` → `--input-bg`. Акцент: `--accent`, `--accent-stroke`, `--accent-icon`. НЕ хардкодить цвета. Палитра: `memory/palette.md` (auto-memory)
+CSS-переменные: `:root` (тёмная) и `[data-theme="light"]`. Фон: `--bg` → `--bg-soft`/`--bg-hard` → `--bg-card` → `--bg-hover` → `--input-bg`. Табы: `--tab-bg` → `--tab-bg-hover` → `--tab-bg-active` → `--tab-bg-active-hover`. Карточки: `--card-bg`. Акцент: `--accent`, `--accent-soft`, `--accent-stroke`, `--accent-icon`. НЕ хардкодить цвета. Палитра: `memory/palette.md` (auto-memory)
 
 ## Работа с пользователем
 
