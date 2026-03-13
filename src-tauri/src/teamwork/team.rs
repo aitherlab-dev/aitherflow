@@ -11,7 +11,7 @@ use crate::file_ops::{read_json, write_json};
 
 use super::validate_name;
 
-/// Update agent status in team file (sync). Used by team commands and process exit handler.
+/// Update agent status in team file (sync). Used by team commands.
 pub(crate) fn update_agent_status_sync(
     team_id: &str,
     agent_id: &str,
@@ -32,6 +32,57 @@ pub(crate) fn update_agent_status_sync(
         .ok_or_else(|| format!("Agent {agent_id} not found in team {team_id}"))?;
     agent.status = status;
     write_team_sync(&team)?;
+    Ok(())
+}
+
+/// Atomically check that agent is NOT running and set status to Running (sync).
+/// Returns Err if agent is already Running — prevents TOCTOU on double-click.
+fn try_set_running_sync(team_id: &str, agent_id: &str) -> Result<(), String> {
+    validate_name(team_id, "team_id")?;
+
+    let lock = team_lock(team_id);
+    let _guard = lock
+        .lock()
+        .map_err(|e| format!("Team lock poisoned: {e}"))?;
+
+    let mut team = read_team_sync(team_id)?;
+    let agent = team
+        .agents
+        .iter_mut()
+        .find(|a| a.agent_id == agent_id)
+        .ok_or_else(|| format!("Agent {agent_id} not found in team {team_id}"))?;
+
+    if agent.status == AgentStatus::Running {
+        return Err("Agent is already running".to_string());
+    }
+
+    agent.status = AgentStatus::Running;
+    write_team_sync(&team)?;
+    Ok(())
+}
+
+/// Set status to Idle only if currently Running (sync).
+/// If agent was explicitly Stopped, leave it as-is — Stopped is a terminal status
+/// that should not be overwritten by the process exit handler.
+fn reset_to_idle_if_running_sync(team_id: &str, agent_id: &str) -> Result<(), String> {
+    validate_name(team_id, "team_id")?;
+
+    let lock = team_lock(team_id);
+    let _guard = lock
+        .lock()
+        .map_err(|e| format!("Team lock poisoned: {e}"))?;
+
+    let mut team = read_team_sync(team_id)?;
+    let agent = team
+        .agents
+        .iter_mut()
+        .find(|a| a.agent_id == agent_id)
+        .ok_or_else(|| format!("Agent {agent_id} not found in team {team_id}"))?;
+
+    if agent.status == AgentStatus::Running {
+        agent.status = AgentStatus::Idle;
+        write_team_sync(&team)?;
+    }
     Ok(())
 }
 
@@ -319,16 +370,14 @@ pub async fn team_start_agent(
     team_id: String,
     agent_id: String,
 ) -> Result<(), String> {
-    // Don't start if already running
-    if sessions.is_alive(&agent_id).await {
-        return Err("Agent is already running".to_string());
-    }
-
-    // Read team and resolve project path (blocking)
+    // Atomic: check not running + set Running under one lock (prevents TOCTOU on double-click)
     let tid = team_id.clone();
     let aid = agent_id.clone();
     let (project_path, team_name) = tokio::task::spawn_blocking(move || {
-        validate_name(&tid, "team_id")?;
+        // Atomically claim the agent (fails if already Running)
+        try_set_running_sync(&tid, &aid)?;
+
+        // Read team data for project path / worktree resolution
         let team = read_team_sync(&tid)?;
         let agent = team
             .agents
@@ -346,17 +395,6 @@ pub async fn team_start_agent(
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))??;
-
-    // Update status to running
-    {
-        let tid = team_id.clone();
-        let aid = agent_id.clone();
-        tokio::task::spawn_blocking(move || {
-            update_agent_status_sync(&tid, &aid, AgentStatus::Running)
-        })
-        .await
-        .map_err(|e| format!("Task join error: {e}"))??;
-    }
 
     // Spawn CLI session in background
     let sessions_owned = sessions.inner().clone();
@@ -402,11 +440,11 @@ pub async fn team_start_agent(
             }
         }
 
-        // Process exited — reset status to idle
+        // Process exited — reset to idle only if still Running (Stopped stays Stopped)
         let tid = team_id_spawn;
         let aid = agent_id_spawn;
         if let Err(e) = tokio::task::spawn_blocking(move || {
-            update_agent_status_sync(&tid, &aid, AgentStatus::Idle)
+            reset_to_idle_if_running_sync(&tid, &aid)
         })
         .await
         .unwrap_or_else(|e| Err(format!("Task panic: {e}")))
