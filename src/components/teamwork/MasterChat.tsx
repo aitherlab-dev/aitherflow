@@ -11,10 +11,7 @@ import {
 } from "lucide-react";
 import { useTeamStore } from "../../stores/teamStore";
 import { useLayoutStore } from "../../stores/layoutStore";
-import { useChatStore, agentStates } from "../../stores/chatStore";
-import { useAgentStore } from "../../stores/agentStore";
 import type { AgentRole } from "../../types/team";
-import type { ChatMessage } from "../../types/chat";
 
 /* ── Role config ── */
 
@@ -40,7 +37,7 @@ interface FeedMessage {
   agentId?: string;
   text: string;
   timestamp: number;
-  source: "mailbox" | "agent-response";
+  broadcastId?: string;
 }
 
 /** Check if scroll is near the bottom */
@@ -90,13 +87,6 @@ export const MasterChat = memo(function MasterChat() {
     return () => clearInterval(interval);
   }, [team, fetchAllMessages]);
 
-  // Force re-render to pick up agent responses (agentStates is a Map, not reactive)
-  const [tick, setTick] = useState(0);
-  useEffect(() => {
-    const interval = setInterval(() => setTick((t) => t + 1), 4000);
-    return () => clearInterval(interval);
-  }, []);
-
   // Build agent role map
   const agentRoleMap = useMemo(() => {
     const map = new Map<string, AgentRole>();
@@ -108,12 +98,11 @@ export const MasterChat = memo(function MasterChat() {
     return map;
   }, [team]);
 
-  // Build unified feed — cross-store reads via getState(), not hooks
+  // Build unified feed from mailbox messages, deduplicate broadcasts
   const feed = useMemo(() => {
     if (!team) return [];
     const items: FeedMessage[] = [];
 
-    // 1. Mailbox messages
     for (const msg of mailboxMessages) {
       const role = msg.from === "user"
         ? "user" as const
@@ -124,45 +113,22 @@ export const MasterChat = memo(function MasterChat() {
         agentId: msg.from === "user" ? undefined : msg.from,
         text: msg.text,
         timestamp: new Date(msg.timestamp).getTime(),
-        source: "mailbox",
+        broadcastId: msg.broadcast_id,
       });
     }
 
-    // 2. Last assistant message from each running team agent
-    const currentActiveId = useAgentStore.getState().activeAgentId;
-    const zustandMsgs = useChatStore.getState().messages;
+    // Deduplicate broadcast copies — keep only the first per broadcast_id
+    const seen = new Set<string>();
+    const deduped = items.filter((item) => {
+      if (!item.broadcastId) return true;
+      if (seen.has(item.broadcastId)) return false;
+      seen.add(item.broadcastId);
+      return true;
+    });
 
-    for (const agent of team.agents) {
-      if (agent.status !== "running") continue;
-
-      let messages: ChatMessage[];
-      if (agent.agent_id === currentActiveId) {
-        messages = zustandMsgs;
-      } else {
-        messages = agentStates.get(agent.agent_id)?.messages ?? [];
-      }
-
-      // Find last assistant text message (skip empty / tool-only)
-      for (let i = messages.length - 1; i >= 0; i--) {
-        const m = messages[i];
-        if (m.role === "assistant" && m.text.trim()) {
-          items.push({
-            id: `agent-${agent.agent_id}-${m.id}`,
-            sender: agent.role,
-            agentId: agent.agent_id,
-            text: m.text,
-            timestamp: m.timestamp,
-            source: "agent-response",
-          });
-          break;
-        }
-      }
-    }
-
-    // Sort by timestamp
-    items.sort((a, b) => a.timestamp - b.timestamp);
-    return items;
-  }, [team, mailboxMessages, agentRoleMap, tick]);
+    deduped.sort((a, b) => a.timestamp - b.timestamp);
+    return deduped;
+  }, [team, mailboxMessages, agentRoleMap]);
 
   // Scroll to bottom only if user was already near the bottom
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -247,9 +213,6 @@ function FeedItem({ msg }: { msg: FeedMessage }) {
         <span className="master-chat__msg-time">
           {new Date(msg.timestamp).toLocaleTimeString()}
         </span>
-        {msg.source === "agent-response" && (
-          <span className="master-chat__msg-badge">response</span>
-        )}
       </div>
       <div className="master-chat__msg-text">{msg.text}</div>
     </div>

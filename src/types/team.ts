@@ -24,6 +24,7 @@ export interface TeamMessage {
   text: string;
   timestamp: string;
   read: boolean;
+  broadcast_id?: string;
 }
 
 export interface TeamTask {

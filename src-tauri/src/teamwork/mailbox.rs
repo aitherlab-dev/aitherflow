@@ -33,6 +33,8 @@ pub struct TeamMessage {
     pub text: String,
     pub timestamp: String,
     pub read: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub broadcast_id: Option<String>,
 }
 
 /// Directory for team inboxes: ~/.config/aither-flow/teams/{team_name}/inboxes/
@@ -54,7 +56,7 @@ fn inbox_lock_key(team: &str, agent_id: &str) -> String {
 }
 
 /// Create a new message with UUID and ISO-8601 timestamp
-fn new_message(from: &str, to: &str, text: &str) -> TeamMessage {
+fn new_message(from: &str, to: &str, text: &str, broadcast_id: Option<String>) -> TeamMessage {
     TeamMessage {
         id: uuid::Uuid::new_v4().to_string(),
         from: from.to_string(),
@@ -62,6 +64,7 @@ fn new_message(from: &str, to: &str, text: &str) -> TeamMessage {
         text: text.to_string(),
         timestamp: chrono::Utc::now().to_rfc3339(),
         read: false,
+        broadcast_id,
     }
 }
 
@@ -115,7 +118,7 @@ pub(crate) fn send_message_sync(
     validate_name(team, "team")?;
     validate_name(from, "from")?;
     validate_name(to, "to")?;
-    let msg = new_message(from, to, text);
+    let msg = new_message(from, to, text, None);
     append_to_inbox(team, &msg)
 }
 
@@ -128,12 +131,13 @@ pub(crate) fn broadcast_sync(
 ) -> Result<(), String> {
     validate_name(team, "team")?;
     validate_name(from, "from")?;
+    let bid = uuid::Uuid::new_v4().to_string();
     for agent_id in agent_ids {
         validate_name(agent_id, "agent_id")?;
         if agent_id == from {
             continue;
         }
-        let msg = new_message(from, agent_id, text);
+        let msg = new_message(from, agent_id, text, Some(bid.clone()));
         append_to_inbox(team, &msg)?;
     }
     Ok(())
@@ -151,7 +155,7 @@ pub async fn team_send_message(
         validate_name(&team, "team")?;
         validate_name(&from, "from")?;
         validate_name(&to, "to")?;
-        let msg = new_message(&from, &to, &text);
+        let msg = new_message(&from, &to, &text, None);
         append_to_inbox(&team, &msg)
     })
     .await
@@ -171,12 +175,13 @@ pub async fn team_broadcast(
         validate_name(&team, "team")?;
         validate_name(&from, "from")?;
 
+        let bid = uuid::Uuid::new_v4().to_string();
         for agent_id in &agent_ids {
             validate_name(agent_id, "agent_id")?;
             if *agent_id == from {
                 continue;
             }
-            let msg = new_message(&from, agent_id, &text);
+            let msg = new_message(&from, agent_id, &text, Some(bid.clone()));
             append_to_inbox(&team, &msg)?;
         }
 
