@@ -547,3 +547,65 @@ pub async fn team_stop_agent(
 ) -> Result<(), String> {
     stop_agent_core(sessions.inner(), team_id, agent_id).await
 }
+
+/// Delete a team: stop all agents, remove team JSON, inboxes dir, tasks dir.
+#[tauri::command]
+pub async fn team_delete(
+    sessions: State<'_, SessionManager>,
+    team_id: String,
+) -> Result<(), String> {
+    validate_name(&team_id, "team_id")?;
+
+    // Read team to get agent list and name
+    let team = tokio::task::spawn_blocking({
+        let tid = team_id.clone();
+        move || read_team_sync(&tid)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))??;
+
+    // Stop all running agents
+    for agent in &team.agents {
+        if agent.status == AgentStatus::Running {
+            sessions.kill(&agent.agent_id).await;
+            if let Some(mcp) = super::mcp_server::get_state() {
+                mcp.unregister_agent(&agent.agent_id).await;
+            }
+        }
+    }
+
+    // Remove files on blocking thread
+    let team_name = team.name.clone();
+    tokio::task::spawn_blocking(move || {
+        // Remove team JSON
+        let path = team_path(&team_id);
+        if path.exists() {
+            if let Err(e) = fs::remove_file(&path) {
+                eprintln!("[teamwork] Failed to remove team file: {e}");
+            }
+        }
+
+        // Remove inboxes directory
+        let inboxes = config::config_dir()
+            .join("teams")
+            .join(&team_name)
+            .join("inboxes");
+        if inboxes.exists() {
+            if let Err(e) = fs::remove_dir_all(&inboxes) {
+                eprintln!("[teamwork] Failed to remove inboxes dir: {e}");
+            }
+        }
+
+        // Remove tasks directory
+        let tasks = config::config_dir().join("tasks").join(&team_name);
+        if tasks.exists() {
+            if let Err(e) = fs::remove_dir_all(&tasks) {
+                eprintln!("[teamwork] Failed to remove tasks dir: {e}");
+            }
+        }
+
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}

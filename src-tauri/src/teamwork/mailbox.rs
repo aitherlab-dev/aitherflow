@@ -343,6 +343,42 @@ pub async fn team_read_all_messages(team: String) -> Result<Vec<TeamMessage>, St
     .map_err(|e| format!("Task join error: {e}"))?
 }
 
+/// Delete all inbox JSONL files for a team (clears message history).
+#[tauri::command]
+pub async fn team_clear_messages(team: String) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        validate_name(&team, "team")?;
+
+        let dir = inboxes_dir(&team);
+        if !dir.exists() {
+            return Ok(());
+        }
+
+        let entries =
+            fs::read_dir(&dir).map_err(|e| format!("Failed to read inboxes dir: {e}"))?;
+
+        for entry in entries.flatten() {
+            let ft = entry
+                .file_type()
+                .map_err(|e| format!("Failed to get file type: {e}"))?;
+            if ft.is_dir() || ft.is_symlink() {
+                continue;
+            }
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("jsonl") {
+                continue;
+            }
+            if let Err(e) = fs::remove_file(&path) {
+                eprintln!("[teamwork] Failed to remove inbox {}: {e}", path.display());
+            }
+        }
+
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
 /// Mark specific messages as read in an agent's inbox.
 /// Rewrites the JSONL file with updated read flags.
 #[tauri::command]

@@ -22,8 +22,10 @@ interface TeamState {
   removeAgent: (teamId: string, agentId: string) => Promise<void>;
   startAgent: (teamId: string, agentId: string) => Promise<void>;
   stopAgent: (teamId: string, agentId: string) => Promise<void>;
+  deleteTeam: (teamId: string) => Promise<void>;
 
   fetchAllMessages: (teamName: string) => Promise<void>;
+  clearMessages: (teamName: string) => Promise<void>;
   sendMessage: (teamName: string, from: string, to: string, text: string) => Promise<void>;
   broadcastMessage: (teamName: string, from: string, text: string, agentIds: string[]) => Promise<void>;
 
@@ -82,6 +84,14 @@ export const useTeamStore = create<TeamState>((set, get) => ({
     await get().fetchTeams();
   },
 
+  deleteTeam: async (teamId) => {
+    await invoke("team_delete", { teamId });
+    await get().fetchTeams();
+    if (get().activeTeamId === teamId) {
+      set({ activeTeamId: null, messages: [], tasks: [] });
+    }
+  },
+
   fetchAllMessages: async (teamName) => {
     try {
       const msgs = await invoke<TeamMessage[]>("team_read_all_messages", {
@@ -96,6 +106,11 @@ export const useTeamStore = create<TeamState>((set, get) => ({
   sendMessage: async (teamName, from, to, text) => {
     await invoke("team_send_message", { team: teamName, from, to, text });
     await get().fetchAllMessages(teamName);
+  },
+
+  clearMessages: async (teamName) => {
+    await invoke("team_clear_messages", { team: teamName });
+    set({ messages: [] });
   },
 
   broadcastMessage: async (teamName, from, text, agentIds) => {

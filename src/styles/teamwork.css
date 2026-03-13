@@ -71,9 +71,11 @@
 }
 
 .team-list__item {
-  display: block;
+  display: flex;
+  align-items: center;
   width: 100%;
   padding: 6px 8px;
+  cursor: pointer;
   border: none;
   border-radius: 6px;
   background: transparent;
@@ -91,6 +93,22 @@
 .team-list__item--active {
   background: var(--accent-soft);
   color: var(--fg);
+}
+
+.team-list__name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.team-list__delete {
+  opacity: 0;
+  flex-shrink: 0;
+}
+
+.team-list__item:hover .team-list__delete {
+  opacity: 1;
 }
 
 /* ── Add team button ── */
@@ -861,6 +879,22 @@
   font-weight: 600;
   color: var(--fg);
   flex: 1;
+}
+
+.master-chat__clear-btn {
+  background: none;
+  border: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.master-chat__clear-btn:hover {
+  color: var(--danger, #e55);
+  background: var(--bg-hover);
 }
 
 .master-chat__empty {

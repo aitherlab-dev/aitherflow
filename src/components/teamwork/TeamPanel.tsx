@@ -131,16 +131,44 @@ function TeamList({
   activeTeamId: string | null;
   onSelect: (id: string) => void;
 }) {
+  const handleDelete = useCallback(
+    async (e: React.MouseEvent, teamId: string) => {
+      e.stopPropagation();
+      try {
+        const team = teams.find((t) => t.id === teamId);
+        if (team) {
+          const agentStore = useAgentStore.getState();
+          for (const agent of team.agents) {
+            if (agentStore.agents.some((a) => a.id === agent.agent_id)) {
+              await agentStore.unregisterAgent(agent.agent_id);
+            }
+          }
+        }
+        await useTeamStore.getState().deleteTeam(teamId);
+      } catch (e) {
+        console.error("[TeamPanel] deleteTeam:", e);
+      }
+    },
+    [teams],
+  );
+
   return (
     <div className="team-list">
       {teams.map((t) => (
-        <button
+        <div
           key={t.id}
           className={`team-list__item ${t.id === activeTeamId ? "team-list__item--active" : ""}`}
           onClick={() => onSelect(t.id)}
         >
-          {t.name}
-        </button>
+          <span className="team-list__name">{t.name}</span>
+          <button
+            className="team-icon-btn team-icon-btn--danger team-list__delete"
+            onClick={(e) => handleDelete(e, t.id).catch(console.error)}
+            title="Delete team"
+          >
+            <Trash2 size={12} />
+          </button>
+        </div>
       ))}
     </div>
   );

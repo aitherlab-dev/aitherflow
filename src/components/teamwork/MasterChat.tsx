@@ -3,6 +3,7 @@ import { useShallow } from "zustand/react/shallow";
 import {
   X,
   Send,
+  Trash2,
   Code,
   Eye,
   Compass,
@@ -177,6 +178,13 @@ export const MasterChat = memo(function MasterChat() {
       <div className="master-chat__header">
         <MessageSquare size={16} className="master-chat__header-icon" />
         <span className="master-chat__title">{team.name} — Master Chat</span>
+        <button
+          className="master-chat__clear-btn"
+          onClick={() => useTeamStore.getState().clearMessages(team.name).catch(console.error)}
+          title="Clear messages"
+        >
+          <Trash2 size={14} />
+        </button>
         <button className="settings-close" onClick={closeMasterChat} title="Close (Esc)">
           <X size={18} />
         </button>

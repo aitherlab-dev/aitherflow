@@ -9,6 +9,7 @@ import {
   Square,
   UserPlus,
   Plus,
+  Trash2,
   Code,
   Eye,
   Compass,
@@ -123,6 +124,25 @@ function TeamItem({ team }: { team: Team }) {
     [team.id],
   );
 
+  const handleDelete = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation();
+      try {
+        // Unregister team agents from agentStore
+        const agentStore = useAgentStore.getState();
+        for (const agent of team.agents) {
+          if (agentStore.agents.some((a) => a.id === agent.agent_id)) {
+            await agentStore.unregisterAgent(agent.agent_id);
+          }
+        }
+        await useTeamStore.getState().deleteTeam(team.id);
+      } catch (e) {
+        console.error("[TeamSection] deleteTeam:", e);
+      }
+    },
+    [team.id, team.agents],
+  );
+
   const handleAddAgent = useCallback(async () => {
     try {
       await useTeamStore.getState().addAgent(team.id, role);
@@ -140,6 +160,13 @@ function TeamItem({ team }: { team: Team }) {
           className={`teams-item__chevron ${expanded ? "teams-item__chevron--open" : ""}`}
         />
         <span className="teams-item__name">{team.name}</span>
+        <button
+          className="teams-item__settings"
+          onClick={handleDelete}
+          title="Delete team"
+        >
+          <Trash2 size={12} />
+        </button>
         <button
           className="teams-item__settings"
           onClick={handleSettings}
