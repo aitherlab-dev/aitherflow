@@ -140,6 +140,8 @@ pub struct StartSessionOptions {
     pub attachments: Vec<AttachmentPayload>,
     /// Team name for mailbox coordination (None = no polling)
     pub team: Option<String>,
+    /// Team ID for role-based launch args (None = no team restrictions)
+    pub team_id: Option<String>,
 }
 
 /// Options for sending a follow-up message to an existing session.

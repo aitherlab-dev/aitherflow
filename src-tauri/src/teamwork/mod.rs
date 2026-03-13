@@ -1,5 +1,6 @@
 pub mod mailbox;
 pub mod tasks;
+pub mod team;
 
 /// Validate that a name (team, agent_id, task_id) is safe for use in file paths.
 /// Rejects path separators, traversal components, and empty strings.

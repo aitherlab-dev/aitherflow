@@ -31,6 +31,7 @@ pub async fn start_session(
     let chrome = options.chrome;
     let image_attachments = options.attachments;
     let team = options.team;
+    let team_id = options.team_id;
 
     // Clone for the spawned task (State<'_> can't cross spawn boundary)
     let sessions_owned = sessions.inner().clone();
@@ -53,6 +54,7 @@ pub async fn start_session(
                 chrome,
                 image_attachments,
                 team,
+                team_id,
             },
         )
         .await

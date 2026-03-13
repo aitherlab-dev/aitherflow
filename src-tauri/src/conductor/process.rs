@@ -40,6 +40,8 @@ pub struct CliSessionConfig {
     pub image_attachments: Vec<AttachmentPayload>,
     /// Team name for mailbox polling (None = no polling)
     pub team: Option<String>,
+    /// Team ID for role-based launch args (None = no team restrictions)
+    pub team_id: Option<String>,
 }
 
 /// Spawn Claude CLI and run the session until the process exits.
@@ -63,7 +65,34 @@ pub async fn run_cli_session(
         chrome,
         image_attachments,
         team,
+        team_id,
     } = config;
+
+    // If agent belongs to a team, look up role-based launch args and team name for mailbox
+    let (team_extra_args, team_name_from_id) = if let Some(ref tid) = team_id {
+        let tid_clone = tid.clone();
+        let aid_clone = agent_id.clone();
+        match tokio::task::spawn_blocking(move || {
+            crate::teamwork::team::get_agent_launch_args_sync(&tid_clone, &aid_clone)
+        })
+        .await
+        {
+            Ok(Ok((extra_args, team_name))) => (extra_args, Some(team_name)),
+            Ok(Err(e)) => {
+                eprintln!("[conductor] Failed to get team launch args: {e}");
+                (Vec::new(), None)
+            }
+            Err(e) => {
+                eprintln!("[conductor] Team args task panic: {e}");
+                (Vec::new(), None)
+            }
+        }
+    } else {
+        (Vec::new(), None)
+    };
+
+    // Team name for mailbox: explicit `team` field takes priority, otherwise derive from team_id
+    let team_for_mailbox = team.or(team_name_from_id);
 
     // Build command arguments
     let mut args: Vec<String> = vec![
@@ -99,6 +128,9 @@ pub async fn run_cli_session(
     if chrome {
         args.push("--chrome".into());
     }
+
+    // Add role-based args from team config (e.g. --allowedTools)
+    args.extend(team_extra_args);
 
     // Build command
     let mut cmd = Command::new("claude");
@@ -160,7 +192,7 @@ pub async fn run_cli_session(
     }
 
     // Spawn mailbox polling task if agent belongs to a team
-    let polling_handle = if let Some(ref team) = team {
+    let polling_handle = if let Some(ref team) = team_for_mailbox {
         let writer_poll = Arc::clone(&writer);
         let agent_id_poll = agent_id.clone();
         let team_poll = team.clone();
