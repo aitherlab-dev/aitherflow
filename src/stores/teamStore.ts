@@ -105,6 +105,7 @@ export const useTeamStore = create<TeamState>((set, get) => ({
 
   sendMessage: async (teamName, from, to, text) => {
     await invoke("team_send_message", { team: teamName, from, to, text });
+    invoke("team_push_message", { agentId: to, text }).catch(console.error);
     await get().fetchAllMessages(teamName);
   },
 
@@ -115,6 +116,11 @@ export const useTeamStore = create<TeamState>((set, get) => ({
 
   broadcastMessage: async (teamName, from, text, agentIds) => {
     await invoke("team_broadcast", { team: teamName, from, text, agentIds });
+    for (const agentId of agentIds) {
+      if (agentId !== from) {
+        invoke("team_push_message", { agentId, text }).catch(console.error);
+      }
+    }
     await get().fetchAllMessages(teamName);
   },
 

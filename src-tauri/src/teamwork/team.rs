@@ -548,6 +548,22 @@ pub async fn team_stop_agent(
     stop_agent_core(sessions.inner(), team_id, agent_id).await
 }
 
+/// Push a message directly into a team agent's stdin (like a user prompt).
+/// Silently ignored if agent has no active session.
+#[tauri::command]
+pub async fn team_push_message(
+    sessions: State<'_, SessionManager>,
+    agent_id: String,
+    text: String,
+) -> Result<(), String> {
+    let writer = match sessions.get_writer(&agent_id).await {
+        Some(w) => w,
+        None => return Ok(()), // no active session — silently skip
+    };
+    let ndjson = crate::conductor::process::build_stdin_message(&text, &[])?;
+    writer.write_message(&ndjson).await
+}
+
 /// Delete a team: stop all agents, remove team JSON, inboxes dir, tasks dir.
 #[tauri::command]
 pub async fn team_delete(

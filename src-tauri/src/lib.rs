@@ -141,6 +141,7 @@ pub fn run() {
             teamwork::team::team_start_agent,
             teamwork::team::team_stop_agent,
             teamwork::team::team_delete,
+            teamwork::team::team_push_message,
             teamwork::mailbox::team_send_message,
             teamwork::mailbox::team_broadcast,
             teamwork::mailbox::team_read_inbox,
