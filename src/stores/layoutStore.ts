@@ -9,7 +9,7 @@ const FV_RIGHT_DEFAULT = 480;
 const FV_BOTTOM_MIN = 150;
 const FV_BOTTOM_DEFAULT = 300;
 
-export type ActiveView = "welcome" | "chat" | "settings" | "teamwork";
+export type ActiveView = "welcome" | "chat" | "settings" | "teamwork" | "master-chat";
 export type SidebarPanel = "agents" | "files";
 export type FileViewerPosition = "right" | "bottom";
 
@@ -41,6 +41,9 @@ interface LayoutState {
   setSettingsSection: (section: string) => void;
   openTeamwork: () => void;
   closeTeamwork: () => void;
+  masterChatTeamId: string | null;
+  openMasterChat: (teamId: string) => void;
+  closeMasterChat: () => void;
   setSidebarPanel: (panel: SidebarPanel) => void;
 
   // Agent log actions
@@ -136,6 +139,10 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
 
   openTeamwork: () => set({ activeView: "teamwork" }),
   closeTeamwork: () => set({ activeView: "chat" }),
+
+  masterChatTeamId: null,
+  openMasterChat: (teamId: string) => set({ activeView: "master-chat", masterChatTeamId: teamId }),
+  closeMasterChat: () => set({ activeView: "chat", masterChatTeamId: null }),
 
   setSettingsSection: (section: string) => set({ settingsSection: section }),
 

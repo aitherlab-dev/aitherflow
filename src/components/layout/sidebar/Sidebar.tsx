@@ -25,6 +25,7 @@ export const Sidebar = memo(function Sidebar() {
     closeSettings,
     openWelcome,
     closeWelcome,
+    closeMasterChat,
   } = useLayoutStore(useShallow((s) => ({
     sidebarOpen: s.sidebarOpen,
     sidebarWidth: s.sidebarWidth,
@@ -34,6 +35,7 @@ export const Sidebar = memo(function Sidebar() {
     closeSettings: s.closeSettings,
     openWelcome: s.openWelcome,
     closeWelcome: s.closeWelcome,
+    closeMasterChat: s.closeMasterChat,
   })));
 
   /** Close sidebar on mobile after navigation actions */
@@ -80,10 +82,11 @@ export const Sidebar = memo(function Sidebar() {
     (agentId: string) => {
       if (activeView === "settings") closeSettings();
       if (activeView === "welcome") closeWelcome();
+      if (activeView === "master-chat") closeMasterChat();
       useAgentStore.getState().setActiveAgent(agentId).catch(console.error);
       closeMobile();
     },
-    [activeView, closeSettings, closeWelcome, closeMobile],
+    [activeView, closeSettings, closeWelcome, closeMasterChat, closeMobile],
   );
 
   const handleCloseAgent = useCallback(

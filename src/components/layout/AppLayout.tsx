@@ -8,6 +8,7 @@ import { ChatView } from "../chat/ChatView";
 import { SettingsView } from "../settings/SettingsView";
 import { WelcomeScreen } from "./WelcomeScreen";
 import { TeamPanel } from "../teamwork/TeamPanel";
+import { MasterChat } from "../teamwork/MasterChat";
 import { FileViewerPanel } from "../fileviewer/FileViewerPanel";
 import { FileViewerResizeHandle } from "../fileviewer/FileViewerResizeHandle";
 import { ChatPanel } from "./chat-panel";
@@ -54,6 +55,8 @@ export function AppLayout() {
           <SettingsView />
         ) : activeView === "teamwork" ? (
           <TeamPanel />
+        ) : activeView === "master-chat" ? (
+          <MasterChat />
         ) : (
           <div className={`main-split main-split--${fileViewerPosition}`}>
             <ChatView />

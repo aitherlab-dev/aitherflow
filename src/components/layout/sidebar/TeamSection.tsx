@@ -143,8 +143,11 @@ function TeamItem({ team }: { team: Team }) {
 
       {expanded && (
         <div className="teams-item__agents">
-          {/* Master Chat placeholder */}
-          <div className="teams-agent teams-agent--master">
+          {/* Master Chat */}
+          <div
+            className="teams-agent teams-agent--master teams-agent--clickable"
+            onClick={() => useLayoutStore.getState().openMasterChat(team.id)}
+          >
             <MessageSquare size={12} className="teams-agent__icon" />
             <span className="teams-agent__name">Master Chat</span>
           </div>
@@ -218,6 +221,7 @@ function TeamAgentRow({
     if (layout.activeView === "teamwork") layout.closeTeamwork();
     if (layout.activeView === "settings") layout.closeSettings();
     if (layout.activeView === "welcome") layout.closeWelcome();
+    if (layout.activeView === "master-chat") layout.closeMasterChat();
 
     useAgentStore.getState().setActiveAgent(agent.agent_id).catch(console.error);
   }, [agent.agent_id]);
