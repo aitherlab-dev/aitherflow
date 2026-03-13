@@ -75,27 +75,13 @@ pub async fn start_session(
 }
 
 /// Write an NDJSON line to an agent's stdin and set status to Thinking.
+/// Uses AgentWriter's single lock for atomic stdin + status update.
 async fn write_stdin(sessions: &SessionManager, agent_id: &str, ndjson: &str) -> Result<(), String> {
-    let stdin_handle = sessions
-        .get_stdin(agent_id)
+    let writer = sessions
+        .get_writer(agent_id)
         .await
         .ok_or_else(|| "No active session for this agent".to_string())?;
-
-    let mut stdin = stdin_handle.lock().await;
-    let result = async {
-        use tokio::io::AsyncWriteExt;
-        stdin.write_all(ndjson.as_bytes()).await?;
-        stdin.write_all(b"\n").await?;
-        stdin.flush().await?;
-        Ok::<(), std::io::Error>(())
-    }
-    .await;
-
-    result.map_err(|e| format!("Failed to write to stdin: {e}"))?;
-    sessions
-        .set_status(agent_id, types::SessionStatus::Thinking)
-        .await;
-    Ok(())
+    writer.write_message(ndjson).await
 }
 
 /// Send a follow-up message to an existing CLI session via stdin.

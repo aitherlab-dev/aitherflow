@@ -1,9 +1,11 @@
+use std::sync::Arc;
+
 use tauri::{AppHandle, Emitter};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
 use super::parser::parse_line;
-use super::session::{AgentSession, SessionManager};
+use super::session::{AgentSession, AgentWriter, SessionManager};
 use super::types::{AttachmentPayload, CliEvent, SessionStatus};
 use crate::attachments;
 
@@ -23,7 +25,6 @@ impl EventSink {
             eprintln!("[conductor] Failed to emit event: {e}");
         }
     }
-
 }
 
 /// Configuration for a CLI session.
@@ -134,14 +135,16 @@ pub async fn run_cli_session(
         .take()
         .ok_or_else(|| "Failed to capture stderr".to_string())?;
 
+    // Create writer (single lock for stdin + status)
+    let writer = Arc::new(AgentWriter::new(stdin));
+
     // Store session immediately (so kill works even during first write)
     let generation = sessions
         .insert(
             agent_id.clone(),
             AgentSession {
                 child,
-                stdin: std::sync::Arc::new(tokio::sync::Mutex::new(stdin)),
-                status: SessionStatus::Thinking,
+                writer: Arc::clone(&writer),
                 generation: 0, // assigned by insert()
             },
         )
@@ -150,30 +153,15 @@ pub async fn run_cli_session(
     // Write first message (skip if resuming with empty prompt — e.g. permission mode switch)
     if !prompt.trim().is_empty() || !image_attachments.is_empty() {
         let ndjson = build_stdin_message(&prompt, &image_attachments)?;
-        {
-            let stdin_handle = sessions
-                .get_stdin(&agent_id)
-                .await
-                .ok_or_else(|| "Session lost before first write".to_string())?;
-            let mut process_stdin = stdin_handle.lock().await;
-
-            let write_result = async {
-                process_stdin.write_all(ndjson.as_bytes()).await?;
-                process_stdin.write_all(b"\n").await?;
-                process_stdin.flush().await?;
-                Ok::<(), std::io::Error>(())
-            }
-            .await;
-
-            if let Err(e) = write_result {
-                return Err(format!("Failed to write first message: {e}"));
-            }
-        }
+        writer
+            .write_message(&ndjson)
+            .await
+            .map_err(|e| format!("Failed to write first message: {e}"))?;
     }
 
     // Spawn mailbox polling task if agent belongs to a team
     let polling_handle = if let Some(ref team) = team {
-        let sessions_poll = sessions.clone();
+        let writer_poll = Arc::clone(&writer);
         let agent_id_poll = agent_id.clone();
         let team_poll = team.clone();
 
@@ -185,12 +173,11 @@ pub async fn run_cli_session(
             loop {
                 interval.tick().await;
 
-                // Stop if session is gone or exited
-                let status = sessions_poll.get_status(&agent_id_poll).await;
-                match status {
-                    None | Some(SessionStatus::Exited) => break,
-                    Some(SessionStatus::Thinking) => continue, // busy, skip
-                    Some(SessionStatus::Idle) => {}            // ready for injection
+                // Quick status check (avoids inbox I/O when not idle)
+                match writer_poll.get_status().await {
+                    SessionStatus::Exited => break,
+                    SessionStatus::Thinking => continue,
+                    SessionStatus::Idle => {}
                 }
 
                 // Read inbox (blocking I/O via spawn_blocking)
@@ -231,33 +218,15 @@ pub async fn run_cli_session(
                     }
                 };
 
-                // Write to stdin
-                let stdin_handle = match sessions_poll.get_stdin(&agent_id_poll).await {
-                    Some(h) => h,
-                    None => break,
-                };
-
-                {
-                    let mut stdin = stdin_handle.lock().await;
-                    let result = async {
-                        use tokio::io::AsyncWriteExt;
-                        stdin.write_all(ndjson.as_bytes()).await?;
-                        stdin.write_all(b"\n").await?;
-                        stdin.flush().await?;
-                        Ok::<(), std::io::Error>(())
-                    }
-                    .await;
-
-                    if let Err(e) = result {
+                // Atomic: check idle → write → set thinking
+                match writer_poll.write_if_idle(&ndjson).await {
+                    Ok(true) => {}     // sent successfully
+                    Ok(false) => continue, // no longer idle (user sent something between check and now)
+                    Err(e) => {
                         eprintln!("[teamwork] Failed to write to stdin: {e}");
                         break;
                     }
                 }
-
-                // Set status to Thinking (agent is now processing)
-                sessions_poll
-                    .set_status(&agent_id_poll, SessionStatus::Thinking)
-                    .await;
 
                 // Mark messages as read
                 let ids: Vec<String> = messages.iter().map(|m| m.id.clone()).collect();
@@ -324,9 +293,7 @@ pub async fn run_cli_session(
             Ok(events) => {
                 for event in &events {
                     if matches!(event, CliEvent::TurnComplete { .. }) {
-                        sessions
-                            .set_status(&agent_id, SessionStatus::Idle)
-                            .await;
+                        writer.set_status(SessionStatus::Idle).await;
                     }
                 }
                 for event in events {
@@ -348,9 +315,7 @@ pub async fn run_cli_session(
         handle.abort();
     }
 
-    sessions
-        .set_status(&agent_id, SessionStatus::Exited)
-        .await;
+    writer.set_status(SessionStatus::Exited).await;
 
     // Collect stderr
     let stderr_output = stderr_handle.await.unwrap_or_default();
@@ -459,4 +424,3 @@ pub fn build_control_response(
     };
     serde_json::to_string(&msg).map_err(|e| format!("Failed to serialize control_response: {e}"))
 }
-

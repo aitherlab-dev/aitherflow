@@ -2,17 +2,115 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
+use tokio::io::AsyncWriteExt;
 use tokio::process::Child;
 use tokio::process::ChildStdin;
 use tokio::sync::Mutex;
 
 use super::types::SessionStatus;
 
+/// Guards stdin + status under a single lock so that
+/// "check idle → write → set thinking" is atomic.
+pub struct AgentWriter {
+    inner: Mutex<WriterInner>,
+}
+
+struct WriterInner {
+    stdin: Option<ChildStdin>,
+    status: SessionStatus,
+}
+
+impl AgentWriter {
+    pub fn new(stdin: ChildStdin) -> Self {
+        Self {
+            inner: Mutex::new(WriterInner {
+                stdin: Some(stdin),
+                status: SessionStatus::Thinking,
+            }),
+        }
+    }
+
+    /// Write a message unconditionally (user input, control responses).
+    /// Sets status to Thinking after writing.
+    pub async fn write_message(&self, ndjson: &str) -> Result<(), String> {
+        let mut inner = self.inner.lock().await;
+        let stdin = inner
+            .stdin
+            .as_mut()
+            .ok_or_else(|| "Session stdin closed".to_string())?;
+
+        stdin
+            .write_all(ndjson.as_bytes())
+            .await
+            .map_err(|e| format!("Failed to write to stdin: {e}"))?;
+        stdin
+            .write_all(b"\n")
+            .await
+            .map_err(|e| format!("Failed to write newline: {e}"))?;
+        stdin
+            .flush()
+            .await
+            .map_err(|e| format!("Failed to flush stdin: {e}"))?;
+
+        inner.status = SessionStatus::Thinking;
+        Ok(())
+    }
+
+    /// Write a message only if agent is Idle (for mailbox polling).
+    /// Returns Ok(true) if sent, Ok(false) if not idle.
+    pub async fn write_if_idle(&self, ndjson: &str) -> Result<bool, String> {
+        let mut inner = self.inner.lock().await;
+        if inner.status != SessionStatus::Idle {
+            return Ok(false);
+        }
+
+        let stdin = inner
+            .stdin
+            .as_mut()
+            .ok_or_else(|| "Session stdin closed".to_string())?;
+
+        stdin
+            .write_all(ndjson.as_bytes())
+            .await
+            .map_err(|e| format!("Failed to write to stdin: {e}"))?;
+        stdin
+            .write_all(b"\n")
+            .await
+            .map_err(|e| format!("Failed to write newline: {e}"))?;
+        stdin
+            .flush()
+            .await
+            .map_err(|e| format!("Failed to flush stdin: {e}"))?;
+
+        inner.status = SessionStatus::Thinking;
+        Ok(true)
+    }
+
+    pub async fn set_status(&self, status: SessionStatus) {
+        self.inner.lock().await.status = status;
+    }
+
+    pub async fn get_status(&self) -> SessionStatus {
+        self.inner.lock().await.status.clone()
+    }
+
+    /// Close stdin pipe (async).
+    pub async fn close(&self) {
+        self.inner.lock().await.stdin = None;
+    }
+
+    /// Best-effort synchronous close (for app exit when async runtime may be shutting down).
+    pub fn try_close(&self) {
+        if let Ok(mut inner) = self.inner.try_lock() {
+            inner.stdin = None;
+        }
+    }
+}
+
 /// State for a single agent's CLI session.
 pub struct AgentSession {
     pub child: Child,
-    pub stdin: Arc<Mutex<ChildStdin>>,
-    pub status: SessionStatus,
+    pub writer: Arc<AgentWriter>,
     /// Unique generation counter — incremented on each insert.
     pub generation: u64,
 }
@@ -47,19 +145,18 @@ impl SessionManager {
         let generation = self.gen_counter.fetch_add(1, Ordering::Relaxed) + 1;
         session.generation = generation;
 
-        // Extract old child under lock, then release lock before kill/wait
-        let old_child = {
+        // Extract old session under lock, then release lock before kill/wait
+        let old_session = {
             let mut map = self.sessions.lock().await;
             let old = map.remove(&agent_id);
             map.insert(agent_id.clone(), session);
-            old.map(|s| {
-                drop(s.stdin);
-                s.child
-            })
+            old
         };
 
         // Kill old process outside lock (BUG-002 fix: no await under mutex)
-        if let Some(mut child) = old_child {
+        if let Some(old) = old_session {
+            old.writer.close().await;
+            let mut child = old.child;
             if let Err(e) = child.kill().await {
                 eprintln!("[conductor] Failed to kill old process for {agent_id}: {e}");
             }
@@ -71,31 +168,27 @@ impl SessionManager {
         generation
     }
 
-    /// Get a cloned Arc handle to session's stdin for writing.
-    /// The caller locks the inner Mutex independently of the session map.
-    pub async fn get_stdin(&self, agent_id: &str) -> Option<Arc<Mutex<ChildStdin>>> {
+    /// Get a cloned Arc handle to the agent's writer.
+    pub async fn get_writer(&self, agent_id: &str) -> Option<Arc<AgentWriter>> {
         let map = self.sessions.lock().await;
-        map.get(agent_id).map(|s| Arc::clone(&s.stdin))
+        map.get(agent_id).map(|s| Arc::clone(&s.writer))
     }
 
     /// Remove and kill a session, but ONLY if the generation matches.
     /// This prevents a finishing old session from killing a newly-started one (BUG-001 fix).
     pub async fn cleanup(&self, agent_id: &str, generation: u64) {
-        // Extract child under lock only if generation matches
-        let old_child = {
+        // Extract session under lock only if generation matches
+        let old_session = {
             let mut map = self.sessions.lock().await;
             match map.get(agent_id) {
-                Some(s) if s.generation == generation => {
-                    let s = map.remove(agent_id).unwrap();
-                    drop(s.stdin);
-                    Some(s.child)
-                }
+                Some(s) if s.generation == generation => map.remove(agent_id),
                 _ => None, // Different generation or missing — don't touch
             }
         };
 
-        // Kill outside lock
-        if let Some(mut child) = old_child {
+        if let Some(session) = old_session {
+            session.writer.close().await;
+            let mut child = session.child;
             if let Err(e) = child.kill().await {
                 eprintln!("[conductor] Failed to kill process for {agent_id}: {e}");
             }
@@ -107,15 +200,14 @@ impl SessionManager {
 
     /// Remove and kill a session unconditionally (user-initiated stop).
     pub async fn kill(&self, agent_id: &str) {
-        let old_child = {
+        let old_session = {
             let mut map = self.sessions.lock().await;
-            map.remove(agent_id).map(|s| {
-                drop(s.stdin);
-                s.child
-            })
+            map.remove(agent_id)
         };
 
-        if let Some(mut child) = old_child {
+        if let Some(session) = old_session {
+            session.writer.close().await;
+            let mut child = session.child;
             if let Err(e) = child.kill().await {
                 eprintln!("[conductor] Failed to kill process for {agent_id}: {e}");
             }
@@ -156,7 +248,7 @@ impl SessionManager {
             };
             map.drain()
                 .map(|(id, s)| {
-                    drop(s.stdin);
+                    s.writer.try_close();
                     (id, s.child)
                 })
                 .collect()
@@ -180,19 +272,5 @@ impl SessionManager {
         } else {
             None
         }
-    }
-
-    /// Update session status.
-    pub async fn set_status(&self, agent_id: &str, status: SessionStatus) {
-        let mut map = self.sessions.lock().await;
-        if let Some(session) = map.get_mut(agent_id) {
-            session.status = status;
-        }
-    }
-
-    /// Read session status (None if session doesn't exist).
-    pub async fn get_status(&self, agent_id: &str) -> Option<SessionStatus> {
-        let map = self.sessions.lock().await;
-        map.get(agent_id).map(|s| s.status.clone())
     }
 }
