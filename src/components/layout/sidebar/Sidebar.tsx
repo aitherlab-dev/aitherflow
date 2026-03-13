@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { Home, Settings, FolderOpen, GitBranch, Users } from "lucide-react";
+import { Home, Settings, FolderOpen, GitBranch } from "lucide-react";
 import { useIsMobile } from "../../../hooks/useIsMobile";
 import { useLayoutStore } from "../../../stores/layoutStore";
 import { useChatStore } from "../../../stores/chatStore";
@@ -12,6 +12,7 @@ import { DashboardPanel } from "../../dashboard/DashboardPanel";
 import { WorktreePanel } from "../../chat/WorktreePanel";
 import { AgentTab } from "./AgentTab";
 import { WorktreeTab } from "./WorktreeTab";
+import { TeamSection } from "./TeamSection";
 
 export const Sidebar = memo(function Sidebar() {
   const isMobile = useIsMobile();
@@ -24,8 +25,6 @@ export const Sidebar = memo(function Sidebar() {
     closeSettings,
     openWelcome,
     closeWelcome,
-    openTeamwork,
-    closeTeamwork,
   } = useLayoutStore(useShallow((s) => ({
     sidebarOpen: s.sidebarOpen,
     sidebarWidth: s.sidebarWidth,
@@ -35,8 +34,6 @@ export const Sidebar = memo(function Sidebar() {
     closeSettings: s.closeSettings,
     openWelcome: s.openWelcome,
     closeWelcome: s.closeWelcome,
-    openTeamwork: s.openTeamwork,
-    closeTeamwork: s.closeTeamwork,
   })));
 
   /** Close sidebar on mobile after navigation actions */
@@ -52,9 +49,9 @@ export const Sidebar = memo(function Sidebar() {
     activeAgentId: s.activeAgentId,
   })));
 
-  // Split agents into root (no parent) and children grouped by parent
+  // Split agents into root (no parent, no team) and children grouped by parent
   const rootAgents = useMemo(
-    () => agents.filter((a) => !a.parentAgentId),
+    () => agents.filter((a) => !a.parentAgentId && !a.teamId),
     [agents],
   );
   const childrenByParent = useMemo(() => {
@@ -96,15 +93,6 @@ export const Sidebar = memo(function Sidebar() {
     },
     [agents.length, openWelcome],
   );
-
-  const handleTeamworkClick = useCallback(() => {
-    if (activeView === "teamwork") {
-      closeTeamwork();
-    } else {
-      openTeamwork();
-    }
-    closeMobile();
-  }, [activeView, closeTeamwork, openTeamwork, closeMobile]);
 
   const handleSettingsClick = useCallback(() => {
     if (activeView === "settings") {
@@ -297,19 +285,13 @@ export const Sidebar = memo(function Sidebar() {
             </div>
           )}
 
+          {/* Teams — dash-card style, accordion expands below */}
+          <TeamSection />
+
           {/* Spacer — absorbs free space between agents and bottom items */}
           <div className="sidebar-spacer" />
           <div className="dashboard-accordion">
             <DashboardPanel />
-          </div>
-          <div
-            className="dash-card sidebar-nav-card"
-            onClick={handleTeamworkClick}
-          >
-            <div className="dash-card__header">
-              <Users size={14} className="dash-card__icon" />
-              <span className="dash-card__title">Teams</span>
-            </div>
           </div>
           <div
             className="dash-card sidebar-nav-card"

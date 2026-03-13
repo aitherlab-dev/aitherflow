@@ -506,3 +506,327 @@
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
+
+/* ═══════════════════════════════════════════
+   Sidebar Teams Section
+   ═══════════════════════════════════════════ */
+
+.sidebar-teams-toggle {
+  margin: 0 12px;
+  flex-shrink: 0;
+}
+
+.teams-accordion {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 4px 6px;
+}
+
+.teams-empty {
+  color: var(--fg-muted);
+  font-size: 0.7rem;
+  padding: 4px 8px;
+}
+
+/* ── Team item (expandable) ── */
+
+.teams-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.teams-item__header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--fg);
+  transition: background 0.12s;
+}
+
+.teams-item__header:hover {
+  background: var(--bg-hover);
+}
+
+.teams-item__chevron {
+  color: var(--fg-muted);
+  flex-shrink: 0;
+  transition: transform 0.15s;
+}
+
+.teams-item__chevron--open {
+  transform: rotate(90deg);
+}
+
+.teams-item__name {
+  font-size: 0.75rem;
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.teams-item__settings {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s, color 0.12s;
+}
+
+.teams-item__header:hover .teams-item__settings {
+  opacity: 1;
+}
+
+.teams-item__settings:hover {
+  color: var(--accent-icon);
+}
+
+/* ── Agents list under team ── */
+
+.teams-item__agents {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-left: 12px;
+}
+
+/* ── Single agent row ── */
+
+.teams-agent {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  color: var(--fg-muted);
+  font-size: 0.72rem;
+  transition: background 0.12s, color 0.12s;
+}
+
+.teams-agent--clickable {
+  cursor: pointer;
+}
+
+.teams-agent--clickable:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.teams-agent--active {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.teams-agent--master {
+  color: var(--fg-dim);
+  font-style: italic;
+}
+
+.teams-agent__icon {
+  flex-shrink: 0;
+  color: var(--accent-icon);
+}
+
+.teams-agent--master .teams-agent__icon {
+  color: var(--fg-dim);
+}
+
+.teams-agent__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.teams-agent__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.teams-agent:hover .teams-agent__actions {
+  opacity: 1;
+}
+
+.teams-agent__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+}
+
+.teams-agent__btn--play {
+  color: var(--status-green);
+}
+
+.teams-agent__btn--play:hover {
+  background: var(--bg-hover);
+}
+
+.teams-agent__btn--stop {
+  color: var(--status-red);
+}
+
+.teams-agent__btn--stop:hover {
+  background: var(--bg-hover);
+}
+
+/* ── Add agent button ── */
+
+.teams-add-agent-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 0.68rem;
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+}
+
+.teams-add-agent-btn:hover {
+  color: var(--fg);
+  background: var(--bg-hover);
+}
+
+/* ── Add agent inline form ── */
+
+.teams-add-form {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px;
+}
+
+.teams-add-form__select {
+  padding: 2px 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--input-bg);
+  color: var(--fg);
+  font-size: 0.7rem;
+  outline: none;
+}
+
+.teams-add-form__btn {
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--card-bg);
+  color: var(--fg);
+  font-size: 0.68rem;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.teams-add-form__btn:hover {
+  background: var(--bg-hover);
+}
+
+/* ── New team button ── */
+
+.teams-new-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  margin-top: 2px;
+  border: 1px dashed var(--border);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 0.68rem;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.teams-new-btn:hover {
+  border-color: var(--accent);
+  color: var(--fg);
+}
+
+/* ── Create team form ── */
+
+.teams-create-form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-top: 2px;
+}
+
+.teams-create-form__input {
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--input-bg);
+  color: var(--fg);
+  font-size: 0.75rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.teams-create-form__input:focus {
+  border-color: var(--accent);
+}
+
+.teams-create-form__actions {
+  display: flex;
+  gap: 4px;
+}
+
+.teams-create-form__btn {
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--card-bg);
+  color: var(--fg);
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.teams-create-form__btn:hover {
+  background: var(--bg-hover);
+}
+
+.teams-create-form__btn--primary {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.teams-create-form__btn--primary:hover {
+  background: var(--accent);
+}
