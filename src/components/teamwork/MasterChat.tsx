@@ -43,6 +43,11 @@ interface FeedMessage {
   source: "mailbox" | "agent-response";
 }
 
+/** Check if scroll is near the bottom */
+function isNearBottom(el: HTMLElement, threshold = 50): boolean {
+  return el.scrollTop + el.clientHeight >= el.scrollHeight - threshold;
+}
+
 /* ── Component ── */
 
 export const MasterChat = memo(function MasterChat() {
@@ -92,10 +97,6 @@ export const MasterChat = memo(function MasterChat() {
     return () => clearInterval(interval);
   }, []);
 
-  // Get active agent's messages from Zustand (for the currently active team agent)
-  const activeAgentId = useAgentStore((s) => s.activeAgentId);
-  const zustandMessages = useChatStore((s) => s.messages);
-
   // Build agent role map
   const agentRoleMap = useMemo(() => {
     const map = new Map<string, AgentRole>();
@@ -107,7 +108,7 @@ export const MasterChat = memo(function MasterChat() {
     return map;
   }, [team]);
 
-  // Build unified feed
+  // Build unified feed — cross-store reads via getState(), not hooks
   const feed = useMemo(() => {
     if (!team) return [];
     const items: FeedMessage[] = [];
@@ -128,12 +129,15 @@ export const MasterChat = memo(function MasterChat() {
     }
 
     // 2. Last assistant message from each running team agent
+    const currentActiveId = useAgentStore.getState().activeAgentId;
+    const zustandMsgs = useChatStore.getState().messages;
+
     for (const agent of team.agents) {
       if (agent.status !== "running") continue;
 
       let messages: ChatMessage[];
-      if (agent.agent_id === activeAgentId) {
-        messages = zustandMessages;
+      if (agent.agent_id === currentActiveId) {
+        messages = zustandMsgs;
       } else {
         messages = agentStates.get(agent.agent_id)?.messages ?? [];
       }
@@ -158,14 +162,23 @@ export const MasterChat = memo(function MasterChat() {
     // Sort by timestamp
     items.sort((a, b) => a.timestamp - b.timestamp);
     return items;
-  }, [team, mailboxMessages, agentRoleMap, activeAgentId, zustandMessages, tick]);
+  }, [team, mailboxMessages, agentRoleMap, tick]);
 
-  // Scroll to bottom on new messages
+  // Scroll to bottom only if user was already near the bottom
   const scrollRef = useRef<HTMLDivElement>(null);
+  const wasAtBottomRef = useRef(true);
+
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (el && wasAtBottomRef.current) {
+      el.scrollTop = el.scrollHeight;
+    }
   }, [feed.length]);
+
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (el) wasAtBottomRef.current = isNearBottom(el);
+  }, []);
 
   // Escape to close
   useEffect(() => {
@@ -203,7 +216,7 @@ export const MasterChat = memo(function MasterChat() {
         </button>
       </div>
 
-      <div className="master-chat__feed" ref={scrollRef}>
+      <div className="master-chat__feed" ref={scrollRef} onScroll={handleScroll}>
         {feed.length === 0 ? (
           <div className="master-chat__empty">
             No messages yet. Start agents and send a message.
