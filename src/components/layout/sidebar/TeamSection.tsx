@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useTeamStore } from "../../../stores/teamStore";
 import { useAgentStore } from "../../../stores/agentStore";
+import { useChatStore } from "../../../stores/chatStore";
 import { useLayoutStore } from "../../../stores/layoutStore";
 import type { Team, TeamAgent, AgentRole } from "../../../types/team";
 
@@ -46,13 +47,8 @@ export const TeamSection = memo(function TeamSection() {
     })),
   );
 
-  // Get current workspace project path to filter teams
-  const activeAgent = useAgentStore((s) => {
-    const active = s.agents.find((a) => a.id === s.activeAgentId);
-    return active && !active.teamId ? active : s.agents.find((a) => !a.teamId && !a.parentAgentId);
-  });
-
-  const projectPath = activeAgent?.projectPath ?? "";
+  // Get current workspace project path from chatStore (always set, even without agents)
+  const projectPath = useChatStore((s) => s.projectPath);
 
   // Fetch teams when section opens
   useEffect(() => {
@@ -216,12 +212,14 @@ function TeamAgentRow({
     // If agent is running and registered, switch to its chat
     const agents = useAgentStore.getState().agents;
     const exists = agents.some((a) => a.id === agent.agent_id);
-    if (exists) {
-      if (useLayoutStore.getState().activeView === "teamwork") {
-        useLayoutStore.getState().closeTeamwork();
-      }
-      useAgentStore.getState().setActiveAgent(agent.agent_id).catch(console.error);
-    }
+    if (!exists) return;
+
+    const layout = useLayoutStore.getState();
+    if (layout.activeView === "teamwork") layout.closeTeamwork();
+    if (layout.activeView === "settings") layout.closeSettings();
+    if (layout.activeView === "welcome") layout.closeWelcome();
+
+    useAgentStore.getState().setActiveAgent(agent.agent_id).catch(console.error);
   }, [agent.agent_id]);
 
   const handleStart = useCallback(
