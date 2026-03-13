@@ -11,6 +11,65 @@ use crate::file_ops::{read_json, write_json};
 
 use super::validate_name;
 
+/// Update agent status in team file (sync). Used by team commands and process exit handler.
+pub(crate) fn update_agent_status_sync(
+    team_id: &str,
+    agent_id: &str,
+    status: AgentStatus,
+) -> Result<(), String> {
+    validate_name(team_id, "team_id")?;
+
+    let lock = team_lock(team_id);
+    let _guard = lock
+        .lock()
+        .map_err(|e| format!("Team lock poisoned: {e}"))?;
+
+    let mut team = read_team_sync(team_id)?;
+    let agent = team
+        .agents
+        .iter_mut()
+        .find(|a| a.agent_id == agent_id)
+        .ok_or_else(|| format!("Agent {agent_id} not found in team {team_id}"))?;
+    agent.status = status;
+    write_team_sync(&team)?;
+    Ok(())
+}
+
+/// Resolve worktree branch to its filesystem path (sync).
+fn resolve_worktree_path(project_path: &str, branch: &str) -> Result<String, String> {
+    crate::files::validate_path_safe(std::path::Path::new(project_path))?;
+
+    let output = std::process::Command::new("git")
+        .args(["worktree", "list", "--porcelain"])
+        .current_dir(project_path)
+        .output()
+        .map_err(|e| format!("Failed to run git worktree list: {e}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("git worktree list failed: {stderr}"));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut current_path: Option<String> = None;
+
+    for line in stdout.lines() {
+        if let Some(path) = line.strip_prefix("worktree ") {
+            current_path = Some(path.to_string());
+        } else if let Some(b) = line.strip_prefix("branch refs/heads/") {
+            if b == branch {
+                if let Some(path) = current_path {
+                    return Ok(path);
+                }
+            }
+        } else if line.is_empty() {
+            current_path = None;
+        }
+    }
+
+    Err(format!("No worktree found for branch '{branch}'"))
+}
+
 /// Per-team lock for concurrent access.
 static TEAM_LOCKS: LazyLock<Mutex<HashMap<String, Arc<Mutex<()>>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
@@ -251,4 +310,127 @@ pub async fn team_get_launch_args(
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
+}
+
+#[tauri::command]
+pub async fn team_start_agent(
+    app: tauri::AppHandle,
+    sessions: State<'_, SessionManager>,
+    team_id: String,
+    agent_id: String,
+) -> Result<(), String> {
+    // Don't start if already running
+    if sessions.is_alive(&agent_id).await {
+        return Err("Agent is already running".to_string());
+    }
+
+    // Read team and resolve project path (blocking)
+    let tid = team_id.clone();
+    let aid = agent_id.clone();
+    let (project_path, team_name) = tokio::task::spawn_blocking(move || {
+        validate_name(&tid, "team_id")?;
+        let team = read_team_sync(&tid)?;
+        let agent = team
+            .agents
+            .iter()
+            .find(|a| a.agent_id == aid)
+            .ok_or_else(|| format!("Agent {aid} not found in team {tid}"))?;
+
+        let path = if let Some(ref branch) = agent.worktree_branch {
+            resolve_worktree_path(&team.project_path, branch)?
+        } else {
+            team.project_path.clone()
+        };
+
+        Ok::<_, String>((path, team.name))
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))??;
+
+    // Update status to running
+    {
+        let tid = team_id.clone();
+        let aid = agent_id.clone();
+        tokio::task::spawn_blocking(move || {
+            update_agent_status_sync(&tid, &aid, AgentStatus::Running)
+        })
+        .await
+        .map_err(|e| format!("Task join error: {e}"))??;
+    }
+
+    // Spawn CLI session in background
+    let sessions_owned = sessions.inner().clone();
+    let app_clone = app.clone();
+    let agent_id_spawn = agent_id.clone();
+    let team_id_spawn = team_id.clone();
+
+    tokio::spawn(async move {
+        if let Err(e) = crate::conductor::process::run_cli_session(
+            crate::conductor::process::EventSink::new(app_clone.clone()),
+            sessions_owned,
+            crate::conductor::process::CliSessionConfig {
+                agent_id: agent_id_spawn.clone(),
+                prompt: "You are a team agent. Collaborate with other agents via team messages. \
+                         Wait for instructions."
+                    .to_string(),
+                project_path: Some(project_path),
+                model: None,
+                effort: None,
+                resume_session_id: None,
+                permission_mode: None,
+                chrome: false,
+                image_attachments: vec![],
+                team: Some(team_name),
+                team_id: Some(team_id_spawn.clone()),
+            },
+        )
+        .await
+        {
+            eprintln!(
+                "[teamwork] Session error for agent {}: {e}",
+                agent_id_spawn
+            );
+            if let Err(e2) = tauri::Emitter::emit(
+                &app_clone,
+                "cli-event",
+                &crate::conductor::types::CliEvent::Error {
+                    agent_id: agent_id_spawn.clone(),
+                    message: e,
+                },
+            ) {
+                eprintln!("[teamwork] Failed to emit error: {e2}");
+            }
+        }
+
+        // Process exited — reset status to idle
+        let tid = team_id_spawn;
+        let aid = agent_id_spawn;
+        if let Err(e) = tokio::task::spawn_blocking(move || {
+            update_agent_status_sync(&tid, &aid, AgentStatus::Idle)
+        })
+        .await
+        .unwrap_or_else(|e| Err(format!("Task panic: {e}")))
+        {
+            eprintln!("[teamwork] Failed to reset agent status: {e}");
+        }
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn team_stop_agent(
+    sessions: State<'_, SessionManager>,
+    team_id: String,
+    agent_id: String,
+) -> Result<(), String> {
+    sessions.kill(&agent_id).await;
+
+    tokio::task::spawn_blocking(move || {
+        update_agent_status_sync(&team_id, &agent_id, AgentStatus::Stopped)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))??;
+
+    Ok(())
 }

@@ -430,6 +430,10 @@
   color: var(--status-red);
 }
 
+.team-icon-btn--accent:hover {
+  color: var(--accent);
+}
+
 .team-create-form {
   display: flex;
   flex-direction: column;

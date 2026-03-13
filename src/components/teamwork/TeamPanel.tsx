@@ -12,6 +12,8 @@ import {
   Code,
   Eye,
   Compass,
+  Play,
+  Square,
 } from "lucide-react";
 import { useTeamStore } from "../../stores/teamStore";
 import { useLayoutStore } from "../../stores/layoutStore";
@@ -223,6 +225,28 @@ function AgentsSection({ team }: { team: Team }) {
     [team.id],
   );
 
+  const handleStart = useCallback(
+    async (agentId: string) => {
+      try {
+        await useTeamStore.getState().startAgent(team.id, agentId);
+      } catch (e) {
+        console.error("[TeamPanel] startAgent:", e);
+      }
+    },
+    [team.id],
+  );
+
+  const handleStop = useCallback(
+    async (agentId: string) => {
+      try {
+        await useTeamStore.getState().stopAgent(team.id, agentId);
+      } catch (e) {
+        console.error("[TeamPanel] stopAgent:", e);
+      }
+    },
+    [team.id],
+  );
+
   return (
     <div className="team-section">
       <div className="team-section__header">
@@ -254,7 +278,13 @@ function AgentsSection({ team }: { team: Team }) {
 
       <div className="team-agents-grid">
         {team.agents.map((agent) => (
-          <AgentCard key={agent.agent_id} agent={agent} onRemove={handleRemove} />
+          <AgentCard
+            key={agent.agent_id}
+            agent={agent}
+            onRemove={handleRemove}
+            onStart={handleStart}
+            onStop={handleStop}
+          />
         ))}
         {team.agents.length === 0 && (
           <p className="team-empty">No agents yet</p>
@@ -267,11 +297,16 @@ function AgentsSection({ team }: { team: Team }) {
 function AgentCard({
   agent,
   onRemove,
+  onStart,
+  onStop,
 }: {
   agent: TeamAgent;
   onRemove: (id: string) => void;
+  onStart: (id: string) => void;
+  onStop: (id: string) => void;
 }) {
   const RoleIcon = ROLE_ICON[agent.role];
+  const isRunning = agent.status === "running";
 
   return (
     <div className="team-agent-card">
@@ -285,6 +320,23 @@ function AgentCard({
         <code className="team-agent-card__id">{agent.agent_id.slice(0, 8)}</code>
         {agent.worktree_branch && (
           <span className="team-agent-card__branch">{agent.worktree_branch}</span>
+        )}
+        {isRunning ? (
+          <button
+            className="team-icon-btn team-icon-btn--danger"
+            onClick={() => onStop(agent.agent_id)}
+            title="Stop agent"
+          >
+            <Square size={12} />
+          </button>
+        ) : (
+          <button
+            className="team-icon-btn team-icon-btn--accent"
+            onClick={() => onStart(agent.agent_id)}
+            title="Start agent"
+          >
+            <Play size={12} />
+          </button>
         )}
         <button
           className="team-icon-btn team-icon-btn--danger"

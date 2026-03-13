@@ -138,6 +138,8 @@ pub fn run() {
             teamwork::team::team_get,
             teamwork::team::team_list,
             teamwork::team::team_get_launch_args,
+            teamwork::team::team_start_agent,
+            teamwork::team::team_stop_agent,
             teamwork::mailbox::team_send_message,
             teamwork::mailbox::team_broadcast,
             teamwork::mailbox::team_read_inbox,

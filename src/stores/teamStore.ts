@@ -20,6 +20,8 @@ interface TeamState {
   createTeam: (name: string, projectPath: string) => Promise<Team>;
   addAgent: (teamId: string, role: AgentRole, branch?: string | null) => Promise<TeamAgent>;
   removeAgent: (teamId: string, agentId: string) => Promise<void>;
+  startAgent: (teamId: string, agentId: string) => Promise<void>;
+  stopAgent: (teamId: string, agentId: string) => Promise<void>;
 
   fetchAllMessages: (teamName: string) => Promise<void>;
   sendMessage: (teamName: string, from: string, to: string, text: string) => Promise<void>;
@@ -64,6 +66,16 @@ export const useTeamStore = create<TeamState>((set, get) => ({
 
   removeAgent: async (teamId, agentId) => {
     await invoke("team_remove_agent", { teamId, agentId });
+    await get().fetchTeams();
+  },
+
+  startAgent: async (teamId, agentId) => {
+    await invoke("team_start_agent", { teamId, agentId });
+    await get().fetchTeams();
+  },
+
+  stopAgent: async (teamId, agentId) => {
+    await invoke("team_stop_agent", { teamId, agentId });
     await get().fetchTeams();
   },
 
