@@ -255,12 +255,13 @@
 }
 
 .sidebar-project--active {
-  background: var(--tab-bg-active);
+  background: var(--accent-deep);
+  border-color: var(--accent-deep);
   border-left: 3px solid var(--accent);
 }
 
 :root .sidebar-project--active {
-  background: var(--tab-bg-active);
+  background: var(--accent-deep);
 }
 
 .sidebar-project:hover {
@@ -269,7 +270,7 @@
 }
 
 .sidebar-project--active:hover {
-  background: var(--tab-bg-active-hover);
+  background: var(--accent-soft);
   transform: scale(1.025);
 }
 
@@ -347,7 +348,7 @@
 }
 
 .sidebar-worktree--active {
-  background: var(--tab-bg-active);
+  background: var(--accent-deep);
   color: var(--fg);
   border-color: var(--accent);
 }
@@ -1330,7 +1331,7 @@
 
 .dash-btn-wrapper--active .dash-card {
   border-color: var(--accent);
-  background: var(--tab-bg-hover);
+  background: var(--accent-deep);
 }
 
 .dash-btn-wrapper--dragging {
