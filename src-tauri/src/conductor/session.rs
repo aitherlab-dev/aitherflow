@@ -189,4 +189,10 @@ impl SessionManager {
             session.status = status;
         }
     }
+
+    /// Read session status (None if session doesn't exist).
+    pub async fn get_status(&self, agent_id: &str) -> Option<SessionStatus> {
+        let map = self.sessions.lock().await;
+        map.get(agent_id).map(|s| s.status.clone())
+    }
 }

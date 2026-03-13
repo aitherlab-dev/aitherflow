@@ -108,6 +108,8 @@ pub enum CliEvent {
 pub enum SessionStatus {
     /// Process running, waiting for CLI response
     Thinking,
+    /// Turn complete, awaiting user input
+    Idle,
     /// Process has exited
     Exited,
 }
@@ -136,6 +138,8 @@ pub struct StartSessionOptions {
     pub chrome: bool,
     #[serde(default)]
     pub attachments: Vec<AttachmentPayload>,
+    /// Team name for mailbox coordination (None = no polling)
+    pub team: Option<String>,
 }
 
 /// Options for sending a follow-up message to an existing session.

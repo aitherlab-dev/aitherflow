@@ -37,6 +37,8 @@ pub struct CliSessionConfig {
     pub permission_mode: Option<String>,
     pub chrome: bool,
     pub image_attachments: Vec<AttachmentPayload>,
+    /// Team name for mailbox polling (None = no polling)
+    pub team: Option<String>,
 }
 
 /// Spawn Claude CLI and run the session until the process exits.
@@ -59,6 +61,7 @@ pub async fn run_cli_session(
         permission_mode,
         chrome,
         image_attachments,
+        team,
     } = config;
 
     // Build command arguments
@@ -168,6 +171,112 @@ pub async fn run_cli_session(
         }
     }
 
+    // Spawn mailbox polling task if agent belongs to a team
+    let polling_handle = if let Some(ref team) = team {
+        let sessions_poll = sessions.clone();
+        let agent_id_poll = agent_id.clone();
+        let team_poll = team.clone();
+
+        Some(tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(3));
+            // Skip the first immediate tick
+            interval.tick().await;
+
+            loop {
+                interval.tick().await;
+
+                // Stop if session is gone or exited
+                let status = sessions_poll.get_status(&agent_id_poll).await;
+                match status {
+                    None | Some(SessionStatus::Exited) => break,
+                    Some(SessionStatus::Thinking) => continue, // busy, skip
+                    Some(SessionStatus::Idle) => {}            // ready for injection
+                }
+
+                // Read inbox (blocking I/O via spawn_blocking)
+                let team_r = team_poll.clone();
+                let agent_r = agent_id_poll.clone();
+                let messages = match tokio::task::spawn_blocking(move || {
+                    crate::teamwork::mailbox::read_inbox_sync(&team_r, &agent_r)
+                })
+                .await
+                {
+                    Ok(Ok(msgs)) => msgs,
+                    Ok(Err(e)) => {
+                        eprintln!("[teamwork] Polling inbox error: {e}");
+                        continue;
+                    }
+                    Err(e) => {
+                        eprintln!("[teamwork] Polling task panic: {e}");
+                        break;
+                    }
+                };
+
+                if messages.is_empty() {
+                    continue;
+                }
+
+                // Build combined text: [Сообщение от {from}]: {text}
+                let text: String = messages
+                    .iter()
+                    .map(|m| format!("[Сообщение от {}]: {}", m.from, m.text))
+                    .collect::<Vec<_>>()
+                    .join("\n\n");
+
+                let ndjson = match build_stdin_message(&text, &[]) {
+                    Ok(n) => n,
+                    Err(e) => {
+                        eprintln!("[teamwork] Failed to build stdin message: {e}");
+                        continue;
+                    }
+                };
+
+                // Write to stdin
+                let stdin_handle = match sessions_poll.get_stdin(&agent_id_poll).await {
+                    Some(h) => h,
+                    None => break,
+                };
+
+                {
+                    let mut stdin = stdin_handle.lock().await;
+                    let result = async {
+                        use tokio::io::AsyncWriteExt;
+                        stdin.write_all(ndjson.as_bytes()).await?;
+                        stdin.write_all(b"\n").await?;
+                        stdin.flush().await?;
+                        Ok::<(), std::io::Error>(())
+                    }
+                    .await;
+
+                    if let Err(e) = result {
+                        eprintln!("[teamwork] Failed to write to stdin: {e}");
+                        break;
+                    }
+                }
+
+                // Set status to Thinking (agent is now processing)
+                sessions_poll
+                    .set_status(&agent_id_poll, SessionStatus::Thinking)
+                    .await;
+
+                // Mark messages as read
+                let ids: Vec<String> = messages.iter().map(|m| m.id.clone()).collect();
+                let team_m = team_poll.clone();
+                let agent_m = agent_id_poll.clone();
+                if let Err(e) = tokio::task::spawn_blocking(move || {
+                    crate::teamwork::mailbox::mark_read_sync(&team_m, &agent_m, &ids)
+                })
+                .await
+                .unwrap_or_else(|e| Err(format!("Task panic: {e}")))
+                {
+                    eprintln!("[teamwork] Failed to mark messages as read: {e}");
+                }
+            }
+        }))
+    } else {
+        None
+    };
+
     // Spawn stderr reader in background (capped at 64KB)
     let stderr_handle = tokio::spawn(async move {
         let mut reader = BufReader::new(stderr);
@@ -213,6 +322,13 @@ pub async fn run_cli_session(
 
         match parse_line(&line, &agent_id, &mut completed_text, &mut delta_text, &mut combined_buf) {
             Ok(events) => {
+                for event in &events {
+                    if matches!(event, CliEvent::TurnComplete { .. }) {
+                        sessions
+                            .set_status(&agent_id, SessionStatus::Idle)
+                            .await;
+                    }
+                }
                 for event in events {
                     sink.emit(&event);
                 }
@@ -227,7 +343,11 @@ pub async fn run_cli_session(
         }
     }
 
-    // stdout closed — process is finishing
+    // stdout closed — process is finishing; stop mailbox polling
+    if let Some(handle) = polling_handle {
+        handle.abort();
+    }
+
     sessions
         .set_status(&agent_id, SessionStatus::Exited)
         .await;

@@ -30,6 +30,7 @@ pub async fn start_session(
     let permission_mode = options.permission_mode;
     let chrome = options.chrome;
     let image_attachments = options.attachments;
+    let team = options.team;
 
     // Clone for the spawned task (State<'_> can't cross spawn boundary)
     let sessions_owned = sessions.inner().clone();
@@ -51,6 +52,7 @@ pub async fn start_session(
                 permission_mode,
                 chrome,
                 image_attachments,
+                team,
             },
         )
         .await
@@ -72,7 +74,7 @@ pub async fn start_session(
     Ok(())
 }
 
-/// Write an NDJSON line to an agent's stdin.
+/// Write an NDJSON line to an agent's stdin and set status to Thinking.
 async fn write_stdin(sessions: &SessionManager, agent_id: &str, ndjson: &str) -> Result<(), String> {
     let stdin_handle = sessions
         .get_stdin(agent_id)
@@ -89,7 +91,11 @@ async fn write_stdin(sessions: &SessionManager, agent_id: &str, ndjson: &str) ->
     }
     .await;
 
-    result.map_err(|e| format!("Failed to write to stdin: {e}"))
+    result.map_err(|e| format!("Failed to write to stdin: {e}"))?;
+    sessions
+        .set_status(agent_id, types::SessionStatus::Thinking)
+        .await;
+    Ok(())
 }
 
 /// Send a follow-up message to an existing CLI session via stdin.

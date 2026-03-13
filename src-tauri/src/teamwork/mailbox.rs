@@ -167,45 +167,101 @@ pub async fn team_broadcast(team: String, from: String, text: String) -> Result<
     .map_err(|e| format!("Task join error: {e}"))?
 }
 
+/// Read all unread messages (synchronous, for use inside spawn_blocking).
+pub(crate) fn read_inbox_sync(team: &str, agent_id: &str) -> Result<Vec<TeamMessage>, String> {
+    validate_name(team, "team")?;
+    validate_name(agent_id, "agent_id")?;
+
+    let path = inbox_path(team, agent_id);
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+
+    let key = inbox_lock_key(team, agent_id);
+    let lock = inbox_lock(&key);
+    let _guard = lock
+        .lock()
+        .map_err(|e| format!("Inbox lock poisoned: {e}"))?;
+
+    let data = fs::read_to_string(&path).map_err(|e| format!("Failed to read inbox: {e}"))?;
+
+    let mut unread = Vec::new();
+    for (i, line) in data.lines().enumerate() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        match serde_json::from_str::<TeamMessage>(line) {
+            Ok(msg) if !msg.read => unread.push(msg),
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("[teamwork] Bad line {} in {}: {e}", i + 1, path.display())
+            }
+        }
+    }
+
+    Ok(unread)
+}
+
 /// Read all unread messages from an agent's inbox
 #[tauri::command]
 pub async fn team_read_inbox(team: String, agent_id: String) -> Result<Vec<TeamMessage>, String> {
-    tokio::task::spawn_blocking(move || {
-        validate_name(&team, "team")?;
-        validate_name(&agent_id, "agent_id")?;
+    tokio::task::spawn_blocking(move || read_inbox_sync(&team, &agent_id))
+        .await
+        .map_err(|e| format!("Task join error: {e}"))?
+}
 
-        let path = inbox_path(&team, &agent_id);
-        if !path.exists() {
-            return Ok(Vec::new());
+/// Mark specific messages as read (synchronous, for use inside spawn_blocking).
+pub(crate) fn mark_read_sync(
+    team: &str,
+    agent_id: &str,
+    message_ids: &[String],
+) -> Result<(), String> {
+    validate_name(team, "team")?;
+    validate_name(agent_id, "agent_id")?;
+
+    let path = inbox_path(team, agent_id);
+    if !path.exists() {
+        return Ok(());
+    }
+
+    let key = inbox_lock_key(team, agent_id);
+    let lock = inbox_lock(&key);
+    let _guard = lock
+        .lock()
+        .map_err(|e| format!("Inbox lock poisoned: {e}"))?;
+
+    let data = fs::read_to_string(&path).map_err(|e| format!("Failed to read inbox: {e}"))?;
+
+    let ids_set: std::collections::HashSet<&str> =
+        message_ids.iter().map(|s| s.as_str()).collect();
+
+    let mut lines = Vec::new();
+    for line in data.lines() {
+        if line.trim().is_empty() {
+            continue;
         }
-
-        let key = inbox_lock_key(&team, &agent_id);
-        let lock = inbox_lock(&key);
-        let _guard = lock
-            .lock()
-            .map_err(|e| format!("Inbox lock poisoned: {e}"))?;
-
-        let data =
-            fs::read_to_string(&path).map_err(|e| format!("Failed to read inbox: {e}"))?;
-
-        let mut unread = Vec::new();
-        for (i, line) in data.lines().enumerate() {
-            if line.trim().is_empty() {
-                continue;
-            }
-            match serde_json::from_str::<TeamMessage>(line) {
-                Ok(msg) if !msg.read => unread.push(msg),
-                Ok(_) => {}
-                Err(e) => {
-                    eprintln!("[teamwork] Bad line {} in {}: {e}", i + 1, path.display())
+        match serde_json::from_str::<TeamMessage>(line) {
+            Ok(mut msg) => {
+                if ids_set.contains(msg.id.as_str()) {
+                    msg.read = true;
                 }
+                let updated = serde_json::to_string(&msg)
+                    .map_err(|e| format!("Failed to serialize message: {e}"))?;
+                lines.push(updated);
+            }
+            Err(e) => {
+                eprintln!("[teamwork] Skipping bad line during mark_read: {e}");
+                lines.push(line.to_string());
             }
         }
+    }
 
-        Ok(unread)
-    })
-    .await
-    .map_err(|e| format!("Task join error: {e}"))?
+    let mut output = lines.join("\n");
+    if !output.is_empty() {
+        output.push('\n');
+    }
+
+    atomic_write(&path, output.as_bytes())
 }
 
 /// Mark specific messages as read in an agent's inbox.
@@ -216,55 +272,7 @@ pub async fn team_mark_read(
     agent_id: String,
     message_ids: Vec<String>,
 ) -> Result<(), String> {
-    tokio::task::spawn_blocking(move || {
-        validate_name(&team, "team")?;
-        validate_name(&agent_id, "agent_id")?;
-
-        let path = inbox_path(&team, &agent_id);
-        if !path.exists() {
-            return Ok(());
-        }
-
-        let key = inbox_lock_key(&team, &agent_id);
-        let lock = inbox_lock(&key);
-        let _guard = lock
-            .lock()
-            .map_err(|e| format!("Inbox lock poisoned: {e}"))?;
-
-        let data =
-            fs::read_to_string(&path).map_err(|e| format!("Failed to read inbox: {e}"))?;
-
-        let ids_set: std::collections::HashSet<&str> =
-            message_ids.iter().map(|s| s.as_str()).collect();
-
-        let mut lines = Vec::new();
-        for line in data.lines() {
-            if line.trim().is_empty() {
-                continue;
-            }
-            match serde_json::from_str::<TeamMessage>(line) {
-                Ok(mut msg) => {
-                    if ids_set.contains(msg.id.as_str()) {
-                        msg.read = true;
-                    }
-                    let updated = serde_json::to_string(&msg)
-                        .map_err(|e| format!("Failed to serialize message: {e}"))?;
-                    lines.push(updated);
-                }
-                Err(e) => {
-                    eprintln!("[teamwork] Skipping bad line during mark_read: {e}");
-                    lines.push(line.to_string());
-                }
-            }
-        }
-
-        let mut output = lines.join("\n");
-        if !output.is_empty() {
-            output.push('\n');
-        }
-
-        atomic_write(&path, output.as_bytes())
-    })
-    .await
-    .map_err(|e| format!("Task join error: {e}"))?
+    tokio::task::spawn_blocking(move || mark_read_sync(&team, &agent_id, &message_ids))
+        .await
+        .map_err(|e| format!("Task join error: {e}"))?
 }
