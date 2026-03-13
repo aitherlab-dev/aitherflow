@@ -25,10 +25,10 @@ interface TeamState {
 
   fetchAllMessages: (teamName: string) => Promise<void>;
   sendMessage: (teamName: string, from: string, to: string, text: string) => Promise<void>;
-  broadcastMessage: (teamName: string, from: string, text: string) => Promise<void>;
+  broadcastMessage: (teamName: string, from: string, text: string, agentIds: string[]) => Promise<void>;
 
   fetchTasks: (teamName: string) => Promise<void>;
-  createTask: (teamName: string, title: string, description: string) => Promise<void>;
+  createTask: (teamName: string, title: string, description: string) => Promise<TeamTask>;
   claimTask: (teamName: string, taskId: string, agentId: string) => Promise<void>;
   completeTask: (teamName: string, taskId: string, agentId: string) => Promise<void>;
 }
@@ -98,8 +98,8 @@ export const useTeamStore = create<TeamState>((set, get) => ({
     await get().fetchAllMessages(teamName);
   },
 
-  broadcastMessage: async (teamName, from, text) => {
-    await invoke("team_broadcast", { team: teamName, from, text });
+  broadcastMessage: async (teamName, from, text, agentIds) => {
+    await invoke("team_broadcast", { team: teamName, from, text, agentIds });
     await get().fetchAllMessages(teamName);
   },
 
@@ -113,13 +113,14 @@ export const useTeamStore = create<TeamState>((set, get) => ({
   },
 
   createTask: async (teamName, title, description) => {
-    await invoke("team_create_task", {
+    const task = await invoke<TeamTask>("team_create_task", {
       team: teamName,
       title,
       description,
       blockedBy: [],
     });
     await get().fetchTasks(teamName);
+    return task;
   },
 
   claimTask: async (teamName, taskId, agentId) => {

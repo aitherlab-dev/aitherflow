@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import { useTeamStore } from "../../stores/teamStore";
 import { useLayoutStore } from "../../stores/layoutStore";
-import { invoke } from "../../lib/transport";
 import type { Team, TeamAgent, AgentRole, TeamTask, TeamMessage } from "../../types/team";
 
 const ROLE_ICON: Record<AgentRole, React.ElementType> = {
@@ -369,7 +368,8 @@ function MessagesSection({
     try {
       const store = useTeamStore.getState();
       if (to === "all") {
-        await store.broadcastMessage(team.name, "user", text.trim());
+        const ids = team.agents.map((a) => a.agent_id);
+        await store.broadcastMessage(team.name, "user", text.trim(), ids);
       } else {
         await store.sendMessage(team.name, "user", to, text.trim());
       }
@@ -377,7 +377,7 @@ function MessagesSection({
     } catch (e) {
       console.error("[TeamPanel] sendMessage:", e);
     }
-  }, [team.name, to, text]);
+  }, [team.name, team.agents, to, text]);
 
   return (
     <div className="team-section">
@@ -455,14 +455,9 @@ function TasksSection({
     if (!title.trim()) return;
     try {
       const store = useTeamStore.getState();
-      await store.createTask(team.name, title.trim(), desc.trim());
+      const task = await store.createTask(team.name, title.trim(), desc.trim());
       if (assignTo) {
-        // Re-fetch to get the new task, then claim it
-        const freshTasks = await invoke<TeamTask[]>("team_list_tasks", { team: team.name });
-        const created = freshTasks.find((t) => t.title === title.trim() && t.status === "pending");
-        if (created) {
-          await store.claimTask(team.name, created.id, assignTo);
-        }
+        await store.claimTask(team.name, task.id, assignTo);
       }
       setTitle("");
       setDesc("");

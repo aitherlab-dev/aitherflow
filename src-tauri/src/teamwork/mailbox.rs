@@ -124,40 +124,24 @@ pub async fn team_send_message(
     .map_err(|e| format!("Task join error: {e}"))?
 }
 
-/// Broadcast a message to all agents in the team (except sender)
+/// Broadcast a message to specified agents (except sender).
+/// `agent_ids` is the explicit list of recipients — avoids relying on inbox files existing.
 #[tauri::command]
-pub async fn team_broadcast(team: String, from: String, text: String) -> Result<(), String> {
+pub async fn team_broadcast(
+    team: String,
+    from: String,
+    text: String,
+    agent_ids: Vec<String>,
+) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
         validate_name(&team, "team")?;
         validate_name(&from, "from")?;
 
-        let dir = inboxes_dir(&team);
-        if !dir.exists() {
-            return Ok(());
-        }
-
-        let entries =
-            fs::read_dir(&dir).map_err(|e| format!("Failed to read inboxes dir: {e}"))?;
-
-        for entry in entries.flatten() {
-            let ft = entry
-                .file_type()
-                .map_err(|e| format!("Failed to get file type: {e}"))?;
-            if ft.is_symlink() || ft.is_dir() {
+        for agent_id in &agent_ids {
+            if *agent_id == from {
                 continue;
             }
-            let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) != Some("jsonl") {
-                continue;
-            }
-            let agent_id = match path.file_stem().and_then(|s| s.to_str()) {
-                Some(id) => id.to_string(),
-                None => continue,
-            };
-            if agent_id == from {
-                continue;
-            }
-            let msg = new_message(&from, &agent_id, &text);
+            let msg = new_message(&from, agent_id, &text);
             append_to_inbox(&team, &msg)?;
         }
 
