@@ -5,6 +5,7 @@ use axum::routing::post;
 use axum::{Json, Router};
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
 use tokio::sync::RwLock;
 
@@ -26,6 +27,8 @@ pub struct McpServerState {
     sessions: RwLock<HashMap<String, String>>,
     app_handle: tauri::AppHandle,
     session_manager: SessionManager,
+    /// Generation counter for register/unregister race protection.
+    gen_counter: AtomicU64,
 }
 
 struct AgentMcpInfo {
@@ -33,10 +36,12 @@ struct AgentMcpInfo {
     team_id: String,
     team_agent_ids: Vec<String>,
     role: AgentRole,
+    generation: u64,
 }
 
 impl McpServerState {
     /// Register a team agent so the MCP server knows its team context.
+    /// Returns the generation number assigned to this registration.
     pub async fn register_agent(
         &self,
         agent_id: &str,
@@ -44,7 +49,8 @@ impl McpServerState {
         team_id: &str,
         agent_ids: Vec<String>,
         role: AgentRole,
-    ) {
+    ) -> u64 {
+        let generation = self.gen_counter.fetch_add(1, Ordering::Relaxed) + 1;
         self.agents.write().await.insert(
             agent_id.to_string(),
             AgentMcpInfo {
@@ -52,17 +58,40 @@ impl McpServerState {
                 team_id: team_id.to_string(),
                 team_agent_ids: agent_ids,
                 role,
+                generation,
             },
         );
+        generation
     }
 
-    /// Remove agent on stop / process exit.
+    /// Remove agent unconditionally (explicit stop / remove).
     pub async fn unregister_agent(&self, agent_id: &str) {
         self.agents.write().await.remove(agent_id);
         self.sessions
             .write()
             .await
             .retain(|_, v| v != agent_id);
+    }
+
+    /// Remove agent only if its generation matches (process exit cleanup).
+    /// Prevents a finishing old session from removing a freshly re-registered agent.
+    pub async fn unregister_agent_if_current(&self, agent_id: &str, generation: u64) {
+        let removed = {
+            let mut agents = self.agents.write().await;
+            match agents.get(agent_id) {
+                Some(info) if info.generation == generation => {
+                    agents.remove(agent_id);
+                    true
+                }
+                _ => false,
+            }
+        };
+        if removed {
+            self.sessions
+                .write()
+                .await
+                .retain(|_, v| v != agent_id);
+        }
     }
 }
 
@@ -100,6 +129,7 @@ pub async fn start_mcp_server(
         sessions: RwLock::new(HashMap::new()),
         app_handle,
         session_manager,
+        gen_counter: AtomicU64::new(0),
     });
 
     MCP_STATE
@@ -571,8 +601,6 @@ async fn execute_tool(
                 target_id.clone(),
             )
             .await?;
-            // Brief delay for background cleanup to complete
-            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
             super::team::start_agent_core(
                 state.app_handle.clone(),
                 state.session_manager.clone(),

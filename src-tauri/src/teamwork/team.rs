@@ -406,11 +406,14 @@ pub(crate) async fn start_agent_core(
         .await
         .map_err(|e| format!("Task join error: {e}"))??;
 
-    // Register agent in MCP server so it can use teamwork tools
-    if let Some(mcp) = super::mcp_server::get_state() {
+    // Register agent in MCP server so it can use teamwork tools.
+    // Capture generation for guarded unregister on process exit.
+    let mcp_generation = if let Some(mcp) = super::mcp_server::get_state() {
         mcp.register_agent(&agent_id, &team_name, &team_id, team_agent_ids, agent_role)
-            .await;
-    }
+            .await
+    } else {
+        0
+    };
 
     // Spawn CLI session in background
     let agent_id_spawn = agent_id.clone();
@@ -454,9 +457,11 @@ pub(crate) async fn start_agent_core(
             }
         }
 
-        // Unregister from MCP server
+        // Unregister from MCP server (only if generation matches — prevents
+        // removing a fresh registration after restart)
         if let Some(mcp) = super::mcp_server::get_state() {
-            mcp.unregister_agent(&agent_id_spawn).await;
+            mcp.unregister_agent_if_current(&agent_id_spawn, mcp_generation)
+                .await;
         }
 
         // Process exited — reset to idle only if still Running (Stopped stays Stopped)
