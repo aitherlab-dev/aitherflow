@@ -133,24 +133,38 @@ async fn handle_post(
         return StatusCode::ACCEPTED.into_response();
     }
 
-    // Validate session for requests
-    let session_valid = headers
+    // Validate session: must exist AND belong to the agent_id from URL
+    let sid = match headers
         .get("mcp-session-id")
         .and_then(|v| v.to_str().ok())
-        .map(|sid| {
-            state
-                .sessions
-                .try_read()
-                .map_or(true, |s| s.contains_key(sid))
-        })
-        .unwrap_or(false);
+    {
+        Some(s) => s.to_string(),
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                "Missing Mcp-Session-Id header",
+            )
+                .into_response();
+        }
+    };
 
-    if !session_valid {
-        return (
-            StatusCode::BAD_REQUEST,
-            "Missing or invalid Mcp-Session-Id",
-        )
-            .into_response();
+    let session_agent = state.sessions.read().await.get(&sid).cloned();
+    match session_agent {
+        Some(ref owner) if owner == &agent_id => {}
+        Some(_) => {
+            return (
+                StatusCode::FORBIDDEN,
+                "Session does not belong to this agent",
+            )
+                .into_response();
+        }
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                "Invalid Mcp-Session-Id",
+            )
+                .into_response();
+        }
     }
 
     match method {
