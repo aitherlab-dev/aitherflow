@@ -16,6 +16,7 @@ mod secrets;
 mod settings;
 mod skills;
 mod telegram;
+mod teamwork;
 mod translations;
 mod voice;
 mod worktree;
@@ -131,6 +132,14 @@ pub fn run() {
             worktree::get_worktree_details,
             worktree::create_worktree,
             worktree::remove_worktree,
+            teamwork::mailbox::team_send_message,
+            teamwork::mailbox::team_broadcast,
+            teamwork::mailbox::team_read_inbox,
+            teamwork::mailbox::team_mark_read,
+            teamwork::tasks::team_create_task,
+            teamwork::tasks::team_claim_task,
+            teamwork::tasks::team_complete_task,
+            teamwork::tasks::team_list_tasks,
         ])
         .setup(move |_app| {
             // Keep `sessions` alive until setup completes (State already holds a clone via .manage())
