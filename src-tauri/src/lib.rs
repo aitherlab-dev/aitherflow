@@ -151,11 +151,11 @@ pub fn run() {
             teamwork::tasks::team_list_tasks,
         ])
         .setup(move |_app| {
-            // Keep `sessions` alive until setup completes (State already holds a clone via .manage())
-            let _sessions = sessions;
+            let app_handle = _app.handle().clone();
+            let sessions_for_mcp = sessions;
             tauri::async_runtime::spawn(async move {
                 // Start MCP server for team agent communication
-                if let Err(e) = teamwork::mcp_server::start_mcp_server().await {
+                if let Err(e) = teamwork::mcp_server::start_mcp_server(app_handle, sessions_for_mcp).await {
                     eprintln!("[aitherflow] Failed to start MCP server: {e}");
                 }
 

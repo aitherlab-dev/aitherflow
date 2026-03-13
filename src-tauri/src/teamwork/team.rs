@@ -188,7 +188,7 @@ fn launch_args_for_role(role: &AgentRole) -> Vec<String> {
 }
 
 /// Read team from disk (sync).
-fn read_team_sync(team_id: &str) -> Result<Team, String> {
+pub(crate) fn read_team_sync(team_id: &str) -> Result<Team, String> {
     read_json(&team_path(team_id))
 }
 
@@ -368,58 +368,58 @@ pub async fn team_get_launch_args(
     .map_err(|e| format!("Task join error: {e}"))?
 }
 
-#[tauri::command]
-pub async fn team_start_agent(
+/// Core logic for starting a team agent. Shared by tauri command and MCP handler.
+pub(crate) async fn start_agent_core(
     app: tauri::AppHandle,
-    sessions: State<'_, SessionManager>,
+    sessions: SessionManager,
     team_id: String,
     agent_id: String,
 ) -> Result<(), String> {
     // Atomic: check not running + set Running under one lock (prevents TOCTOU on double-click)
     let tid = team_id.clone();
     let aid = agent_id.clone();
-    let (project_path, team_name, team_agent_ids) = tokio::task::spawn_blocking(move || {
-        // Atomically claim the agent (fails if already Running)
-        try_set_running_sync(&tid, &aid)?;
+    let (project_path, team_name, team_agent_ids, agent_role) =
+        tokio::task::spawn_blocking(move || {
+            // Atomically claim the agent (fails if already Running)
+            try_set_running_sync(&tid, &aid)?;
 
-        // Read team data for project path / worktree resolution
-        let team = read_team_sync(&tid)?;
-        let agent = team
-            .agents
-            .iter()
-            .find(|a| a.agent_id == aid)
-            .ok_or_else(|| format!("Agent {aid} not found in team {tid}"))?;
+            // Read team data for project path / worktree resolution
+            let team = read_team_sync(&tid)?;
+            let agent = team
+                .agents
+                .iter()
+                .find(|a| a.agent_id == aid)
+                .ok_or_else(|| format!("Agent {aid} not found in team {tid}"))?;
 
-        let path = if let Some(ref branch) = agent.worktree_branch {
-            resolve_worktree_path(&team.project_path, branch)?
-        } else {
-            team.project_path.clone()
-        };
+            let path = if let Some(ref branch) = agent.worktree_branch {
+                resolve_worktree_path(&team.project_path, branch)?
+            } else {
+                team.project_path.clone()
+            };
 
-        let agent_ids: Vec<String> =
-            team.agents.iter().map(|a| a.agent_id.clone()).collect();
+            let agent_ids: Vec<String> =
+                team.agents.iter().map(|a| a.agent_id.clone()).collect();
+            let role = agent.role.clone();
 
-        Ok::<_, String>((path, team.name, agent_ids))
-    })
-    .await
-    .map_err(|e| format!("Task join error: {e}"))??;
+            Ok::<_, String>((path, team.name, agent_ids, role))
+        })
+        .await
+        .map_err(|e| format!("Task join error: {e}"))??;
 
     // Register agent in MCP server so it can use teamwork tools
     if let Some(mcp) = super::mcp_server::get_state() {
-        mcp.register_agent(&agent_id, &team_name, team_agent_ids)
+        mcp.register_agent(&agent_id, &team_name, &team_id, team_agent_ids, agent_role)
             .await;
     }
 
     // Spawn CLI session in background
-    let sessions_owned = sessions.inner().clone();
-    let app_clone = app.clone();
     let agent_id_spawn = agent_id.clone();
     let team_id_spawn = team_id.clone();
 
     tokio::spawn(async move {
         if let Err(e) = crate::conductor::process::run_cli_session(
-            crate::conductor::process::EventSink::new(app_clone.clone()),
-            sessions_owned,
+            crate::conductor::process::EventSink::new(app.clone()),
+            sessions,
             crate::conductor::process::CliSessionConfig {
                 agent_id: agent_id_spawn.clone(),
                 prompt: "You are a team agent. Collaborate with other agents via team messages. \
@@ -443,7 +443,7 @@ pub async fn team_start_agent(
                 agent_id_spawn
             );
             if let Err(e2) = tauri::Emitter::emit(
-                &app_clone,
+                &app,
                 "cli-event",
                 &crate::conductor::types::CliEvent::Error {
                     agent_id: agent_id_spawn.clone(),
@@ -476,8 +476,18 @@ pub async fn team_start_agent(
 }
 
 #[tauri::command]
-pub async fn team_stop_agent(
+pub async fn team_start_agent(
+    app: tauri::AppHandle,
     sessions: State<'_, SessionManager>,
+    team_id: String,
+    agent_id: String,
+) -> Result<(), String> {
+    start_agent_core(app, sessions.inner().clone(), team_id, agent_id).await
+}
+
+/// Core logic for stopping a team agent. Shared by tauri command and MCP handler.
+pub(crate) async fn stop_agent_core(
+    sessions: &SessionManager,
     team_id: String,
     agent_id: String,
 ) -> Result<(), String> {
@@ -495,4 +505,13 @@ pub async fn team_stop_agent(
     .map_err(|e| format!("Task join error: {e}"))??;
 
     Ok(())
+}
+
+#[tauri::command]
+pub async fn team_stop_agent(
+    sessions: State<'_, SessionManager>,
+    team_id: String,
+    agent_id: String,
+) -> Result<(), String> {
+    stop_agent_core(sessions.inner(), team_id, agent_id).await
 }
