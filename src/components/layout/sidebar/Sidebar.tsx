@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { invoke } from "@tauri-apps/api/core";
 import { Home, Settings, FolderOpen, GitBranch } from "lucide-react";
 import { useIsMobile } from "../../../hooks/useIsMobile";
 import { useLayoutStore } from "../../../stores/layoutStore";
@@ -74,6 +75,24 @@ export const Sidebar = memo(function Sidebar() {
 
   const [filesOpen, setFilesOpen] = useState(false);
   const [branchesOpen, setBranchesOpen] = useState(false);
+
+  // Track extra worktrees (beyond root) for the orange indicator
+  const [extraWorktreeCount, setExtraWorktreeCount] = useState(0);
+  const activeAgent = agents.find((a) => a.id === activeAgentId);
+  const rootAgent = activeAgent?.parentAgentId
+    ? agents.find((a) => a.id === activeAgent.parentAgentId)
+    : activeAgent;
+  const rootProjectPath = rootAgent?.projectPath;
+
+  useEffect(() => {
+    if (!rootProjectPath) return;
+    invoke<{ path: string; branch: string; isBare: boolean }[]>("get_worktrees", { projectPath: rootProjectPath })
+      .then((entries) => {
+        const nonBare = entries.filter((e) => !e.isBare);
+        setExtraWorktreeCount(nonBare.length > 1 ? nonBare.length - 1 : 0);
+      })
+      .catch(console.error);
+  }, [rootProjectPath]);
 
   const handleActivateAgent = useCallback(
     (agentId: string) => {
@@ -260,6 +279,9 @@ export const Sidebar = memo(function Sidebar() {
             <div className="dash-card__header">
               <GitBranch size={14} className="dash-card__icon" />
               <span className="dash-card__title">Branches</span>
+              {extraWorktreeCount > 0 && (
+                <span className="dash-card__dot dash-card__dot--orange" />
+              )}
             </div>
           </div>
           {branchesOpen && (

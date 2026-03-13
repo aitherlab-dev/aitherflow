@@ -114,6 +114,7 @@ export const WorktreePanel = memo(function WorktreePanel({ embedded = false }: {
   const [expanded, setExpanded] = useState(false);
   const [worktrees, setWorktrees] = useState<WorktreeEntry[]>([]);
   const [status, setStatus] = useState<GitStatus | null>(null);
+  const [worktreeStatuses, setWorktreeStatuses] = useState<Map<string, GitStatus>>(new Map());
   const [creating, setCreating] = useState(false);
   const [newBranch, setNewBranch] = useState("");
   const [expandedWt, setExpandedWt] = useState<string | null>(null);
@@ -139,6 +140,26 @@ export const WorktreePanel = memo(function WorktreePanel({ embedded = false }: {
       .then(setWorktrees)
       .catch(console.error);
   }, [projectPath, rootProjectPath]);
+
+  // Fetch git status for each worktree to show changed file counts
+  useEffect(() => {
+    const nonBare = worktrees.filter((w) => !w.isBare);
+    if (nonBare.length === 0) return;
+
+    Promise.all(
+      nonBare.map((wt) =>
+        invoke<GitStatus>("get_git_status", { projectPath: wt.path })
+          .then((s) => [wt.path, s] as const)
+          .catch(() => null),
+      ),
+    ).then((results) => {
+      const map = new Map<string, GitStatus>();
+      for (const r of results) {
+        if (r) map.set(r[0], r[1]);
+      }
+      setWorktreeStatuses(map);
+    });
+  }, [worktrees]);
 
   const toggle = useCallback(() => setExpanded((v) => !v), []);
 
@@ -244,6 +265,11 @@ export const WorktreePanel = memo(function WorktreePanel({ embedded = false }: {
             >
               <FolderGit2 size={13} />
               <span className="worktree-panel__item-branch">{wt.branch || "(detached)"}</span>
+              {(() => {
+                const wtStatus = worktreeStatuses.get(wt.path);
+                const count = wtStatus ? wtStatus.changedFiles + wtStatus.untrackedFiles + wtStatus.stagedFiles : 0;
+                return count > 0 ? <span className="worktree-panel__changes-badge">{count}</span> : null;
+              })()}
               <span className="worktree-panel__item-path">{wt.path.split("/").pop()}</span>
             </button>
             {/* Don't allow removing the root worktree */}

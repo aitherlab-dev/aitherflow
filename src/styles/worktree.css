@@ -161,6 +161,16 @@
   font-weight: 500;
 }
 
+.worktree-panel__changes-badge {
+  font-size: 0.6rem;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  color: var(--accent);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
 .worktree-panel__item-path {
   color: var(--fg-dim);
   font-size: 0.7rem;
