@@ -68,25 +68,17 @@ pub async fn run_cli_session(
         team_id,
     } = config;
 
-    // If agent belongs to a team, look up role-based launch args and team name for mailbox
+    // If agent belongs to a team, look up role-based launch args and team name for mailbox.
+    // Errors are fatal — agent must not start without correct permissions.
     let (team_extra_args, team_name_from_id) = if let Some(ref tid) = team_id {
         let tid_clone = tid.clone();
         let aid_clone = agent_id.clone();
-        match tokio::task::spawn_blocking(move || {
+        let (extra_args, team_name) = tokio::task::spawn_blocking(move || {
             crate::teamwork::team::get_agent_launch_args_sync(&tid_clone, &aid_clone)
         })
         .await
-        {
-            Ok(Ok((extra_args, team_name))) => (extra_args, Some(team_name)),
-            Ok(Err(e)) => {
-                eprintln!("[conductor] Failed to get team launch args: {e}");
-                (Vec::new(), None)
-            }
-            Err(e) => {
-                eprintln!("[conductor] Team args task panic: {e}");
-                (Vec::new(), None)
-            }
-        }
+        .map_err(|e| format!("Team args task panic: {e}"))??;
+        (extra_args, Some(team_name))
     } else {
         (Vec::new(), None)
     };

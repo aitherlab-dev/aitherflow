@@ -3,7 +3,9 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, LazyLock, Mutex};
+use tauri::State;
 
+use crate::conductor::session::SessionManager;
 use crate::config;
 use crate::file_ops::{read_json, write_json};
 
@@ -159,7 +161,15 @@ pub async fn team_add_agent(
 }
 
 #[tauri::command]
-pub async fn team_remove_agent(team_id: String, agent_id: String) -> Result<(), String> {
+pub async fn team_remove_agent(
+    sessions: State<'_, SessionManager>,
+    team_id: String,
+    agent_id: String,
+) -> Result<(), String> {
+    // Kill session first (stops process + polling). Safe to call if no session exists.
+    sessions.kill(&agent_id).await;
+
+    // Then remove from team config
     tokio::task::spawn_blocking(move || {
         validate_name(&team_id, "team_id")?;
         validate_name(&agent_id, "agent_id")?;
