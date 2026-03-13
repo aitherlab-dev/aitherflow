@@ -180,17 +180,34 @@ async fn handle_get(Path(_agent_id): Path<String>) -> Response {
 }
 
 async fn handle_delete(
-    Path(_agent_id): Path<String>,
+    Path(agent_id): Path<String>,
     State(state): State<Arc<McpServerState>>,
     headers: HeaderMap,
 ) -> Response {
-    if let Some(sid) = headers
+    let sid = match headers
         .get("mcp-session-id")
         .and_then(|v| v.to_str().ok())
     {
-        state.sessions.write().await.remove(sid);
+        Some(s) => s.to_string(),
+        None => {
+            return (StatusCode::BAD_REQUEST, "Missing Mcp-Session-Id header")
+                .into_response();
+        }
+    };
+
+    let mut sessions = state.sessions.write().await;
+    match sessions.get(&sid) {
+        Some(owner) if owner == &agent_id => {
+            sessions.remove(&sid);
+            StatusCode::OK.into_response()
+        }
+        Some(_) => (
+            StatusCode::FORBIDDEN,
+            "Session does not belong to this agent",
+        )
+            .into_response(),
+        None => (StatusCode::BAD_REQUEST, "Invalid Mcp-Session-Id").into_response(),
     }
-    StatusCode::OK.into_response()
 }
 
 // ---------------------------------------------------------------------------
