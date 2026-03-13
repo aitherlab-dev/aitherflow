@@ -14,10 +14,12 @@ import {
   Compass,
   Play,
   Square,
+  UserCheck,
 } from "lucide-react";
 import { useTeamStore } from "../../stores/teamStore";
 import { useLayoutStore } from "../../stores/layoutStore";
-import type { Team, TeamAgent, AgentRole } from "../../types/team";
+import { invoke } from "../../lib/transport";
+import type { Team, TeamAgent, AgentRole, TeamTask, TeamMessage } from "../../types/team";
 
 const ROLE_ICON: Record<AgentRole, React.ElementType> = {
   coder: Code,
@@ -360,28 +362,22 @@ function MessagesSection({
   messages: TeamMessage[];
 }) {
   const [text, setText] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-
-  // Auto-set from/to from agent list
-  useEffect(() => {
-    if (team.agents.length > 0 && !from) {
-      setFrom(team.agents[0].agent_id);
-    }
-    if (team.agents.length > 1 && !to) {
-      setTo(team.agents[1].agent_id);
-    }
-  }, [team.agents, from, to]);
+  const [to, setTo] = useState("all");
 
   const handleSend = useCallback(async () => {
-    if (!text.trim() || !from || !to) return;
+    if (!text.trim()) return;
     try {
-      await useTeamStore.getState().sendMessage(team.name, from, to, text.trim());
+      const store = useTeamStore.getState();
+      if (to === "all") {
+        await store.broadcastMessage(team.name, "user", text.trim());
+      } else {
+        await store.sendMessage(team.name, "user", to, text.trim());
+      }
       setText("");
     } catch (e) {
       console.error("[TeamPanel] sendMessage:", e);
     }
-  }, [team.name, from, to, text]);
+  }, [team.name, to, text]);
 
   return (
     <div className="team-section">
@@ -407,25 +403,16 @@ function MessagesSection({
         )}
       </div>
 
-      {team.agents.length >= 2 && (
+      {team.agents.length > 0 && (
         <div className="team-send-bar">
-          <select
-            className="team-select team-select--small"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-          >
-            {team.agents.map((a) => (
-              <option key={a.agent_id} value={a.agent_id}>
-                {a.agent_id.slice(0, 8)}
-              </option>
-            ))}
-          </select>
+          <span className="team-send-bar__label">user</span>
           <span className="team-send-bar__arrow">&rarr;</span>
           <select
             className="team-select team-select--small"
             value={to}
             onChange={(e) => setTo(e.target.value)}
           >
+            <option value="all">All agents</option>
             {team.agents.map((a) => (
               <option key={a.agent_id} value={a.agent_id}>
                 {a.agent_id.slice(0, 8)}
@@ -462,24 +449,51 @@ function TasksSection({
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
+  const [assignTo, setAssignTo] = useState("");
 
   const handleCreate = useCallback(async () => {
     if (!title.trim()) return;
     try {
-      await useTeamStore.getState().createTask(team.name, title.trim(), desc.trim());
+      const store = useTeamStore.getState();
+      await store.createTask(team.name, title.trim(), desc.trim());
+      if (assignTo) {
+        // Re-fetch to get the new task, then claim it
+        const freshTasks = await invoke<TeamTask[]>("team_list_tasks", { team: team.name });
+        const created = freshTasks.find((t) => t.title === title.trim() && t.status === "pending");
+        if (created) {
+          await store.claimTask(team.name, created.id, assignTo);
+        }
+      }
       setTitle("");
       setDesc("");
+      setAssignTo("");
       setAdding(false);
     } catch (e) {
       console.error("[TeamPanel] createTask:", e);
     }
-  }, [team.name, title, desc]);
+  }, [team.name, title, desc, assignTo]);
 
-  const statusIcon = (status: string) => {
-    if (status === "completed") return <CheckCircle size={14} className="team-task__icon--done" />;
-    if (status === "in_progress") return <Clock size={14} className="team-task__icon--progress" />;
-    return <Circle size={14} className="team-task__icon--pending" />;
-  };
+  const handleClaim = useCallback(
+    async (taskId: string, agentId: string) => {
+      try {
+        await useTeamStore.getState().claimTask(team.name, taskId, agentId);
+      } catch (e) {
+        console.error("[TeamPanel] claimTask:", e);
+      }
+    },
+    [team.name],
+  );
+
+  const handleComplete = useCallback(
+    async (taskId: string, ownerId: string) => {
+      try {
+        await useTeamStore.getState().completeTask(team.name, taskId, ownerId);
+      } catch (e) {
+        console.error("[TeamPanel] completeTask:", e);
+      }
+    },
+    [team.name],
+  );
 
   return (
     <div className="team-section">
@@ -505,6 +519,20 @@ function TasksSection({
             value={desc}
             onChange={(e) => setDesc(e.target.value)}
           />
+          {team.agents.length > 0 && (
+            <select
+              className="team-select"
+              value={assignTo}
+              onChange={(e) => setAssignTo(e.target.value)}
+            >
+              <option value="">Unassigned</option>
+              {team.agents.map((a) => (
+                <option key={a.agent_id} value={a.agent_id}>
+                  {ROLE_LABEL[a.role]} ({a.agent_id.slice(0, 8)})
+                </option>
+              ))}
+            </select>
+          )}
           <div className="team-create-form__actions">
             <button className="team-btn team-btn--primary" onClick={handleCreate}>
               Create
@@ -521,18 +549,13 @@ function TasksSection({
           <p className="team-empty">No tasks</p>
         ) : (
           tasks.map((t) => (
-            <div key={t.id} className="team-task">
-              {statusIcon(t.status)}
-              <div className="team-task__info">
-                <span className="team-task__title">{t.title}</span>
-                {t.description && (
-                  <span className="team-task__desc">{t.description}</span>
-                )}
-              </div>
-              {t.owner && (
-                <span className="team-task__owner">{t.owner.slice(0, 8)}</span>
-              )}
-            </div>
+            <TaskCard
+              key={t.id}
+              task={t}
+              agents={team.agents}
+              onClaim={handleClaim}
+              onComplete={handleComplete}
+            />
           ))
         )}
       </div>
@@ -540,6 +563,84 @@ function TasksSection({
   );
 }
 
-// Re-export type for MessagesSection/TasksSection inline usage
-type TeamMessage = import("../../types/team").TeamMessage;
-type TeamTask = import("../../types/team").TeamTask;
+function TaskCard({
+  task,
+  agents,
+  onClaim,
+  onComplete,
+}: {
+  task: TeamTask;
+  agents: TeamAgent[];
+  onClaim: (taskId: string, agentId: string) => void;
+  onComplete: (taskId: string, ownerId: string) => void;
+}) {
+  const [assignAgent, setAssignAgent] = useState("");
+
+  const statusIcon = () => {
+    if (task.status === "completed") return <CheckCircle size={14} className="team-task__icon--done" />;
+    if (task.status === "in_progress") return <Clock size={14} className="team-task__icon--progress" />;
+    return <Circle size={14} className="team-task__icon--pending" />;
+  };
+
+  const statusClass =
+    task.status === "completed"
+      ? "team-task--completed"
+      : task.status === "in_progress"
+        ? "team-task--progress"
+        : "";
+
+  return (
+    <div className={`team-task ${statusClass}`}>
+      {statusIcon()}
+      <div className="team-task__info">
+        <span className="team-task__title">{task.title}</span>
+        {task.description && (
+          <span className="team-task__desc">{task.description}</span>
+        )}
+      </div>
+      <div className="team-task__actions">
+        {task.owner && (
+          <span className="team-task__owner">{task.owner.slice(0, 8)}</span>
+        )}
+        {task.status === "pending" && agents.length > 0 && (
+          <div className="team-task__assign">
+            <select
+              className="team-select team-select--small"
+              value={assignAgent}
+              onChange={(e) => setAssignAgent(e.target.value)}
+            >
+              <option value="">Assign...</option>
+              {agents.map((a) => (
+                <option key={a.agent_id} value={a.agent_id}>
+                  {a.agent_id.slice(0, 8)}
+                </option>
+              ))}
+            </select>
+            {assignAgent && (
+              <button
+                className="team-icon-btn team-icon-btn--accent"
+                onClick={() => {
+                  onClaim(task.id, assignAgent);
+                  setAssignAgent("");
+                }}
+                title="Assign"
+              >
+                <UserCheck size={12} />
+              </button>
+            )}
+          </div>
+        )}
+        {task.status === "in_progress" && task.owner && (
+          <button
+            className="team-icon-btn team-icon-btn--accent"
+            onClick={() => onComplete(task.id, task.owner!)}
+            title="Complete"
+          >
+            <CheckCircle size={12} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+

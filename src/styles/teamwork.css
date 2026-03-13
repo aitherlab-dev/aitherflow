@@ -284,6 +284,13 @@
   font-size: 0.8rem;
 }
 
+.team-send-bar__label {
+  font-size: 0.75rem;
+  color: var(--accent-stroke);
+  font-family: monospace;
+  flex-shrink: 0;
+}
+
 /* ── Tasks ── */
 
 .team-tasks-list {
@@ -344,6 +351,27 @@
   color: var(--accent-stroke);
   font-family: monospace;
   flex-shrink: 0;
+}
+
+.team-task__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.team-task__assign {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.team-task--completed {
+  opacity: 0.6;
+}
+
+.team-task--progress {
+  border-color: var(--accent-stroke);
 }
 
 /* ── Shared form elements ── */
