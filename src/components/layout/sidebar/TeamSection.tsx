@@ -47,8 +47,16 @@ export const TeamSection = memo(function TeamSection() {
     })),
   );
 
-  // Get current workspace project path from chatStore (always set, even without agents)
-  const projectPath = useChatStore((s) => s.projectPath);
+  // Effective project path: chatStore → active agent → first agent fallback
+  const chatProjectPath = useChatStore((s) => s.projectPath);
+  const projectPath = useMemo(() => {
+    if (chatProjectPath) return chatProjectPath;
+    const { agents, activeAgentId } = useAgentStore.getState();
+    const active = agents.find((a) => a.id === activeAgentId);
+    if (active?.projectPath) return active.projectPath;
+    if (agents.length > 0) return agents[0].projectPath;
+    return "";
+  }, [chatProjectPath]);
 
   // Fetch teams when section opens
   useEffect(() => {
@@ -57,9 +65,9 @@ export const TeamSection = memo(function TeamSection() {
     }
   }, [open, fetchTeams]);
 
-  // Filter teams for current workspace
+  // Filter teams for current workspace; show all if no project context
   const workspaceTeams = useMemo(
-    () => teams.filter((t) => t.project_path === projectPath),
+    () => projectPath ? teams.filter((t) => t.project_path === projectPath) : teams,
     [teams, projectPath],
   );
 
@@ -307,7 +315,11 @@ function NewTeamButton({ projectPath }: { projectPath: string }) {
   const [name, setName] = useState("");
 
   const handleCreate = useCallback(async () => {
-    if (!name.trim() || !projectPath) return;
+    if (!name.trim()) return;
+    if (!projectPath) {
+      console.error("[TeamSection] createTeam: no project path available");
+      return;
+    }
     try {
       await useTeamStore.getState().createTeam(name.trim(), projectPath);
       setName("");
