@@ -178,13 +178,40 @@ fn team_path(team_id: &str) -> PathBuf {
     teams_dir().join(format!("{team_id}.json"))
 }
 
+/// MCP teamwork tools available to all team agent roles.
+const MCP_TEAMWORK_COMMON: &[&str] = &[
+    "mcp__teamwork__send_message",
+    "mcp__teamwork__broadcast",
+    "mcp__teamwork__read_inbox",
+    "mcp__teamwork__list_tasks",
+    "mcp__teamwork__create_task",
+    "mcp__teamwork__claim_task",
+    "mcp__teamwork__complete_task",
+];
+
+/// Additional MCP teamwork tools for the architect role (management).
+const MCP_TEAMWORK_ARCHITECT: &[&str] = &[
+    "mcp__teamwork__start_agent",
+    "mcp__teamwork__stop_agent",
+    "mcp__teamwork__restart_agent",
+    "mcp__teamwork__list_agents",
+    "mcp__teamwork__send_prompt",
+];
+
 /// CLI launch arguments based on agent role.
 fn launch_args_for_role(role: &AgentRole) -> Vec<String> {
-    let tools = match role {
+    let base_tools = match role {
         AgentRole::Coder => "Edit,Write,Bash,Glob,Grep,Read",
         AgentRole::Reviewer | AgentRole::Architect => "Read,Glob,Grep",
     };
-    vec!["--allowedTools".to_string(), tools.to_string()]
+
+    let mut tools: Vec<&str> = base_tools.split(',').collect();
+    tools.extend(MCP_TEAMWORK_COMMON);
+    if *role == AgentRole::Architect {
+        tools.extend(MCP_TEAMWORK_ARCHITECT);
+    }
+
+    vec!["--allowedTools".to_string(), tools.join(",")]
 }
 
 /// Read team from disk (sync).
