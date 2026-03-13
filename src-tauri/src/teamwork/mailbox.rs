@@ -264,6 +264,61 @@ pub(crate) fn mark_read_sync(
     atomic_write(&path, output.as_bytes())
 }
 
+/// Read ALL messages from all inboxes in a team, sorted by timestamp.
+#[tauri::command]
+pub async fn team_read_all_messages(team: String) -> Result<Vec<TeamMessage>, String> {
+    tokio::task::spawn_blocking(move || {
+        validate_name(&team, "team")?;
+
+        let dir = inboxes_dir(&team);
+        if !dir.exists() {
+            return Ok(Vec::new());
+        }
+
+        let entries =
+            fs::read_dir(&dir).map_err(|e| format!("Failed to read inboxes dir: {e}"))?;
+
+        let mut all = Vec::new();
+        for entry in entries.flatten() {
+            let ft = entry
+                .file_type()
+                .map_err(|e| format!("Failed to get file type: {e}"))?;
+            if ft.is_symlink() || ft.is_dir() {
+                continue;
+            }
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("jsonl") {
+                continue;
+            }
+
+            let data = match fs::read_to_string(&path) {
+                Ok(d) => d,
+                Err(e) => {
+                    eprintln!("[teamwork] Failed to read {}: {e}", path.display());
+                    continue;
+                }
+            };
+
+            for (i, line) in data.lines().enumerate() {
+                if line.trim().is_empty() {
+                    continue;
+                }
+                match serde_json::from_str::<TeamMessage>(line) {
+                    Ok(msg) => all.push(msg),
+                    Err(e) => {
+                        eprintln!("[teamwork] Bad line {} in {}: {e}", i + 1, path.display());
+                    }
+                }
+            }
+        }
+
+        all.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+        Ok(all)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
 /// Mark specific messages as read in an agent's inbox.
 /// Rewrites the JSONL file with updated read flags.
 #[tauri::command]

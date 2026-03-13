@@ -54,12 +54,14 @@ export const TeamPanel = memo(function TeamPanel() {
 
   const activeTeam = teams.find((t) => t.id === activeTeamId) ?? null;
 
-  // Load tasks when active team changes
+  // Load tasks and messages when active team changes
   useEffect(() => {
-    if (activeTeam) {
-      useTeamStore.getState().fetchTasks(activeTeam.name).catch(console.error);
-    }
-  }, [activeTeam]);
+    if (!activeTeamId) return;
+    const team = useTeamStore.getState().teams.find((t) => t.id === activeTeamId);
+    if (!team) return;
+    useTeamStore.getState().fetchTasks(team.name).catch(console.error);
+    useTeamStore.getState().fetchAllMessages(team.name).catch(console.error);
+  }, [activeTeamId]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {

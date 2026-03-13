@@ -141,6 +141,7 @@ pub fn run() {
             teamwork::mailbox::team_send_message,
             teamwork::mailbox::team_broadcast,
             teamwork::mailbox::team_read_inbox,
+            teamwork::mailbox::team_read_all_messages,
             teamwork::mailbox::team_mark_read,
             teamwork::tasks::team_create_task,
             teamwork::tasks::team_claim_task,

@@ -21,7 +21,7 @@ interface TeamState {
   addAgent: (teamId: string, role: AgentRole, branch?: string | null) => Promise<TeamAgent>;
   removeAgent: (teamId: string, agentId: string) => Promise<void>;
 
-  fetchMessages: (teamName: string, agentId: string) => Promise<void>;
+  fetchAllMessages: (teamName: string) => Promise<void>;
   sendMessage: (teamName: string, from: string, to: string, text: string) => Promise<void>;
 
   fetchTasks: (teamName: string) => Promise<void>;
@@ -67,20 +67,20 @@ export const useTeamStore = create<TeamState>((set, get) => ({
     await get().fetchTeams();
   },
 
-  fetchMessages: async (teamName, agentId) => {
+  fetchAllMessages: async (teamName) => {
     try {
-      const msgs = await invoke<TeamMessage[]>("team_read_inbox", {
+      const msgs = await invoke<TeamMessage[]>("team_read_all_messages", {
         team: teamName,
-        agentId,
       });
       set({ messages: msgs });
     } catch (e) {
-      console.error("[teamStore] fetchMessages:", e);
+      console.error("[teamStore] fetchAllMessages:", e);
     }
   },
 
   sendMessage: async (teamName, from, to, text) => {
     await invoke("team_send_message", { team: teamName, from, to, text });
+    await get().fetchAllMessages(teamName);
   },
 
   fetchTasks: async (teamName) => {
