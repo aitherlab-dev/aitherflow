@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { Home, Settings, FolderOpen, GitBranch } from "lucide-react";
+import { Home, Settings, FolderOpen, GitBranch, Users } from "lucide-react";
 import { useIsMobile } from "../../../hooks/useIsMobile";
 import { useLayoutStore } from "../../../stores/layoutStore";
 import { useChatStore } from "../../../stores/chatStore";
@@ -24,6 +24,8 @@ export const Sidebar = memo(function Sidebar() {
     closeSettings,
     openWelcome,
     closeWelcome,
+    openTeamwork,
+    closeTeamwork,
   } = useLayoutStore(useShallow((s) => ({
     sidebarOpen: s.sidebarOpen,
     sidebarWidth: s.sidebarWidth,
@@ -33,6 +35,8 @@ export const Sidebar = memo(function Sidebar() {
     closeSettings: s.closeSettings,
     openWelcome: s.openWelcome,
     closeWelcome: s.closeWelcome,
+    openTeamwork: s.openTeamwork,
+    closeTeamwork: s.closeTeamwork,
   })));
 
   /** Close sidebar on mobile after navigation actions */
@@ -92,6 +96,15 @@ export const Sidebar = memo(function Sidebar() {
     },
     [agents.length, openWelcome],
   );
+
+  const handleTeamworkClick = useCallback(() => {
+    if (activeView === "teamwork") {
+      closeTeamwork();
+    } else {
+      openTeamwork();
+    }
+    closeMobile();
+  }, [activeView, closeTeamwork, openTeamwork, closeMobile]);
 
   const handleSettingsClick = useCallback(() => {
     if (activeView === "settings") {
@@ -288,6 +301,15 @@ export const Sidebar = memo(function Sidebar() {
           <div className="sidebar-spacer" />
           <div className="dashboard-accordion">
             <DashboardPanel />
+          </div>
+          <div
+            className="dash-card sidebar-nav-card"
+            onClick={handleTeamworkClick}
+          >
+            <div className="dash-card__header">
+              <Users size={14} className="dash-card__icon" />
+              <span className="dash-card__title">Teams</span>
+            </div>
           </div>
           <div
             className="dash-card sidebar-nav-card"

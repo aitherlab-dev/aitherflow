@@ -1,0 +1,104 @@
+import { create } from "zustand";
+import { invoke } from "../lib/transport";
+import type {
+  Team,
+  TeamAgent,
+  TeamMessage,
+  TeamTask,
+  AgentRole,
+} from "../types/team";
+
+interface TeamState {
+  teams: Team[];
+  activeTeamId: string | null;
+  messages: TeamMessage[];
+  tasks: TeamTask[];
+
+  setActiveTeam: (teamId: string | null) => void;
+
+  fetchTeams: () => Promise<void>;
+  createTeam: (name: string, projectPath: string) => Promise<Team>;
+  addAgent: (teamId: string, role: AgentRole, branch?: string | null) => Promise<TeamAgent>;
+  removeAgent: (teamId: string, agentId: string) => Promise<void>;
+
+  fetchMessages: (teamName: string, agentId: string) => Promise<void>;
+  sendMessage: (teamName: string, from: string, to: string, text: string) => Promise<void>;
+
+  fetchTasks: (teamName: string) => Promise<void>;
+  createTask: (teamName: string, title: string, description: string) => Promise<void>;
+}
+
+export const useTeamStore = create<TeamState>((set, get) => ({
+  teams: [],
+  activeTeamId: null,
+  messages: [],
+  tasks: [],
+
+  setActiveTeam: (teamId) => set({ activeTeamId: teamId, messages: [], tasks: [] }),
+
+  fetchTeams: async () => {
+    try {
+      const teams = await invoke<Team[]>("team_list");
+      set({ teams });
+    } catch (e) {
+      console.error("[teamStore] fetchTeams:", e);
+    }
+  },
+
+  createTeam: async (name, projectPath) => {
+    const team = await invoke<Team>("team_create", { name, projectPath });
+    await get().fetchTeams();
+    set({ activeTeamId: team.id });
+    return team;
+  },
+
+  addAgent: async (teamId, role, branch) => {
+    const agent = await invoke<TeamAgent>("team_add_agent", {
+      teamId,
+      role,
+      worktreeBranch: branch ?? null,
+    });
+    await get().fetchTeams();
+    return agent;
+  },
+
+  removeAgent: async (teamId, agentId) => {
+    await invoke("team_remove_agent", { teamId, agentId });
+    await get().fetchTeams();
+  },
+
+  fetchMessages: async (teamName, agentId) => {
+    try {
+      const msgs = await invoke<TeamMessage[]>("team_read_inbox", {
+        team: teamName,
+        agentId,
+      });
+      set({ messages: msgs });
+    } catch (e) {
+      console.error("[teamStore] fetchMessages:", e);
+    }
+  },
+
+  sendMessage: async (teamName, from, to, text) => {
+    await invoke("team_send_message", { team: teamName, from, to, text });
+  },
+
+  fetchTasks: async (teamName) => {
+    try {
+      const tasks = await invoke<TeamTask[]>("team_list_tasks", { team: teamName });
+      set({ tasks });
+    } catch (e) {
+      console.error("[teamStore] fetchTasks:", e);
+    }
+  },
+
+  createTask: async (teamName, title, description) => {
+    await invoke("team_create_task", {
+      team: teamName,
+      title,
+      description,
+      blockedBy: [],
+    });
+    await get().fetchTasks(teamName);
+  },
+}));
