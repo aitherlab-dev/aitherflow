@@ -216,7 +216,7 @@ function AgentsSection({ team }: { team: Team }) {
       try {
         await useTeamStore.getState().removeAgent(team.id, agentId);
         if (useAgentStore.getState().agents.some((a) => a.id === agentId)) {
-          await useAgentStore.getState().removeAgent(agentId);
+          await useAgentStore.getState().unregisterAgent(agentId);
         }
       } catch (e) {
         console.error("[TeamPanel] removeAgent:", e);
@@ -257,7 +257,7 @@ function AgentsSection({ team }: { team: Team }) {
       try {
         await useTeamStore.getState().stopAgent(team.id, agentId);
         if (useAgentStore.getState().agents.some((a) => a.id === agentId)) {
-          await useAgentStore.getState().removeAgent(agentId);
+          await useAgentStore.getState().unregisterAgent(agentId);
         }
       } catch (e) {
         console.error("[TeamPanel] stopAgent:", e);

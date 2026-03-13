@@ -42,6 +42,9 @@ interface AgentState {
   /** Update projectName for all agents bound to a given project path */
   renameProjectInAgents: (projectPath: string, newName: string) => Promise<void>;
 
+  /** Remove agent from store without stopping CLI (session already killed externally) */
+  unregisterAgent: (agentId: string) => Promise<void>;
+
   /** Register a team agent (or switch to it if already registered) */
   registerTeamAgent: (
     agentId: string,
@@ -261,6 +264,34 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     );
     set({ agents: updated });
     await persist(updated, activeAgentId);
+  },
+
+  unregisterAgent: async (agentId) => {
+    const { agents, activeAgentId, chatLocks } = get();
+
+    const remainingLocks = { ...chatLocks };
+    clearAgentState(agentId);
+    delete remainingLocks[agentId];
+
+    const updated = agents.filter((a) => a.id !== agentId);
+    let newActiveId = activeAgentId;
+
+    set({ chatLocks: remainingLocks });
+
+    if (activeAgentId === agentId) {
+      newActiveId = updated[0]?.id ?? null;
+    }
+
+    set({ agents: updated, activeAgentId: newActiveId });
+    await persist(updated, newActiveId);
+
+    if (activeAgentId === agentId && newActiveId) {
+      const newAgent = updated.find((a) => a.id === newActiveId);
+      if (newAgent) {
+        const savedChatId = remainingLocks[newActiveId] ?? null;
+        await switchAgent(newAgent.id, newAgent.projectPath, newAgent.projectName, savedChatId);
+      }
+    }
   },
 
   registerTeamAgent: async (agentId, projectPath, projectName, teamId, teamRole) => {
