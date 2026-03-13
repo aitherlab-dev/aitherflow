@@ -138,6 +138,7 @@ pub async fn team_broadcast(
         validate_name(&from, "from")?;
 
         for agent_id in &agent_ids {
+            validate_name(agent_id, "agent_id")?;
             if *agent_id == from {
                 continue;
             }
