@@ -9,28 +9,14 @@ import {
   Square,
   Plus,
   Trash2,
-  Code,
-  Eye,
-  Compass,
+  User,
   GitBranch,
 } from "lucide-react";
 import { useTeamStore } from "../../../stores/teamStore";
 import { useAgentStore } from "../../../stores/agentStore";
 import { useChatStore } from "../../../stores/chatStore";
 import { useLayoutStore } from "../../../stores/layoutStore";
-import type { Team, TeamAgent, AgentRole } from "../../../types/team";
-
-const ROLE_ICON: Record<AgentRole, React.ElementType> = {
-  coder: Code,
-  reviewer: Eye,
-  architect: Compass,
-};
-
-const ROLE_LABEL: Record<AgentRole, string> = {
-  coder: "Coder",
-  reviewer: "Reviewer",
-  architect: "Architect",
-};
+import type { Team, TeamAgent } from "../../../types/team";
 
 const STATUS_CLASS: Record<string, string> = {
   idle: "team-dot--gray",
@@ -222,7 +208,6 @@ function TeamAgentRow({
   team: Team;
   isActive: boolean;
 }) {
-  const RoleIcon = ROLE_ICON[agent.role];
   const isRunning = agent.status === "running";
 
   const handleClick = useCallback(() => {
@@ -255,9 +240,9 @@ function TeamAgentRow({
       await useAgentStore.getState().registerTeamAgent(
         agent.agent_id,
         team.project_path,
-        `${ROLE_LABEL[agent.role]} · ${team.name}`,
+        `${agent.role.name} · ${team.name}`,
         team.id,
-        agent.role,
+        agent.role.name,
       );
 
       if (useLayoutStore.getState().activeView === "teamwork") {
@@ -287,8 +272,8 @@ function TeamAgentRow({
       className={`teams-agent ${isActive ? "teams-agent--active" : ""} ${isRunning ? "teams-agent--clickable" : ""}`}
       onClick={isRunning ? handleClick : undefined}
     >
-      <RoleIcon size={12} className="teams-agent__icon" />
-      <span className="teams-agent__name">{ROLE_LABEL[agent.role]}</span>
+      <User size={12} className="teams-agent__icon" />
+      <span className="teams-agent__name">{agent.role.name}</span>
       {agent.worktree_branch && (
         <span className="teams-agent__branch" title={agent.worktree_branch}>
           <GitBranch size={10} />
@@ -319,4 +304,3 @@ function TeamAgentRow({
     </div>
   );
 }
-

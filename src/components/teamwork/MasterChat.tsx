@@ -5,37 +5,17 @@ import {
   ArrowUp,
   ArrowDown,
   Trash2,
-  Code,
-  Eye,
-  Compass,
   User,
   MessageSquare,
 } from "lucide-react";
 import { useTeamStore } from "../../stores/teamStore";
 import { useLayoutStore } from "../../stores/layoutStore";
-import type { AgentRole } from "../../types/team";
-
-/* ── Role config ── */
-
-const ROLE_ICON: Record<AgentRole | "user", React.ElementType> = {
-  coder: Code,
-  reviewer: Eye,
-  architect: Compass,
-  user: User,
-};
-
-const ROLE_LABEL: Record<AgentRole | "user", string> = {
-  coder: "Coder",
-  reviewer: "Reviewer",
-  architect: "Architect",
-  user: "You",
-};
 
 /* ── Unified message type for the feed ── */
 
 interface FeedMessage {
   id: string;
-  sender: AgentRole | "user";
+  sender: string;
   agentId?: string;
   text: string;
   timestamp: number;
@@ -84,12 +64,12 @@ export const MasterChat = memo(function MasterChat() {
     return () => clearInterval(interval);
   }, [team, fetchAllMessages]);
 
-  // Build agent role map
+  // Build agent role map: agentId → { name, canManage }
   const agentRoleMap = useMemo(() => {
-    const map = new Map<string, AgentRole>();
+    const map = new Map<string, { name: string; canManage: boolean }>();
     if (team) {
       for (const a of team.agents) {
-        map.set(a.agent_id, a.role);
+        map.set(a.agent_id, { name: a.role.name, canManage: a.role.can_manage });
       }
     }
     return map;
@@ -101,12 +81,12 @@ export const MasterChat = memo(function MasterChat() {
     const items: FeedMessage[] = [];
 
     for (const msg of mailboxMessages) {
-      const role = msg.from === "user"
-        ? "user" as const
-        : agentRoleMap.get(msg.from) ?? ("coder" as AgentRole);
+      const sender = msg.from === "user"
+        ? "user"
+        : agentRoleMap.get(msg.from)?.name ?? "Agent";
       items.push({
         id: `mail-${msg.id}`,
-        sender: role,
+        sender,
         agentId: msg.from === "user" ? undefined : msg.from,
         text: msg.text,
         timestamp: new Date(msg.timestamp).getTime(),
@@ -214,7 +194,11 @@ export const MasterChat = memo(function MasterChat() {
           </div>
         ) : (
           feed.map((msg) => (
-            <FeedItem key={msg.id} msg={msg} />
+            <FeedItem
+              key={msg.id}
+              msg={msg}
+              isManager={msg.agentId ? (agentRoleMap.get(msg.agentId)?.canManage ?? false) : false}
+            />
           ))
         )}
         {showScrollBtn && (
@@ -228,7 +212,7 @@ export const MasterChat = memo(function MasterChat() {
         )}
       </div>
 
-      <SendBar team={team} />
+      <SendBar team={team} agentRoleMap={agentRoleMap} />
     </div>
   );
 });
@@ -237,11 +221,10 @@ export const MasterChat = memo(function MasterChat() {
 
 const COLLAPSE_THRESHOLD = 150;
 
-function FeedItem({ msg }: { msg: FeedMessage }) {
-  const Icon = ROLE_ICON[msg.sender];
-  const label = ROLE_LABEL[msg.sender];
-  const isRight = msg.sender === "architect" || msg.sender === "user";
+function FeedItem({ msg, isManager }: { msg: FeedMessage; isManager: boolean }) {
+  const isRight = msg.sender === "user" || isManager;
   const side = isRight ? "right" : "left";
+  const label = msg.sender === "user" ? "You" : msg.sender;
 
   const needsCollapse = msg.text.length > COLLAPSE_THRESHOLD;
   const [collapsed, setCollapsed] = useState(needsCollapse);
@@ -254,7 +237,7 @@ function FeedItem({ msg }: { msg: FeedMessage }) {
     <div className={`master-chat__msg-wrap master-chat__msg-wrap--${side}`}>
       <div className={`master-chat__bubble master-chat__bubble--${side}`}>
         <div className="master-chat__msg-header">
-          <Icon size={13} className={`master-chat__msg-icon master-chat__msg-icon--${msg.sender}`} />
+          <User size={13} className="master-chat__msg-icon" />
           <span className="master-chat__msg-sender">{label}</span>
           <span className="master-chat__msg-time">
             {new Date(msg.timestamp).toLocaleTimeString()}
@@ -276,7 +259,13 @@ function FeedItem({ msg }: { msg: FeedMessage }) {
 
 /* ── Send bar ── */
 
-function SendBar({ team }: { team: { name: string; agents: { agent_id: string; role: AgentRole }[] } }) {
+function SendBar({
+  team,
+  agentRoleMap,
+}: {
+  team: { name: string; agents: { agent_id: string }[] };
+  agentRoleMap: Map<string, { name: string; canManage: boolean }>;
+}) {
   const [text, setText] = useState("");
   const [to, setTo] = useState("all");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -338,7 +327,7 @@ function SendBar({ team }: { team: { name: string; agents: { agent_id: string; r
               <option value="all">All agents</option>
               {team.agents.map((a) => (
                 <option key={a.agent_id} value={a.agent_id}>
-                  {ROLE_LABEL[a.role] ?? a.role}
+                  {agentRoleMap.get(a.agent_id)?.name ?? "Agent"}
                 </option>
               ))}
             </select>

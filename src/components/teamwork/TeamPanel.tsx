@@ -9,9 +9,7 @@ import {
   CheckCircle,
   Circle,
   Clock,
-  Code,
-  Eye,
-  Compass,
+  User,
   Play,
   Square,
   UserCheck,
@@ -27,18 +25,6 @@ interface WorktreeEntry {
   branch: string;
   isBare: boolean;
 }
-
-const ROLE_ICON: Record<AgentRole, React.ElementType> = {
-  coder: Code,
-  reviewer: Eye,
-  architect: Compass,
-};
-
-const ROLE_LABEL: Record<AgentRole, string> = {
-  coder: "Coder",
-  reviewer: "Reviewer",
-  architect: "Architect",
-};
 
 const STATUS_CLASS: Record<string, string> = {
   idle: "team-dot--gray",
@@ -235,26 +221,32 @@ function CreateTeamButton() {
 
 function AgentsSection({ team }: { team: Team }) {
   const [adding, setAdding] = useState(false);
-  const [role, setRole] = useState<AgentRole>("coder");
+  const [roles, setRoles] = useState<AgentRole[]>([]);
+  const [selectedRole, setSelectedRole] = useState<AgentRole | null>(null);
   const [branch, setBranch] = useState("");
   const [worktrees, setWorktrees] = useState<WorktreeEntry[]>([]);
 
   useEffect(() => {
     if (!adding) return;
+    invoke<AgentRole[]>("roles_list").then((r) => {
+      setRoles(r);
+      if (r.length > 0) setSelectedRole(r[0]);
+    }).catch(console.error);
     invoke<WorktreeEntry[]>("get_worktrees", { projectPath: team.project_path })
       .then(setWorktrees)
       .catch(console.error);
   }, [adding, team.project_path]);
 
   const handleAdd = useCallback(async () => {
+    if (!selectedRole) return;
     try {
-      await useTeamStore.getState().addAgent(team.id, role, branch || null);
+      await useTeamStore.getState().addAgent(team.id, selectedRole, branch || null);
       setAdding(false);
       setBranch("");
     } catch (e) {
       console.error("[TeamPanel] addAgent:", e);
     }
-  }, [team.id, role, branch]);
+  }, [team.id, selectedRole, branch]);
 
   const handleRemove = useCallback(
     async (agentId: string) => {
@@ -288,9 +280,9 @@ function AgentsSection({ team }: { team: Team }) {
       await useAgentStore.getState().registerTeamAgent(
         agentId,
         team.project_path,
-        `${ROLE_LABEL[agent.role]} · ${team.name}`,
+        `${agent.role.name} · ${team.name}`,
         team.id,
-        agent.role,
+        agent.role.name,
       );
       useLayoutStore.getState().closeTeamwork();
     },
@@ -335,12 +327,15 @@ function AgentsSection({ team }: { team: Team }) {
         <div className="team-add-agent">
           <select
             className="team-select"
-            value={role}
-            onChange={(e) => setRole(e.target.value as AgentRole)}
+            value={selectedRole?.name ?? ""}
+            onChange={(e) => {
+              const found = roles.find((r) => r.name === e.target.value);
+              if (found) setSelectedRole(found);
+            }}
           >
-            <option value="coder">Coder</option>
-            <option value="reviewer">Reviewer</option>
-            <option value="architect">Architect</option>
+            {roles.map((r) => (
+              <option key={r.name} value={r.name}>{r.name}</option>
+            ))}
           </select>
           <select
             className="team-select"
@@ -397,7 +392,6 @@ function AgentCard({
   onStop: (id: string) => void;
   onCardClick: (id: string) => void;
 }) {
-  const RoleIcon = ROLE_ICON[agent.role];
   const isRunning = agent.status === "running";
 
   return (
@@ -406,8 +400,8 @@ function AgentCard({
       onClick={() => onCardClick(agent.agent_id)}
     >
       <div className="team-agent-card__top">
-        <RoleIcon size={14} className="team-agent-card__role-icon" />
-        <span className="team-agent-card__role">{ROLE_LABEL[agent.role]}</span>
+        <User size={14} className="team-agent-card__role-icon" />
+        <span className="team-agent-card__role">{agent.role.name}</span>
         <span className={`team-dot ${STATUS_CLASS[agent.status]}`} />
         <span className="team-agent-card__status">{agent.status}</span>
       </div>
@@ -617,7 +611,7 @@ function TasksSection({
               <option value="">Unassigned</option>
               {team.agents.map((a) => (
                 <option key={a.agent_id} value={a.agent_id}>
-                  {ROLE_LABEL[a.role]} ({a.agent_id.slice(0, 8)})
+                  {a.role.name} ({a.agent_id.slice(0, 8)})
                 </option>
               ))}
             </select>
@@ -732,4 +726,3 @@ function TaskCard({
     </div>
   );
 }
-

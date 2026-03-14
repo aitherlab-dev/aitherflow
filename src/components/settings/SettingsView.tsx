@@ -2,6 +2,7 @@ import { useCallback, useEffect } from "react";
 import {
   X,
   User,
+  Users,
   Webhook,
   FileText,
   FolderOpen,
@@ -25,9 +26,11 @@ import { McpSection } from "./mcp-section";
 import { CliStatsSection } from "./CliStatsSection";
 import { HotkeysSection } from "./HotkeysSection";
 import { ClaudeMdSection } from "./ClaudeMdSection";
+import { RolesSection } from "./RolesSection";
 
 const NAV_ITEMS = [
   { id: "general", label: "General", icon: User },
+  { id: "roles", label: "Roles", icon: Users },
   { id: "hotkeys", label: "Hotkeys", icon: Keyboard },
   { id: "hooks", label: "Hooks", icon: Webhook },
   { id: "mcp", label: "MCP Servers", icon: Cable },
@@ -98,6 +101,9 @@ export function SettingsView() {
 function SectionContent({ section }: { section: string }) {
   if (section === "general") {
     return <GeneralSection />;
+  }
+  if (section === "roles") {
+    return <RolesSection />;
   }
   if (section === "skills") {
     return <SkillsSection />;

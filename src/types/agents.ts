@@ -8,8 +8,8 @@ export interface AgentEntry {
   parentAgentId?: string;
   /** If set, this agent belongs to a team (not persisted to disk) */
   teamId?: string;
-  /** Role within the team */
-  teamRole?: "coder" | "reviewer" | "architect";
+  /** Role name within the team */
+  teamRole?: string;
 }
 
 export interface AgentsConfig {

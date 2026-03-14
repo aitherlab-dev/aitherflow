@@ -1,4 +1,10 @@
-export type AgentRole = "coder" | "reviewer" | "architect";
+export interface AgentRole {
+  name: string;
+  system_prompt: string;
+  allowed_tools: string[];
+  can_manage: boolean;
+}
+
 export type AgentStatus = "idle" | "running" | "stopped";
 export type TaskStatus = "pending" | "in_progress" | "completed";
 

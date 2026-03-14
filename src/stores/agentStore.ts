@@ -51,7 +51,7 @@ interface AgentState {
     projectPath: string,
     projectName: string,
     teamId: string,
-    teamRole: "coder" | "reviewer" | "architect",
+    teamRole: string,
   ) => Promise<void>;
 }
 
