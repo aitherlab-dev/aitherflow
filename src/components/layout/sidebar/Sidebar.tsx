@@ -294,6 +294,9 @@ export const Sidebar = memo(function Sidebar() {
             </div>
           )}
 
+          {/* Teams — dash-card style, accordion expands below */}
+          <TeamSection />
+
           {/* Files — dash-card style button, accordion expands below */}
           <div
             className={`dash-card sidebar-files-toggle ${filesOpen ? "dash-card--expanded" : ""}`}
@@ -309,9 +312,6 @@ export const Sidebar = memo(function Sidebar() {
               <FilesPanel />
             </div>
           )}
-
-          {/* Teams — dash-card style, accordion expands below */}
-          <TeamSection />
 
           {/* Spacer — absorbs free space between agents and bottom items */}
           <div className="sidebar-spacer" />

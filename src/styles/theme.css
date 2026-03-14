@@ -73,6 +73,8 @@
   --test-ok-bg: rgba(80, 160, 80, 0.12);
   --test-fail-bg: rgba(200, 80, 80, 0.12);
 
+  --selection-bg: rgba(168, 78, 28, 0.35);
+
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
   --shadow-md: 0 8px 32px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2);
   --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.25);

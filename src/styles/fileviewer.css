@@ -394,6 +394,15 @@
   overflow: auto;
 }
 
+.fv-code-editor .cm-content ::selection {
+  background: var(--selection-bg) !important;
+  color: inherit;
+}
+
+.fv-code-editor .cm-selectionBackground {
+  background: var(--selection-bg) !important;
+}
+
 /* ── Code viewer ── */
 
 .fv-code-viewer {

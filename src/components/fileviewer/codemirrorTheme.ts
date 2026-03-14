@@ -15,6 +15,7 @@ export function createTheme(): Extension[] {
   const fgMuted = cssVar("--fg-muted");
   const fgDim = cssVar("--fg-dim");
   const bgHover = cssVar("--bg-hover");
+  const selectionBg = cssVar("--selection-bg");
 
   const red = cssVar("--red");
   const green = cssVar("--green");
@@ -43,7 +44,8 @@ export function createTheme(): Extension[] {
     },
     "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection":
       {
-        backgroundColor: bgHover,
+        backgroundColor: selectionBg + " !important",
+        color: "inherit",
       },
     ".cm-gutters": {
       backgroundColor: "transparent",
