@@ -409,6 +409,13 @@ export async function deleteChat(chatId: string) {
       useAgentStore.getState().updateChatLock(current.agentId, null);
     }
 
+    // Clean up agentStates entries that referenced the deleted chat
+    for (const [agentId, agentState] of agentStates) {
+      if (agentState.chatId === chatId) {
+        agentStates.delete(agentId);
+      }
+    }
+
     await loadChatList();
   } catch (e) {
     console.error("Failed to delete chat:", e);
