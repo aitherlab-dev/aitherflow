@@ -19,6 +19,7 @@ import {
   type AgentChatState,
 } from "./chatStore";
 import { useConductorStore } from "./conductorStore";
+import { removingAgentIds } from "./agentStore";
 
 // ── RAF batching for stream chunks: buffer latest text, flush at ~60fps ──
 
@@ -247,6 +248,9 @@ function processEventCore(
 // ── Single event handler for ALL agents ──
 
 function handleCliEvent(e: CliEvent) {
+  // Ignore late events from agents being removed
+  if (removingAgentIds.has(e.agent_id)) return;
+
   const { getState: get, setState: set } = useChatStore;
   const isActive = e.agent_id === get().agentId;
 
