@@ -92,7 +92,7 @@ export const TeamSection = memo(function TeamSection() {
           {workspaceTeams.map((team) => (
             <TeamItem key={team.id} team={team} />
           ))}
-          <NewTeamButton projectPath={projectPath} />
+          <NewTeamButton projectPath={projectPath} teamsCount={workspaceTeams.length} />
           {workspaceTeams.length === 0 && (
             <div className="teams-empty">No teams yet</div>
           )}
@@ -337,58 +337,28 @@ function TeamAgentRow({
 
 /* ── New team button ── */
 
-function NewTeamButton({ projectPath }: { projectPath: string }) {
-  const [creating, setCreating] = useState(false);
-  const [name, setName] = useState("");
-
+function NewTeamButton({ projectPath, teamsCount }: { projectPath: string; teamsCount: number }) {
   const handleCreate = useCallback(async () => {
-    if (!name.trim()) return;
     if (!projectPath) {
       console.error("[TeamSection] createTeam: no project path available");
       return;
     }
     try {
-      await useTeamStore.getState().createTeam(name.trim(), projectPath);
-      setName("");
-      setCreating(false);
+      const defaultName = `Team ${teamsCount + 1}`;
+      await useTeamStore.getState().createTeam(defaultName, projectPath);
+      useLayoutStore.getState().openTeamwork();
     } catch (e) {
       console.error("[TeamSection] createTeam:", e);
     }
-  }, [name, projectPath]);
-
-  if (!creating) {
-    return (
-      <button
-        className="teams-new-btn"
-        onClick={() => setCreating(true)}
-      >
-        <Plus size={11} />
-        <span>New Team</span>
-      </button>
-    );
-  }
+  }, [projectPath, teamsCount]);
 
   return (
-    <div className="teams-create-form">
-      <input
-        className="teams-create-form__input"
-        placeholder="Team name"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.code === "Enter") handleCreate().catch(console.error);
-          if (e.code === "Escape") setCreating(false);
-        }}
-        autoFocus
-      />
-      <div className="teams-create-form__actions">
-        <button className="teams-create-form__btn teams-create-form__btn--primary" onClick={handleCreate}>
-          Create
-        </button>
-        <button className="teams-create-form__btn" onClick={() => setCreating(false)}>
-          Cancel
-        </button>
-      </div>
-    </div>
+    <button
+      className="teams-new-btn"
+      onClick={handleCreate}
+    >
+      <Plus size={11} />
+      <span>New Team</span>
+    </button>
   );
 }
