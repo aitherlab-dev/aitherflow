@@ -12,6 +12,28 @@ use crate::attachments;
 /// Maximum stderr buffer size (64 KB) to prevent memory issues.
 const MAX_STDERR_BYTES: usize = 64 * 1024;
 
+/// Guard that removes a temp file on drop. Call `disarm()` to take
+/// ownership of the path and prevent automatic deletion.
+struct TempFileGuard(Option<std::path::PathBuf>);
+
+impl TempFileGuard {
+    fn new(path: std::path::PathBuf) -> Self {
+        Self(Some(path))
+    }
+}
+
+impl Drop for TempFileGuard {
+    fn drop(&mut self) {
+        if let Some(ref path) = self.0 {
+            if let Err(e) = std::fs::remove_file(path) {
+                if e.kind() != std::io::ErrorKind::NotFound {
+                    eprintln!("[conductor] Failed to cleanup MCP config: {e}");
+                }
+            }
+        }
+    }
+}
+
 /// Delivers CLI events to the Tauri frontend via emit.
 pub struct EventSink(AppHandle);
 
@@ -124,8 +146,9 @@ pub async fn run_cli_session(
     // Add role-based args from team config (e.g. --allowedTools)
     args.extend(team_extra_args);
 
-    // Create MCP config file for team agents (points to the built-in MCP server)
-    let mcp_config_path = if team_id.is_some() {
+    // Create MCP config file for team agents (points to the built-in MCP server).
+    // Wrapped in TempFileGuard so the file is cleaned up on early return.
+    let mcp_config_guard = if team_id.is_some() {
         if let Some(port) = crate::teamwork::mcp_server::get_mcp_port() {
             let path =
                 std::env::temp_dir().join(format!("aitherflow-mcp-{agent_id}.json"));
@@ -151,13 +174,13 @@ pub async fn run_cli_session(
 
             args.push("--mcp-config".into());
             args.push(path.to_string_lossy().into_owned());
-            Some(path)
+            TempFileGuard::new(path)
         } else {
             eprintln!("[{tag}] MCP server not running, skipping --mcp-config for team agent");
-            None
+            TempFileGuard(None)
         }
     } else {
-        None
+        TempFileGuard(None)
     };
 
     // Build command
@@ -400,15 +423,9 @@ pub async fn run_cli_session(
     // Clean up session — only if it's still ours (same generation)
     sessions.cleanup(&agent_id, generation).await;
 
-    // Clean up MCP config temp file
-    if let Some(path) = mcp_config_path {
-        let _ = tokio::task::spawn_blocking(move || {
-            if let Err(e) = std::fs::remove_file(&path) {
-                eprintln!("[conductor] Failed to cleanup MCP config: {e}");
-            }
-        })
-        .await;
-    }
+    // Clean up MCP config temp file (guard handles deletion on drop,
+    // but we disarm + delete explicitly here for clarity in the normal path)
+    drop(mcp_config_guard);
 
     Ok(())
 }

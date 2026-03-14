@@ -264,6 +264,15 @@ async fn handle_initialize(
     agent_id: &str,
     state: &McpServerState,
 ) -> Response {
+    // Only registered agents can open MCP sessions
+    if !state.agents.read().await.contains_key(agent_id) {
+        return jsonrpc_error_response(
+            id,
+            -32600,
+            &format!("Agent '{agent_id}' is not registered"),
+        );
+    }
+
     let session_id = uuid::Uuid::new_v4().to_string();
     state
         .sessions
