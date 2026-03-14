@@ -667,17 +667,18 @@
 }
 
 .teams-agent__name {
-  flex: 0 0 auto;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .teams-agent__branch {
   display: flex;
   align-items: center;
   gap: 2px;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  flex-shrink: 0;
   font-size: 0.7rem;
   color: var(--fg-dim);
 }
