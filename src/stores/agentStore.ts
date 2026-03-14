@@ -163,7 +163,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       } catch (e) {
         console.error(`[agentStore] stop_session for ${id}:`, e);
       }
-      clearAgentState(id);
+      await clearAgentState(id);
       delete remainingLocks[id];
     }
 
@@ -266,7 +266,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     const { agents, activeAgentId, chatLocks } = get();
 
     const remainingLocks = { ...chatLocks };
-    clearAgentState(agentId);
+    await clearAgentState(agentId);
     delete remainingLocks[agentId];
 
     const updated = agents.filter((a) => a.id !== agentId);

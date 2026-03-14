@@ -543,14 +543,18 @@ async function switchAgentInner(
   syncThinkingIds();
 }
 
-export function clearAgentState(agentId: string) {
+export async function clearAgentState(agentId: string) {
   // Save background agent messages before discarding state
   const state = agentStates.get(agentId);
   if (state?.chatId && state.messages.length > 0) {
-    invoke("save_chat_messages", {
-      chatId: state.chatId,
-      messages: messagesToStored(state.messages),
-    }).catch(console.error);
+    try {
+      await invoke("save_chat_messages", {
+        chatId: state.chatId,
+        messages: messagesToStored(state.messages),
+      });
+    } catch (e) {
+      console.error("[clearAgentState] Failed to save messages:", e);
+    }
   }
   agentStates.delete(agentId);
   const { thinkingAgentIds } = useChatStore.getState();
