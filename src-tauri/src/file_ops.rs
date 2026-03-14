@@ -67,16 +67,22 @@ pub fn atomic_write(path: &Path, data: &[u8]) -> Result<(), String> {
     }
     file.write_all(data)
         .map_err(|e| {
-            let _ = fs::remove_file(&tmp);
+            if let Err(re) = fs::remove_file(&tmp) {
+                eprintln!("[file_ops] Failed to clean up temp file {}: {re}", tmp.display());
+            }
             format!("Failed to write temp file: {e}")
         })?;
     file.sync_all()
         .map_err(|e| {
-            let _ = fs::remove_file(&tmp);
+            if let Err(re) = fs::remove_file(&tmp) {
+                eprintln!("[file_ops] Failed to clean up temp file {}: {re}", tmp.display());
+            }
             format!("Failed to sync temp file: {e}")
         })?;
     fs::rename(&tmp, path).map_err(|e| {
-        let _ = fs::remove_file(&tmp);
+        if let Err(re) = fs::remove_file(&tmp) {
+            eprintln!("[file_ops] Failed to clean up temp file {}: {re}", tmp.display());
+        }
         format!("Failed to rename temp file: {e}")
     })?;
     Ok(())
