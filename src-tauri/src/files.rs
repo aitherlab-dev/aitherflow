@@ -26,6 +26,13 @@ const IGNORED: &[&str] = &[
 /// Check that path is under $HOME, /tmp, /mnt, or /run/media (canonicalized).
 /// For nonexistent paths (e.g. new file creation), resolves the nearest existing ancestor.
 pub fn validate_path_safe(path: &Path) -> Result<(), String> {
+    // Defense in depth: reject URL-encoded traversal sequences in the raw path string
+    let path_str = path.to_string_lossy();
+    let path_lower = path_str.to_ascii_lowercase();
+    if path_lower.contains("%2e%2e") || path_lower.contains("%2f") || path_lower.contains("%5c") {
+        return Err("Path contains URL-encoded traversal sequences".into());
+    }
+
     let canonical = match path.canonicalize() {
         Ok(c) => c,
         Err(e) => {
@@ -41,7 +48,12 @@ pub fn validate_path_safe(path: &Path) -> Result<(), String> {
                                 return Err("Path traversal in non-existent portion".into());
                             }
                         }
-                        resolved = Some(c.join(rest));
+                        let joined = c.join(rest);
+                        // Verify the joined path still falls under the ancestor
+                        if !joined.starts_with(&c) {
+                            return Err("Path escapes resolved ancestor after join".into());
+                        }
+                        resolved = Some(joined);
                     }
                     break;
                 }
@@ -230,6 +242,18 @@ mod tests {
         let home = crate::config::home_dir();
         // Nonexistent path with ".." in non-existent portion
         let path = home.join("nonexistent_dir").join("..").join("..").join("etc");
+        assert!(validate_path_safe(&path).is_err());
+    }
+
+    #[test]
+    fn validate_path_safe_url_encoded_traversal() {
+        let path = PathBuf::from("/tmp/%2e%2e/%2e%2e/etc/passwd");
+        assert!(validate_path_safe(&path).is_err());
+    }
+
+    #[test]
+    fn validate_path_safe_url_encoded_slash() {
+        let path = PathBuf::from("/tmp/foo%2fbar");
         assert!(validate_path_safe(&path).is_err());
     }
 }
