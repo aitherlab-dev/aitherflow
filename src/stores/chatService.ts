@@ -76,10 +76,13 @@ export async function sendMessage(text: string, allAttachments?: Attachment[]) {
   const state = useChatStore.getState();
   let chatId = state.currentChatId;
 
-  // Auto-accept all pending diffs when user sends a new message
-  import("./fileViewerStore").then(({ useFileViewerStore }) => {
+  // Auto-accept all pending diffs when user sends a new message (before state change)
+  try {
+    const { useFileViewerStore } = await import("./fileViewerStore");
     useFileViewerStore.getState().acceptAllPending();
-  }).catch(console.error);
+  } catch (e) {
+    console.error("[sendMessage] Failed to accept pending diffs:", e);
+  }
 
   // Guard against double-click during chat creation
   if (!chatId && isCreatingChat) return;
