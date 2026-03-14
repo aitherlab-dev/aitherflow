@@ -143,49 +143,53 @@ pub(crate) fn broadcast_sync(
     Ok(())
 }
 
-/// Send a message from one agent to another
+/// Send a message from one agent to another. Returns the message ID.
 #[tauri::command]
 pub async fn team_send_message(
     team: String,
     from: String,
     to: String,
     text: String,
-) -> Result<(), String> {
+) -> Result<String, String> {
     tokio::task::spawn_blocking(move || {
         validate_name(&team, "team")?;
         validate_name(&from, "from")?;
         validate_name(&to, "to")?;
         let msg = new_message(&from, &to, &text, None);
-        append_to_inbox(&team, &msg)
+        let id = msg.id.clone();
+        append_to_inbox(&team, &msg)?;
+        Ok(id)
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
 }
 
 /// Broadcast a message to specified agents (except sender).
-/// `agent_ids` is the explicit list of recipients — avoids relying on inbox files existing.
+/// Returns a map of agent_id → message_id for each recipient.
 #[tauri::command]
 pub async fn team_broadcast(
     team: String,
     from: String,
     text: String,
     agent_ids: Vec<String>,
-) -> Result<(), String> {
+) -> Result<HashMap<String, String>, String> {
     tokio::task::spawn_blocking(move || {
         validate_name(&team, "team")?;
         validate_name(&from, "from")?;
 
         let bid = uuid::Uuid::new_v4().to_string();
+        let mut ids = HashMap::new();
         for agent_id in &agent_ids {
             validate_name(agent_id, "agent_id")?;
             if *agent_id == from {
                 continue;
             }
             let msg = new_message(&from, agent_id, &text, Some(bid.clone()));
+            ids.insert(agent_id.clone(), msg.id.clone());
             append_to_inbox(&team, &msg)?;
         }
 
-        Ok(())
+        Ok(ids)
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?

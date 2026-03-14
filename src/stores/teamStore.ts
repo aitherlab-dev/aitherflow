@@ -109,8 +109,14 @@ export const useTeamStore = create<TeamState>((set, get) => ({
   },
 
   sendMessage: async (teamName, from, to, text) => {
-    await invoke("team_send_message", { team: teamName, from, to, text });
-    invoke("team_push_message", { agentId: to, text }).catch(console.error);
+    const messageId = await invoke<string>("team_send_message", { team: teamName, from, to, text });
+    invoke<boolean>("team_push_message", { agentId: to, text })
+      .then((pushed) => {
+        if (pushed) {
+          invoke("team_mark_read", { team: teamName, agentId: to, messageIds: [messageId] }).catch(console.error);
+        }
+      })
+      .catch(console.error);
     await get().fetchAllMessages(teamName);
   },
 
@@ -120,10 +126,16 @@ export const useTeamStore = create<TeamState>((set, get) => ({
   },
 
   broadcastMessage: async (teamName, from, text, agentIds) => {
-    await invoke("team_broadcast", { team: teamName, from, text, agentIds });
+    const msgMap = await invoke<Record<string, string>>("team_broadcast", { team: teamName, from, text, agentIds });
     for (const agentId of agentIds) {
       if (agentId !== from) {
-        invoke("team_push_message", { agentId, text }).catch(console.error);
+        invoke<boolean>("team_push_message", { agentId, text })
+          .then((pushed) => {
+            if (pushed && msgMap[agentId]) {
+              invoke("team_mark_read", { team: teamName, agentId, messageIds: [msgMap[agentId]] }).catch(console.error);
+            }
+          })
+          .catch(console.error);
       }
     }
     await get().fetchAllMessages(teamName);

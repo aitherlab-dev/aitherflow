@@ -250,6 +250,31 @@ pub async fn team_create(name: String, project_path: String) -> Result<Team, Str
         if name.trim().is_empty() {
             return Err("Team name cannot be empty".to_string());
         }
+        validate_name(&name, "team name")?;
+
+        // Check name uniqueness among existing teams
+        let dir = teams_dir();
+        if dir.exists() {
+            let entries =
+                fs::read_dir(&dir).map_err(|e| format!("Failed to read teams dir: {e}"))?;
+            for entry in entries.flatten() {
+                let ft = entry
+                    .file_type()
+                    .map_err(|e| format!("Failed to get file type: {e}"))?;
+                if ft.is_dir() || ft.is_symlink() {
+                    continue;
+                }
+                let path = entry.path();
+                if path.extension().and_then(|e| e.to_str()) != Some("json") {
+                    continue;
+                }
+                if let Ok(existing) = read_json::<Team>(&path) {
+                    if existing.name == name {
+                        return Err(format!("Team with name '{}' already exists", name));
+                    }
+                }
+            }
+        }
 
         let team = Team {
             id: uuid::Uuid::new_v4().to_string(),
@@ -549,19 +574,20 @@ pub async fn team_stop_agent(
 }
 
 /// Push a message directly into a team agent's stdin (like a user prompt).
-/// Silently ignored if agent has no active session.
+/// Returns true if pushed, false if agent has no active session.
 #[tauri::command]
 pub async fn team_push_message(
     sessions: State<'_, SessionManager>,
     agent_id: String,
     text: String,
-) -> Result<(), String> {
+) -> Result<bool, String> {
     let writer = match sessions.get_writer(&agent_id).await {
         Some(w) => w,
-        None => return Ok(()), // no active session — silently skip
+        None => return Ok(false),
     };
     let ndjson = crate::conductor::process::build_stdin_message(&text, &[])?;
-    writer.write_message(&ndjson).await
+    writer.write_message(&ndjson).await?;
+    Ok(true)
 }
 
 /// Delete a team: stop all agents, remove team JSON, inboxes dir, tasks dir.
