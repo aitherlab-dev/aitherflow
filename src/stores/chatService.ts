@@ -487,15 +487,21 @@ async function switchAgentInner(
   clearToolActivityTimer();
   cancelStreamRaf();
 
-  // Reset telegram state on agent switch
-  import("../services/telegramService").then(({ resetTelegramState }) => {
+  // Reset telegram state on agent switch (await to complete before restoring new agent)
+  try {
+    const { resetTelegramState } = await import("../services/telegramService");
     resetTelegramState();
-  }).catch(console.error);
+  } catch (e) {
+    console.error("[switchAgentInner] Failed to reset telegram state:", e);
+  }
 
-  // Clear file viewer on agent switch
-  import("./fileViewerStore").then(({ useFileViewerStore }) => {
+  // Clear file viewer on agent switch (await to complete before restoring new agent)
+  try {
+    const { useFileViewerStore } = await import("./fileViewerStore");
     useFileViewerStore.getState().clearAll();
-  }).catch(console.error);
+  } catch (e) {
+    console.error("[switchAgentInner] Failed to clear file viewer:", e);
+  }
 
   // Restore incoming agent from Map (or start fresh)
   const target = agentStates.get(agentId);
