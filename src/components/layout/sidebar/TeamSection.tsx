@@ -13,6 +13,7 @@ import {
   Code,
   Eye,
   Compass,
+  GitBranch,
 } from "lucide-react";
 import { useTeamStore } from "../../../stores/teamStore";
 import { useAgentStore } from "../../../stores/agentStore";
@@ -310,6 +311,12 @@ function TeamAgentRow({
     >
       <RoleIcon size={12} className="teams-agent__icon" />
       <span className="teams-agent__name">{ROLE_LABEL[agent.role]}</span>
+      {agent.worktree_branch && (
+        <span className="teams-agent__branch" title={agent.worktree_branch}>
+          <GitBranch size={10} />
+          {agent.worktree_branch}
+        </span>
+      )}
       <span className={`team-dot ${STATUS_CLASS[agent.status]}`} />
 
       <div className="teams-agent__actions">

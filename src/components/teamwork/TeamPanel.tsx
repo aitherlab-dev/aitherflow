@@ -16,10 +16,17 @@ import {
   Square,
   UserCheck,
 } from "lucide-react";
+import { invoke } from "../../lib/transport";
 import { useTeamStore } from "../../stores/teamStore";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useAgentStore } from "../../stores/agentStore";
 import type { Team, TeamAgent, AgentRole, TeamTask, TeamMessage } from "../../types/team";
+
+interface WorktreeEntry {
+  path: string;
+  branch: string;
+  isBare: boolean;
+}
 
 const ROLE_ICON: Record<AgentRole, React.ElementType> = {
   coder: Code,
@@ -229,15 +236,25 @@ function CreateTeamButton() {
 function AgentsSection({ team }: { team: Team }) {
   const [adding, setAdding] = useState(false);
   const [role, setRole] = useState<AgentRole>("coder");
+  const [branch, setBranch] = useState("");
+  const [worktrees, setWorktrees] = useState<WorktreeEntry[]>([]);
+
+  useEffect(() => {
+    if (!adding) return;
+    invoke<WorktreeEntry[]>("get_worktrees", { projectPath: team.project_path })
+      .then(setWorktrees)
+      .catch(console.error);
+  }, [adding, team.project_path]);
 
   const handleAdd = useCallback(async () => {
     try {
-      await useTeamStore.getState().addAgent(team.id, role);
+      await useTeamStore.getState().addAgent(team.id, role, branch || null);
       setAdding(false);
+      setBranch("");
     } catch (e) {
       console.error("[TeamPanel] addAgent:", e);
     }
-  }, [team.id, role]);
+  }, [team.id, role, branch]);
 
   const handleRemove = useCallback(
     async (agentId: string) => {
@@ -324,6 +341,20 @@ function AgentsSection({ team }: { team: Team }) {
             <option value="coder">Coder</option>
             <option value="reviewer">Reviewer</option>
             <option value="architect">Architect</option>
+          </select>
+          <select
+            className="team-select"
+            value={branch}
+            onChange={(e) => setBranch(e.target.value)}
+          >
+            <option value="">main</option>
+            {worktrees
+              .filter((w) => !w.isBare && w.branch && w.branch !== "(detached)")
+              .map((w) => (
+                <option key={w.branch} value={w.branch}>
+                  {w.branch}
+                </option>
+              ))}
           </select>
           <button className="team-btn team-btn--primary" onClick={handleAdd}>
             Add
