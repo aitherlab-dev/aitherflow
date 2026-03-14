@@ -393,7 +393,9 @@ export async function deleteChat(chatId: string) {
   try {
     await invoke("delete_chat", { chatId });
 
-    if (state.currentChatId === chatId) {
+    // Re-read state after async gap — user may have switched chats
+    const current = useChatStore.getState();
+    if (current.currentChatId === chatId) {
       useChatStore.setState({
         currentChatId: null,
         messages: [],
@@ -404,7 +406,7 @@ export async function deleteChat(chatId: string) {
         toolCount: 0,
         error: null,
       });
-      useAgentStore.getState().updateChatLock(state.agentId, null);
+      useAgentStore.getState().updateChatLock(current.agentId, null);
     }
 
     await loadChatList();
