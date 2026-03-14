@@ -1313,6 +1313,7 @@
 
 .dash-card__collapse--open {
   grid-template-rows: 1fr;
+  padding-top: 8px;
 }
 
 .dash-card__collapse > .dash-card__body {
@@ -1485,10 +1486,7 @@
 /* Expanded body */
 
 .dash-card__body {
-  margin-top: 8px;
   padding: 8px;
-  background: var(--bg-soft);
-  border-radius: 6px;
 }
 
 .dash-card__details {

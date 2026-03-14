@@ -7,7 +7,6 @@ import {
   Settings,
   Play,
   Square,
-  UserPlus,
   Plus,
   Trash2,
   Code,
@@ -129,9 +128,6 @@ export const TeamSection = memo(function TeamSection() {
 
 function TeamItem({ team }: { team: Team }) {
   const [expanded, setExpanded] = useState(true);
-  const [adding, setAdding] = useState(false);
-  const [role, setRole] = useState<AgentRole>("coder");
-
   const activeAgentId = useAgentStore((s) => s.activeAgentId);
 
   const handleToggle = useCallback(() => {
@@ -165,15 +161,6 @@ function TeamItem({ team }: { team: Team }) {
     },
     [team.id, team.agents],
   );
-
-  const handleAddAgent = useCallback(async () => {
-    try {
-      await useTeamStore.getState().addAgent(team.id, role);
-      setAdding(false);
-    } catch (e) {
-      console.error("[TeamSection] addAgent:", e);
-    }
-  }, [team.id, role]);
 
   return (
     <div className="teams-item">
@@ -218,37 +205,6 @@ function TeamItem({ team }: { team: Team }) {
               isActive={agent.agent_id === activeAgentId}
             />
           ))}
-
-          {adding ? (
-            <div className="teams-add-form">
-              <select
-                className="teams-add-form__select"
-                value={role}
-                onChange={(e) => setRole(e.target.value as AgentRole)}
-              >
-                <option value="coder">Coder</option>
-                <option value="reviewer">Reviewer</option>
-                <option value="architect">Architect</option>
-              </select>
-              <button className="teams-add-form__btn" onClick={handleAddAgent}>
-                Add
-              </button>
-              <button
-                className="teams-add-form__btn"
-                onClick={() => setAdding(false)}
-              >
-                Cancel
-              </button>
-            </div>
-          ) : (
-            <button
-              className="teams-add-agent-btn"
-              onClick={() => setAdding(true)}
-            >
-              <UserPlus size={11} />
-              <span>Add agent</span>
-            </button>
-          )}
         </div>
       )}
     </div>
