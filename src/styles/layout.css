@@ -1376,6 +1376,25 @@
   min-width: 0;
 }
 
+.dash-card__action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  padding: 2px;
+  border-radius: 4px;
+  color: var(--fg-dim);
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+}
+
+.dash-card__action:hover {
+  color: var(--fg);
+  background: var(--bg-hover);
+}
+
 .dash-card__status {
   display: flex;
   align-items: center;

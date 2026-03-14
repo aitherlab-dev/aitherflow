@@ -30,6 +30,8 @@ pub async fn start_session(
     let permission_mode = options.permission_mode;
     let chrome = options.chrome;
     let image_attachments = options.attachments;
+    let team = options.team;
+    let team_id = options.team_id;
 
     // Clone for the spawned task (State<'_> can't cross spawn boundary)
     let sessions_owned = sessions.inner().clone();
@@ -51,6 +53,8 @@ pub async fn start_session(
                 permission_mode,
                 chrome,
                 image_attachments,
+                team,
+                team_id,
             },
         )
         .await
@@ -72,24 +76,14 @@ pub async fn start_session(
     Ok(())
 }
 
-/// Write an NDJSON line to an agent's stdin.
+/// Write an NDJSON line to an agent's stdin and set status to Thinking.
+/// Uses AgentWriter's single lock for atomic stdin + status update.
 async fn write_stdin(sessions: &SessionManager, agent_id: &str, ndjson: &str) -> Result<(), String> {
-    let stdin_handle = sessions
-        .get_stdin(agent_id)
+    let writer = sessions
+        .get_writer(agent_id)
         .await
         .ok_or_else(|| "No active session for this agent".to_string())?;
-
-    let mut stdin = stdin_handle.lock().await;
-    let result = async {
-        use tokio::io::AsyncWriteExt;
-        stdin.write_all(ndjson.as_bytes()).await?;
-        stdin.write_all(b"\n").await?;
-        stdin.flush().await?;
-        Ok::<(), std::io::Error>(())
-    }
-    .await;
-
-    result.map_err(|e| format!("Failed to write to stdin: {e}"))
+    writer.write_message(ndjson).await
 }
 
 /// Send a follow-up message to an existing CLI session via stdin.

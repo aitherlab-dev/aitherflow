@@ -41,11 +41,23 @@ interface AgentState {
 
   /** Update projectName for all agents bound to a given project path */
   renameProjectInAgents: (projectPath: string, newName: string) => Promise<void>;
+
+  /** Remove agent from store without stopping CLI (session already killed externally) */
+  unregisterAgent: (agentId: string) => Promise<void>;
+
+  /** Register a team agent (or switch to it if already registered) */
+  registerTeamAgent: (
+    agentId: string,
+    projectPath: string,
+    projectName: string,
+    teamId: string,
+    teamRole: "coder" | "reviewer" | "architect",
+  ) => Promise<void>;
 }
 
-/** Persist current agents state to disk (worktree children are excluded) */
+/** Persist current agents state to disk (worktree children and team agents are excluded) */
 async function persist(agents: AgentEntry[], activeAgentId: string | null) {
-  const diskAgents = agents.filter((a) => !a.parentAgentId);
+  const diskAgents = agents.filter((a) => !a.parentAgentId && !a.teamId);
   const diskActive = diskAgents.find((a) => a.id === activeAgentId)
     ? activeAgentId
     : diskAgents[0]?.id ?? null;
@@ -248,5 +260,71 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     );
     set({ agents: updated });
     await persist(updated, activeAgentId);
+  },
+
+  unregisterAgent: async (agentId) => {
+    const { agents, activeAgentId, chatLocks } = get();
+
+    const remainingLocks = { ...chatLocks };
+    clearAgentState(agentId);
+    delete remainingLocks[agentId];
+
+    const updated = agents.filter((a) => a.id !== agentId);
+    let newActiveId = activeAgentId;
+
+    set({ chatLocks: remainingLocks });
+
+    if (activeAgentId === agentId) {
+      newActiveId = updated[0]?.id ?? null;
+    }
+
+    set({ agents: updated, activeAgentId: newActiveId });
+    await persist(updated, newActiveId);
+
+    if (activeAgentId === agentId && newActiveId) {
+      const newAgent = updated.find((a) => a.id === newActiveId);
+      if (newAgent) {
+        const savedChatId = remainingLocks[newActiveId] ?? null;
+        await switchAgent(newAgent.id, newAgent.projectPath, newAgent.projectName, savedChatId);
+      }
+    }
+  },
+
+  registerTeamAgent: async (agentId, projectPath, projectName, teamId, teamRole) => {
+    const { agents, activeAgentId, chatLocks } = get();
+
+    // If already registered, just switch to it
+    const existing = agents.find((a) => a.id === agentId);
+    if (existing) {
+      if (agentId !== activeAgentId) {
+        await get().setActiveAgent(agentId);
+      }
+      return;
+    }
+
+    const newAgent: AgentEntry = {
+      id: agentId,
+      projectPath,
+      projectName,
+      createdAt: Date.now(),
+      order: agents.length,
+      teamId,
+      teamRole,
+    };
+
+    // Save current chat position for the old agent
+    if (activeAgentId) {
+      const currentChatId = useChatStore.getState().currentChatId;
+      set({
+        chatLocks: { ...chatLocks, [activeAgentId]: currentChatId },
+      });
+    }
+
+    const updated = [...agents, newAgent];
+    set({ agents: updated, activeAgentId: newAgent.id });
+    await persist(updated, newAgent.id);
+
+    // Switch chatStore to the new agent
+    await switchAgent(newAgent.id, newAgent.projectPath, newAgent.projectName, null);
   },
 }));

@@ -16,6 +16,7 @@ mod secrets;
 mod settings;
 mod skills;
 mod telegram;
+mod teamwork;
 mod translations;
 mod voice;
 mod worktree;
@@ -131,11 +132,36 @@ pub fn run() {
             worktree::get_worktree_details,
             worktree::create_worktree,
             worktree::remove_worktree,
+            teamwork::team::team_create,
+            teamwork::team::team_add_agent,
+            teamwork::team::team_remove_agent,
+            teamwork::team::team_get,
+            teamwork::team::team_list,
+            teamwork::team::team_get_launch_args,
+            teamwork::team::team_start_agent,
+            teamwork::team::team_stop_agent,
+            teamwork::team::team_delete,
+            teamwork::team::team_push_message,
+            teamwork::mailbox::team_send_message,
+            teamwork::mailbox::team_broadcast,
+            teamwork::mailbox::team_read_inbox,
+            teamwork::mailbox::team_read_all_messages,
+            teamwork::mailbox::team_mark_read,
+            teamwork::mailbox::team_clear_messages,
+            teamwork::tasks::team_create_task,
+            teamwork::tasks::team_claim_task,
+            teamwork::tasks::team_complete_task,
+            teamwork::tasks::team_list_tasks,
         ])
         .setup(move |_app| {
-            // Keep `sessions` alive until setup completes (State already holds a clone via .manage())
-            let _sessions = sessions;
+            let app_handle = _app.handle().clone();
+            let sessions_for_mcp = sessions;
             tauri::async_runtime::spawn(async move {
+                // Start MCP server for team agent communication
+                if let Err(e) = teamwork::mcp_server::start_mcp_server(app_handle, sessions_for_mcp).await {
+                    eprintln!("[aitherflow] Failed to start MCP server: {e}");
+                }
+
                 let tg_enabled = tokio::task::spawn_blocking(|| {
                     let cfg_dir = config::config_dir();
                     let data_dir = config::data_dir();
