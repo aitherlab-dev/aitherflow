@@ -187,8 +187,8 @@ pub(crate) fn load_config_from_disk() -> Result<TelegramConfig, String> {
     // bot_token: prefer keyring, migrate from JSON
     if let Some(kr) = secrets::get_secret(KEY_TG_BOT_TOKEN) {
         cfg.bot_token = Some(kr);
-    } else if cfg.bot_token.as_ref().is_some_and(|t| !t.is_empty()) {
-        if let Err(e) = secrets::set_secret(KEY_TG_BOT_TOKEN, cfg.bot_token.as_ref().unwrap()) {
+    } else if let Some(token) = cfg.bot_token.as_deref().filter(|t| !t.is_empty()) {
+        if let Err(e) = secrets::set_secret(KEY_TG_BOT_TOKEN, token) {
             eprintln!("[TG] Failed to migrate bot token to keyring: {e}");
         }
         migrated = true;
@@ -197,8 +197,8 @@ pub(crate) fn load_config_from_disk() -> Result<TelegramConfig, String> {
     // groq_api_key: same
     if let Some(kr) = secrets::get_secret(KEY_TG_GROQ) {
         cfg.groq_api_key = Some(kr);
-    } else if cfg.groq_api_key.as_ref().is_some_and(|k| !k.is_empty()) {
-        if let Err(e) = secrets::set_secret(KEY_TG_GROQ, cfg.groq_api_key.as_ref().unwrap()) {
+    } else if let Some(key) = cfg.groq_api_key.as_deref().filter(|k| !k.is_empty()) {
+        if let Err(e) = secrets::set_secret(KEY_TG_GROQ, key) {
             eprintln!("[TG] Failed to migrate groq key to keyring: {e}");
         }
         migrated = true;
