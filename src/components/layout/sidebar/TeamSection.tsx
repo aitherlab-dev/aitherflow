@@ -7,7 +7,6 @@ import {
   Settings,
   Play,
   Square,
-  Plus,
   Trash2,
   User,
   GitBranch,
@@ -62,23 +61,12 @@ export const TeamSection = memo(function TeamSection() {
     setOpen((prev) => !prev);
   }, []);
 
-  const handleCreate = useCallback(
-    async (e: React.MouseEvent) => {
+  const handleOpenTeamwork = useCallback(
+    (e: React.MouseEvent) => {
       e.stopPropagation();
-      if (!projectPath) {
-        console.error("[TeamSection] createTeam: no project path available");
-        return;
-      }
-      try {
-        const defaultName = `Team ${workspaceTeams.length + 1}`;
-        await useTeamStore.getState().createTeam(defaultName, projectPath);
-        useLayoutStore.getState().openTeamwork();
-        if (!open) setOpen(true);
-      } catch (e) {
-        console.error("[TeamSection] createTeam:", e);
-      }
+      useLayoutStore.getState().openTeamwork();
     },
-    [projectPath, workspaceTeams.length, open],
+    [],
   );
 
   return (
@@ -92,10 +80,10 @@ export const TeamSection = memo(function TeamSection() {
           <span className="dash-card__title">Teams</span>
           <button
             className="dash-card__action"
-            onClick={handleCreate}
-            title="New Team"
+            onClick={handleOpenTeamwork}
+            title="Team settings"
           >
-            <Plus size={14} />
+            <Settings size={14} />
           </button>
         </div>
       </div>
