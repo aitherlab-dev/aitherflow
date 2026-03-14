@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
@@ -135,12 +135,73 @@ fn team_lock(team_id: &str) -> Arc<Mutex<()>> {
         .clone()
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq)]
-#[serde(rename_all = "snake_case")]
-pub enum AgentRole {
-    Coder,
-    Reviewer,
-    Architect,
+#[derive(Serialize, Deserialize, Clone)]
+pub struct AgentRole {
+    pub name: String,
+    pub system_prompt: String,
+    pub allowed_tools: Vec<String>,
+    pub can_manage: bool,
+}
+
+impl PartialEq for AgentRole {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
+}
+
+/// Predefined roles shipped with the app.
+pub fn default_roles() -> Vec<AgentRole> {
+    vec![
+        AgentRole {
+            name: "Coder".into(),
+            system_prompt: "You are an expert developer in a multi-agent team. Your job is to write clean, tested code following project standards from CLAUDE.md. You receive tasks from the architect via team messages. After completing a task, report back what you changed. Do not review code — that's the reviewer's job. Do not coordinate tasks — that's the architect's job.".into(),
+            allowed_tools: vec!["Edit","Write","Bash","Glob","Grep","Read"].into_iter().map(String::from).collect(),
+            can_manage: false,
+        },
+        AgentRole {
+            name: "Reviewer".into(),
+            system_prompt: "You are an expert code reviewer in a multi-agent team. You ONLY read files and write reports — never edit, write, or commit anything. You receive review tasks from the architect. Check code against CLAUDE.md rules, look for bugs, style violations, unused code, and security issues. Write a detailed report with file paths, line numbers, and specific findings.".into(),
+            allowed_tools: vec!["Read","Glob","Grep"].into_iter().map(String::from).collect(),
+            can_manage: false,
+        },
+        AgentRole {
+            name: "Architect".into(),
+            system_prompt: "You are a software architect coordinating a multi-agent team. You discuss tasks with the user, break them into subtasks, and delegate to coder and reviewer agents. You write detailed prompts for each agent. You read code to understand context but never edit files directly. After the coder reports completion, you send the reviewer a targeted review task. After the reviewer reports, you decide if fixes are needed and send them to the coder. You are the only one who communicates with the user.".into(),
+            allowed_tools: vec!["Read","Glob","Grep"].into_iter().map(String::from).collect(),
+            can_manage: true,
+        },
+    ]
+}
+
+/// Convert a legacy role name string to a full AgentRole.
+fn default_role_by_name(name: &str) -> AgentRole {
+    let lower = name.to_lowercase();
+    default_roles()
+        .into_iter()
+        .find(|r| r.name.to_lowercase() == lower)
+        .unwrap_or_else(|| AgentRole {
+            name: name.to_string(),
+            system_prompt: String::new(),
+            allowed_tools: vec!["Read".into(), "Glob".into(), "Grep".into()],
+            can_manage: false,
+        })
+}
+
+/// Custom deserializer: accepts both a string (legacy) and an object (new format).
+fn deserialize_role<'de, D>(deserializer: D) -> Result<AgentRole, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum RoleOrString {
+        Role(AgentRole),
+        Name(String),
+    }
+    match RoleOrString::deserialize(deserializer)? {
+        RoleOrString::Role(r) => Ok(r),
+        RoleOrString::Name(s) => Ok(default_role_by_name(&s)),
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
@@ -154,6 +215,7 @@ pub enum AgentStatus {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct TeamAgent {
     pub agent_id: String,
+    #[serde(deserialize_with = "deserialize_role")]
     pub role: AgentRole,
     pub worktree_branch: Option<String>,
     pub status: AgentStatus,
@@ -200,17 +262,11 @@ const MCP_TEAMWORK_ARCHITECT: &[&str] = &[
 
 /// CLI launch arguments based on agent role.
 fn launch_args_for_role(role: &AgentRole) -> Vec<String> {
-    let base_tools = match role {
-        AgentRole::Coder => "Edit,Write,Bash,Glob,Grep,Read",
-        AgentRole::Reviewer | AgentRole::Architect => "Read,Glob,Grep",
-    };
-
-    let mut tools: Vec<&str> = base_tools.split(',').collect();
-    tools.extend(MCP_TEAMWORK_COMMON);
-    if *role == AgentRole::Architect {
-        tools.extend(MCP_TEAMWORK_ARCHITECT);
+    let mut tools: Vec<String> = role.allowed_tools.clone();
+    tools.extend(MCP_TEAMWORK_COMMON.iter().map(|s| s.to_string()));
+    if role.can_manage {
+        tools.extend(MCP_TEAMWORK_ARCHITECT.iter().map(|s| s.to_string()));
     }
-
     vec!["--allowedTools".to_string(), tools.join(",")]
 }
 
@@ -230,6 +286,7 @@ pub(crate) struct TeamLaunchInfo {
     pub team_name: String,
     pub agent_ids: Vec<String>,
     pub role: AgentRole,
+    pub system_prompt: Option<String>,
 }
 
 /// Get CLI launch args and team context for a team agent (sync, for conductor).
@@ -248,11 +305,18 @@ pub(crate) fn get_agent_launch_args_sync(
 
     let agent_ids: Vec<String> = team.agents.iter().map(|a| a.agent_id.clone()).collect();
 
+    let system_prompt = if agent.role.system_prompt.is_empty() {
+        None
+    } else {
+        Some(agent.role.system_prompt.clone())
+    };
+
     Ok(TeamLaunchInfo {
         cli_args: launch_args_for_role(&agent.role),
         team_name: team.name.clone(),
         agent_ids,
         role: agent.role.clone(),
+        system_prompt,
     })
 }
 

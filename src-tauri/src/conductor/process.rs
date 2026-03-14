@@ -93,7 +93,7 @@ pub async fn run_cli_session(
     // If agent belongs to a team, look up role-based launch args, team name, and
     // agent list for MCP registration. Errors are fatal — agent must not start
     // without correct permissions.
-    let (team_extra_args, team_name_from_id, team_agent_ids, team_role) =
+    let (team_extra_args, team_name_from_id, team_agent_ids, team_role, team_system_prompt) =
         if let Some(ref tid) = team_id {
             let tid_clone = tid.clone();
             let aid_clone = agent_id.clone();
@@ -107,9 +107,10 @@ pub async fn run_cli_session(
                 Some(info.team_name),
                 Some(info.agent_ids),
                 Some(info.role),
+                info.system_prompt,
             )
         } else {
-            (Vec::new(), None, None, None)
+            (Vec::new(), None, None, None, None)
         };
 
     // Team name for mailbox: explicit `team` field takes priority, otherwise derive from team_id
@@ -168,6 +169,14 @@ pub async fn run_cli_session(
 
     // Add role-based args from team config (e.g. --allowedTools)
     args.extend(team_extra_args);
+
+    // Add role system prompt via --append-system-prompt
+    if let Some(ref sp) = team_system_prompt {
+        if !sp.is_empty() {
+            args.push("--append-system-prompt".into());
+            args.push(sp.clone());
+        }
+    }
 
     // Create MCP config file for team agents (points to the built-in MCP server).
     // Wrapped in TempFileGuard so the file is cleaned up on early return.

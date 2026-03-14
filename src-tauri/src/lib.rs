@@ -152,6 +152,9 @@ pub fn run() {
             teamwork::tasks::team_claim_task,
             teamwork::tasks::team_complete_task,
             teamwork::tasks::team_list_tasks,
+            teamwork::roles::roles_list,
+            teamwork::roles::roles_save,
+            teamwork::roles::roles_delete,
         ])
         .setup(move |_app| {
             let app_handle = _app.handle().clone();

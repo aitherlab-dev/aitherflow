@@ -406,9 +406,9 @@ async fn execute_tool(
 
     // Management tools: check role and validate target
     if is_management_tool(tool_name) {
-        if !matches!(role, AgentRole::Architect) {
+        if !role.can_manage {
             return Err(
-                "Permission denied: management tools require architect role".to_string(),
+                "Permission denied: management tools require can_manage permission".to_string(),
             );
         }
 
@@ -854,7 +854,7 @@ fn management_tool_definitions() -> Vec<Value> {
 /// Get tool definitions filtered by agent role.
 fn tool_definitions_for_role(role: Option<&AgentRole>) -> Value {
     let mut tools = communication_tool_definitions();
-    if matches!(role, Some(AgentRole::Architect)) {
+    if role.is_some_and(|r| r.can_manage) {
         tools.extend(management_tool_definitions());
     }
     json!(tools)
