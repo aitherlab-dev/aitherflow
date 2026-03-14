@@ -6,7 +6,7 @@ export interface AgentRole {
 }
 
 export interface RoleEntry extends AgentRole {
-  is_builtin: boolean;
+  is_default: boolean;
 }
 
 export type AgentStatus = "idle" | "running" | "stopped";

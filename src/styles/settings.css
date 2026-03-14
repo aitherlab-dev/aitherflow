@@ -3014,3 +3014,29 @@
   color: var(--error, #e55);
   margin-left: auto;
 }
+
+/* ── Confirm dialog ── */
+
+.roles-confirm {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px 24px;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.roles-confirm__text {
+  font-size: 0.9rem;
+  color: var(--fg);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.roles-confirm__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Trash2, Shield, X } from "lucide-react";
+import { Plus, Trash2, Shield, X, RotateCcw } from "lucide-react";
 import { invoke } from "../../lib/transport";
 import type { AgentRole, RoleEntry } from "../../types/team";
 
@@ -8,7 +8,9 @@ const ALL_TOOLS = ["Edit", "Write", "Bash", "Glob", "Grep", "Read"];
 export function RolesSection() {
   const [roles, setRoles] = useState<RoleEntry[]>([]);
   const [editing, setEditing] = useState<AgentRole | null>(null);
+  const [editIsDefault, setEditIsDefault] = useState(false);
   const [isNew, setIsNew] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<{ name: string; isDefault: boolean } | null>(null);
 
   const loadRoles = useCallback(() => {
     invoke<RoleEntry[]>("roles_list").then(setRoles).catch(console.error);
@@ -25,12 +27,13 @@ export function RolesSection() {
       allowed_tools: ["Read"],
       can_manage: false,
     });
+    setEditIsDefault(false);
     setIsNew(true);
   }, []);
 
   const handleEdit = useCallback((role: RoleEntry) => {
-    if (role.is_builtin) return;
     setEditing({ ...role });
+    setEditIsDefault(role.is_default);
     setIsNew(false);
   }, []);
 
@@ -44,10 +47,11 @@ export function RolesSection() {
     }
   }, [loadRoles]);
 
-  const handleDelete = useCallback(async (name: string) => {
+  const handleDeleteConfirmed = useCallback(async (name: string) => {
     try {
       await invoke("roles_delete", { name });
       setEditing(null);
+      setConfirmDelete(null);
       loadRoles();
     } catch (e) {
       console.error("[RolesSection] delete:", e);
@@ -58,7 +62,7 @@ export function RolesSection() {
     <div className="roles-section">
       <div className="roles-header">
         <p className="settings-toggle-desc">
-          Manage agent roles for team collaboration. Built-in roles cannot be edited.
+          Manage agent roles for team collaboration.
         </p>
         <button className="roles-add-btn" onClick={handleNew} title="New role">
           <Plus size={14} />
@@ -70,14 +74,11 @@ export function RolesSection() {
         {roles.map((role) => (
           <div
             key={role.name}
-            className={`roles-card ${!role.is_builtin ? "roles-card--clickable" : ""}`}
+            className="roles-card roles-card--clickable"
             onClick={() => handleEdit(role)}
           >
             <div className="roles-card__header">
               <span className="roles-card__name">{role.name}</span>
-              {role.is_builtin && (
-                <span className="roles-badge roles-badge--builtin">Built-in</span>
-              )}
               {role.can_manage && (
                 <span className="roles-badge roles-badge--manager">
                   <Shield size={10} />
@@ -103,10 +104,36 @@ export function RolesSection() {
           key={editing.name}
           role={editing}
           isNew={isNew}
+          isDefault={editIsDefault}
           onSave={handleSave}
-          onDelete={handleDelete}
+          onRequestDelete={(name, isDefault) => {
+            setConfirmDelete({ name, isDefault });
+          }}
           onCancel={() => setEditing(null)}
         />
+      )}
+
+      {confirmDelete && (
+        <div className="roles-editor-overlay" onClick={() => setConfirmDelete(null)}>
+          <div className="roles-confirm" onClick={(e) => e.stopPropagation()}>
+            <p className="roles-confirm__text">
+              {confirmDelete.isDefault
+                ? `Reset '${confirmDelete.name}' to default settings?`
+                : `Delete role '${confirmDelete.name}'? This cannot be undone.`}
+            </p>
+            <div className="roles-confirm__actions">
+              <button className="team-btn" onClick={() => setConfirmDelete(null)}>
+                Cancel
+              </button>
+              <button
+                className="team-btn team-btn--danger"
+                onClick={() => handleDeleteConfirmed(confirmDelete.name).catch(console.error)}
+              >
+                {confirmDelete.isDefault ? "Reset" : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -115,14 +142,16 @@ export function RolesSection() {
 function RoleEditor({
   role,
   isNew,
+  isDefault,
   onSave,
-  onDelete,
+  onRequestDelete,
   onCancel,
 }: {
   role: AgentRole;
   isNew: boolean;
+  isDefault: boolean;
   onSave: (role: AgentRole) => void;
-  onDelete: (name: string) => void;
+  onRequestDelete: (name: string, isDefault: boolean) => void;
   onCancel: () => void;
 }) {
   const [name, setName] = useState(role.name);
@@ -131,7 +160,6 @@ function RoleEditor({
   const [canManage, setCanManage] = useState(role.can_manage);
 
   const toggleTool = useCallback((tool: string) => {
-    // Read is always included
     if (tool === "Read") return;
     setTools((prev) =>
       prev.includes(tool) ? prev.filter((t) => t !== tool) : [...prev, tool],
@@ -220,10 +248,13 @@ function RoleEditor({
           {!isNew && (
             <button
               className="team-btn team-btn--danger"
-              onClick={() => onDelete(role.name)}
+              onClick={() => onRequestDelete(role.name, isDefault)}
             >
-              <Trash2 size={13} />
-              Delete
+              {isDefault ? (
+                <><RotateCcw size={13} /> Reset to default</>
+              ) : (
+                <><Trash2 size={13} /> Delete</>
+              )}
             </button>
           )}
         </div>
