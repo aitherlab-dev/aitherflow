@@ -224,12 +224,19 @@ fn write_team_sync(team: &Team) -> Result<(), String> {
     write_json(&team_path(&team.id), team)
 }
 
-/// Get CLI launch args and team name for a team agent (sync, for conductor).
-/// Returns (cli_args, team_name).
+/// Info needed by conductor to launch a team agent CLI session.
+pub(crate) struct TeamLaunchInfo {
+    pub cli_args: Vec<String>,
+    pub team_name: String,
+    pub agent_ids: Vec<String>,
+    pub role: AgentRole,
+}
+
+/// Get CLI launch args and team context for a team agent (sync, for conductor).
 pub(crate) fn get_agent_launch_args_sync(
     team_id: &str,
     agent_id: &str,
-) -> Result<(Vec<String>, String), String> {
+) -> Result<TeamLaunchInfo, String> {
     validate_name(team_id, "team_id")?;
 
     let team = read_team_sync(team_id)?;
@@ -239,7 +246,14 @@ pub(crate) fn get_agent_launch_args_sync(
         .find(|a| a.agent_id == agent_id)
         .ok_or_else(|| format!("Agent {agent_id} not found in team {team_id}"))?;
 
-    Ok((launch_args_for_role(&agent.role), team.name.clone()))
+    let agent_ids: Vec<String> = team.agents.iter().map(|a| a.agent_id.clone()).collect();
+
+    Ok(TeamLaunchInfo {
+        cli_args: launch_args_for_role(&agent.role),
+        team_name: team.name.clone(),
+        agent_ids,
+        role: agent.role.clone(),
+    })
 }
 
 // --- Tauri commands ---
@@ -413,8 +427,8 @@ pub async fn team_get_launch_args(
     agent_id: String,
 ) -> Result<Vec<String>, String> {
     tokio::task::spawn_blocking(move || {
-        let (args, _name) = get_agent_launch_args_sync(&team_id, &agent_id)?;
-        Ok(args)
+        let info = get_agent_launch_args_sync(&team_id, &agent_id)?;
+        Ok(info.cli_args)
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
@@ -430,7 +444,7 @@ pub(crate) async fn start_agent_core(
     // Atomic: check not running + set Running under one lock (prevents TOCTOU on double-click)
     let tid = team_id.clone();
     let aid = agent_id.clone();
-    let (project_path, team_name, team_agent_ids, agent_role) =
+    let (project_path, team_name) =
         tokio::task::spawn_blocking(move || {
             // Atomically claim the agent (fails if already Running)
             try_set_running_sync(&tid, &aid)?;
@@ -449,25 +463,14 @@ pub(crate) async fn start_agent_core(
                 team.project_path.clone()
             };
 
-            let agent_ids: Vec<String> =
-                team.agents.iter().map(|a| a.agent_id.clone()).collect();
-            let role = agent.role.clone();
-
-            Ok::<_, String>((path, team.name, agent_ids, role))
+            Ok::<_, String>((path, team.name))
         })
         .await
         .map_err(|e| format!("Task join error: {e}"))??;
 
-    // Register agent in MCP server so it can use teamwork tools.
-    // Capture generation for guarded unregister on process exit.
-    let mcp_generation = if let Some(mcp) = super::mcp_server::get_state() {
-        mcp.register_agent(&agent_id, &team_name, &team_id, team_agent_ids, agent_role)
-            .await
-    } else {
-        0
-    };
-
     // Spawn CLI session in background
+    // MCP registration/unregistration is handled inside run_cli_session,
+    // so it works regardless of how the session is started.
     let agent_id_spawn = agent_id.clone();
     let team_id_spawn = team_id.clone();
 
@@ -507,13 +510,6 @@ pub(crate) async fn start_agent_core(
             ) {
                 eprintln!("[teamwork] Failed to emit error: {e2}");
             }
-        }
-
-        // Unregister from MCP server (only if generation matches — prevents
-        // removing a fresh registration after restart)
-        if let Some(mcp) = super::mcp_server::get_state() {
-            mcp.unregister_agent_if_current(&agent_id_spawn, mcp_generation)
-                .await;
         }
 
         // Process exited — reset to idle only if still Running (Stopped stays Stopped)

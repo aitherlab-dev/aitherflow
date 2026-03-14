@@ -66,6 +66,10 @@ export interface StartSessionOptions {
   permissionMode?: string;
   chrome?: boolean;
   attachments?: AttachmentPayload[];
+  /** Team name for mailbox coordination */
+  team?: string;
+  /** Team ID for role-based launch args and MCP registration */
+  teamId?: string;
 }
 
 /** Options for sending a follow-up message */

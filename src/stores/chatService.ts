@@ -153,6 +153,11 @@ export async function sendMessage(text: string, allAttachments?: Attachment[]) {
       const { selectedModel, selectedEffort, selectedPermissionMode } = useConductorStore.getState();
       const permissionMode = settingsPermMode ?? (selectedPermissionMode !== "default" ? selectedPermissionMode : undefined);
 
+      // If this agent belongs to a team, pass teamId so the backend
+      // creates MCP config and registers the agent in the teamwork server.
+      const activeAgent = useAgentStore.getState().agents.find((a) => a.id === state.agentId);
+      const teamId = activeAgent?.teamId;
+
       await invoke("start_session", {
         options: {
           agentId: state.agentId,
@@ -164,6 +169,7 @@ export async function sendMessage(text: string, allAttachments?: Attachment[]) {
           permissionMode,
           chrome: enableChrome,
           attachments: attachmentPayloads,
+          teamId,
         } satisfies StartSessionOptions,
       });
     }
@@ -237,6 +243,8 @@ export async function switchPermissionMode(mode: "default" | "plan") {
 
   useChatStore.setState({ planMode: mode === "plan" });
 
+  const permAgent = useAgentStore.getState().agents.find((a) => a.id === state.agentId);
+
   try {
     await invoke("start_session", {
       options: {
@@ -248,6 +256,7 @@ export async function switchPermissionMode(mode: "default" | "plan") {
         resumeSessionId: sessionId ?? undefined,
         permissionMode,
         chrome: enableChrome,
+        teamId: permAgent?.teamId,
       } satisfies StartSessionOptions,
     });
     useChatStore.setState({ hasSession: true });

@@ -90,23 +90,46 @@ pub async fn run_cli_session(
         team_id,
     } = config;
 
-    // If agent belongs to a team, look up role-based launch args and team name for mailbox.
-    // Errors are fatal — agent must not start without correct permissions.
-    let (team_extra_args, team_name_from_id) = if let Some(ref tid) = team_id {
-        let tid_clone = tid.clone();
-        let aid_clone = agent_id.clone();
-        let (extra_args, team_name) = tokio::task::spawn_blocking(move || {
-            crate::teamwork::team::get_agent_launch_args_sync(&tid_clone, &aid_clone)
-        })
-        .await
-        .map_err(|e| format!("Team args task panic: {e}"))??;
-        (extra_args, Some(team_name))
-    } else {
-        (Vec::new(), None)
-    };
+    // If agent belongs to a team, look up role-based launch args, team name, and
+    // agent list for MCP registration. Errors are fatal — agent must not start
+    // without correct permissions.
+    let (team_extra_args, team_name_from_id, team_agent_ids, team_role) =
+        if let Some(ref tid) = team_id {
+            let tid_clone = tid.clone();
+            let aid_clone = agent_id.clone();
+            let info = tokio::task::spawn_blocking(move || {
+                crate::teamwork::team::get_agent_launch_args_sync(&tid_clone, &aid_clone)
+            })
+            .await
+            .map_err(|e| format!("Team args task panic: {e}"))??;
+            (
+                info.cli_args,
+                Some(info.team_name),
+                Some(info.agent_ids),
+                Some(info.role),
+            )
+        } else {
+            (Vec::new(), None, None, None)
+        };
 
     // Team name for mailbox: explicit `team` field takes priority, otherwise derive from team_id
-    let team_for_mailbox = team.or(team_name_from_id);
+    let team_for_mailbox = team.or(team_name_from_id.clone());
+
+    // Register agent in MCP server so it can use teamwork tools.
+    // This runs inside run_cli_session (not start_agent_core) so it works
+    // regardless of how the session is started (team panel, chat UI, restart).
+    let mcp_generation = if let (Some(ref tid), Some(ref tn), Some(ref aids), Some(ref role)) =
+        (&team_id, &team_name_from_id, &team_agent_ids, &team_role)
+    {
+        if let Some(mcp) = crate::teamwork::mcp_server::get_state() {
+            mcp.register_agent(&agent_id, tn, tid, aids.clone(), role.clone())
+                .await
+        } else {
+            0
+        }
+    } else {
+        0
+    };
 
     // Build command arguments
     let mut args: Vec<String> = vec![
@@ -422,6 +445,15 @@ pub async fn run_cli_session(
 
     // Clean up session — only if it's still ours (same generation)
     sessions.cleanup(&agent_id, generation).await;
+
+    // Unregister from MCP server (only if generation matches — prevents
+    // removing a fresh registration after restart)
+    if mcp_generation > 0 {
+        if let Some(mcp) = crate::teamwork::mcp_server::get_state() {
+            mcp.unregister_agent_if_current(&agent_id, mcp_generation)
+                .await;
+        }
+    }
 
     // Clean up MCP config temp file (guard handles deletion on drop,
     // but we disarm + delete explicitly here for clarity in the normal path)
