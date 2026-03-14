@@ -85,10 +85,15 @@ export const useTeamStore = create<TeamState>((set, get) => ({
   },
 
   deleteTeam: async (teamId) => {
+    const wasActive = get().activeTeamId === teamId;
     await invoke("team_delete", { teamId });
     await get().fetchTeams();
-    if (get().activeTeamId === teamId) {
+    if (wasActive) {
       set({ activeTeamId: null, messages: [], tasks: [] });
+      const { useLayoutStore } = await import("./layoutStore");
+      if (useLayoutStore.getState().activeView === "teamwork") {
+        useLayoutStore.getState().closeTeamwork();
+      }
     }
   },
 
