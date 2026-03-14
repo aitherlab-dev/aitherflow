@@ -9,8 +9,8 @@ const MAX_EVENT_LOG = 200;
 /** Module-level event log — not in Zustand because nothing renders it */
 const eventLog: CliEvent[] = [];
 
-/** Default context window size (fallback when CLI doesn't report it) */
-const DEFAULT_CONTEXT_WINDOW = 200_000;
+/** Default context window size: 0 means "not yet reported by CLI" */
+const DEFAULT_CONTEXT_WINDOW = 0;
 
 // ── Per-agent usage state (persists across agent switches) ──
 
@@ -175,6 +175,7 @@ listen<CliEvent>("cli-event", (event) => {
 
   // usageInfo: cumulative session totals from result event (for cost tracking, context window size)
   if (e.type === "usageInfo") {
+    console.log(`[DEBUG] usageInfo agent=${e.agent_id} context_window=${e.context_window}`);
     const existing = agentUsage.get(e.agent_id) ?? emptyUsage();
     const contextMax =
       e.context_window > 0

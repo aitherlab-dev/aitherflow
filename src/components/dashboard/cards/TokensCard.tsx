@@ -11,12 +11,6 @@ function formatTokens(n: number): string {
 
 const COLOR_INACTIVE = "var(--fg-dim)";
 
-function getUsageColor(tokens: number): string {
-  if (tokens >= 150_000) return "var(--status-red)";
-  if (tokens >= 100_000) return "var(--status-orange)";
-  return "var(--status-green)";
-}
-
 export const TokensCard = memo(function TokensCard({
   expanded,
   onToggle,
@@ -35,12 +29,12 @@ export const TokensCard = memo(function TokensCard({
   const cacheTotal = cacheRead + cacheCreation;
   const cacheHitRate = cacheTotal > 0 ? Math.round((cacheRead / cacheTotal) * 100) : 0;
 
-  const statusText = contextUsed > 0
+  const statusText = contextMax > 0
     ? `${formatTokens(contextUsed)} / ${formatTokens(contextMax)}`
     : "—";
 
-  const barColor = contextUsed > 0
-    ? getUsageColor(contextUsed)
+  const barColor = contextUsed > 0 && contextMax > 0
+    ? "var(--accent)"
     : COLOR_INACTIVE;
 
   return (
@@ -67,8 +61,11 @@ export const TokensCard = memo(function TokensCard({
         </div>
         <div className="dash-card__row">
           <span className="dash-card__label">Context</span>
-          <span>{formatTokens(contextUsed)} / {formatTokens(contextMax)}{" "}
-            <span style={{ color: "var(--fg-muted)" }}>({Math.round(pct)}%)</span>
+          <span>
+            {contextMax > 0
+              ? <>{formatTokens(contextUsed)} / {formatTokens(contextMax)}{" "}
+                  <span style={{ color: "var(--fg-muted)" }}>({Math.round(pct)}%)</span></>
+              : "—"}
           </span>
         </div>
         <div className="dash-card__row">
