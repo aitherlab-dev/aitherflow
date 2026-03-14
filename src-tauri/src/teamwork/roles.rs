@@ -1,8 +1,18 @@
+use serde::Serialize;
+
 use crate::config;
 use crate::file_ops::{read_json, write_json};
 use std::path::PathBuf;
 
 use super::team::{default_roles, AgentRole};
+
+/// Wrapper returned by roles_list — includes is_builtin flag.
+#[derive(Serialize)]
+pub struct RoleEntry {
+    #[serde(flatten)]
+    pub role: AgentRole,
+    pub is_builtin: bool,
+}
 
 /// Path to custom roles file: ~/.config/aither-flow/custom_roles.json
 fn custom_roles_path() -> PathBuf {
@@ -32,18 +42,20 @@ fn default_role_names() -> Vec<String> {
 }
 
 #[tauri::command]
-pub async fn roles_list() -> Result<Vec<AgentRole>, String> {
+pub async fn roles_list() -> Result<Vec<RoleEntry>, String> {
     tokio::task::spawn_blocking(|| {
-        let mut roles = default_roles();
+        let mut entries: Vec<RoleEntry> = default_roles()
+            .into_iter()
+            .map(|role| RoleEntry { role, is_builtin: true })
+            .collect();
         let custom = read_custom_roles_sync();
-        // Append custom roles, skip any that shadow a default name
         let default_names = default_role_names();
         for cr in custom {
             if !default_names.iter().any(|n| n.eq_ignore_ascii_case(&cr.name)) {
-                roles.push(cr);
+                entries.push(RoleEntry { role: cr, is_builtin: false });
             }
         }
-        Ok(roles)
+        Ok(entries)
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?

@@ -18,7 +18,7 @@ import { invoke } from "../../lib/transport";
 import { useTeamStore } from "../../stores/teamStore";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useAgentStore } from "../../stores/agentStore";
-import type { Team, TeamAgent, AgentRole, TeamTask, TeamMessage } from "../../types/team";
+import type { Team, TeamAgent, RoleEntry, TeamTask, TeamMessage } from "../../types/team";
 
 interface WorktreeEntry {
   path: string;
@@ -221,14 +221,14 @@ function CreateTeamButton() {
 
 function AgentsSection({ team }: { team: Team }) {
   const [adding, setAdding] = useState(false);
-  const [roles, setRoles] = useState<AgentRole[]>([]);
-  const [selectedRole, setSelectedRole] = useState<AgentRole | null>(null);
+  const [roles, setRoles] = useState<RoleEntry[]>([]);
+  const [selectedRole, setSelectedRole] = useState<RoleEntry | null>(null);
   const [branch, setBranch] = useState("");
   const [worktrees, setWorktrees] = useState<WorktreeEntry[]>([]);
 
   useEffect(() => {
     if (!adding) return;
-    invoke<AgentRole[]>("roles_list").then((r) => {
+    invoke<RoleEntry[]>("roles_list").then((r) => {
       setRoles(r);
       if (r.length > 0) setSelectedRole(r[0]);
     }).catch(console.error);

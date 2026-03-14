@@ -5,6 +5,10 @@ export interface AgentRole {
   can_manage: boolean;
 }
 
+export interface RoleEntry extends AgentRole {
+  is_builtin: boolean;
+}
+
 export type AgentStatus = "idle" | "running" | "stopped";
 export type TaskStatus = "pending" | "in_progress" | "completed";
 

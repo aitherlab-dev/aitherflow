@@ -1,5 +1,5 @@
 import { memo, useCallback, useRef, useState } from "react";
-import { Code, Eye, Compass } from "lucide-react";
+import { User } from "lucide-react";
 import { MessageList } from "./MessageList";
 import { InputBar } from "./InputBar";
 import { TaskBar } from "./TaskBar";
@@ -9,12 +9,6 @@ import { useAttachmentStore } from "../../stores/attachmentStore";
 import { useTauriDragDrop } from "../../hooks/useTauriDragDrop";
 import type { AgentEntry } from "../../types/agents";
 
-const TEAM_ROLE_ICON: Record<string, React.ElementType> = {
-  coder: Code,
-  reviewer: Eye,
-  architect: Compass,
-};
-
 function TeamBadge() {
   const agent = useAgentStore((s) => {
     const a = s.agents.find((e) => e.id === s.activeAgentId);
@@ -23,11 +17,9 @@ function TeamBadge() {
 
   if (!agent?.teamRole) return null;
 
-  const RoleIcon = TEAM_ROLE_ICON[agent.teamRole];
-
   return (
     <div className="team-chat-badge">
-      {RoleIcon && <RoleIcon size={14} />}
+      <User size={14} />
       <span>{agent.projectName}</span>
     </div>
   );

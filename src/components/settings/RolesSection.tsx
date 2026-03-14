@@ -1,22 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
 import { Plus, Trash2, Shield, X } from "lucide-react";
 import { invoke } from "../../lib/transport";
-import type { AgentRole } from "../../types/team";
+import type { AgentRole, RoleEntry } from "../../types/team";
 
-const BUILT_IN_NAMES = ["Coder", "Reviewer", "Architect"];
 const ALL_TOOLS = ["Edit", "Write", "Bash", "Glob", "Grep", "Read"];
 
-function isBuiltIn(name: string): boolean {
-  return BUILT_IN_NAMES.some((n) => n.toLowerCase() === name.toLowerCase());
-}
-
 export function RolesSection() {
-  const [roles, setRoles] = useState<AgentRole[]>([]);
+  const [roles, setRoles] = useState<RoleEntry[]>([]);
   const [editing, setEditing] = useState<AgentRole | null>(null);
   const [isNew, setIsNew] = useState(false);
 
   const loadRoles = useCallback(() => {
-    invoke<AgentRole[]>("roles_list").then(setRoles).catch(console.error);
+    invoke<RoleEntry[]>("roles_list").then(setRoles).catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -33,8 +28,8 @@ export function RolesSection() {
     setIsNew(true);
   }, []);
 
-  const handleEdit = useCallback((role: AgentRole) => {
-    if (isBuiltIn(role.name)) return;
+  const handleEdit = useCallback((role: RoleEntry) => {
+    if (role.is_builtin) return;
     setEditing({ ...role });
     setIsNew(false);
   }, []);
@@ -75,12 +70,12 @@ export function RolesSection() {
         {roles.map((role) => (
           <div
             key={role.name}
-            className={`roles-card ${!isBuiltIn(role.name) ? "roles-card--clickable" : ""}`}
+            className={`roles-card ${!role.is_builtin ? "roles-card--clickable" : ""}`}
             onClick={() => handleEdit(role)}
           >
             <div className="roles-card__header">
               <span className="roles-card__name">{role.name}</span>
-              {isBuiltIn(role.name) && (
+              {role.is_builtin && (
                 <span className="roles-badge roles-badge--builtin">Built-in</span>
               )}
               {role.can_manage && (
@@ -105,6 +100,7 @@ export function RolesSection() {
 
       {editing && (
         <RoleEditor
+          key={editing.name}
           role={editing}
           isNew={isNew}
           onSave={handleSave}
