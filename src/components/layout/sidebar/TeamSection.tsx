@@ -77,6 +77,25 @@ export const TeamSection = memo(function TeamSection() {
     setOpen((prev) => !prev);
   }, []);
 
+  const handleCreate = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (!projectPath) {
+        console.error("[TeamSection] createTeam: no project path available");
+        return;
+      }
+      try {
+        const defaultName = `Team ${workspaceTeams.length + 1}`;
+        await useTeamStore.getState().createTeam(defaultName, projectPath);
+        useLayoutStore.getState().openTeamwork();
+        if (!open) setOpen(true);
+      } catch (e) {
+        console.error("[TeamSection] createTeam:", e);
+      }
+    },
+    [projectPath, workspaceTeams.length, open],
+  );
+
   return (
     <>
       <div
@@ -86,6 +105,13 @@ export const TeamSection = memo(function TeamSection() {
         <div className="dash-card__header">
           <Users size={14} className="dash-card__icon" />
           <span className="dash-card__title">Teams</span>
+          <button
+            className="dash-card__action"
+            onClick={handleCreate}
+            title="New Team"
+          >
+            <Plus size={14} />
+          </button>
         </div>
       </div>
       {open && (
@@ -93,10 +119,6 @@ export const TeamSection = memo(function TeamSection() {
           {workspaceTeams.map((team) => (
             <TeamItem key={team.id} team={team} />
           ))}
-          <NewTeamButton projectPath={projectPath} teamsCount={workspaceTeams.length} />
-          {workspaceTeams.length === 0 && (
-            <div className="teams-empty">No teams yet</div>
-          )}
         </div>
       )}
     </>
@@ -342,30 +364,3 @@ function TeamAgentRow({
   );
 }
 
-/* ── New team button ── */
-
-function NewTeamButton({ projectPath, teamsCount }: { projectPath: string; teamsCount: number }) {
-  const handleCreate = useCallback(async () => {
-    if (!projectPath) {
-      console.error("[TeamSection] createTeam: no project path available");
-      return;
-    }
-    try {
-      const defaultName = `Team ${teamsCount + 1}`;
-      await useTeamStore.getState().createTeam(defaultName, projectPath);
-      useLayoutStore.getState().openTeamwork();
-    } catch (e) {
-      console.error("[TeamSection] createTeam:", e);
-    }
-  }, [projectPath, teamsCount]);
-
-  return (
-    <button
-      className="teams-new-btn"
-      onClick={handleCreate}
-    >
-      <Plus size={11} />
-      <span>New Team</span>
-    </button>
-  );
-}
