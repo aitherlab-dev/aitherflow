@@ -1,0 +1,152 @@
+/* ── CLI Stats ── */
+
+.cli-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.cli-stats__period {
+  display: flex;
+  gap: 4px;
+  align-self: flex-end;
+}
+
+.cli-stats__period-btn {
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.cli-stats__period-btn:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.cli-stats__period-btn--active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--fg-on-accent);
+}
+
+/* Summary cards row */
+.cli-stats__summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.cli-stats__card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+}
+
+.cli-stats__card-label {
+  font-size: 0.7rem;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cli-stats__card-value {
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+/* Section with chart */
+.cli-stats__section {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+}
+
+.cli-stats__section-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--fg);
+  margin: 0 0 12px;
+}
+
+/* Two-column layout for model/project */
+.cli-stats__columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  padding: 0;
+  border: none;
+  background: none;
+}
+
+.cli-stats__columns > .cli-stats__col {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+}
+
+/* SVG chart */
+.cli-stats__chart {
+  width: 100%;
+  height: auto;
+}
+
+.cli-stats__chart-label {
+  font-size: 9px;
+  fill: var(--fg-muted);
+  font-family: inherit;
+}
+
+/* Bar list */
+.cli-stats__bars {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cli-stats__bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+}
+
+.cli-stats__bar-label {
+  min-width: 70px;
+  text-align: right;
+  color: var(--fg-muted);
+  flex-shrink: 0;
+}
+
+.cli-stats__bar-track {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--bg-hard);
+  overflow: hidden;
+}
+
+.cli-stats__bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+
+.cli-stats__bar-value {
+  min-width: 60px;
+  text-align: right;
+  color: var(--fg);
+  font-weight: 500;
+}

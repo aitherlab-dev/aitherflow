@@ -1,0 +1,322 @@
+/* ═══════════════════════════════════════════
+   Agent Log Panel — Tool Card
+   ═══════════════════════════════════════════ */
+
+.tool-card {
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+}
+
+.tool-card:last-child {
+  border-bottom: none;
+}
+
+.tool-card-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+
+.tool-card-row:hover {
+  background: var(--bg-hover);
+}
+
+.tool-card-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--fg-dim);
+  flex-shrink: 0;
+}
+
+.tool-card-dot--running {
+  background: var(--accent);
+  animation: tool-pulse 1.5s ease-in-out infinite;
+}
+
+.tool-card-dot--error {
+  background: var(--red);
+}
+
+.tool-card-name {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.72rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.tool-card-name--read { color: var(--blue); }
+.tool-card-name--edit { color: var(--yellow); }
+.tool-card-name--write { color: var(--green); }
+.tool-card-name--bash { color: var(--cyan); }
+.tool-card-name--search { color: var(--purple); }
+.tool-card-name--web { color: var(--accent); }
+.tool-card-name--agent { color: var(--fg-muted); }
+.tool-card-name--default { color: var(--fg-muted); }
+.tool-card-name--error { color: var(--red); }
+
+.tool-card-summary {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.7rem;
+  color: var(--fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-card-summary--file {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: var(--fg-dim);
+  text-underline-offset: 2px;
+}
+
+.tool-card-summary--file:hover {
+  color: var(--fg);
+  text-decoration-color: var(--fg-muted);
+}
+
+.tool-card-chevron {
+  flex-shrink: 0;
+  color: var(--fg-dim);
+  transition: transform 0.15s;
+}
+
+.tool-card-chevron--open {
+  transform: rotate(90deg);
+}
+
+.tool-card-detail {
+  padding: 0 12px 8px;
+}
+
+.tool-card-json,
+.tool-card-result {
+  max-height: 144px;
+  overflow: auto;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--bg);
+  font-family: var(--font-mono, monospace);
+  font-size: 0.68rem;
+  line-height: 1.5;
+  color: var(--fg-muted);
+  white-space: pre-wrap;
+  word-break: break-all;
+  scrollbar-width: thin;
+}
+
+.tool-card-result {
+  margin-top: 4px;
+  color: var(--fg-dim);
+}
+
+.tool-card-result--error {
+  color: var(--red);
+}
+
+/* ═══════════════════════════════════════════
+   Model Menu
+   ═══════════════════════════════════════════ */
+
+.model-menu {
+  min-width: 140px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 0;
+  box-shadow: var(--shadow-sm);
+}
+
+.model-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  font-size: 0.78rem;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+}
+
+.model-menu__item:hover {
+  background: var(--bg-hover);
+}
+
+.model-menu__item--active {
+  color: var(--accent);
+}
+
+.model-menu__check {
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.model-menu__label {
+  flex: 1;
+}
+
+.model-menu__hint {
+  color: var(--fg-dim);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.model-menu__item:hover .model-menu__hint {
+  opacity: 1;
+}
+
+/* ── Skills popup menu ── */
+
+.skills-menu {
+  min-width: 180px;
+  max-width: 280px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 0;
+  box-shadow: var(--shadow-sm);
+}
+
+.skills-menu__empty {
+  padding: 10px 12px;
+  color: var(--fg-dim);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.skills-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  font-size: 0.78rem;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+}
+
+.skills-menu__item:hover {
+  background: var(--bg-hover);
+}
+
+.skills-menu__star {
+  color: var(--accent-icon);
+  flex-shrink: 0;
+}
+
+.skills-menu__name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skills-menu__command {
+  color: var(--fg-dim);
+  font-size: 0.7rem;
+  flex-shrink: 0;
+}
+
+/* ── Commands menu (slash commands popup) ── */
+.commands-menu {
+  min-width: 200px;
+  max-width: 320px;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 0;
+  box-shadow: var(--shadow-sm);
+}
+
+.commands-menu__empty {
+  padding: 10px 12px;
+  color: var(--fg-dim);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.commands-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 5px 10px;
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  font-size: 0.78rem;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+}
+
+.commands-menu__item:hover {
+  background: var(--bg-hover);
+}
+
+.commands-menu__icon {
+  color: var(--fg-dim);
+  flex-shrink: 0;
+}
+
+.commands-menu__name {
+  flex: 1;
+  white-space: nowrap;
+}
+
+/* Effort badge on model button */
+.input-bar-mode-badge {
+  font-size: 0.7rem;
+  color: var(--fg-muted);
+  user-select: none;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.input-bar-mode-badge:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.input-bar-mode-badge--switching {
+  animation: mode-pulse 0.8s ease-in-out infinite;
+}
+
+@keyframes mode-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+.model-effort-badge {
+  font-size: 0.6rem;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--bg-hover);
+  color: var(--fg-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}

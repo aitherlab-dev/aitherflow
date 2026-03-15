@@ -1,0 +1,341 @@
+/* ── Dashboard panel ── */
+
+.dash-panel {
+  padding: 0 10px;
+}
+
+.dash-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+/* ── Dashboard card ── */
+
+.dash-card {
+  background: var(--card-bg);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease-out;
+  min-width: 0;
+  min-height: 40px;
+  overflow: hidden;
+}
+
+/* Dark theme: utility cards (Branches, Files) dimmer than agents */
+:root .sidebar-branches-toggle,
+:root .sidebar-files-toggle {
+  background: var(--card-bg);
+}
+
+:root .sidebar-branches-toggle:hover,
+:root .sidebar-files-toggle:hover {
+  background: var(--tab-bg-hover);
+}
+
+/* Settings — same style as Home */
+:root .sidebar-nav-card:not(.dash-card--home) {
+  background: var(--accent-soft);
+  border-color: var(--accent-soft);
+  color: var(--fg);
+}
+
+:root .sidebar-nav-card:not(.dash-card--home):hover {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.dash-card:hover {
+  background: var(--tab-bg-hover);
+  transform: scale(1.025);
+}
+
+.dash-card--home {
+  background: var(--accent-soft);
+  border-color: var(--accent-soft);
+  color: var(--fg);
+}
+
+.dash-card--home:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.dash-card--home .dash-card__icon,
+.dash-card--home .dash-card__title {
+  color: inherit;
+}
+
+.dash-card--expanded,
+.dash-card--expanded:hover {
+  background: var(--tab-bg-hover);
+  border-color: var(--accent);
+  padding: 0;
+}
+
+.dash-card--expanded .dash-card__header {
+  padding: 10px 12px;
+}
+
+/* ── Collapse animation ── */
+
+.dash-card__collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.dash-card__collapse--open {
+  grid-template-rows: 1fr;
+}
+
+.dash-card__collapse > .dash-card__body {
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ── Button grid (always in place) ── */
+
+.dash-btn-wrapper .dash-card__collapse {
+  display: grid;
+}
+
+.dash-btn-wrapper {
+  touch-action: none;
+}
+
+.dash-btn-wrapper--active .dash-card {
+  border-color: var(--accent);
+  background: var(--tab-bg-hover);
+}
+
+.dash-btn-wrapper--dragging {
+  opacity: 0.3;
+}
+
+.dash-btn-wrapper--drop-target .dash-card {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.dash-card-ghost {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.85;
+  transform: rotate(2deg);
+  box-shadow: var(--shadow-md);
+  border-radius: 6px;
+}
+
+.dash-card__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.dash-card__icon {
+  color: var(--accent-stroke);
+  flex-shrink: 0;
+}
+
+.dash-card__title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.dash-card__action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  padding: 2px;
+  border-radius: 4px;
+  color: var(--fg-dim);
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+}
+
+.dash-card__action:hover {
+  color: var(--fg);
+  background: var(--bg-hover);
+}
+
+.dash-card__status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.dash-card__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dash-card__dot--green {
+  background: var(--status-green);
+}
+
+.dash-card__dot--red {
+  background: var(--status-red);
+}
+
+.dash-card__dot--gray {
+  background: var(--fg-muted);
+  opacity: 0.4;
+}
+
+.dash-card__dot--orange {
+  background: var(--accent);
+}
+
+.dash-card__dot--blue {
+  background: var(--status-blue);
+}
+
+.dash-card__dot--dim {
+  background: var(--fg-muted);
+  opacity: 0.25;
+}
+
+.dash-card__status-text {
+  font-size: 0.7rem;
+  color: var(--fg);
+  white-space: nowrap;
+}
+
+/* Settings button in card header */
+.dash-card__settings-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fg-dim);
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-left: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.dash-card__settings-btn:hover {
+  color: var(--fg);
+  background: var(--bg-card);
+}
+
+/* Skills sections inside card */
+.dash-card__skills-sections {
+  display: flex;
+  flex-direction: column;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* Expanded body */
+
+.dash-card__body {
+  padding: 0;
+}
+
+.dash-card__body-inner {
+  padding: 8px 12px 10px;
+  background: var(--bg-hard);
+  border-radius: 9px 9px 0 0;
+}
+
+.dash-card__details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dash-card__bar-wrap {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--bg-hard);
+  overflow: hidden;
+  margin-bottom: 2px;
+}
+
+.dash-card__bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.dash-card__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.72rem;
+  color: var(--fg);
+}
+
+.dash-card__row--error {
+  color: var(--status-red);
+}
+
+.dash-card__row--sub {
+  padding-left: 10px;
+  font-size: 0.8rem;
+}
+
+.dash-card__label {
+  color: var(--fg-muted);
+}
+
+/* Toggle switch */
+
+.dash-card__toggle {
+  position: relative;
+  width: 32px;
+  height: 18px;
+  border: none;
+  border-radius: 9px;
+  background: var(--border);
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.2s;
+}
+
+.dash-card__toggle:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.dash-card__toggle--on {
+  background: var(--status-green);
+}
+
+.dash-card__toggle-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--fg);
+  transition: transform 0.2s;
+}
+
+.dash-card__toggle--on .dash-card__toggle-knob {
+  transform: translateX(14px);
+}

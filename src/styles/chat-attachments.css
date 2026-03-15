@@ -1,0 +1,174 @@
+/* ═══════════════════════════════════════════
+   Attachment Chips (InputBar)
+   ═══════════════════════════════════════════ */
+
+.attachment-chips {
+  display: flex;
+  gap: 8px;
+  padding: 8px 8px 6px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.attachment-chip {
+  position: relative;
+  width: 104px;
+  height: 80px;
+  border-radius: 10px;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+}
+
+/* ── Image card ── */
+.attachment-chip--image {
+  background: var(--bg-hard);
+}
+
+.attachment-chip-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* ── File card ── */
+.attachment-chip--file {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: var(--bg-card);
+}
+
+.attachment-chip-name {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+
+.attachment-chip-ext {
+  display: inline-block;
+  padding: 1px 6px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--fg-muted);
+  background: var(--bg-hover);
+  border-radius: 4px;
+  align-self: flex-start;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* ── Remove button (overlaid) ── */
+.attachment-chip-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--fg-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+  z-index: 1;
+}
+
+.attachment-chip:hover .attachment-chip-remove {
+  opacity: 1;
+}
+
+.attachment-chip-remove:hover {
+  color: var(--fg);
+  background: var(--bg-hover);
+}
+
+/* ═══════════════════════════════════════════
+   Attachment Cards (User Messages)
+   ═══════════════════════════════════════════ */
+
+.message-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.attachment-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* Image card */
+.attachment-card-image {
+  max-width: 200px;
+}
+
+.attachment-card-thumb {
+  display: block;
+  width: 100%;
+  max-height: 160px;
+  object-fit: cover;
+  border-radius: 9px;
+}
+
+/* Text file card */
+.attachment-card-text {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  max-width: 260px;
+  align-items: flex-start;
+}
+
+.attachment-card-icon {
+  color: var(--fg-muted);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.attachment-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.attachment-card-name {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-card-meta {
+  font-size: 0.7rem;
+  color: var(--fg-dim);
+}
+
+.attachment-card-preview {
+  font-size: 0.7rem;
+  color: var(--fg-muted);
+  line-height: 1.3;
+  max-height: 3.9em;
+  overflow: hidden;
+  font-family: var(--font-mono, monospace);
+  margin: 0;
+  white-space: pre;
+}

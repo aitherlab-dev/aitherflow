@@ -1,0 +1,65 @@
+/* ═══════════════════════════════════════════
+   App Layout (grid shell)
+   ═══════════════════════════════════════════ */
+
+.app-layout {
+  display: grid;
+  grid-template-rows: 40px 1fr 28px;
+  grid-template-columns: auto 1fr auto;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Resize Handle ── */
+
+.resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 4px;
+  height: 100%;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.15s;
+  z-index: 5;
+}
+
+.resize-handle:hover,
+.resize-handle:active {
+  background: var(--fg-dim);
+}
+
+/* ── Main zone ── */
+
+.app-main {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* Sidebar header — Build/Dev buttons (top-left) */
+.sidebar-footer {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  padding: 4px 12px;
+  gap: 6px;
+  background: var(--bg-soft);
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+/* Brand footer — logo (bottom-left) */
+.brand-footer {
+  grid-column: 1;
+  grid-row: 3;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  background: var(--bg-soft);
+  border-right: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+}
