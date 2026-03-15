@@ -237,6 +237,22 @@ export const Sidebar = memo(function Sidebar() {
             </div>
           </div>
 
+          {/* Files — dash-card style button, accordion expands below */}
+          <div
+            className={`dash-card sidebar-files-toggle ${filesOpen ? "dash-card--expanded" : ""}`}
+            onClick={handleFilesClick}
+          >
+            <div className="dash-card__header">
+              <FolderOpen size={14} className="dash-card__icon" />
+              <span className="dash-card__title">Files</span>
+            </div>
+          </div>
+          {filesOpen && (
+            <div className="files-accordion">
+              <FilesPanel />
+            </div>
+          )}
+
           {/* Agent block */}
           <div className="sidebar-content">
             {rootAgents.map((agent, index) => {
@@ -297,27 +313,9 @@ export const Sidebar = memo(function Sidebar() {
           {/* Teams — dash-card style, accordion expands below */}
           <TeamSection />
 
-          {/* Files — dash-card style button, accordion expands below */}
-          <div
-            className={`dash-card sidebar-files-toggle ${filesOpen ? "dash-card--expanded" : ""}`}
-            onClick={handleFilesClick}
-          >
-            <div className="dash-card__header">
-              <FolderOpen size={14} className="dash-card__icon" />
-              <span className="dash-card__title">Files</span>
-            </div>
-          </div>
-          {filesOpen && (
-            <div className="files-accordion">
-              <FilesPanel />
-            </div>
-          )}
-
           {/* Spacer — absorbs free space between agents and bottom items */}
           <div className="sidebar-spacer" />
-          <div className="dashboard-accordion">
-            <DashboardPanel />
-          </div>
+          <DashboardPanel />
           <div
             className="dash-card sidebar-nav-card"
             onClick={handleSettingsClick}

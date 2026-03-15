@@ -1224,14 +1224,8 @@
 
 /* ── Dashboard panel ── */
 
-.dashboard-accordion {
-  flex-shrink: 0;
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-}
-
 .dash-panel {
-  padding: 10px;
+  padding: 0 10px;
 }
 
 .dash-grid {
@@ -1251,6 +1245,7 @@
   transition: background 0.2s ease, border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease-out;
   min-width: 0;
   min-height: 40px;
+  overflow: hidden;
 }
 
 /* Dark theme: utility cards (Branches, Files) dimmer than agents */
@@ -1301,6 +1296,11 @@
 .dash-card--expanded:hover {
   background: var(--tab-bg-hover);
   border-color: var(--accent);
+  padding: 0;
+}
+
+.dash-card--expanded .dash-card__header {
+  padding: 10px 12px;
 }
 
 /* ── Collapse animation ── */
@@ -1313,11 +1313,11 @@
 
 .dash-card__collapse--open {
   grid-template-rows: 1fr;
-  padding-top: 8px;
 }
 
 .dash-card__collapse > .dash-card__body {
   overflow: hidden;
+  min-height: 0;
 }
 
 /* ── Button grid (always in place) ── */
@@ -1486,7 +1486,13 @@
 /* Expanded body */
 
 .dash-card__body {
-  padding: 8px;
+  padding: 0;
+}
+
+.dash-card__body-inner {
+  padding: 8px 12px 10px;
+  background: var(--bg-hard);
+  border-radius: 9px 9px 0 0;
 }
 
 .dash-card__details {

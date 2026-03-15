@@ -37,6 +37,7 @@ dependencies = [
  "rubato",
  "serde",
  "serde_json",
+ "smallvec",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",

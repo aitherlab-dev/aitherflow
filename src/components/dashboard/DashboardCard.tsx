@@ -36,6 +36,15 @@ export const DashboardCard = memo(function DashboardCard({
       className={`dash-card ${expanded ? "dash-card--expanded" : ""}`}
       onClick={(e) => { if (!e.shiftKey) onToggle(id); }}
     >
+      {children && (
+        <div className={`dash-card__collapse ${expanded ? "dash-card__collapse--open" : ""}`}>
+          <div className="dash-card__body" onClick={(e) => e.stopPropagation()}>
+            <div className="dash-card__body-inner">
+              {children}
+            </div>
+          </div>
+        </div>
+      )}
       <div className="dash-card__header">
         <Icon size={14} className="dash-card__icon" />
         <span className="dash-card__title">{title}</span>
@@ -45,13 +54,6 @@ export const DashboardCard = memo(function DashboardCard({
         </span>
         {headerExtra}
       </div>
-      {children && (
-        <div className={`dash-card__collapse ${expanded ? "dash-card__collapse--open" : ""}`}>
-          <div className="dash-card__body" onClick={(e) => e.stopPropagation()}>
-            {children}
-          </div>
-        </div>
-      )}
     </div>
   );
 });
