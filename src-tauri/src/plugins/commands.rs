@@ -49,6 +49,14 @@ fn validate_plugin_name(name: &str, label: &str) -> Result<(), String> {
 
 /// Only allow https:// URLs for git clone (blocks file://, ssh://, git://, etc.)
 fn validate_git_url(url: &str) -> Result<(), String> {
+    // Length limit to prevent abuse
+    if url.len() > 500 {
+        return Err("Git URL too long (max 500 characters)".to_string());
+    }
+    // Block git argument injection (URLs starting with -)
+    if url.starts_with('-') {
+        return Err("Git URL must not start with '-'".to_string());
+    }
     if !url.starts_with("https://") {
         return Err(format!(
             "Only HTTPS git URLs are allowed, got: {}",
@@ -57,6 +65,11 @@ fn validate_git_url(url: &str) -> Result<(), String> {
     }
     if url.contains("..") {
         return Err("Git URL contains path traversal".to_string());
+    }
+    // Block URL-encoded traversal (case insensitive)
+    let lower = url.to_ascii_lowercase();
+    if lower.contains("%2e%2e") || lower.contains("%2f") || lower.contains("%5c") {
+        return Err("Git URL contains encoded traversal sequences".to_string());
     }
     Ok(())
 }

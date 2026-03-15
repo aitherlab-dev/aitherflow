@@ -1,6 +1,10 @@
 use serde_json::Value;
+use smallvec::SmallVec;
 
 use super::types::CliEvent;
+
+/// Most NDJSON lines produce 1-3 events; SmallVec avoids heap allocation for those.
+pub type EventVec = SmallVec<[CliEvent; 4]>;
 
 /// Parse a single NDJSON line from CLI stdout into zero or more CliEvent values.
 ///
@@ -13,7 +17,7 @@ pub fn parse_line(
     completed_text: &mut String,
     delta_text: &mut String,
     combined_buf: &mut String,
-) -> Result<Vec<CliEvent>, String> {
+) -> Result<EventVec, String> {
     let parsed: Value =
         serde_json::from_str(line).map_err(|e| format!("Invalid JSON: {e}"))?;
 
@@ -22,7 +26,7 @@ pub fn parse_line(
         .and_then(|v| v.as_str())
         .unwrap_or("");
 
-    let mut events = Vec::new();
+    let mut events = SmallVec::new();
 
     match event_type {
         "system" => {
@@ -82,25 +86,23 @@ pub fn parse_line(
 
             // Commit current turn's text to completed_text so it persists
             // across turns (intermediate "thinking" blocks).
-            let turn_text = if had_deltas {
-                std::mem::take(delta_text)
-            } else {
-                text.clone()
-            };
-
-            if !turn_text.is_empty() {
+            if had_deltas {
+                let turn_text = std::mem::take(delta_text);
+                if !turn_text.is_empty() {
+                    if !completed_text.is_empty() {
+                        completed_text.push_str("\n<!-- turn -->\n");
+                    }
+                    completed_text.push_str(&turn_text);
+                }
+            } else if !text.is_empty() {
                 if !completed_text.is_empty() {
-                    // Separator so frontend can split intermediate vs final blocks
                     completed_text.push_str("\n<!-- turn -->\n");
                 }
-                completed_text.push_str(&turn_text);
-            }
-
-            // If no streaming deltas came, send the text as a chunk (delta only)
-            if !had_deltas && !text.is_empty() {
+                completed_text.push_str(&text);
+                // No streaming deltas came — send the text as a chunk
                 events.push(CliEvent::StreamChunk {
                     agent_id: agent_id.to_string(),
-                    text: text.clone(),
+                    text,
                 });
             }
 
@@ -396,7 +398,7 @@ mod tests {
         agent_id: &str,
         completed: &mut String,
         delta: &mut String,
-    ) -> Result<Vec<CliEvent>, String> {
+    ) -> Result<EventVec, String> {
         let mut buf = String::new();
         parse_line(line, agent_id, completed, delta, &mut buf)
     }
