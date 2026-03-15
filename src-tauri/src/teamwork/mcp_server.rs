@@ -18,6 +18,7 @@ use crate::conductor::session::SessionManager;
 // ---------------------------------------------------------------------------
 
 static MCP_STATE: OnceLock<Arc<McpServerState>> = OnceLock::new();
+static SHUTDOWN_TX: OnceLock<tokio::sync::watch::Sender<bool>> = OnceLock::new();
 
 pub struct McpServerState {
     pub port: u16,
@@ -105,6 +106,13 @@ pub fn get_state() -> Option<&'static Arc<McpServerState>> {
     MCP_STATE.get()
 }
 
+/// Signal the MCP server to shut down gracefully.
+pub fn shutdown_mcp_server() {
+    if let Some(tx) = SHUTDOWN_TX.get() {
+        let _ = tx.send(true);
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Server startup
 // ---------------------------------------------------------------------------
@@ -145,8 +153,16 @@ pub async fn start_mcp_server(
         )
         .with_state(state);
 
+    let (shutdown_tx, mut shutdown_rx) = tokio::sync::watch::channel(false);
+    let _ = SHUTDOWN_TX.set(shutdown_tx);
+
     tokio::spawn(async move {
-        if let Err(e) = axum::serve(listener, app).await {
+        if let Err(e) = axum::serve(listener, app)
+            .with_graceful_shutdown(async move {
+                let _ = shutdown_rx.wait_for(|&v| v).await;
+            })
+            .await
+        {
             eprintln!("[mcp-server] Server error: {e}");
         }
     });
@@ -662,8 +678,12 @@ async fn execute_tool(
                 .get_writer(&target_id)
                 .await
                 .ok_or_else(|| format!("No active session for agent {target_id}"))?;
-            writer.write_message(&ndjson).await?;
-            Ok("Prompt sent".to_string())
+            let sent = writer.write_if_idle(&ndjson).await?;
+            if sent {
+                Ok("Prompt sent".to_string())
+            } else {
+                Err(format!("Agent {target_id} is busy (not idle), message not sent"))
+            }
         }
 
         _ => Err(format!("Unknown tool: {tool_name}")),

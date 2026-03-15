@@ -219,6 +219,7 @@ pub fn run() {
         })
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
+                teamwork::mcp_server::shutdown_mcp_server();
                 devtools::stop_all_dev_servers();
                 app.state::<SessionManager>().kill_all_sync();
             }

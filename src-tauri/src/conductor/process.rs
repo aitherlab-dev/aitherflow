@@ -283,6 +283,10 @@ pub async fn run_cli_session(
             // Skip the first immediate tick
             interval.tick().await;
 
+            // Buffer for messages that couldn't be sent (agent was busy)
+            let mut pending_messages: Vec<crate::teamwork::mailbox::TeamMessage> = Vec::new();
+            let mut pending_ndjson: Option<String> = None;
+
             loop {
                 interval.tick().await;
 
@@ -293,48 +297,61 @@ pub async fn run_cli_session(
                     SessionStatus::Idle => {}
                 }
 
-                // Read inbox (blocking I/O via spawn_blocking)
-                let team_r = team_poll.clone();
-                let agent_r = agent_id_poll.clone();
-                let messages = match tokio::task::spawn_blocking(move || {
-                    crate::teamwork::mailbox::read_inbox_sync(&team_r, &agent_r)
-                })
-                .await
-                {
-                    Ok(Ok(msgs)) => msgs,
-                    Ok(Err(e)) => {
-                        eprintln!("[teamwork] Polling inbox error: {e}");
+                // Use buffered messages if available, otherwise read from inbox
+                let (messages, ndjson) = if let Some(ndjson) = pending_ndjson.take() {
+                    let msgs = std::mem::take(&mut pending_messages);
+                    (msgs, ndjson)
+                } else {
+                    // Read inbox (blocking I/O via spawn_blocking)
+                    let team_r = team_poll.clone();
+                    let agent_r = agent_id_poll.clone();
+                    let msgs = match tokio::task::spawn_blocking(move || {
+                        crate::teamwork::mailbox::read_inbox_sync(&team_r, &agent_r)
+                    })
+                    .await
+                    {
+                        Ok(Ok(msgs)) => msgs,
+                        Ok(Err(e)) => {
+                            eprintln!("[teamwork] Polling inbox error: {e}");
+                            continue;
+                        }
+                        Err(e) => {
+                            eprintln!("[teamwork] Polling task panic: {e}");
+                            break;
+                        }
+                    };
+
+                    if msgs.is_empty() {
                         continue;
                     }
-                    Err(e) => {
-                        eprintln!("[teamwork] Polling task panic: {e}");
-                        break;
-                    }
-                };
 
-                if messages.is_empty() {
-                    continue;
-                }
+                    // Build combined text: [Сообщение от {from}]: {text}
+                    let text: String = msgs
+                        .iter()
+                        .map(|m| format!("[Сообщение от {}]: {}", m.from, m.text))
+                        .collect::<Vec<_>>()
+                        .join("\n\n");
 
-                // Build combined text: [Сообщение от {from}]: {text}
-                let text: String = messages
-                    .iter()
-                    .map(|m| format!("[Сообщение от {}]: {}", m.from, m.text))
-                    .collect::<Vec<_>>()
-                    .join("\n\n");
+                    let ndjson = match build_stdin_message(&text, &[]) {
+                        Ok(n) => n,
+                        Err(e) => {
+                            eprintln!("[teamwork] Failed to build stdin message: {e}");
+                            continue;
+                        }
+                    };
 
-                let ndjson = match build_stdin_message(&text, &[]) {
-                    Ok(n) => n,
-                    Err(e) => {
-                        eprintln!("[teamwork] Failed to build stdin message: {e}");
-                        continue;
-                    }
+                    (msgs, ndjson)
                 };
 
                 // Atomic: check idle → write → set thinking
                 match writer_poll.write_if_idle(&ndjson).await {
                     Ok(true) => {}     // sent successfully
-                    Ok(false) => continue, // no longer idle (user sent something between check and now)
+                    Ok(false) => {
+                        // Buffer messages for next tick (avoid re-reading file)
+                        pending_messages = messages;
+                        pending_ndjson = Some(ndjson);
+                        continue;
+                    }
                     Err(e) => {
                         eprintln!("[teamwork] Failed to write to stdin: {e}");
                         break;

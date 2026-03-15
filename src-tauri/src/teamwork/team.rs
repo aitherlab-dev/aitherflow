@@ -135,6 +135,16 @@ fn team_lock(team_id: &str) -> Arc<Mutex<()>> {
         .clone()
 }
 
+/// Remove lock entry for a team (called on team deletion).
+fn remove_team_lock(team_id: &str) {
+    let mut map = TEAM_LOCKS.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(arc) = map.get(team_id) {
+        if Arc::strong_count(arc) == 1 {
+            map.remove(team_id);
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct AgentRole {
     pub name: String,
@@ -646,8 +656,7 @@ pub async fn team_push_message(
         None => return Ok(false),
     };
     let ndjson = crate::conductor::process::build_stdin_message(&text, &[])?;
-    writer.write_message(&ndjson).await?;
-    Ok(true)
+    writer.write_if_idle(&ndjson).await
 }
 
 /// Delete a team: stop all agents, remove team JSON, inboxes dir, tasks dir.
@@ -705,6 +714,11 @@ pub async fn team_delete(
                 eprintln!("[teamwork] Failed to remove tasks dir: {e}");
             }
         }
+
+        // Clean up lock entries for this team
+        remove_team_lock(&team_id);
+        super::mailbox::remove_inbox_locks(&team_name);
+        super::tasks::remove_task_locks(&team_name);
 
         Ok(())
     })

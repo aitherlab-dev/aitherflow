@@ -24,6 +24,19 @@ fn inbox_lock(key: &str) -> Arc<Mutex<()>> {
         .clone()
 }
 
+/// Remove lock entries for a given team prefix (called on team deletion).
+pub(crate) fn remove_inbox_locks(team: &str) {
+    let prefix = format!("{team}/");
+    let mut map = INBOX_LOCKS.lock().unwrap_or_else(|e| e.into_inner());
+    map.retain(|key, arc| {
+        if key.starts_with(&prefix) {
+            Arc::strong_count(arc) > 1 // keep if someone holds it
+        } else {
+            true
+        }
+    });
+}
+
 /// A message in an agent's inbox
 #[derive(Serialize, Deserialize, Clone)]
 pub struct TeamMessage {

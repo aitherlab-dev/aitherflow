@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { invoke } from "../../lib/transport";
+import { invalidateSettingsCache } from "../../stores/chatService";
 
 import type { AppSettings } from "../../types/settings";
 
@@ -21,6 +22,7 @@ export function GeneralSection() {
       const updated = { ...settings, [key]: !settings[key] };
       setSettings(updated);
       invoke("save_settings", { settings: updated }).catch(console.error);
+      invalidateSettingsCache();
     },
     [settings],
   );

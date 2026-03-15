@@ -24,6 +24,11 @@ let cachedSettings: { bypassPermissions: boolean; enableChrome: boolean } | null
 let settingsCacheTime = 0;
 const SETTINGS_CACHE_TTL = 10_000; // 10 seconds
 
+export function invalidateSettingsCache() {
+  cachedSettings = null;
+  settingsCacheTime = 0;
+}
+
 async function getSettings() {
   if (!cachedSettings || Date.now() - settingsCacheTime > SETTINGS_CACHE_TTL) {
     cachedSettings = await invoke<{ bypassPermissions: boolean; enableChrome: boolean }>("load_settings");
@@ -443,7 +448,7 @@ export async function toggleChatPin(chatId: string, pinned: boolean) {
   }
 }
 
-let switchAgentLock: Promise<void> | null = null;
+let switchAgentChain: Promise<void> = Promise.resolve();
 
 export async function switchAgent(
   agentId: string,
@@ -451,18 +456,17 @@ export async function switchAgent(
   projectName: string,
   savedChatId: string | null,
 ) {
-  // Serialize concurrent switchAgent calls to prevent race conditions
-  while (switchAgentLock) await switchAgentLock;
-  let unlock: () => void;
-  switchAgentLock = new Promise((r) => { unlock = r; });
+  const prev = switchAgentChain;
+  let done: () => void;
+  switchAgentChain = new Promise((r) => { done = r; });
   try {
+    await prev;
     await switchAgentInner(agentId, projectPath, projectName, savedChatId);
   } catch (e) {
     console.error("[switchAgent] Failed:", e);
     throw e;
   } finally {
-    unlock!();
-    switchAgentLock = null;
+    done!();
   }
 }
 

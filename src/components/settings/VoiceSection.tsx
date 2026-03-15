@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { invoke } from "../../lib/transport";
+import { invalidateSettingsCache } from "../../stores/chatService";
 
 import type { AppSettings } from "../../types/settings";
 
@@ -45,6 +46,7 @@ export function VoiceSection() {
   const save = useCallback((updated: AppSettings) => {
     setSettings(updated);
     invoke("save_settings", { settings: updated }).catch(console.error);
+    invalidateSettingsCache();
   }, []);
 
   if (!settings) return null;

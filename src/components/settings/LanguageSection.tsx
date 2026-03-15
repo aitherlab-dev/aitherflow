@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { invoke } from "../../lib/transport";
+import { invalidateSettingsCache } from "../../stores/chatService";
 import { Loader, RefreshCw, Languages } from "lucide-react";
 import { useTranslationStore } from "../../stores/translationStore";
 import { useSkillStore } from "../../stores/skillStore";
@@ -65,6 +66,7 @@ export function LanguageSection() {
       const updated = { ...settings, translationLanguage: code };
       setSettings(updated);
       invoke("save_settings", { settings: updated }).catch(console.error);
+      invalidateSettingsCache();
     },
     [settings],
   );

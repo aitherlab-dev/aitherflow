@@ -67,6 +67,17 @@ async function persist(agents: AgentEntry[], activeAgentId: string | null) {
   await invoke("save_agents", { agents: diskAgents, activeAgentId: diskActive });
 }
 
+function saveChatLock(
+  get: () => AgentState,
+  set: (partial: Partial<AgentState>) => void,
+) {
+  const { activeAgentId, chatLocks } = get();
+  if (activeAgentId) {
+    const currentChatId = useChatStore.getState().currentChatId;
+    set({ chatLocks: { ...chatLocks, [activeAgentId]: currentChatId } });
+  }
+}
+
 export const useAgentStore = create<AgentState>((set, get) => ({
   agents: [],
   activeAgentId: null,
@@ -86,7 +97,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   },
 
   createAgent: async (projectPath, projectName) => {
-    const { agents, activeAgentId, chatLocks } = get();
+    const { agents } = get();
     const newAgent: AgentEntry = {
       id: crypto.randomUUID(),
       projectPath,
@@ -95,13 +106,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       order: agents.length,
     };
 
-    // Save current chat position for the old agent
-    if (activeAgentId) {
-      const currentChatId = useChatStore.getState().currentChatId;
-      set({
-        chatLocks: { ...chatLocks, [activeAgentId]: currentChatId },
-      });
-    }
+    saveChatLock(get, set);
 
     const updated = [...agents, newAgent];
     set({ agents: updated, activeAgentId: newAgent.id });
@@ -115,7 +120,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   },
 
   createWorktreeAgent: async (parentAgentId, worktreePath, branchName) => {
-    const { agents, activeAgentId, chatLocks } = get();
+    const { agents } = get();
     const parent = agents.find((a) => a.id === parentAgentId);
     if (!parent) return;
 
@@ -134,13 +139,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       parentAgentId,
     };
 
-    // Save current chat position for the old agent
-    if (activeAgentId) {
-      const currentChatId = useChatStore.getState().currentChatId;
-      set({
-        chatLocks: { ...chatLocks, [activeAgentId]: currentChatId },
-      });
-    }
+    saveChatLock(get, set);
 
     const updated = [...agents, newAgent];
     set({ agents: updated, activeAgentId: newAgent.id });
@@ -205,13 +204,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     const agent = agents.find((a) => a.id === agentId);
     if (!agent) return;
 
-    // Save current chat position for the old agent
-    if (activeAgentId) {
-      const currentChatId = useChatStore.getState().currentChatId;
-      set({
-        chatLocks: { ...chatLocks, [activeAgentId]: currentChatId },
-      });
-    }
+    saveChatLock(get, set);
 
     set({ activeAgentId: agentId });
     await persist(agents, agentId);
@@ -299,7 +292,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   },
 
   registerTeamAgent: async (agentId, projectPath, projectName, teamId, teamRole) => {
-    const { agents, activeAgentId, chatLocks } = get();
+    const { agents, activeAgentId } = get();
 
     // If already registered, just switch to it
     const existing = agents.find((a) => a.id === agentId);
@@ -320,13 +313,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       teamRole,
     };
 
-    // Save current chat position for the old agent
-    if (activeAgentId) {
-      const currentChatId = useChatStore.getState().currentChatId;
-      set({
-        chatLocks: { ...chatLocks, [activeAgentId]: currentChatId },
-      });
-    }
+    saveChatLock(get, set);
 
     const updated = [...agents, newAgent];
     set({ agents: updated, activeAgentId: newAgent.id });

@@ -23,6 +23,19 @@ fn task_lock(key: &str) -> Arc<Mutex<()>> {
         .clone()
 }
 
+/// Remove lock entries for a given team prefix (called on team deletion).
+pub(crate) fn remove_task_locks(team: &str) {
+    let prefix = format!("{team}/");
+    let mut map = TASK_LOCKS.lock().unwrap_or_else(|e| e.into_inner());
+    map.retain(|key, arc| {
+        if key.starts_with(&prefix) {
+            Arc::strong_count(arc) > 1
+        } else {
+            true
+        }
+    });
+}
+
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskStatus {

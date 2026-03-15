@@ -44,10 +44,16 @@ pub fn get_telegram_status() -> Result<TelegramStatus, String> {
 
 #[tauri::command]
 pub async fn start_telegram_bot() -> Result<TelegramStatus, String> {
-    let disk_config = load_config_from_disk().unwrap_or_else(|e| {
-        eprintln!("[TG] {e}");
-        TelegramConfig::default()
-    });
+    let disk_config = tokio::task::spawn_blocking(load_config_from_disk)
+        .await
+        .unwrap_or_else(|e| {
+            eprintln!("[TG] spawn_blocking panic: {e}");
+            Err(e.to_string())
+        })
+        .unwrap_or_else(|e| {
+            eprintln!("[TG] {e}");
+            TelegramConfig::default()
+        });
 
     let config = with_state(|s| {
         let state = s.get_or_insert_with(|| BotState {
