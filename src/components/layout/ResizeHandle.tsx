@@ -15,13 +15,26 @@ export const ResizeHandle = memo(function ResizeHandle() {
       const sidebar = document.querySelector(".app-sidebar") as HTMLElement | null;
       if (sidebar) sidebar.style.transition = "none";
 
+      let rafId = 0;
+      let lastX = 0;
+
       const onMove = (ev: MouseEvent) => {
         if (!dragging.current) return;
-        setSidebarWidth(ev.clientX);
+        lastX = ev.clientX;
+        if (!rafId) {
+          rafId = requestAnimationFrame(() => {
+            rafId = 0;
+            if (dragging.current) setSidebarWidth(lastX);
+          });
+        }
       };
 
       const onUp = () => {
         dragging.current = false;
+        if (rafId) {
+          cancelAnimationFrame(rafId);
+          rafId = 0;
+        }
         document.body.classList.remove("select-none");
         document.body.style.cursor = "";
         if (sidebar) sidebar.style.transition = "";

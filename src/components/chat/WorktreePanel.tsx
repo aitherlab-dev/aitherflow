@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
   ChevronRight, GitBranch, GitCommit, FolderGit2,
-  Plus, Trash2, FileEdit, FilePlus, FileX, FileQuestion,
+  Trash2, FileEdit, FilePlus, FileX, FileQuestion,
 } from "lucide-react";
 import { useChatStore } from "../../stores/chatStore";
 import { useAgentStore } from "../../stores/agentStore";
@@ -104,7 +104,15 @@ const WorktreeItemDetails = memo(function WorktreeItemDetails({ worktreePath }: 
   );
 });
 
-export const WorktreePanel = memo(function WorktreePanel({ embedded = false }: { embedded?: boolean }) {
+export const WorktreePanel = memo(function WorktreePanel({
+  embedded = false,
+  autoCreate = false,
+  onAutoCreateConsumed,
+}: {
+  embedded?: boolean;
+  autoCreate?: boolean;
+  onAutoCreateConsumed?: () => void;
+}) {
   const projectPath = useChatStore((s) => s.projectPath);
   const { agents, activeAgentId } = useAgentStore(useShallow((s) => ({
     agents: s.agents,
@@ -161,6 +169,15 @@ export const WorktreePanel = memo(function WorktreePanel({ embedded = false }: {
     });
   }, [worktrees]);
 
+  // Auto-trigger create mode when requested from parent
+  useEffect(() => {
+    if (autoCreate) {
+      setCreating(true);
+      setTimeout(() => inputRef.current?.focus(), 50);
+      onAutoCreateConsumed?.();
+    }
+  }, [autoCreate, onAutoCreateConsumed]);
+
   const toggle = useCallback(() => setExpanded((v) => !v), []);
 
   const handleSwitch = useCallback((wt: WorktreeEntry) => {
@@ -181,11 +198,6 @@ export const WorktreePanel = memo(function WorktreePanel({ embedded = false }: {
 
   const handleToggleDetails = useCallback((path: string) => {
     setExpandedWt((prev) => (prev === path ? null : path));
-  }, []);
-
-  const handleCreate = useCallback(() => {
-    setCreating(true);
-    setTimeout(() => inputRef.current?.focus(), 50);
   }, []);
 
   const handleCreateSubmit = useCallback(async () => {
@@ -289,7 +301,7 @@ export const WorktreePanel = memo(function WorktreePanel({ embedded = false }: {
         </div>
       ))}
 
-      {creating ? (
+      {creating && (
         <div className="worktree-panel__create-input">
           <GitBranch size={13} />
           <input
@@ -302,11 +314,6 @@ export const WorktreePanel = memo(function WorktreePanel({ embedded = false }: {
             placeholder="branch name"
           />
         </div>
-      ) : (
-        <button className="worktree-panel__add" onClick={handleCreate}>
-          <Plus size={13} />
-          <span>Add worktree</span>
-        </button>
       )}
     </div>
   );

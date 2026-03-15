@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { invoke } from "@tauri-apps/api/core";
-import { Home, Settings, FolderOpen, GitBranch } from "lucide-react";
+import { Home, Settings, FolderOpen, GitBranch, Plus } from "lucide-react";
 import { useIsMobile } from "../../../hooks/useIsMobile";
 import { useLayoutStore } from "../../../stores/layoutStore";
 import { useChatStore } from "../../../stores/chatStore";
@@ -78,6 +78,7 @@ export const Sidebar = memo(function Sidebar() {
 
   const [filesOpen, setFilesOpen] = useState(false);
   const [branchesOpen, setBranchesOpen] = useState(false);
+  const [branchCreateRequested, setBranchCreateRequested] = useState(false);
 
   // Track extra worktrees (beyond root) for the orange indicator
   const [extraWorktreeCount, setExtraWorktreeCount] = useState(0);
@@ -140,6 +141,12 @@ export const Sidebar = memo(function Sidebar() {
 
   const handleBranchesClick = useCallback(() => {
     setBranchesOpen((prev) => !prev);
+  }, []);
+
+  const handleBranchCreate = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setBranchesOpen(true);
+    setBranchCreateRequested(true);
   }, []);
 
   // ── Shift+drag reorder for agent tabs ──
@@ -302,11 +309,22 @@ export const Sidebar = memo(function Sidebar() {
               {extraWorktreeCount > 0 && (
                 <span className="dash-card__dot dash-card__dot--orange" />
               )}
+              <button
+                className="dash-card__action"
+                onClick={handleBranchCreate}
+                title="Add worktree"
+              >
+                <Plus size={14} />
+              </button>
             </div>
           </div>
           {branchesOpen && (
             <div className="worktree-accordion">
-              <WorktreePanel embedded />
+              <WorktreePanel
+                embedded
+                autoCreate={branchCreateRequested}
+                onAutoCreateConsumed={() => setBranchCreateRequested(false)}
+              />
             </div>
           )}
 
