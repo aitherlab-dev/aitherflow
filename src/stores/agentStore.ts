@@ -55,6 +55,9 @@ interface AgentState {
   ) => Promise<void>;
 }
 
+/** Agent IDs currently being removed — CLI events for these should be ignored */
+export const removingAgentIds = new Set<string>();
+
 /** Persist current agents state to disk (worktree children and team agents are excluded) */
 async function persist(agents: AgentEntry[], activeAgentId: string | null) {
   const diskAgents = agents.filter((a) => !a.parentAgentId && !a.teamId);
@@ -155,6 +158,9 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       if (a.parentAgentId === agentId) idsToRemove.add(a.id);
     }
 
+    // Mark agents as removing BEFORE stop_session so event handler ignores late events
+    for (const id of idsToRemove) removingAgentIds.add(id);
+
     // Stop CLI and clean up for all removed agents
     const remainingLocks = { ...chatLocks };
     for (const id of idsToRemove) {
@@ -163,9 +169,11 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       } catch (e) {
         console.error(`[agentStore] stop_session for ${id}:`, e);
       }
-      clearAgentState(id);
+      await clearAgentState(id);
       delete remainingLocks[id];
     }
+
+    for (const id of idsToRemove) removingAgentIds.delete(id);
 
     const updated = agents.filter((a) => !idsToRemove.has(a.id));
     let newActiveId = activeAgentId;
@@ -266,7 +274,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     const { agents, activeAgentId, chatLocks } = get();
 
     const remainingLocks = { ...chatLocks };
-    clearAgentState(agentId);
+    await clearAgentState(agentId);
     delete remainingLocks[agentId];
 
     const updated = agents.filter((a) => a.id !== agentId);

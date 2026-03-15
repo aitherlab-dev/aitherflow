@@ -150,7 +150,7 @@ export const WorktreePanel = memo(function WorktreePanel({ embedded = false }: {
       nonBare.map((wt) =>
         invoke<GitStatus>("get_git_status", { projectPath: wt.path })
           .then((s) => [wt.path, s] as const)
-          .catch(() => null),
+          .catch((e) => { console.error("[WorktreePanel] git status error:", e); return null; }),
       ),
     ).then((results) => {
       const map = new Map<string, GitStatus>();

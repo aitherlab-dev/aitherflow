@@ -19,11 +19,13 @@ import {
   type AgentChatState,
 } from "./chatStore";
 import { useConductorStore } from "./conductorStore";
+import { removingAgentIds } from "./agentStore";
 
 // ── RAF batching for stream chunks: buffer latest text, flush at ~60fps ──
 
 let streamBuffer: string | null = null;
 let streamBufferIsNew = false;
+let streamBufferAgentId: string | null = null;
 let rafId: number | null = null;
 
 function flushStreamBuffer() {
@@ -32,10 +34,16 @@ function flushStreamBuffer() {
 
   const text = streamBuffer;
   const isNew = streamBufferIsNew;
+  const bufferedAgentId = streamBufferAgentId;
   streamBuffer = null;
   streamBufferIsNew = false;
+  streamBufferAgentId = null;
 
   const { getState: get, setState: set } = useChatStore;
+
+  // If the active agent changed since buffering, discard the stale buffer
+  if (bufferedAgentId && bufferedAgentId !== get().agentId) return;
+
   const existing = get().streamingMessage;
 
   if (!isNew && existing) {
@@ -66,6 +74,7 @@ export function cancelStreamRaf() {
   }
   streamBuffer = null;
   streamBufferIsNew = false;
+  streamBufferAgentId = null;
 }
 
 // ── Tool activity timer ──
@@ -247,6 +256,9 @@ function processEventCore(
 // ── Single event handler for ALL agents ──
 
 function handleCliEvent(e: CliEvent) {
+  // Ignore late events from agents being removed
+  if (removingAgentIds.has(e.agent_id)) return;
+
   const { getState: get, setState: set } = useChatStore;
   const isActive = e.agent_id === get().agentId;
 
@@ -268,6 +280,7 @@ function handleCliEvent(e: CliEvent) {
   if (e.type === "streamChunk") {
     const isNew = !get().streamingMessage;
     streamBuffer = (streamBuffer ?? "") + e.text;
+    streamBufferAgentId = e.agent_id;
     if (isNew) streamBufferIsNew = true;
     if (rafId === null) {
       rafId = requestAnimationFrame(flushStreamBuffer);

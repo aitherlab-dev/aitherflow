@@ -76,10 +76,13 @@ export async function sendMessage(text: string, allAttachments?: Attachment[]) {
   const state = useChatStore.getState();
   let chatId = state.currentChatId;
 
-  // Auto-accept all pending diffs when user sends a new message
-  import("./fileViewerStore").then(({ useFileViewerStore }) => {
+  // Auto-accept all pending diffs when user sends a new message (before state change)
+  try {
+    const { useFileViewerStore } = await import("./fileViewerStore");
     useFileViewerStore.getState().acceptAllPending();
-  }).catch(console.error);
+  } catch (e) {
+    console.error("[sendMessage] Failed to accept pending diffs:", e);
+  }
 
   // Guard against double-click during chat creation
   if (!chatId && isCreatingChat) return;
@@ -390,7 +393,9 @@ export async function deleteChat(chatId: string) {
   try {
     await invoke("delete_chat", { chatId });
 
-    if (state.currentChatId === chatId) {
+    // Re-read state after async gap — user may have switched chats
+    const current = useChatStore.getState();
+    if (current.currentChatId === chatId) {
       useChatStore.setState({
         currentChatId: null,
         messages: [],
@@ -401,7 +406,14 @@ export async function deleteChat(chatId: string) {
         toolCount: 0,
         error: null,
       });
-      useAgentStore.getState().updateChatLock(state.agentId, null);
+      useAgentStore.getState().updateChatLock(current.agentId, null);
+    }
+
+    // Clean up agentStates entries that referenced the deleted chat
+    for (const [agentId, agentState] of agentStates) {
+      if (agentState.chatId === chatId) {
+        agentStates.delete(agentId);
+      }
     }
 
     await loadChatList();
@@ -482,15 +494,21 @@ async function switchAgentInner(
   clearToolActivityTimer();
   cancelStreamRaf();
 
-  // Reset telegram state on agent switch
-  import("../services/telegramService").then(({ resetTelegramState }) => {
+  // Reset telegram state on agent switch (await to complete before restoring new agent)
+  try {
+    const { resetTelegramState } = await import("../services/telegramService");
     resetTelegramState();
-  }).catch(console.error);
+  } catch (e) {
+    console.error("[switchAgentInner] Failed to reset telegram state:", e);
+  }
 
-  // Clear file viewer on agent switch
-  import("./fileViewerStore").then(({ useFileViewerStore }) => {
+  // Clear file viewer on agent switch (await to complete before restoring new agent)
+  try {
+    const { useFileViewerStore } = await import("./fileViewerStore");
     useFileViewerStore.getState().clearAll();
-  }).catch(console.error);
+  } catch (e) {
+    console.error("[switchAgentInner] Failed to clear file viewer:", e);
+  }
 
   // Restore incoming agent from Map (or start fresh)
   const target = agentStates.get(agentId);
@@ -543,14 +561,18 @@ async function switchAgentInner(
   syncThinkingIds();
 }
 
-export function clearAgentState(agentId: string) {
+export async function clearAgentState(agentId: string) {
   // Save background agent messages before discarding state
   const state = agentStates.get(agentId);
   if (state?.chatId && state.messages.length > 0) {
-    invoke("save_chat_messages", {
-      chatId: state.chatId,
-      messages: messagesToStored(state.messages),
-    }).catch(console.error);
+    try {
+      await invoke("save_chat_messages", {
+        chatId: state.chatId,
+        messages: messagesToStored(state.messages),
+      });
+    } catch (e) {
+      console.error("[clearAgentState] Failed to save messages:", e);
+    }
   }
   agentStates.delete(agentId);
   const { thinkingAgentIds } = useChatStore.getState();
