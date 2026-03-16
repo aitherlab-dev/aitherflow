@@ -134,10 +134,17 @@ export async function sendMessage(text: string, allAttachments?: Attachment[]) {
           }))
         : undefined;
 
-    if (state.hasSession) {
+    // Re-read state after awaits — user may have switched chat
+    const freshState = useChatStore.getState();
+    if (freshState.currentChatId !== chatId) {
+      useChatStore.setState({ isThinking: false });
+      return;
+    }
+
+    if (freshState.hasSession) {
       await invoke("send_message", {
         options: {
-          agentId: state.agentId,
+          agentId: freshState.agentId,
           prompt: text,
           attachments: attachmentPayloads,
         } satisfies SendMessageOptions,
@@ -190,9 +197,12 @@ export async function stopGeneration() {
   try {
     await invoke("stop_session", { agentId });
   } catch (e) {
-    useChatStore.setState({ error: String(e) });
+    useChatStore.setState({ error: String(e), isThinking: false });
   }
-  useChatStore.setState({ isThinking: false, planMode: false, currentToolActivity: null });
+  // Only reset state if the session hasn't changed during await
+  if (useChatStore.getState().agentId === agentId) {
+    useChatStore.setState({ isThinking: false, planMode: false, currentToolActivity: null });
+  }
 }
 
 export async function restartSession() {
@@ -276,6 +286,8 @@ export async function switchPermissionMode(mode: "default" | "plan") {
 export async function switchChat(chatId: string) {
   const state = useChatStore.getState();
   if (state.currentChatId === chatId) return;
+
+  cancelStreamRaf();
 
   if (state.isThinking) {
     useChatStore.setState({ isThinking: false, currentToolActivity: null });

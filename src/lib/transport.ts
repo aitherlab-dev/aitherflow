@@ -72,8 +72,12 @@ export async function openDialog(options?: DialogOptions): Promise<string | stri
   return _tauriOpenDialog!(options ?? {});
 }
 
-/** Open a URL in the default browser. */
+/** Open a URL in the default browser. Only http/https allowed. */
 export async function openUrl(url: string): Promise<void> {
+  if (!/^https?:\/\//i.test(url)) {
+    console.warn(`openUrl blocked non-http protocol: ${url}`);
+    return;
+  }
   await tauriReady;
   return _tauriOpenUrl!(url);
 }

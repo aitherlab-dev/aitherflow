@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Plus, Download, Upload, Zap, Info } from "lucide-react";
 import { invoke } from "../../../lib/transport";
 import { useAgentStore } from "../../../stores/agentStore";
-import type { HookEvent, HookEntry, HooksConfig, HookScope } from "../../../types/hooks";
+import type { HookEvent, HookEntry, HookHandler, HooksConfig, HookScope } from "../../../types/hooks";
 import { HOOK_EVENT_DESCRIPTIONS } from "../../../types/hooks";
 import { HooksEventCard } from "./HooksEventCard";
 import { HooksTemplates } from "./HooksTemplates";
@@ -14,6 +14,56 @@ const ALL_EVENTS: HookEvent[] = [
   "PermissionRequest", "TeammateIdle", "TaskCompleted", "ConfigChange",
   "WorktreeCreate", "WorktreeRemove",
 ];
+
+function sanitizeHandler(h: Record<string, unknown>): HookHandler | null {
+  const base = {
+    ...(typeof h.timeout === "number" ? { timeout: h.timeout } : {}),
+    ...(typeof h.once === "boolean" ? { once: h.once } : {}),
+    ...(typeof h.statusMessage === "string" ? { statusMessage: h.statusMessage } : {}),
+  };
+  switch (h.type) {
+    case "command":
+      if (typeof h.command !== "string") return null;
+      return { ...base, type: "command", command: h.command, ...(typeof h.async === "boolean" ? { async: h.async } : {}) };
+    case "prompt":
+      if (typeof h.prompt !== "string") return null;
+      return { ...base, type: "prompt", prompt: h.prompt, ...(typeof h.model === "string" ? { model: h.model } : {}) };
+    case "agent":
+      if (typeof h.prompt !== "string") return null;
+      return { ...base, type: "agent", prompt: h.prompt };
+    case "http":
+      if (typeof h.url !== "string") return null;
+      return { ...base, type: "http", url: h.url, ...(h.headers && typeof h.headers === "object" ? { headers: h.headers as Record<string, string> } : {}) };
+    default:
+      return null;
+  }
+}
+
+function validateHooksConfig(data: unknown): HooksConfig {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return {};
+  const result: HooksConfig = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (!ALL_EVENTS.includes(key as HookEvent)) continue;
+    if (!Array.isArray(value)) continue;
+    const validEntries: HookEntry[] = [];
+    for (const entry of value) {
+      if (!entry || typeof entry !== "object" || !Array.isArray(entry.hooks)) continue;
+      const validHandlers: HookHandler[] = [];
+      for (const h of entry.hooks) {
+        if (!h || typeof h !== "object") continue;
+        const sanitized = sanitizeHandler(h as Record<string, unknown>);
+        if (sanitized) validHandlers.push(sanitized);
+      }
+      if (validHandlers.length > 0) {
+        validEntries.push({ matcher: entry.matcher, hooks: validHandlers });
+      }
+    }
+    if (validEntries.length > 0) {
+      result[key as HookEvent] = validEntries;
+    }
+  }
+  return result;
+}
 
 export function HooksSection() {
   const [scope, setScope] = useState<HookScope>("global");
@@ -159,7 +209,7 @@ export function HooksSection() {
       try {
         const text = await input.files[0].text();
         const data = JSON.parse(text);
-        const imported: HooksConfig = data.hooks ?? data;
+        const imported = validateHooksConfig(data.hooks ?? data);
         saveHooks({ ...hooks, ...imported });
       } catch (e) {
         console.error("Import failed:", e);

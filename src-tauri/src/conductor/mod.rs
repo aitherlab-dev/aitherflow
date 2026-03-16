@@ -169,11 +169,19 @@ pub async fn get_session_usage(
     tokio::task::spawn_blocking(move || {
         let home = crate::config::home_dir();
         let encoded = project_path.replace(['/', '.', '_'], "-");
+        let safe_session_id: String = session_id
+            .chars()
+            .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
+            .collect();
+        if safe_session_id.is_empty() {
+            return Err("invalid session_id: empty after sanitization".into());
+        }
         let jsonl_path = home
             .join(".claude")
             .join("projects")
             .join(encoded)
-            .join(format!("{session_id}.jsonl"));
+            .join(format!("{safe_session_id}.jsonl"));
+        crate::files::validate_path_safe(&jsonl_path)?;
 
         if !jsonl_path.exists() {
             return Ok(serde_json::json!(null));

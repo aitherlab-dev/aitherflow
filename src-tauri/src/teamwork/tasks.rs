@@ -18,6 +18,8 @@ fn task_lock(key: &str) -> Arc<Mutex<()>> {
         eprintln!("[teamwork] WARNING: TASK_LOCKS mutex poisoned, recovering");
         e.into_inner()
     });
+    // Evict stale entries (no one else holds the lock)
+    map.retain(|_, arc| Arc::strong_count(arc) > 1);
     map.entry(key.to_string())
         .or_insert_with(|| Arc::new(Mutex::new(())))
         .clone()

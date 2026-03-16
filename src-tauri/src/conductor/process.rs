@@ -167,24 +167,31 @@ pub async fn run_cli_session(
     let needs_mcp_config = project_teamwork_slug.is_some();
     let mcp_config_guard = if needs_mcp_config {
         if let Some(port) = crate::teamwork::mcp_server::get_mcp_port() {
+            let safe_agent_id: String = agent_id
+                .chars()
+                .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
+                .collect();
+            if safe_agent_id.is_empty() {
+                return Err("invalid agent_id: empty after sanitization".into());
+            }
             let path =
-                std::env::temp_dir().join(format!("aitherflow-mcp-{agent_id}.json"));
+                std::env::temp_dir().join(format!("aitherflow-mcp-{safe_agent_id}.json"));
             let config_json = serde_json::json!({
                 "mcpServers": {
                     "teamwork": {
                         "type": "http",
-                        "url": format!("http://127.0.0.1:{port}/mcp/{agent_id}")
+                        "url": format!("http://127.0.0.1:{port}/mcp/{safe_agent_id}")
                     }
                 }
             });
             let path_clone = path.clone();
             tokio::task::spawn_blocking(move || {
-                std::fs::write(
+                crate::file_ops::atomic_write(
                     &path_clone,
                     serde_json::to_string_pretty(&config_json)
-                        .expect("Failed to serialize MCP config"),
+                        .expect("Failed to serialize MCP config")
+                        .as_bytes(),
                 )
-                .map_err(|e| format!("Failed to write MCP config: {e}"))
             })
             .await
             .map_err(|e| format!("MCP config task panic: {e}"))??;

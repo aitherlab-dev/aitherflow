@@ -98,10 +98,9 @@ interface ParagraphCache {
 }
 
 export const InlineMarkdown = memo(function InlineMarkdown({ content }: InlineMarkdownProps) {
-  if (!content) return null;
-
   const cacheRef = useRef<ParagraphCache>({ texts: [], nodes: [] });
-  const paragraphs = content.split(/\n{2,}/);
+
+  const paragraphs = content ? content.split(/\n{2,}/) : [];
   const cache = cacheRef.current;
 
   // Find how many leading paragraphs match the cache (stable prefix)
@@ -128,6 +127,8 @@ export const InlineMarkdown = memo(function InlineMarkdown({ content }: InlineMa
     cacheRef.current.texts = paragraphs;
     cacheRef.current.nodes = result;
   });
+
+  if (!content) return null;
 
   return (
     <div className="markdown-body">
