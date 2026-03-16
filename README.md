@@ -15,15 +15,29 @@ Not a replacement — a visual interface on top of the CLI. Claude Code remains 
 - Voice input (Groq)
 - Dark and light themes (warm palette)
 
-## Prerequisites
+## Install
 
-- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) — installed and authenticated
-- [Rust](https://rustup.rs/) (stable)
-- [Node.js](https://nodejs.org/) 20+
-- [pnpm](https://pnpm.io/)
-- Tauri 2 system dependencies — see [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/)
+### Requirements
 
-## Build from source
+- **[Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code)** — installed and authenticated (`npm install -g @anthropic-ai/claude-code && claude`)
+- Active [Anthropic](https://console.anthropic.com/) subscription (Max or Pro plan)
+
+### Download
+
+Go to [Releases](https://github.com/aitherlab-dev/aitherflow/releases) and download the latest version for your platform:
+
+| Platform | Format |
+|----------|--------|
+| **Linux** | `.deb` (Ubuntu/Debian), `.rpm` (Fedora), `.AppImage` (any distro) |
+| **macOS** | `.dmg` (Apple Silicon) |
+
+> **macOS note:** The app is not signed with an Apple Developer certificate. On first launch, right-click the app → Open → Open to bypass Gatekeeper.
+
+### Build from source
+
+If you prefer to build from source or your platform isn't listed above:
+
+**Prerequisites:** [Rust](https://rustup.rs/) (stable), [Node.js](https://nodejs.org/) 20+, [pnpm](https://pnpm.io/), [Tauri 2 system deps](https://v2.tauri.app/start/prerequisites/)
 
 ```bash
 git clone https://github.com/aitherlab-dev/aitherflow.git
@@ -32,7 +46,7 @@ pnpm install
 pnpm tauri build
 ```
 
-Packages (`.deb`, `.rpm`) will be in `src-tauri/target/release/bundle/`.
+Packages will be in `src-tauri/target/release/bundle/`.
 
 For development:
 
@@ -53,8 +67,8 @@ pnpm tauri dev
 
 ## Platforms
 
-- **Linux** — deb, rpm
-- **macOS** — planned
+- **Linux** — deb, rpm, AppImage
+- **macOS** — dmg (Apple Silicon)
 
 ## License
 
