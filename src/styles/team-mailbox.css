@@ -1,0 +1,209 @@
+/* ═══════════════════════════════════════════
+   Team Mailbox Panel (read-only message feed)
+   ═══════════════════════════════════════════ */
+
+.team-mailbox-wrapper {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-left: 1px solid var(--border);
+}
+
+/* ── Resize handle (left edge) ── */
+
+.tm-resize-handle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  cursor: col-resize;
+  flex-shrink: 0;
+  background: transparent;
+  transition: background 0.15s;
+  z-index: 5;
+}
+
+.tm-resize-handle:hover {
+  background: var(--fg-dim);
+}
+
+/* ── Panel ── */
+
+.team-mailbox {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+.team-mailbox__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.team-mailbox__header-icon {
+  color: var(--accent-icon);
+  flex-shrink: 0;
+}
+
+.team-mailbox__title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--fg);
+  flex: 1;
+}
+
+/* ── Clear button ── */
+
+.team-mailbox__clear-btn {
+  background: none;
+  border: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s;
+}
+
+.team-mailbox__clear-btn:hover {
+  color: var(--fg);
+  background: var(--bg-hover);
+}
+
+/* ── Feed ── */
+
+.team-mailbox__feed {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 1rem;
+  scrollbar-width: none;
+}
+
+.team-mailbox__feed::-webkit-scrollbar {
+  display: none;
+}
+
+.team-mailbox__empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-muted);
+  font-size: 0.8rem;
+}
+
+/* ── Message wrap (row container) ── */
+
+.team-mailbox__msg-wrap {
+  display: flex;
+}
+
+.team-mailbox__msg-wrap--right {
+  justify-content: flex-end;
+}
+
+.team-mailbox__msg-wrap--left {
+  justify-content: flex-start;
+}
+
+/* ── Bubble ── */
+
+.team-mailbox__bubble {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0.6rem 0.8rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+.team-mailbox__bubble--right {
+  max-width: 85%;
+  background: var(--bg-hard);
+}
+
+.team-mailbox__bubble--left {
+  max-width: 85%;
+  background: var(--bubble-ai);
+}
+
+/* ── Header inside bubble ── */
+
+.team-mailbox__msg-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.team-mailbox__msg-icon {
+  flex-shrink: 0;
+  color: var(--accent-icon);
+}
+
+.team-mailbox__msg-icon--coder {
+  color: var(--status-green);
+}
+
+.team-mailbox__msg-icon--reviewer {
+  color: var(--accent-stroke);
+}
+
+.team-mailbox__msg-icon--architect {
+  color: var(--accent);
+}
+
+.team-mailbox__msg-icon--user {
+  color: var(--fg-muted);
+}
+
+.team-mailbox__msg-sender {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.team-mailbox__msg-time {
+  font-size: 0.65rem;
+  color: var(--fg-muted);
+  margin-left: auto;
+}
+
+.team-mailbox__msg-text {
+  font-size: 0.8rem;
+  color: var(--fg);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── Expand/collapse ── */
+
+.team-mailbox__expand-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 0.7rem;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+
+/* ── Scroll to bottom ── */
+
+.team-mailbox .scroll-to-bottom {
+  position: sticky;
+  bottom: 0;
+  align-self: center;
+}

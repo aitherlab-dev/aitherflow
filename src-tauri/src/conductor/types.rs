@@ -138,10 +138,10 @@ pub struct StartSessionOptions {
     pub chrome: bool,
     #[serde(default)]
     pub attachments: Vec<AttachmentPayload>,
-    /// Team name for mailbox coordination (None = no polling)
-    pub team: Option<String>,
-    /// Team ID for role-based launch args (None = no team restrictions)
-    pub team_id: Option<String>,
+    /// Role system prompt (applied via --append-system-prompt)
+    pub role_system_prompt: Option<String>,
+    /// Role allowed tools (applied via --allowedTools)
+    pub role_allowed_tools: Option<Vec<String>>,
 }
 
 /// Options for sending a follow-up message to an existing session.

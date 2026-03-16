@@ -9,7 +9,11 @@ const FV_RIGHT_DEFAULT = 480;
 const FV_BOTTOM_MIN = 150;
 const FV_BOTTOM_DEFAULT = 300;
 
-export type ActiveView = "welcome" | "chat" | "settings" | "teamwork" | "master-chat";
+const TM_MIN = 280;
+const TM_DEFAULT = 380;
+const TM_MAX = 700;
+
+export type ActiveView = "welcome" | "chat" | "settings";
 export type SidebarPanel = "agents" | "files";
 export type FileViewerPosition = "right" | "bottom";
 
@@ -32,6 +36,10 @@ interface LayoutState {
   // Chat panel
   chatPanelVisible: boolean;
 
+  // Team mailbox panel
+  teamMailboxVisible: boolean;
+  teamMailboxWidth: number;
+
   toggleSidebar: () => void;
   setSidebarWidth: (width: number) => void;
   openWelcome: () => void;
@@ -39,11 +47,6 @@ interface LayoutState {
   openSettings: (section?: string) => void;
   closeSettings: () => void;
   setSettingsSection: (section: string) => void;
-  openTeamwork: () => void;
-  closeTeamwork: () => void;
-  masterChatTeamId: string | null;
-  openMasterChat: (teamId: string) => void;
-  closeMasterChat: () => void;
   setSidebarPanel: (panel: SidebarPanel) => void;
 
   // Agent log actions
@@ -57,6 +60,10 @@ interface LayoutState {
   setFileViewerPosition: (pos: FileViewerPosition) => void;
   setFileViewerSize: (size: number) => void;
   setFileViewerHasContent: (has: boolean) => void;
+
+  // Team mailbox actions
+  toggleTeamMailbox: () => void;
+  setTeamMailboxWidth: (width: number) => void;
 }
 
 /** Restore persisted file viewer settings from localStorage */
@@ -119,6 +126,8 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
 
   agentLogOpen: false,
   chatPanelVisible: loadChatPanelVisible(),
+  teamMailboxVisible: false,
+  teamMailboxWidth: TM_DEFAULT,
 
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
 
@@ -136,13 +145,6 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     }),
 
   closeSettings: () => set({ activeView: "chat" }),
-
-  openTeamwork: () => set({ activeView: "teamwork" }),
-  closeTeamwork: () => set({ activeView: "chat" }),
-
-  masterChatTeamId: null,
-  openMasterChat: (teamId: string) => set({ activeView: "master-chat", masterChatTeamId: teamId }),
-  closeMasterChat: () => set({ activeView: "chat", masterChatTeamId: null }),
 
   setSettingsSection: (section: string) => set({ settingsSection: section }),
 
@@ -178,4 +180,9 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   },
 
   setFileViewerHasContent: (has: boolean) => set({ fileViewerHasContent: has }),
+
+  toggleTeamMailbox: () => set((s) => ({ teamMailboxVisible: !s.teamMailboxVisible })),
+
+  setTeamMailboxWidth: (width: number) =>
+    set({ teamMailboxWidth: Math.max(TM_MIN, Math.min(TM_MAX, width)) }),
 }));

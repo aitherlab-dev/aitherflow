@@ -1,5 +1,5 @@
 import { memo, useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { Plus, Star, Mic, MicOff, ArrowUp, Square, MessageSquarePlus, Sparkles, Brain, Zap, Loader2 } from "lucide-react";
+import { Plus, Star, Mic, MicOff, ArrowUp, Square, MessageSquarePlus, Sparkles, Brain, Zap, Loader2, UserCog } from "lucide-react";
 import { openDialog } from "../../lib/transport";
 import { useChatStore } from "../../stores/chatStore";
 import { sendMessage, stopGeneration, newChat, switchPermissionMode } from "../../stores/chatService";
@@ -9,6 +9,7 @@ import { usePasteHandler } from "../../hooks/usePasteHandler";
 import { ThinkingIndicator } from "./ThinkingIndicator";
 import { AttachmentList } from "./AttachmentList";
 import { ModelMenu } from "./ModelMenu";
+import { RoleMenu } from "./RoleMenu";
 import { SkillsMenu } from "./SkillsMenu";
 import { CommandsMenu } from "./CommandsMenu";
 import { useConductorStore } from "../../stores/conductorStore";
@@ -28,10 +29,12 @@ const TEXT_EXTENSIONS = [
 export const InputBar = memo(function InputBar() {
   const [text, setText] = useState("");
   const [modelMenuRect, setModelMenuRect] = useState<DOMRect | null>(null);
+  const [roleMenuRect, setRoleMenuRect] = useState<DOMRect | null>(null);
   const [skillsMenuRect, setSkillsMenuRect] = useState<DOMRect | null>(null);
   const [commandsMenuRect, setCommandsMenuRect] = useState<DOMRect | null>(null);
   const [modeSwitching, setModeSwitching] = useState(false);
   const modelBtnRef = useRef<HTMLButtonElement>(null);
+  const roleBtnRef = useRef<HTMLButtonElement>(null);
   const skillsBtnRef = useRef<HTMLButtonElement>(null);
   const { attachments, processFromPaths, addAttachment, removeAttachment, clearAttachments } = useFileAttach();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -42,6 +45,9 @@ export const InputBar = memo(function InputBar() {
   const activeModel = useConductorStore((s) => s.model);
   const hasSession = useChatStore((s) => s.hasSession);
   const planMode = useChatStore((s) => s.planMode);
+  const agentId = useChatStore((s) => s.agentId);
+  const agentRoles = useConductorStore((s) => s.agentRoles);
+  const currentRoleName = agentRoles[agentId]?.name ?? null;
   // Voice input — insert appends, replace overwrites (for streaming interim)
   const handleVoiceInsert = useCallback((transcribed: string) => {
     setText((prev) => (prev ? prev + " " + transcribed : transcribed));
@@ -287,6 +293,20 @@ export const InputBar = memo(function InputBar() {
               <span className="model-effort-badge">{selectedEffort}</span>
             )}
           </button>
+          <button
+            ref={roleBtnRef}
+            className="input-bar-label-btn"
+            title="Select role"
+            aria-label="Select role"
+            onClick={() => {
+              if (roleBtnRef.current) {
+                setRoleMenuRect(roleBtnRef.current.getBoundingClientRect());
+              }
+            }}
+          >
+            <UserCog size={14} />
+            <span>{currentRoleName ?? "No role"}</span>
+          </button>
         </div>
         <div className="input-bar-cell input-bar-cell--btns input-bar-cell--end">
           <button
@@ -311,6 +331,12 @@ export const InputBar = memo(function InputBar() {
         <ModelMenu
           anchorRect={modelMenuRect}
           onClose={() => setModelMenuRect(null)}
+        />
+      )}
+      {roleMenuRect && (
+        <RoleMenu
+          anchorRect={roleMenuRect}
+          onClose={() => setRoleMenuRect(null)}
         />
       )}
       {skillsMenuRect && (

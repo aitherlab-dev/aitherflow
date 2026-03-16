@@ -7,6 +7,7 @@ import {
   PanelBottom,
   PanelBottomClose,
   MessageSquare,
+  MessagesSquare,
   Sun,
   Moon,
 } from "lucide-react";
@@ -19,6 +20,7 @@ export const Header = memo(function Header() {
     chatPanelVisible, toggleChatPanel,
     fileViewerVisible, fileViewerPosition,
     toggleFileViewer, setFileViewerPosition,
+    teamMailboxVisible, toggleTeamMailbox,
   } = useLayoutStore(useShallow((s) => ({
     sidebarOpen: s.sidebarOpen,
     toggleSidebar: s.toggleSidebar,
@@ -28,6 +30,8 @@ export const Header = memo(function Header() {
     fileViewerPosition: s.fileViewerPosition,
     toggleFileViewer: s.toggleFileViewer,
     setFileViewerPosition: s.setFileViewerPosition,
+    teamMailboxVisible: s.teamMailboxVisible,
+    toggleTeamMailbox: s.toggleTeamMailbox,
   })));
   const [isDark, setIsDark] = useState(
     () => document.documentElement.getAttribute("data-theme") !== "light",
@@ -95,6 +99,14 @@ export const Header = memo(function Header() {
           aria-label="Toggle file viewer"
         >
           <PanelVisibilityIcon size={16} />
+        </button>
+        <button
+          className={`header-btn ${teamMailboxVisible ? "header-btn--active" : ""}`}
+          onClick={toggleTeamMailbox}
+          title={teamMailboxVisible ? "Hide team mailbox" : "Show team mailbox"}
+          aria-label="Toggle team mailbox"
+        >
+          <MessagesSquare size={16} />
         </button>
         <button
           className="header-btn"

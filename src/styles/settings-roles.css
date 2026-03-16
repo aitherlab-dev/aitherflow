@@ -221,6 +221,30 @@
   border-top: 1px solid var(--border);
 }
 
+.team-btn {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--fg);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.team-btn:hover {
+  background: var(--bg-hover);
+}
+
+.team-btn--primary {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.team-btn--primary:hover {
+  background: var(--accent);
+}
+
 .team-btn--danger {
   display: flex;
   align-items: center;

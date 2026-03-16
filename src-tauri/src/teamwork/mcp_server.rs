@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
 use tokio::sync::RwLock;
 
-use super::team::AgentRole;
+use super::roles::AgentRole;
 use super::{mailbox, tasks};
 use crate::conductor::session::SessionManager;
 
@@ -22,10 +22,11 @@ static SHUTDOWN_TX: OnceLock<tokio::sync::watch::Sender<bool>> = OnceLock::new()
 
 pub struct McpServerState {
     pub port: u16,
-    /// agent_id → team info (registered when agent starts, removed on stop/exit)
+    /// agent_id → project info (registered when agent starts, removed on stop/exit)
     agents: RwLock<HashMap<String, AgentMcpInfo>>,
     /// session_id → agent_id (MCP sessions, spec compliance)
     sessions: RwLock<HashMap<String, String>>,
+    #[allow(dead_code)]
     app_handle: tauri::AppHandle,
     session_manager: SessionManager,
     /// Generation counter for register/unregister race protection.
@@ -33,39 +34,50 @@ pub struct McpServerState {
 }
 
 struct AgentMcpInfo {
+    /// Mailbox/tasks directory name: project slug for project teamwork.
     team_name: String,
-    team_id: String,
-    team_agent_ids: Vec<String>,
     role: AgentRole,
     generation: u64,
+    /// Project path for project teamwork agents.
+    project_path: String,
 }
 
 impl McpServerState {
-    /// Register a team agent so the MCP server knows its team context.
-    /// Returns the generation number assigned to this registration.
-    pub async fn register_agent(
+    /// Register a standalone project agent for project-level teamwork.
+    /// Uses project slug as the mailbox namespace.
+    pub async fn register_project_agent(
         &self,
         agent_id: &str,
-        team_name: &str,
-        team_id: &str,
-        agent_ids: Vec<String>,
+        project_path: &str,
+        project_slug: &str,
         role: AgentRole,
     ) -> u64 {
         let generation = self.gen_counter.fetch_add(1, Ordering::Relaxed) + 1;
         self.agents.write().await.insert(
             agent_id.to_string(),
             AgentMcpInfo {
-                team_name: team_name.to_string(),
-                team_id: team_id.to_string(),
-                team_agent_ids: agent_ids,
+                team_name: project_slug.to_string(),
                 role,
                 generation,
+                project_path: project_path.to_string(),
             },
         );
         generation
     }
 
+    /// Get all agent_ids that share the same project_path.
+    async fn project_agent_ids(&self, project_path: &str) -> Vec<String> {
+        self.agents
+            .read()
+            .await
+            .iter()
+            .filter(|(_, info)| info.project_path == project_path)
+            .map(|(id, _)| id.clone())
+            .collect()
+    }
+
     /// Remove agent unconditionally (explicit stop / remove).
+    #[allow(dead_code)]
     pub async fn unregister_agent(&self, agent_id: &str) {
         self.agents.write().await.remove(agent_id);
         self.sessions
@@ -104,6 +116,26 @@ pub fn get_mcp_port() -> Option<u16> {
 /// Get a reference to the global MCP state.
 pub fn get_state() -> Option<&'static Arc<McpServerState>> {
     MCP_STATE.get()
+}
+
+/// Return registered agents for a project slug: Vec<{ agent_id, role_name, can_manage }>.
+#[tauri::command]
+pub async fn team_list_agents(
+    team: String,
+) -> Result<Vec<serde_json::Value>, String> {
+    let state = get_state().ok_or("MCP server not running")?;
+    let agents = state.agents.read().await;
+    let mut result = Vec::new();
+    for (id, info) in agents.iter() {
+        if info.team_name == team {
+            result.push(serde_json::json!({
+                "agent_id": id,
+                "role_name": info.role.name,
+                "can_manage": info.role.can_manage,
+            }));
+        }
+    }
+    Ok(result)
 }
 
 /// Signal the MCP server to shut down gracefully.
@@ -377,18 +409,8 @@ fn is_known_tool(name: &str) -> bool {
             | "create_task"
             | "claim_task"
             | "complete_task"
-            | "start_agent"
-            | "stop_agent"
-            | "restart_agent"
             | "list_agents"
             | "send_prompt"
-    )
-}
-
-fn is_management_tool(name: &str) -> bool {
-    matches!(
-        name,
-        "start_agent" | "stop_agent" | "restart_agent" | "list_agents" | "send_prompt"
     )
 }
 
@@ -406,38 +428,20 @@ async fn execute_tool(
         .cloned()
         .unwrap_or(json!({}));
 
-    // Look up agent's team info
-    let (team_name, team_id, team_agent_ids, role) = {
+    // Look up agent's project info
+    let (team_name, project_path) = {
         let agents = state.agents.read().await;
         let info = agents
             .get(agent_id)
             .ok_or_else(|| format!("Agent {agent_id} not registered in MCP server"))?;
         (
             info.team_name.clone(),
-            info.team_id.clone(),
-            info.team_agent_ids.clone(),
-            info.role.clone(),
+            info.project_path.clone(),
         )
     };
 
-    // Management tools: check role and validate target
-    if is_management_tool(tool_name) {
-        if !role.can_manage {
-            return Err(
-                "Permission denied: management tools require can_manage permission".to_string(),
-            );
-        }
-
-        // Tools that target another agent
-        if let Some(target_id) = args.get("agent_id").and_then(|v| v.as_str()) {
-            if target_id == agent_id {
-                return Err(format!("Cannot target yourself with {tool_name}"));
-            }
-            if !team_agent_ids.contains(&target_id.to_string()) {
-                return Err(format!("Agent {target_id} is not in your team"));
-            }
-        }
-    }
+    // Compute agent_ids dynamically from all agents sharing the same project
+    let team_agent_ids = state.project_agent_ids(&project_path).await;
 
     let agent_id = agent_id.to_string();
 
@@ -572,85 +576,18 @@ async fn execute_tool(
                 .map_err(|e| format!("Serialize error: {e}"))
         }
 
-        // ---- Management tools (architect only) ----
-
-        "start_agent" => {
-            let target_id = args["agent_id"]
-                .as_str()
-                .ok_or("Missing 'agent_id' parameter")?
-                .to_string();
-            eprintln!(
-                "[mcp-server] Agent {} starting agent {}",
-                agent_id, target_id
-            );
-            super::team::start_agent_core(
-                state.app_handle.clone(),
-                state.session_manager.clone(),
-                team_id,
-                target_id,
-            )
-            .await?;
-            Ok("Agent started".to_string())
-        }
-
-        "stop_agent" => {
-            let target_id = args["agent_id"]
-                .as_str()
-                .ok_or("Missing 'agent_id' parameter")?
-                .to_string();
-            eprintln!(
-                "[mcp-server] Agent {} stopping agent {}",
-                agent_id, target_id
-            );
-            super::team::stop_agent_core(
-                &state.session_manager,
-                team_id,
-                target_id,
-            )
-            .await?;
-            Ok("Agent stopped".to_string())
-        }
-
-        "restart_agent" => {
-            let target_id = args["agent_id"]
-                .as_str()
-                .ok_or("Missing 'agent_id' parameter")?
-                .to_string();
-            eprintln!(
-                "[mcp-server] Agent {} restarting agent {}",
-                agent_id, target_id
-            );
-            super::team::stop_agent_core(
-                &state.session_manager,
-                team_id.clone(),
-                target_id.clone(),
-            )
-            .await?;
-            super::team::start_agent_core(
-                state.app_handle.clone(),
-                state.session_manager.clone(),
-                team_id,
-                target_id,
-            )
-            .await?;
-            Ok("Agent restarted".to_string())
-        }
+        // ---- Info tools ----
 
         "list_agents" => {
-            let tid = team_id;
-            let team = tokio::task::spawn_blocking(move || {
-                super::team::read_team_sync(&tid)
-            })
-            .await
-            .map_err(|e| format!("Task panic: {e}"))??;
-            let agent_list: Vec<Value> = team
-                .agents
+            let agents = state.agents.read().await;
+            let agent_list: Vec<Value> = agents
                 .iter()
-                .map(|a| {
+                .filter(|(_, info)| info.project_path == project_path)
+                .map(|(id, info)| {
                     json!({
-                        "agent_id": a.agent_id,
-                        "role": a.role,
-                        "status": a.status,
+                        "agent_id": id,
+                        "role": info.role.name,
+                        "can_manage": info.role.can_manage,
                     })
                 })
                 .collect();
@@ -663,6 +600,12 @@ async fn execute_tool(
                 .as_str()
                 .ok_or("Missing 'agent_id' parameter")?
                 .to_string();
+            if target_id == agent_id {
+                return Err("Cannot send prompt to yourself".to_string());
+            }
+            if !team_agent_ids.contains(&target_id) {
+                return Err(format!("Agent {target_id} is not in your project"));
+            }
             let prompt = args["prompt"]
                 .as_str()
                 .ok_or("Missing 'prompt' parameter")?
@@ -699,7 +642,7 @@ fn communication_tool_definitions() -> Vec<Value> {
     vec![
         json!({
             "name": "send_message",
-            "description": "Send a message to another agent in your team. The 'from' field is set automatically from your identity.",
+            "description": "Send a message to another agent in your project. The 'from' field is set automatically from your identity.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -717,7 +660,7 @@ fn communication_tool_definitions() -> Vec<Value> {
         }),
         json!({
             "name": "broadcast",
-            "description": "Send a message to all other agents in your team.",
+            "description": "Send a message to all other agents in your project.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -740,7 +683,7 @@ fn communication_tool_definitions() -> Vec<Value> {
         }),
         json!({
             "name": "list_tasks",
-            "description": "List all tasks for your team, sorted by status (pending first, then in-progress, then completed).",
+            "description": "List all tasks for your project, sorted by status (pending first, then in-progress, then completed).",
             "inputSchema": {
                 "type": "object",
                 "properties": {},
@@ -749,7 +692,7 @@ fn communication_tool_definitions() -> Vec<Value> {
         }),
         json!({
             "name": "create_task",
-            "description": "Create a new task for the team.",
+            "description": "Create a new task for the project.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -793,57 +736,9 @@ fn communication_tool_definitions() -> Vec<Value> {
                 "required": ["task_id"]
             }
         }),
-    ]
-}
-
-/// Management tools — available only to architect role.
-fn management_tool_definitions() -> Vec<Value> {
-    vec![
-        json!({
-            "name": "start_agent",
-            "description": "Start a team agent. The agent must be in your team and not already running.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "agent_id": {
-                        "type": "string",
-                        "description": "The agent_id of the agent to start"
-                    }
-                },
-                "required": ["agent_id"]
-            }
-        }),
-        json!({
-            "name": "stop_agent",
-            "description": "Stop a running team agent. The agent's CLI session will be terminated.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "agent_id": {
-                        "type": "string",
-                        "description": "The agent_id of the agent to stop"
-                    }
-                },
-                "required": ["agent_id"]
-            }
-        }),
-        json!({
-            "name": "restart_agent",
-            "description": "Restart a team agent. Stops the agent and starts a fresh CLI session with clean context.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "agent_id": {
-                        "type": "string",
-                        "description": "The agent_id of the agent to restart"
-                    }
-                },
-                "required": ["agent_id"]
-            }
-        }),
         json!({
             "name": "list_agents",
-            "description": "List all agents in your team with their current status and role.",
+            "description": "List all agents in your project with their current role.",
             "inputSchema": {
                 "type": "object",
                 "properties": {},
@@ -872,12 +767,9 @@ fn management_tool_definitions() -> Vec<Value> {
 }
 
 /// Get tool definitions filtered by agent role.
-fn tool_definitions_for_role(role: Option<&AgentRole>) -> Value {
-    let mut tools = communication_tool_definitions();
-    if role.is_some_and(|r| r.can_manage) {
-        tools.extend(management_tool_definitions());
-    }
-    json!(tools)
+fn tool_definitions_for_role(_role: Option<&AgentRole>) -> Value {
+    // All tools are available to all project agents now
+    json!(communication_tool_definitions())
 }
 
 // ---------------------------------------------------------------------------

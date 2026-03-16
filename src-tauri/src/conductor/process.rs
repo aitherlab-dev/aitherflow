@@ -62,10 +62,12 @@ pub struct CliSessionConfig {
     pub permission_mode: Option<String>,
     pub chrome: bool,
     pub image_attachments: Vec<AttachmentPayload>,
-    /// Team name for mailbox polling (None = no polling)
-    pub team: Option<String>,
-    /// Team ID for role-based launch args (None = no team restrictions)
-    pub team_id: Option<String>,
+    /// Project path with teamwork_enabled (None = no project teamwork).
+    pub teamwork_project_path: Option<String>,
+    /// Standalone role system prompt (not from team — applied via --append-system-prompt)
+    pub role_system_prompt: Option<String>,
+    /// Standalone role allowed tools (not from team — applied via --allowedTools)
+    pub role_allowed_tools: Option<Vec<String>>,
 }
 
 /// Spawn Claude CLI and run the session until the process exits.
@@ -88,44 +90,27 @@ pub async fn run_cli_session(
         permission_mode,
         chrome,
         image_attachments,
-        team,
-        team_id,
+        teamwork_project_path,
+        role_system_prompt,
+        role_allowed_tools,
     } = config;
 
-    // If agent belongs to a team, look up role-based launch args, team name, and
-    // agent list for MCP registration. Errors are fatal — agent must not start
-    // without correct permissions.
-    let (team_extra_args, team_name_from_id, team_agent_ids, team_role, team_system_prompt) =
-        if let Some(ref tid) = team_id {
-            let tid_clone = tid.clone();
-            let aid_clone = agent_id.clone();
-            let info = tokio::task::spawn_blocking(move || {
-                crate::teamwork::team::get_agent_launch_args_sync(&tid_clone, &aid_clone)
-            })
-            .await
-            .map_err(|e| format!("Team args task panic: {e}"))??;
-            (
-                info.cli_args,
-                Some(info.team_name),
-                Some(info.agent_ids),
-                Some(info.role),
-                info.system_prompt,
-            )
-        } else {
-            (Vec::new(), None, None, None, None)
-        };
-
-    // Team name for mailbox: explicit `team` field takes priority, otherwise derive from team_id
-    let team_for_mailbox = team.or(team_name_from_id.clone());
+    // For project teamwork, use the project slug as the mailbox namespace.
+    let project_teamwork_slug =
+        teamwork_project_path.as_deref().map(crate::projects::project_teamwork_slug);
 
     // Register agent in MCP server so it can use teamwork tools.
-    // This runs inside run_cli_session (not start_agent_core) so it works
-    // regardless of how the session is started (team panel, chat UI, restart).
-    let mcp_generation = if let (Some(ref tid), Some(ref tn), Some(ref aids), Some(ref role)) =
-        (&team_id, &team_name_from_id, &team_agent_ids, &team_role)
+    let mcp_generation = if let (Some(ref pp), Some(ref slug)) =
+        (&teamwork_project_path, &project_teamwork_slug)
     {
+        let default_role = crate::teamwork::roles::AgentRole {
+            name: "Agent".to_string(),
+            system_prompt: String::new(),
+            allowed_tools: Vec::new(),
+            can_manage: false,
+        };
         if let Some(mcp) = crate::teamwork::mcp_server::get_state() {
-            mcp.register_agent(&agent_id, tn, tid, aids.clone(), role.clone())
+            mcp.register_project_agent(&agent_id, pp, slug, default_role)
                 .await
         } else {
             0
@@ -163,20 +148,24 @@ pub async fn run_cli_session(
         args.push("--chrome".into());
     }
 
-    // Add role-based args from team config (e.g. --allowedTools)
-    args.extend(team_extra_args);
-
-    // Add role system prompt via --append-system-prompt
-    if let Some(ref sp) = team_system_prompt {
+    // Standalone role — apply system prompt and allowed tools
+    if let Some(ref sp) = role_system_prompt {
         if !sp.is_empty() {
             args.push("--append-system-prompt".into());
             args.push(sp.clone());
         }
     }
+    if let Some(ref tools) = role_allowed_tools {
+        if !tools.is_empty() {
+            args.push("--allowedTools".into());
+            args.push(tools.join(","));
+        }
+    }
 
-    // Create MCP config file for team agents (points to the built-in MCP server).
+    // Create MCP config file for project-teamwork agents (points to the built-in MCP server).
     // Wrapped in TempFileGuard so the file is cleaned up on early return.
-    let mcp_config_guard = if team_id.is_some() {
+    let needs_mcp_config = project_teamwork_slug.is_some();
+    let mcp_config_guard = if needs_mcp_config {
         if let Some(port) = crate::teamwork::mcp_server::get_mcp_port() {
             let path =
                 std::env::temp_dir().join(format!("aitherflow-mcp-{agent_id}.json"));
@@ -204,7 +193,7 @@ pub async fn run_cli_session(
             args.push(path.to_string_lossy().into_owned());
             TempFileGuard::new(path)
         } else {
-            eprintln!("[{tag}] MCP server not running, skipping --mcp-config for team agent");
+            eprintln!("[{tag}] MCP server not running, skipping --mcp-config for teamwork agent");
             TempFileGuard(None)
         }
     } else {
@@ -270,8 +259,8 @@ pub async fn run_cli_session(
             .map_err(|e| format!("Failed to write first message: {e}"))?;
     }
 
-    // Spawn mailbox polling task if agent belongs to a team
-    let polling_handle = if let Some(ref team) = team_for_mailbox {
+    // Spawn mailbox polling task if project teamwork is enabled
+    let polling_handle = if let Some(ref team) = project_teamwork_slug {
         let writer_poll = Arc::clone(&writer);
         let agent_id_poll = agent_id.clone();
         let team_poll = team.clone();
