@@ -44,23 +44,14 @@ interface AgentState {
 
   /** Remove agent from store without stopping CLI (session already killed externally) */
   unregisterAgent: (agentId: string) => Promise<void>;
-
-  /** Register a team agent (or switch to it if already registered) */
-  registerTeamAgent: (
-    agentId: string,
-    projectPath: string,
-    projectName: string,
-    teamId: string,
-    teamRole: string,
-  ) => Promise<void>;
 }
 
 /** Agent IDs currently being removed — CLI events for these should be ignored */
 export const removingAgentIds = new Set<string>();
 
-/** Persist current agents state to disk (worktree children and team agents are excluded) */
+/** Persist current agents state to disk (worktree children are excluded) */
 async function persist(agents: AgentEntry[], activeAgentId: string | null) {
-  const diskAgents = agents.filter((a) => !a.parentAgentId && !a.teamId);
+  const diskAgents = agents.filter((a) => !a.parentAgentId);
   const diskActive = diskAgents.find((a) => a.id === activeAgentId)
     ? activeAgentId
     : diskAgents[0]?.id ?? null;
@@ -291,35 +282,4 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     }
   },
 
-  registerTeamAgent: async (agentId, projectPath, projectName, teamId, teamRole) => {
-    const { agents, activeAgentId } = get();
-
-    // If already registered, just switch to it
-    const existing = agents.find((a) => a.id === agentId);
-    if (existing) {
-      if (agentId !== activeAgentId) {
-        await get().setActiveAgent(agentId);
-      }
-      return;
-    }
-
-    const newAgent: AgentEntry = {
-      id: agentId,
-      projectPath,
-      projectName,
-      createdAt: Date.now(),
-      order: agents.length,
-      teamId,
-      teamRole,
-    };
-
-    saveChatLock(get, set);
-
-    const updated = [...agents, newAgent];
-    set({ agents: updated, activeAgentId: newAgent.id });
-    await persist(updated, newAgent.id);
-
-    // Switch chatStore to the new agent
-    await switchAgent(newAgent.id, newAgent.projectPath, newAgent.projectName, null);
-  },
 }));

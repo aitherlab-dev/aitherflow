@@ -161,13 +161,8 @@ export async function sendMessage(text: string, allAttachments?: Attachment[]) {
       const { selectedModel, selectedEffort, selectedPermissionMode } = useConductorStore.getState();
       const permissionMode = settingsPermMode ?? (selectedPermissionMode !== "default" ? selectedPermissionMode : undefined);
 
-      // If this agent belongs to a team, pass teamId so the backend
-      // creates MCP config and registers the agent in the teamwork server.
-      const activeAgent = useAgentStore.getState().agents.find((a) => a.id === state.agentId);
-      const teamId = activeAgent?.teamId;
-
-      // Get standalone role for this agent (only when not in a team)
-      const agentRole = teamId ? null : useConductorStore.getState().getAgentRole(state.agentId);
+      // Get standalone role for this agent
+      const agentRole = useConductorStore.getState().getAgentRole(state.agentId);
 
       await invoke("start_session", {
         options: {
@@ -180,7 +175,6 @@ export async function sendMessage(text: string, allAttachments?: Attachment[]) {
           permissionMode,
           chrome: enableChrome,
           attachments: attachmentPayloads,
-          teamId,
           roleSystemPrompt: agentRole?.system_prompt ? agentRole.system_prompt : undefined,
           roleAllowedTools: agentRole?.allowed_tools.length ? agentRole.allowed_tools : undefined,
         } satisfies StartSessionOptions,
@@ -256,11 +250,8 @@ export async function switchPermissionMode(mode: "default" | "plan") {
 
   useChatStore.setState({ planMode: mode === "plan" });
 
-  const permAgent = useAgentStore.getState().agents.find((a) => a.id === state.agentId);
-
   try {
-    const permTeamId = permAgent?.teamId;
-    const permRole = permTeamId ? null : useConductorStore.getState().getAgentRole(state.agentId);
+    const permRole = useConductorStore.getState().getAgentRole(state.agentId);
 
     await invoke("start_session", {
       options: {
@@ -272,7 +263,6 @@ export async function switchPermissionMode(mode: "default" | "plan") {
         resumeSessionId: sessionId ?? undefined,
         permissionMode,
         chrome: enableChrome,
-        teamId: permTeamId,
         roleSystemPrompt: permRole?.system_prompt ? permRole.system_prompt : undefined,
         roleAllowedTools: permRole?.allowed_tools.length ? permRole.allowed_tools : undefined,
       } satisfies StartSessionOptions,

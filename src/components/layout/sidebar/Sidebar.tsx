@@ -13,7 +13,6 @@ import { DashboardPanel } from "../../dashboard/DashboardPanel";
 import { WorktreePanel } from "../../chat/WorktreePanel";
 import { AgentTab } from "./AgentTab";
 import { WorktreeTab } from "./WorktreeTab";
-import { TeamSection } from "./TeamSection";
 
 export const Sidebar = memo(function Sidebar() {
   const isMobile = useIsMobile();
@@ -26,7 +25,6 @@ export const Sidebar = memo(function Sidebar() {
     closeSettings,
     openWelcome,
     closeWelcome,
-    closeMasterChat,
   } = useLayoutStore(useShallow((s) => ({
     sidebarOpen: s.sidebarOpen,
     sidebarWidth: s.sidebarWidth,
@@ -36,7 +34,6 @@ export const Sidebar = memo(function Sidebar() {
     closeSettings: s.closeSettings,
     openWelcome: s.openWelcome,
     closeWelcome: s.closeWelcome,
-    closeMasterChat: s.closeMasterChat,
   })));
 
   /** Close sidebar on mobile after navigation actions */
@@ -52,9 +49,9 @@ export const Sidebar = memo(function Sidebar() {
     activeAgentId: s.activeAgentId,
   })));
 
-  // Split agents into root (no parent, no team) and children grouped by parent
+  // Split agents into root (no parent) and children grouped by parent
   const rootAgents = useMemo(
-    () => agents.filter((a) => !a.parentAgentId && !a.teamId),
+    () => agents.filter((a) => !a.parentAgentId),
     [agents],
   );
   const childrenByParent = useMemo(() => {
@@ -102,11 +99,10 @@ export const Sidebar = memo(function Sidebar() {
     (agentId: string) => {
       if (activeView === "settings") closeSettings();
       if (activeView === "welcome") closeWelcome();
-      if (activeView === "master-chat") closeMasterChat();
       useAgentStore.getState().setActiveAgent(agentId).catch(console.error);
       closeMobile();
     },
-    [activeView, closeSettings, closeWelcome, closeMasterChat, closeMobile],
+    [activeView, closeSettings, closeWelcome, closeMobile],
   );
 
   const handleCloseAgent = useCallback(
@@ -327,9 +323,6 @@ export const Sidebar = memo(function Sidebar() {
               />
             </div>
           )}
-
-          {/* Teams — dash-card style, accordion expands below */}
-          <TeamSection />
 
           {/* Spacer — absorbs free space between agents and bottom items */}
           <div className="sidebar-spacer" />

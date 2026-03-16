@@ -66,13 +66,9 @@ export interface StartSessionOptions {
   permissionMode?: string;
   chrome?: boolean;
   attachments?: AttachmentPayload[];
-  /** Team name for mailbox coordination */
-  team?: string;
-  /** Team ID for role-based launch args and MCP registration */
-  teamId?: string;
-  /** Standalone role system prompt (not from team) */
+  /** Standalone role system prompt */
   roleSystemPrompt?: string;
-  /** Standalone role allowed tools (not from team) */
+  /** Standalone role allowed tools */
   roleAllowedTools?: string[];
 }
 

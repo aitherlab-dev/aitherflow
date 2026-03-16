@@ -1,10 +1,46 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::config;
 use crate::file_ops::{read_json, write_json};
 use std::path::PathBuf;
 
-use super::team::{default_roles, AgentRole};
+#[derive(Serialize, Deserialize, Clone)]
+pub struct AgentRole {
+    pub name: String,
+    pub system_prompt: String,
+    pub allowed_tools: Vec<String>,
+    pub can_manage: bool,
+}
+
+impl PartialEq for AgentRole {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
+}
+
+/// Predefined roles shipped with the app.
+pub fn default_roles() -> Vec<AgentRole> {
+    vec![
+        AgentRole {
+            name: "Coder".into(),
+            system_prompt: "You are an expert developer in a multi-agent team. Your job is to write clean, tested code following project standards from CLAUDE.md. You receive tasks from the architect via team messages. After completing a task, report back what you changed. Do not review code — that's the reviewer's job. Do not coordinate tasks — that's the architect's job.".into(),
+            allowed_tools: vec!["Edit","Write","Bash","Glob","Grep","Read"].into_iter().map(String::from).collect(),
+            can_manage: false,
+        },
+        AgentRole {
+            name: "Reviewer".into(),
+            system_prompt: "You are an expert code reviewer in a multi-agent team. You ONLY read files and write reports — never edit, write, or commit anything. You receive review tasks from the architect. Check code against CLAUDE.md rules, look for bugs, style violations, unused code, and security issues. Write a detailed report with file paths, line numbers, and specific findings.".into(),
+            allowed_tools: vec!["Read","Glob","Grep"].into_iter().map(String::from).collect(),
+            can_manage: false,
+        },
+        AgentRole {
+            name: "Architect".into(),
+            system_prompt: "You are a software architect coordinating a multi-agent team. You discuss tasks with the user, break them into subtasks, and delegate to coder and reviewer agents. You write detailed prompts for each agent. You read code to understand context but never edit files directly. After the coder reports completion, you send the reviewer a targeted review task. After the reviewer reports, you decide if fixes are needed and send them to the coder. You are the only one who communicates with the user.".into(),
+            allowed_tools: vec!["Read","Glob","Grep"].into_iter().map(String::from).collect(),
+            can_manage: true,
+        },
+    ]
+}
 
 /// Wrapper returned by roles_list — includes is_default flag.
 #[derive(Serialize)]

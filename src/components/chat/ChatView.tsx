@@ -1,29 +1,10 @@
 import { memo, useCallback, useRef, useState } from "react";
-import { User } from "lucide-react";
 import { MessageList } from "./MessageList";
 import { InputBar } from "./InputBar";
 import { TaskBar } from "./TaskBar";
 import { useChatStore } from "../../stores/chatStore";
-import { useAgentStore } from "../../stores/agentStore";
 import { useAttachmentStore } from "../../stores/attachmentStore";
 import { useTauriDragDrop } from "../../hooks/useTauriDragDrop";
-import type { AgentEntry } from "../../types/agents";
-
-function TeamBadge() {
-  const agent = useAgentStore((s) => {
-    const a = s.agents.find((e) => e.id === s.activeAgentId);
-    return a?.teamRole ? a : null;
-  }) as AgentEntry | null;
-
-  if (!agent?.teamRole) return null;
-
-  return (
-    <div className="team-chat-badge">
-      <User size={14} />
-      <span>{agent.projectName}</span>
-    </div>
-  );
-}
 
 export const ChatView = memo(function ChatView() {
   const error = useChatStore((s) => s.error);
@@ -87,7 +68,6 @@ export const ChatView = memo(function ChatView() {
           <div className="chat-drop-zone">Drop file to attach</div>
         </div>
       )}
-      <TeamBadge />
       <MessageList />
 
       <div className="chat-bottom">
