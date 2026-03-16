@@ -78,23 +78,10 @@ jobs:
 
       - run: pnpm tauri build
 
-      - name: Create DMG from .app
+      - name: Collect macOS bundles
         run: |
           mkdir -p release-assets
-          echo "=== Bundle contents ==="
-          ls -laR src-tauri/target/release/bundle/ | head -50
-          echo "=== Looking for .app ==="
-          find src-tauri/target/release/bundle -maxdepth 3 -name "*.app" 2>/dev/null || true
-          APP_PATH=$(find src-tauri/target/release/bundle -maxdepth 3 -name "*.app" | head -1)
-          if [ -z "$APP_PATH" ]; then
-            echo "No .app found, listing all bundle types:"
-            ls -la src-tauri/target/release/bundle/
-            exit 1
-          fi
-          VERSION=$(grep '"version"' src-tauri/tauri.conf.json | head -1 | sed 's/.*: "//;s/".*//')
-          ARCH=$(uname -m)
-          DMG_NAME="aitherflow_${VERSION}_${ARCH}.dmg"
-          hdiutil create -volname "aitherflow" -srcfolder "$APP_PATH" -ov -format UDZO "release-assets/$DMG_NAME"
+          cp src-tauri/target/release/bundle/dmg/*.dmg release-assets/ 2>/dev/null || true
           ls -la release-assets/
 
       - name: Upload artifacts
