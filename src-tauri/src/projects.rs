@@ -152,6 +152,12 @@ pub fn is_teamwork_enabled_sync(project_path: &str) -> bool {
         .any(|p| p.path == project_path && p.teamwork_enabled)
 }
 
+/// Return the teamwork slug for a project path (for frontend use).
+#[tauri::command]
+pub async fn get_teamwork_slug(project_path: String) -> Result<String, String> {
+    Ok(project_teamwork_slug(&project_path))
+}
+
 /// Generate a safe filesystem slug from a project path for mailbox/tasks isolation.
 /// Returns `p_` + 16 hex chars of SHA-256 hash (first 8 bytes).
 pub fn project_teamwork_slug(project_path: &str) -> String {

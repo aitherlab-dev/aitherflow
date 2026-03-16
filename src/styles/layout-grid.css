@@ -39,6 +39,20 @@
   min-width: 0;
 }
 
+.main-row {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.main-row > .welcome-screen,
+.main-row > .settings-view,
+.main-row > .main-split {
+  flex: 1;
+  min-width: 0;
+}
+
 /* Sidebar header — Build/Dev buttons (top-left) */
 .sidebar-footer {
   grid-column: 1;

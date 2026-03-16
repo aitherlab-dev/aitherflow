@@ -16,7 +16,8 @@
   .brand-footer,
   .file-viewer-wrapper,
   .fv-resize-handle,
-  .chat-panel-column {
+  .chat-panel-column,
+  .team-mailbox-wrapper {
     display: none !important;
   }
 

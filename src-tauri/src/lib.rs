@@ -135,6 +135,10 @@ pub fn run() {
             teamwork::roles::roles_list,
             teamwork::roles::roles_save,
             teamwork::roles::roles_delete,
+            teamwork::mailbox::team_read_all_messages,
+            teamwork::mailbox::team_clear_messages,
+            teamwork::mcp_server::team_list_agents,
+            projects::get_teamwork_slug,
         ])
         .setup(move |_app| {
             let app_handle = _app.handle().clone();

@@ -77,6 +77,7 @@ impl McpServerState {
     }
 
     /// Remove agent unconditionally (explicit stop / remove).
+    #[allow(dead_code)]
     pub async fn unregister_agent(&self, agent_id: &str) {
         self.agents.write().await.remove(agent_id);
         self.sessions
@@ -115,6 +116,26 @@ pub fn get_mcp_port() -> Option<u16> {
 /// Get a reference to the global MCP state.
 pub fn get_state() -> Option<&'static Arc<McpServerState>> {
     MCP_STATE.get()
+}
+
+/// Return registered agents for a project slug: Vec<{ agent_id, role_name, can_manage }>.
+#[tauri::command]
+pub async fn team_list_agents(
+    team: String,
+) -> Result<Vec<serde_json::Value>, String> {
+    let state = get_state().ok_or("MCP server not running")?;
+    let agents = state.agents.read().await;
+    let mut result = Vec::new();
+    for (id, info) in agents.iter() {
+        if info.team_name == team {
+            result.push(serde_json::json!({
+                "agent_id": id,
+                "role_name": info.role.name,
+                "can_manage": info.role.can_manage,
+            }));
+        }
+    }
+    Ok(result)
 }
 
 /// Signal the MCP server to shut down gracefully.

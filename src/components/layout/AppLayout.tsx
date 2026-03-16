@@ -10,6 +10,7 @@ import { WelcomeScreen } from "./WelcomeScreen";
 import { FileViewerPanel } from "../fileviewer/FileViewerPanel";
 import { FileViewerResizeHandle } from "../fileviewer/FileViewerResizeHandle";
 import { ChatPanel } from "./chat-panel";
+import { TeamMailboxPanel } from "../teamwork/TeamMailboxPanel";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useShallow } from "zustand/react/shallow";
 import { DevToolsBar } from "./DevToolsBar";
@@ -22,7 +23,7 @@ export function AppLayout() {
   const {
     sidebarOpen, toggleSidebar, activeView,
     fileViewerVisible, fileViewerHasContent, fileViewerPosition, fileViewerSize,
-    chatPanelVisible,
+    chatPanelVisible, teamMailboxVisible, teamMailboxWidth,
   } = useLayoutStore(useShallow((s) => ({
     sidebarOpen: s.sidebarOpen,
     toggleSidebar: s.toggleSidebar,
@@ -32,6 +33,8 @@ export function AppLayout() {
     fileViewerPosition: s.fileViewerPosition,
     fileViewerSize: s.fileViewerSize,
     chatPanelVisible: s.chatPanelVisible,
+    teamMailboxVisible: s.teamMailboxVisible,
+    teamMailboxWidth: s.teamMailboxWidth,
   })));
 
   const showPanel = fileViewerVisible && fileViewerHasContent;
@@ -47,23 +50,33 @@ export function AppLayout() {
       <Header />
       <Sidebar />
       <main className="app-main">
-        {activeView === "welcome" ? (
-          <WelcomeScreen />
-        ) : activeView === "settings" ? (
-          <SettingsView />
-        ) : (
-          <div className={`main-split main-split--${fileViewerPosition}`}>
-            <ChatView />
-            {showPanel && (
-              <>
-                <FileViewerResizeHandle />
-                <div className="file-viewer-wrapper" style={panelStyle}>
-                  <FileViewerPanel />
-                </div>
-              </>
-            )}
-          </div>
-        )}
+        <div className="main-row">
+          {activeView === "welcome" ? (
+            <WelcomeScreen />
+          ) : activeView === "settings" ? (
+            <SettingsView />
+          ) : (
+            <div className={`main-split main-split--${fileViewerPosition}`}>
+              <ChatView />
+              {showPanel && (
+                <>
+                  <FileViewerResizeHandle />
+                  <div className="file-viewer-wrapper" style={panelStyle}>
+                    <FileViewerPanel />
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+          {teamMailboxVisible && (
+            <div
+              className="team-mailbox-wrapper"
+              style={{ width: teamMailboxWidth, minWidth: 280 }}
+            >
+              <TeamMailboxPanel />
+            </div>
+          )}
+        </div>
       </main>
       {chatPanelVisible && (
         <div className="chat-panel-column">
