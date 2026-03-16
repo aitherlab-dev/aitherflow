@@ -1,6 +1,7 @@
 import { memo, useState, useRef, useEffect, useMemo } from "react";
 import { FileText } from "lucide-react";
 import type { ChatMessage, Attachment } from "../../types/chat";
+import { formatMessageTime } from "../../lib/formatTime";
 
 /** Number of visible lines when collapsed */
 const COLLAPSE_LINES = 5;
@@ -91,6 +92,7 @@ export const UserMessage = memo(function UserMessage({ message }: UserMessagePro
       )}
       {displayText && (
         <div className="chat-message chat-message-user">
+          <span className="chat-message-time">{formatMessageTime(message.timestamp)}</span>
           <div
             ref={contentRef}
             className="chat-message-content"

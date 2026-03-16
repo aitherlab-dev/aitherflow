@@ -6,6 +6,7 @@ import { InteractiveCard } from "./InteractiveCard";
 import { useTypewriter } from "./useTypewriter";
 import type { ChatMessage } from "../../types/chat";
 import { isInteractiveTool } from "../../types/chat";
+import { formatMessageTime } from "../../lib/formatTime";
 
 const TURN_SEPARATOR = "\n<!-- turn -->\n";
 
@@ -61,6 +62,7 @@ export const AssistantMessage = memo(function AssistantMessage({
   // Finished — show collapsible thinking + final text
   return (
     <div className="chat-message chat-message-assistant">
+      <span className="chat-message-time">{formatMessageTime(message.timestamp)}</span>
       {thinking.length > 0 && (
         <ThinkingToggle
           thinking={thinking}
