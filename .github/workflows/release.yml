@@ -80,6 +80,7 @@ jobs:
 
       - name: Create DMG from .app
         run: |
+          mkdir -p release-assets
           APP_PATH="src-tauri/target/release/bundle/macos/aitherflow.app"
           DMG_NAME="aitherflow_$(grep '"version"' src-tauri/tauri.conf.json | head -1 | sed 's/.*: "//;s/".*//')_aarch64.dmg"
           hdiutil create -volname "aitherflow" -srcfolder "$APP_PATH" -ov -format UDZO "release-assets/$DMG_NAME"
