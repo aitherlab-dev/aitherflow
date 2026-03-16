@@ -24,6 +24,7 @@ fn task_lock(key: &str) -> Arc<Mutex<()>> {
 }
 
 /// Remove lock entries for a given team prefix (called on team deletion).
+#[allow(dead_code)] // reserved for team lifecycle management
 pub(crate) fn remove_task_locks(team: &str) {
     let prefix = format!("{team}/");
     let mut map = TASK_LOCKS.lock().unwrap_or_else(|e| e.into_inner());
@@ -203,6 +204,7 @@ pub(crate) fn list_tasks_sync(team: &str) -> Result<Vec<TeamTask>, String> {
 }
 
 /// Create a new task
+#[allow(dead_code)] // available as tauri command when needed
 #[tauri::command]
 pub async fn team_create_task(
     team: String,
@@ -232,6 +234,7 @@ pub async fn team_create_task(
 }
 
 /// Claim a task for an agent (with lock to prevent double-claim)
+#[allow(dead_code)] // available as tauri command when needed
 #[tauri::command]
 pub async fn team_claim_task(
     team: String,
@@ -266,6 +269,7 @@ pub async fn team_claim_task(
 }
 
 /// Complete a task (only the owner can complete it)
+#[allow(dead_code)] // available as tauri command when needed
 #[tauri::command]
 pub async fn team_complete_task(
     team: String,
@@ -308,6 +312,7 @@ pub async fn team_complete_task(
 }
 
 /// List all tasks for a team with current statuses
+#[allow(dead_code)] // available as tauri command when needed
 #[tauri::command]
 pub async fn team_list_tasks(team: String) -> Result<Vec<TeamTask>, String> {
     tokio::task::spawn_blocking(move || {

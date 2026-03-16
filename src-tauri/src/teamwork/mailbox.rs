@@ -25,6 +25,7 @@ fn inbox_lock(key: &str) -> Arc<Mutex<()>> {
 }
 
 /// Remove lock entries for a given team prefix (called on team deletion).
+#[allow(dead_code)] // reserved for team lifecycle management
 pub(crate) fn remove_inbox_locks(team: &str) {
     let prefix = format!("{team}/");
     let mut map = INBOX_LOCKS.lock().unwrap_or_else(|e| e.into_inner());
@@ -157,6 +158,7 @@ pub(crate) fn broadcast_sync(
 }
 
 /// Send a message from one agent to another. Returns the message ID.
+#[allow(dead_code)] // available as tauri command when needed
 #[tauri::command]
 pub async fn team_send_message(
     team: String,
@@ -244,6 +246,7 @@ pub(crate) fn read_inbox_sync(team: &str, agent_id: &str) -> Result<Vec<TeamMess
 }
 
 /// Read all unread messages from an agent's inbox
+#[allow(dead_code)] // available as tauri command when needed
 #[tauri::command]
 pub async fn team_read_inbox(team: String, agent_id: String) -> Result<Vec<TeamMessage>, String> {
     tokio::task::spawn_blocking(move || read_inbox_sync(&team, &agent_id))
@@ -398,6 +401,7 @@ pub async fn team_clear_messages(team: String) -> Result<(), String> {
 
 /// Mark specific messages as read in an agent's inbox.
 /// Rewrites the JSONL file with updated read flags.
+#[allow(dead_code)] // available as tauri command when needed
 #[tauri::command]
 pub async fn team_mark_read(
     team: String,

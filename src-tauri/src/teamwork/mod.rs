@@ -1,8 +1,6 @@
-#[allow(dead_code)]
 pub mod mailbox;
 pub mod mcp_server;
 pub mod roles;
-#[allow(dead_code)]
 pub mod tasks;
 
 /// Validate that a name (team, agent_id, task_id) is safe for use in file paths.

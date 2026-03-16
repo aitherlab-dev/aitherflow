@@ -26,8 +26,6 @@ pub struct McpServerState {
     agents: RwLock<HashMap<String, AgentMcpInfo>>,
     /// session_id → agent_id (MCP sessions, spec compliance)
     sessions: RwLock<HashMap<String, String>>,
-    #[allow(dead_code)]
-    app_handle: tauri::AppHandle,
     session_manager: SessionManager,
     /// Generation counter for register/unregister race protection.
     gen_counter: AtomicU64,
@@ -77,7 +75,7 @@ impl McpServerState {
     }
 
     /// Remove agent unconditionally (explicit stop / remove).
-    #[allow(dead_code)]
+    #[allow(dead_code)] // reserved for explicit agent stop/remove
     pub async fn unregister_agent(&self, agent_id: &str) {
         self.agents.write().await.remove(agent_id);
         self.sessions
@@ -151,7 +149,6 @@ pub fn shutdown_mcp_server() {
 
 /// Start the MCP HTTP server on 127.0.0.1 with a random free port.
 pub async fn start_mcp_server(
-    app_handle: tauri::AppHandle,
     session_manager: SessionManager,
 ) -> Result<(), String> {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -167,7 +164,6 @@ pub async fn start_mcp_server(
         port,
         agents: RwLock::new(HashMap::new()),
         sessions: RwLock::new(HashMap::new()),
-        app_handle,
         session_manager,
         gen_counter: AtomicU64::new(0),
     });

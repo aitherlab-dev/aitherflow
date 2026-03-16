@@ -137,15 +137,15 @@ pub fn run() {
             teamwork::roles::roles_delete,
             teamwork::mailbox::team_read_all_messages,
             teamwork::mailbox::team_clear_messages,
+            teamwork::mailbox::team_broadcast,
             teamwork::mcp_server::team_list_agents,
             projects::get_teamwork_slug,
         ])
         .setup(move |_app| {
-            let app_handle = _app.handle().clone();
             let sessions_for_mcp = sessions;
             tauri::async_runtime::spawn(async move {
                 // Start MCP server for team agent communication
-                if let Err(e) = teamwork::mcp_server::start_mcp_server(app_handle, sessions_for_mcp).await {
+                if let Err(e) = teamwork::mcp_server::start_mcp_server(sessions_for_mcp).await {
                     eprintln!("[aitherflow] Failed to start MCP server: {e}");
                 }
 

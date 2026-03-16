@@ -9,6 +9,10 @@ fn default_true() -> bool {
     true
 }
 
+fn is_true(v: &bool) -> bool {
+    *v
+}
+
 /// A single project bookmark
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -17,7 +21,7 @@ pub struct ProjectBookmark {
     pub name: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub additional_dirs: Vec<String>,
-    #[serde(default = "default_true", skip_serializing_if = "Clone::clone")]
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub teamwork_enabled: bool,
 }
 
