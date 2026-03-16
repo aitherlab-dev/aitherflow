@@ -4,12 +4,37 @@ Desktop GUI for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CL
 
 Not a replacement — a visual interface on top of the CLI. Claude Code remains the sole engine; aitherflow manages processes and displays results.
 
+## Multi-Agent System
+
+Each agent runs as a **separate CLI process** with full isolation — own context, own session, own tools. This is not just multiple chat tabs.
+
+**Inter-agent communication.** Agents talk to each other through a built-in messaging system (MCP teamwork server). A coordinator can assign tasks, a coder writes code in an isolated worktree, a reviewer checks the result — all running in parallel without interfering with each other.
+
+**Worktree integration.** Agents work in separate git worktrees on their own branches. The main branch stays clean until you explicitly merge. No accidental commits to production, no context conflicts between agents.
+
+**Real coordination example:**
+1. Coordinator receives a task and breaks it down
+2. Coder creates a worktree, writes code, commits to a feature branch
+3. Reviewer inspects the changes, reports bugs
+4. Coordinator sends fixes back to the coder
+5. You merge when everything is verified
+
+## System Prompts
+
+A full system prompt editor built into the interface — not markdown files with "you are a senior developer" role descriptions.
+
+- Create, edit, and manage system prompts per project
+- Prompts shape agent behavior from the first message
+- Switch prompts between sessions without touching config files
+
 ## Features
 
-- Multi-agent tabs with full isolation (each agent = own CLI process)
+- Multi-agent tabs with full process isolation
+- Inter-agent messaging and task coordination
 - Chat with streaming markdown responses
 - Model selector (Sonnet / Opus / Haiku) and reasoning effort control
 - Interactive permission prompts and plan/edit mode toggle
+- System prompt editor with per-project management
 - Skill browser with favorites, plugin management
 - Telegram bot integration
 - Voice input (Groq)
@@ -28,14 +53,12 @@ Go to [Releases](https://github.com/aitherlab-dev/aitherflow/releases) and downl
 
 | Platform | Format |
 |----------|--------|
-| **Linux** | `.deb` (Ubuntu/Debian), `.rpm` (Fedora), `.AppImage` (any distro) |
+| **Linux** | `.deb` (Ubuntu/Debian), `.rpm` (Fedora) |
 | **macOS** | `.dmg` (Apple Silicon) |
 
 > **macOS note:** The app is not signed with an Apple Developer certificate. On first launch, right-click the app → Open → Open to bypass Gatekeeper.
 
 ### Build from source
-
-If you prefer to build from source or your platform isn't listed above:
 
 **Prerequisites:** [Rust](https://rustup.rs/) (stable), [Node.js](https://nodejs.org/) 20+, [pnpm](https://pnpm.io/), [Tauri 2 system deps](https://v2.tauri.app/start/prerequisites/)
 
@@ -46,7 +69,7 @@ pnpm install
 pnpm tauri build
 ```
 
-Packages will be in `src-tauri/target/release/bundle/`.
+Packages will be in `target/release/bundle/`.
 
 For development:
 
@@ -67,7 +90,7 @@ pnpm tauri dev
 
 ## Platforms
 
-- **Linux** — deb, rpm, AppImage
+- **Linux** — deb, rpm
 - **macOS** — dmg (Apple Silicon)
 
 ## License
