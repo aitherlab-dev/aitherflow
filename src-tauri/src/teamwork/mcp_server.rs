@@ -33,11 +33,16 @@ pub struct McpServerState {
 }
 
 struct AgentMcpInfo {
+    /// Mailbox/tasks directory name: team name for teams, project slug for project teamwork.
     team_name: String,
+    /// Team ID for team-based agents; empty for project teamwork agents.
     team_id: String,
+    /// Static agent list for teams; empty for project teamwork (computed dynamically).
     team_agent_ids: Vec<String>,
     role: AgentRole,
     generation: u64,
+    /// Set for project teamwork agents (full path); None for team-based agents.
+    project_path: Option<String>,
 }
 
 impl McpServerState {
@@ -60,9 +65,45 @@ impl McpServerState {
                 team_agent_ids: agent_ids,
                 role,
                 generation,
+                project_path: None,
             },
         );
         generation
+    }
+
+    /// Register a standalone project agent for project-level teamwork.
+    /// Uses project slug as the mailbox namespace.
+    pub async fn register_project_agent(
+        &self,
+        agent_id: &str,
+        project_path: &str,
+        project_slug: &str,
+        role: AgentRole,
+    ) -> u64 {
+        let generation = self.gen_counter.fetch_add(1, Ordering::Relaxed) + 1;
+        self.agents.write().await.insert(
+            agent_id.to_string(),
+            AgentMcpInfo {
+                team_name: project_slug.to_string(),
+                team_id: String::new(),
+                team_agent_ids: Vec::new(),
+                role,
+                generation,
+                project_path: Some(project_path.to_string()),
+            },
+        );
+        generation
+    }
+
+    /// Get all agent_ids that share the same project_path (for project teamwork).
+    async fn project_agent_ids(&self, project_path: &str) -> Vec<String> {
+        self.agents
+            .read()
+            .await
+            .iter()
+            .filter(|(_, info)| info.project_path.as_deref() == Some(project_path))
+            .map(|(id, _)| id.clone())
+            .collect()
     }
 
     /// Remove agent unconditionally (explicit stop / remove).
@@ -386,10 +427,7 @@ fn is_known_tool(name: &str) -> bool {
 }
 
 fn is_management_tool(name: &str) -> bool {
-    matches!(
-        name,
-        "start_agent" | "stop_agent" | "restart_agent" | "list_agents" | "send_prompt"
-    )
+    matches!(name, "start_agent" | "stop_agent" | "restart_agent")
 }
 
 async fn execute_tool(
@@ -406,8 +444,8 @@ async fn execute_tool(
         .cloned()
         .unwrap_or(json!({}));
 
-    // Look up agent's team info
-    let (team_name, team_id, team_agent_ids, role) = {
+    // Look up agent's team/project info
+    let (team_name, team_id, role, project_path) = {
         let agents = state.agents.read().await;
         let info = agents
             .get(agent_id)
@@ -415,9 +453,20 @@ async fn execute_tool(
         (
             info.team_name.clone(),
             info.team_id.clone(),
-            info.team_agent_ids.clone(),
             info.role.clone(),
+            info.project_path.clone(),
         )
+    };
+
+    // For project teamwork, compute agent_ids dynamically; for teams, use static list.
+    let team_agent_ids = if let Some(ref pp) = project_path {
+        state.project_agent_ids(pp).await
+    } else {
+        let agents = state.agents.read().await;
+        agents
+            .get(agent_id)
+            .map(|info| info.team_agent_ids.clone())
+            .unwrap_or_default()
     };
 
     // Management tools: check role and validate target
@@ -434,10 +483,12 @@ async fn execute_tool(
                 return Err(format!("Cannot target yourself with {tool_name}"));
             }
             if !team_agent_ids.contains(&target_id.to_string()) {
-                return Err(format!("Agent {target_id} is not in your team"));
+                return Err(format!("Agent {target_id} is not in your team/project"));
             }
         }
     }
+
+    let is_project_mode = project_path.is_some();
 
     let agent_id = agent_id.to_string();
 
@@ -575,6 +626,9 @@ async fn execute_tool(
         // ---- Management tools (architect only) ----
 
         "start_agent" => {
+            if is_project_mode {
+                return Err("start_agent is not available in project teamwork mode. Use the GUI to start agents.".to_string());
+            }
             let target_id = args["agent_id"]
                 .as_str()
                 .ok_or("Missing 'agent_id' parameter")?
@@ -594,6 +648,9 @@ async fn execute_tool(
         }
 
         "stop_agent" => {
+            if is_project_mode {
+                return Err("stop_agent is not available in project teamwork mode. Use the GUI to stop agents.".to_string());
+            }
             let target_id = args["agent_id"]
                 .as_str()
                 .ok_or("Missing 'agent_id' parameter")?
@@ -612,6 +669,9 @@ async fn execute_tool(
         }
 
         "restart_agent" => {
+            if is_project_mode {
+                return Err("restart_agent is not available in project teamwork mode. Use the GUI to restart agents.".to_string());
+            }
             let target_id = args["agent_id"]
                 .as_str()
                 .ok_or("Missing 'agent_id' parameter")?
@@ -637,25 +697,44 @@ async fn execute_tool(
         }
 
         "list_agents" => {
-            let tid = team_id;
-            let team = tokio::task::spawn_blocking(move || {
-                super::team::read_team_sync(&tid)
-            })
-            .await
-            .map_err(|e| format!("Task panic: {e}"))??;
-            let agent_list: Vec<Value> = team
-                .agents
-                .iter()
-                .map(|a| {
-                    json!({
-                        "agent_id": a.agent_id,
-                        "role": a.role,
-                        "status": a.status,
+            if is_project_mode {
+                // For project teamwork: list agents from MCP state
+                let agents = state.agents.read().await;
+                let pp = project_path.as_deref().unwrap_or("");
+                let agent_list: Vec<Value> = agents
+                    .iter()
+                    .filter(|(_, info)| info.project_path.as_deref() == Some(pp))
+                    .map(|(id, info)| {
+                        json!({
+                            "agent_id": id,
+                            "role": info.role.name,
+                            "can_manage": info.role.can_manage,
+                        })
                     })
+                    .collect();
+                serde_json::to_string_pretty(&agent_list)
+                    .map_err(|e| format!("Serialize error: {e}"))
+            } else {
+                let tid = team_id;
+                let team = tokio::task::spawn_blocking(move || {
+                    super::team::read_team_sync(&tid)
                 })
-                .collect();
-            serde_json::to_string_pretty(&agent_list)
-                .map_err(|e| format!("Serialize error: {e}"))
+                .await
+                .map_err(|e| format!("Task panic: {e}"))??;
+                let agent_list: Vec<Value> = team
+                    .agents
+                    .iter()
+                    .map(|a| {
+                        json!({
+                            "agent_id": a.agent_id,
+                            "role": a.role,
+                            "status": a.status,
+                        })
+                    })
+                    .collect();
+                serde_json::to_string_pretty(&agent_list)
+                    .map_err(|e| format!("Serialize error: {e}"))
+            }
         }
 
         "send_prompt" => {
@@ -663,6 +742,12 @@ async fn execute_tool(
                 .as_str()
                 .ok_or("Missing 'agent_id' parameter")?
                 .to_string();
+            if target_id == agent_id {
+                return Err("Cannot send prompt to yourself".to_string());
+            }
+            if !team_agent_ids.contains(&target_id) {
+                return Err(format!("Agent {target_id} is not in your team/project"));
+            }
             let prompt = args["prompt"]
                 .as_str()
                 .ok_or("Missing 'prompt' parameter")?
@@ -793,6 +878,33 @@ fn communication_tool_definitions() -> Vec<Value> {
                 "required": ["task_id"]
             }
         }),
+        json!({
+            "name": "list_agents",
+            "description": "List all agents in your team/project with their current status and role.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }),
+        json!({
+            "name": "send_prompt",
+            "description": "Send a prompt directly to another agent's CLI session. The prompt is injected into the agent's stdin and will be processed immediately (or after current turn completes).",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "agent_id": {
+                        "type": "string",
+                        "description": "The agent_id of the target agent"
+                    },
+                    "prompt": {
+                        "type": "string",
+                        "description": "The prompt text to send"
+                    }
+                },
+                "required": ["agent_id", "prompt"]
+            }
+        }),
     ]
 }
 
@@ -839,33 +951,6 @@ fn management_tool_definitions() -> Vec<Value> {
                     }
                 },
                 "required": ["agent_id"]
-            }
-        }),
-        json!({
-            "name": "list_agents",
-            "description": "List all agents in your team with their current status and role.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
-        }),
-        json!({
-            "name": "send_prompt",
-            "description": "Send a prompt directly to another agent's CLI session. The prompt is injected into the agent's stdin and will be processed immediately (or after current turn completes).",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "agent_id": {
-                        "type": "string",
-                        "description": "The agent_id of the target agent"
-                    },
-                    "prompt": {
-                        "type": "string",
-                        "description": "The prompt text to send"
-                    }
-                },
-                "required": ["agent_id", "prompt"]
             }
         }),
     ]

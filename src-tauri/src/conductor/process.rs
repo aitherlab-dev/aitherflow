@@ -65,6 +65,9 @@ pub struct CliSessionConfig {
     pub team: Option<String>,
     /// Team ID for role-based launch args (None = no team restrictions)
     pub team_id: Option<String>,
+    /// Project path with teamwork_enabled (None = no project teamwork).
+    /// Mutually exclusive with team_id — team_id takes priority.
+    pub teamwork_project_path: Option<String>,
 }
 
 /// Spawn Claude CLI and run the session until the process exits.
@@ -89,6 +92,7 @@ pub async fn run_cli_session(
         image_attachments,
         team,
         team_id,
+        teamwork_project_path,
     } = config;
 
     // If agent belongs to a team, look up role-based launch args, team name, and
@@ -114,8 +118,16 @@ pub async fn run_cli_session(
             (Vec::new(), None, None, None, None)
         };
 
-    // Team name for mailbox: explicit `team` field takes priority, otherwise derive from team_id
-    let team_for_mailbox = team.or(team_name_from_id.clone());
+    // Team name for mailbox: explicit `team` field takes priority, otherwise derive from team_id.
+    // For project teamwork, use the project slug as the mailbox namespace.
+    let project_teamwork_slug = if team_id.is_none() {
+        teamwork_project_path.as_deref().map(crate::projects::project_teamwork_slug)
+    } else {
+        None
+    };
+    let team_for_mailbox = team
+        .or(team_name_from_id.clone())
+        .or(project_teamwork_slug.clone());
 
     // Register agent in MCP server so it can use teamwork tools.
     // This runs inside run_cli_session (not start_agent_core) so it works
@@ -123,8 +135,25 @@ pub async fn run_cli_session(
     let mcp_generation = if let (Some(ref tid), Some(ref tn), Some(ref aids), Some(ref role)) =
         (&team_id, &team_name_from_id, &team_agent_ids, &team_role)
     {
+        // Team-based path
         if let Some(mcp) = crate::teamwork::mcp_server::get_state() {
             mcp.register_agent(&agent_id, tn, tid, aids.clone(), role.clone())
+                .await
+        } else {
+            0
+        }
+    } else if let (Some(ref pp), Some(ref slug)) =
+        (&teamwork_project_path, &project_teamwork_slug)
+    {
+        // Project teamwork path — default role with no management access
+        let default_role = crate::teamwork::team::AgentRole {
+            name: "Agent".to_string(),
+            system_prompt: String::new(),
+            allowed_tools: Vec::new(),
+            can_manage: false,
+        };
+        if let Some(mcp) = crate::teamwork::mcp_server::get_state() {
+            mcp.register_project_agent(&agent_id, pp, slug, default_role)
                 .await
         } else {
             0
@@ -176,9 +205,10 @@ pub async fn run_cli_session(
         }
     }
 
-    // Create MCP config file for team agents (points to the built-in MCP server).
+    // Create MCP config file for team/project-teamwork agents (points to the built-in MCP server).
     // Wrapped in TempFileGuard so the file is cleaned up on early return.
-    let mcp_config_guard = if team_id.is_some() {
+    let needs_mcp_config = team_id.is_some() || project_teamwork_slug.is_some();
+    let mcp_config_guard = if needs_mcp_config {
         if let Some(port) = crate::teamwork::mcp_server::get_mcp_port() {
             let path =
                 std::env::temp_dir().join(format!("aitherflow-mcp-{agent_id}.json"));
@@ -206,7 +236,7 @@ pub async fn run_cli_session(
             args.push(path.to_string_lossy().into_owned());
             TempFileGuard::new(path)
         } else {
-            eprintln!("[{tag}] MCP server not running, skipping --mcp-config for team agent");
+            eprintln!("[{tag}] MCP server not running, skipping --mcp-config for teamwork agent");
             TempFileGuard(None)
         }
     } else {

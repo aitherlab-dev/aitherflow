@@ -36,6 +36,9 @@ interface ProjectState {
 
   /** Reorder welcome cards */
   reorderWelcomeCards: (fromIndex: number, toIndex: number) => Promise<void>;
+
+  /** Toggle teamwork for a project */
+  toggleTeamwork: (projectPath: string) => Promise<void>;
 }
 
 /** Persist current state to disk via Rust */
@@ -158,5 +161,16 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     updated.splice(toIndex, 0, moved);
     set({ welcomeCards: updated });
     await persist(projects, lastOpenedProject, lastOpenedChatId, updated);
+  },
+
+  toggleTeamwork: async (projectPath) => {
+    const { projects, lastOpenedProject, lastOpenedChatId, welcomeCards } = get();
+    const updated = projects.map((p) =>
+      p.path === projectPath
+        ? { ...p, teamworkEnabled: !p.teamworkEnabled }
+        : p,
+    );
+    set({ projects: updated });
+    await persist(updated, lastOpenedProject, lastOpenedChatId, welcomeCards);
   },
 }));

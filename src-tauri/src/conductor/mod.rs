@@ -33,6 +33,23 @@ pub async fn start_session(
     let team = options.team;
     let team_id = options.team_id;
 
+    // Check if project has teamwork_enabled (only when not already in a team)
+    let teamwork_project_path = if team_id.is_none() {
+        if let Some(ref pp) = project_path {
+            let pp_check = pp.clone();
+            let enabled = tokio::task::spawn_blocking(move || {
+                crate::projects::is_teamwork_enabled_sync(&pp_check)
+            })
+            .await
+            .unwrap_or(false);
+            if enabled { project_path.clone() } else { None }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
     // Clone for the spawned task (State<'_> can't cross spawn boundary)
     let sessions_owned = sessions.inner().clone();
     let app_clone = app.clone();
@@ -55,6 +72,7 @@ pub async fn start_session(
                 image_attachments,
                 team,
                 team_id,
+                teamwork_project_path,
             },
         )
         .await

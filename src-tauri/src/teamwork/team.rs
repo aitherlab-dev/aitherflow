@@ -566,6 +566,7 @@ pub(crate) async fn start_agent_core(
                 image_attachments: vec![],
                 team: Some(team_name),
                 team_id: Some(team_id_spawn.clone()),
+                teamwork_project_path: None,
             },
         )
         .await
