@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { invoke, listen } from "../lib/transport";
 import type { CliEvent } from "../types/conductor";
+import type { AgentRole } from "../types/team";
 import { useChatStore } from "./chatStore";
 
 /** Maximum number of raw events to keep in the log (debug only, not in store) */
@@ -55,11 +56,15 @@ interface ConductorState {
   contextMax: number;
   costUsd: number;
   slashCommands: string[];
+  /** Per-agent role selection (persists across agent switches) */
+  agentRoles: Record<string, AgentRole | null>;
 
   // Actions
   setSelectedModel: (model: string) => void;
   setSelectedEffort: (effort: string) => void;
   setSelectedPermissionMode: (mode: "default" | "plan") => void;
+  setAgentRole: (agentId: string, role: AgentRole | null) => void;
+  getAgentRole: (agentId: string) => AgentRole | null;
   reset: () => void;
   saveUsageForAgent: (agentId: string) => void;
   restoreUsageForAgent: (agentId: string) => void;
@@ -82,10 +87,14 @@ export const useConductorStore = create<ConductorState>((set, get) => ({
   contextMax: DEFAULT_CONTEXT_WINDOW,
   costUsd: 0,
   slashCommands: [],
+  agentRoles: {},
 
   setSelectedModel: (model: string) => set({ selectedModel: model }),
   setSelectedEffort: (effort: string) => set({ selectedEffort: effort }),
   setSelectedPermissionMode: (mode: "default" | "plan") => set({ selectedPermissionMode: mode }),
+  setAgentRole: (agentId: string, role: AgentRole | null) =>
+    set((s) => ({ agentRoles: { ...s.agentRoles, [agentId]: role } })),
+  getAgentRole: (agentId: string) => get().agentRoles[agentId] ?? null,
 
   reset: () =>
     set({

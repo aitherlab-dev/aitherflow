@@ -68,6 +68,10 @@ pub struct CliSessionConfig {
     /// Project path with teamwork_enabled (None = no project teamwork).
     /// Mutually exclusive with team_id — team_id takes priority.
     pub teamwork_project_path: Option<String>,
+    /// Standalone role system prompt (not from team — applied via --append-system-prompt)
+    pub role_system_prompt: Option<String>,
+    /// Standalone role allowed tools (not from team — applied via --allowedTools)
+    pub role_allowed_tools: Option<Vec<String>>,
 }
 
 /// Spawn Claude CLI and run the session until the process exits.
@@ -93,6 +97,8 @@ pub async fn run_cli_session(
         team,
         team_id,
         teamwork_project_path,
+        role_system_prompt,
+        role_allowed_tools,
     } = config;
 
     // If agent belongs to a team, look up role-based launch args, team name, and
@@ -202,6 +208,22 @@ pub async fn run_cli_session(
         if !sp.is_empty() {
             args.push("--append-system-prompt".into());
             args.push(sp.clone());
+        }
+    }
+
+    // Standalone role (not from team) — apply system prompt and allowed tools
+    if team_id.is_none() {
+        if let Some(ref sp) = role_system_prompt {
+            if !sp.is_empty() {
+                args.push("--append-system-prompt".into());
+                args.push(sp.clone());
+            }
+        }
+        if let Some(ref tools) = role_allowed_tools {
+            if !tools.is_empty() {
+                args.push("--allowedTools".into());
+                args.push(tools.join(","));
+            }
         }
     }
 

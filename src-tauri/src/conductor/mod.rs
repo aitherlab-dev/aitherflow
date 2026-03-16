@@ -32,6 +32,8 @@ pub async fn start_session(
     let image_attachments = options.attachments;
     let team = options.team;
     let team_id = options.team_id;
+    let role_system_prompt = options.role_system_prompt;
+    let role_allowed_tools = options.role_allowed_tools;
 
     // Check if project has teamwork_enabled (only when not already in a team)
     let teamwork_project_path = if team_id.is_none() {
@@ -73,6 +75,8 @@ pub async fn start_session(
                 team,
                 team_id,
                 teamwork_project_path,
+                role_system_prompt,
+                role_allowed_tools,
             },
         )
         .await

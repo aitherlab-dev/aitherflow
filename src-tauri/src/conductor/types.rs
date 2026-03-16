@@ -142,6 +142,10 @@ pub struct StartSessionOptions {
     pub team: Option<String>,
     /// Team ID for role-based launch args (None = no team restrictions)
     pub team_id: Option<String>,
+    /// Role system prompt (standalone, not from team — applied via --append-system-prompt)
+    pub role_system_prompt: Option<String>,
+    /// Role allowed tools (standalone, not from team — applied via --allowedTools)
+    pub role_allowed_tools: Option<Vec<String>>,
 }
 
 /// Options for sending a follow-up message to an existing session.

@@ -567,6 +567,8 @@ pub(crate) async fn start_agent_core(
                 team: Some(team_name),
                 team_id: Some(team_id_spawn.clone()),
                 teamwork_project_path: None,
+                role_system_prompt: None,
+                role_allowed_tools: None,
             },
         )
         .await

@@ -70,6 +70,10 @@ export interface StartSessionOptions {
   team?: string;
   /** Team ID for role-based launch args and MCP registration */
   teamId?: string;
+  /** Standalone role system prompt (not from team) */
+  roleSystemPrompt?: string;
+  /** Standalone role allowed tools (not from team) */
+  roleAllowedTools?: string[];
 }
 
 /** Options for sending a follow-up message */
