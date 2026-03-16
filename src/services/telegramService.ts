@@ -68,7 +68,8 @@ export async function pollAndHandle(): Promise<void> {
   let messages: TgIncoming[];
   try {
     messages = await invoke<TgIncoming[]>("poll_telegram_messages");
-  } catch {
+  } catch (e) {
+    console.error("Telegram polling error:", e);
     return;
   }
 
