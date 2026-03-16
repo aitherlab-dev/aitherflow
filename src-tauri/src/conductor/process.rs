@@ -32,6 +32,7 @@ fn resolve_claude_binary() -> String {
 
     // Common locations to check
     let home = dirs::home_dir().unwrap_or_default();
+    eprintln!("[conductor] resolve_claude_binary: home={}", home.display());
     let candidates: Vec<std::path::PathBuf> = vec![
         // npm global (unix)
         home.join(".local/node/bin/claude"),
@@ -50,12 +51,16 @@ fn resolve_claude_binary() -> String {
         home.join("AppData/Roaming/npm/claude"),
     ];
 
-    for candidate in candidates {
-        if candidate.exists() {
+    for candidate in &candidates {
+        let exists = candidate.exists();
+        eprintln!("[conductor] checking {}: {}", candidate.display(), exists);
+        if exists {
+            eprintln!("[conductor] resolved claude at: {}", candidate.display());
             return candidate.to_string_lossy().into_owned();
         }
     }
 
+    eprintln!("[conductor] claude not found in any known location");
     // Fallback — let the OS try to find it
     "claude".to_string()
 }
@@ -258,6 +263,24 @@ pub async fn run_cli_session(
     // Build command
     let claude_bin = resolve_claude_binary();
     let mut cmd = Command::new(&claude_bin);
+
+    // Extend PATH so child process can find node, claude, etc.
+    {
+        let current_path = std::env::var("PATH").unwrap_or_default();
+        let home = dirs::home_dir().unwrap_or_default();
+        let extra_paths = [
+            home.join(".local/bin"),
+            home.join(".local/node/bin"),
+            home.join(".cargo/bin"),
+            "/usr/local/bin".into(),
+            "/opt/homebrew/bin".into(),
+        ];
+        let extended = std::env::join_paths(
+            extra_paths.iter().chain(std::env::split_paths(&current_path).collect::<Vec<_>>().iter())
+        ).unwrap_or_default();
+        cmd.env("PATH", extended);
+    }
+
     cmd.args(&args)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
