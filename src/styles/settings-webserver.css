@@ -1,0 +1,164 @@
+/* ═══════════════════════════════════════════
+   Web Server Section
+   ═══════════════════════════════════════════ */
+
+.webserver-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.webserver-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.webserver-field-label {
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: var(--fg-muted);
+}
+
+.webserver-input {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  color: var(--fg);
+  font-size: 0.88rem;
+  font-family: monospace;
+  outline: none;
+}
+
+.webserver-input:focus {
+  border-color: var(--accent);
+}
+
+.webserver-input[type="number"] {
+  width: 100px;
+}
+
+.webserver-token-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.webserver-token-input {
+  flex: 1;
+}
+
+.webserver-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-card);
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+
+.webserver-icon-btn:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.webserver-copy-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-size: 0.84rem;
+  cursor: pointer;
+  width: fit-content;
+}
+
+.webserver-copy-btn:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.webserver-note {
+  font-size: 0.78rem;
+  color: var(--fg-dim);
+}
+
+/* ── Voice settings ── */
+
+.settings-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.settings-input {
+  background: var(--input-bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  width: 260px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.settings-input:focus {
+  border-color: var(--accent);
+}
+
+.settings-input::placeholder {
+  color: var(--fg-dim);
+}
+
+.settings-input-toggle {
+  background: var(--bg-hover);
+  color: var(--fg-muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.settings-input-toggle:hover {
+  background: var(--bg-card);
+  color: var(--fg);
+}
+
+.settings-select {
+  background: var(--input-bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.settings-select:focus {
+  border-color: var(--accent);
+}
+
+.settings-toggle-desc a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.settings-toggle-desc a:hover {
+  text-decoration: underline;
+}
+

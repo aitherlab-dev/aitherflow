@@ -1,0 +1,286 @@
+/* ═══════════════════════════════════════════
+   Input Bar
+   ═══════════════════════════════════════════ */
+
+.input-bar {
+  position: relative;
+  border-radius: 18px;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  padding: 5px 4px 0;
+  backdrop-filter: blur(8px);
+}
+
+.input-bar:focus-within .input-bar-row {
+  border-color: var(--fg-dim);
+}
+
+.input-bar-dragover {
+  border-color: var(--accent);
+  border-style: dashed;
+}
+
+.input-bar-drop-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+  font-size: 0.85rem;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.input-bar-row {
+  display: flex;
+  margin: 0;
+  padding: 8px;
+  border-radius: 16px;
+  background: var(--bg-hard);
+  border: 1px solid var(--border);
+  transition: border-color 0.15s;
+}
+
+.input-bar-bottom {
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 10px 12px 12px;
+}
+
+.input-bar-cell--btns {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.input-bar-cell--end {
+  justify-content: flex-end;
+}
+
+.input-bar-cell--end .input-bar-btn {
+  flex: 1;
+  width: auto;
+  min-width: 36px;
+}
+
+/* ── TaskBar below input bar ── */
+
+.taskbar {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 12px 6px;
+}
+
+.taskbar__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 0;
+}
+
+.taskbar__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.taskbar__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--fg-dim);
+  flex-shrink: 0;
+}
+
+.taskbar__dot--active {
+  background: var(--accent);
+  animation: tool-pulse 1.5s ease-in-out infinite;
+}
+
+.taskbar__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+.taskbar__count {
+  font-size: 0.7rem;
+  color: var(--fg-dim);
+}
+
+.taskbar__toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--fg-dim);
+  font-size: 0.7rem;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.taskbar__toggle:hover {
+  color: var(--fg);
+  border-color: var(--fg-dim);
+}
+
+.taskbar__toggle--active {
+  color: var(--accent-icon);
+  border-color: var(--accent);
+}
+
+.taskbar__badge {
+  font-size: 0.65rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.taskbar__recent {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 0;
+}
+
+.taskbar__recent .tool-status {
+  flex-direction: row;
+  justify-content: flex-start;
+}
+
+.taskbar__list {
+  max-height: 200px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.input-bar-textarea {
+  flex: 1;
+  min-height: 24px;
+  max-height: 210px;
+  padding: 4px 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 1.05rem;
+  font-weight: 500;
+  line-height: 1.7;
+  resize: none;
+}
+
+.input-bar-textarea::placeholder {
+  color: var(--fg-dim);
+}
+
+.input-bar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--fg-dim);
+  background: transparent;
+  color: var(--accent-stroke);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.input-bar-btn:hover {
+  background: var(--bg-hover);
+  color: var(--accent-stroke);
+}
+
+.input-bar-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.input-bar-btn--icon {
+  color: var(--accent-icon);
+}
+
+.input-bar-btn--icon:hover {
+  color: var(--accent-icon);
+}
+
+.voice-recording {
+  color: var(--error);
+  animation: voice-pulse 1s ease-in-out infinite;
+}
+
+.voice-spinner {
+  animation: voice-spin 1s linear infinite;
+}
+
+@keyframes voice-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes voice-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.input-bar-send {
+  background: var(--bg-hover);
+  color: var(--fg-muted);
+}
+
+.input-bar-send:hover {
+  background: var(--fg-dim);
+  color: var(--fg);
+}
+
+.input-bar-send:disabled {
+  background: var(--bg-hover);
+  color: var(--fg-dim);
+  opacity: 0.5;
+}
+
+/* ── Label buttons (Row 2: New Chat, Model, Skills) ── */
+.input-bar-label-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 86px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--fg-dim);
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 0.72rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.input-bar-label-btn:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.input-bar-stop {
+  background: var(--bg-hover);
+  color: var(--fg-muted);
+}
+
+.input-bar-stop:hover {
+  background: var(--fg-dim);
+  color: var(--fg);
+}

@@ -1,0 +1,232 @@
+/* ── Sidebar ── */
+
+.app-sidebar {
+  grid-column: 1;
+  grid-row: 2 / 3;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
+  padding: 8px 0;
+  background: var(--bg-soft);
+  border-right: 1px solid var(--border);
+  transition: width 0.2s ease;
+}
+
+.sidebar-content {
+  overflow: hidden;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  min-height: 0;
+  flex: 0 0 auto;
+}
+
+/* Agent tab wrapper (project button + close) */
+.sidebar-project-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.sidebar-project {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: var(--tab-bg);
+  color: var(--fg);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.3s ease-out;
+}
+
+.sidebar-project--active {
+  background: var(--accent-deep);
+  border-color: var(--accent-deep);
+  border-left: 3px solid var(--accent);
+}
+
+:root .sidebar-project--active {
+  background: var(--accent-deep);
+}
+
+.sidebar-project:hover {
+  background: var(--tab-bg-hover);
+  transform: scale(1.025);
+}
+
+.sidebar-project--active:hover {
+  background: var(--accent-soft);
+  transform: scale(1.025);
+}
+
+/* Close button on agent tabs */
+.sidebar-project__close {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.sidebar-project__close--disabled {
+  color: var(--fg-dim);
+  cursor: default;
+  pointer-events: none;
+}
+
+.sidebar-project__close:hover {
+  color: var(--fg);
+}
+
+.sidebar-project__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-project__bg-spinner {
+  flex-shrink: 0;
+  color: var(--accent-stroke);
+  animation: bg-spinner-spin 1.5s linear infinite;
+}
+
+@keyframes bg-spinner-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Worktree child tabs (sidebar) ── */
+
+.sidebar-worktree-wrapper {
+  margin-left: 20px;
+  margin-top: 4px;
+}
+
+.sidebar-worktree {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, transform 0.3s ease-out;
+}
+
+.sidebar-worktree:hover {
+  background: var(--tab-bg-hover);
+  color: var(--fg);
+  transform: scale(1.025);
+}
+
+.sidebar-worktree--active {
+  background: var(--tab-bg-active);
+  color: var(--fg);
+  border-color: var(--accent);
+}
+
+.sidebar-worktree__icon {
+  color: var(--accent-stroke);
+  flex-shrink: 0;
+}
+
+.sidebar-worktree__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Agent slot drag-and-drop ── */
+
+.sidebar-agent-slot {
+  flex-shrink: 0;
+  transition: transform 0.15s, opacity 0.15s;
+}
+
+.sidebar-agent-slot--dragging {
+  opacity: 0.5;
+  transform: scale(0.97);
+}
+
+.sidebar-agent-slot--drop-target {
+  box-shadow: 0 -2px 0 0 var(--accent);
+}
+
+/* ── Functional tab accordion body ── */
+
+.sidebar-tab-body {
+  background: var(--tab-bg);
+  border-radius: 0 0 6px 6px;
+  padding: 4px 8px 4px 12px;
+  margin: 0 12px 4px;
+  border: 1px solid var(--accent);
+  border-top: none;
+}
+
+.sidebar-tab-body__empty {
+  padding: 8px 4px;
+  color: var(--fg-dim);
+  font-size: 0.8rem;
+}
+
+/* ── Functional tabs (Settings, Limits, etc.) ── */
+
+.sidebar-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: calc(100% - 24px);
+  margin: 0 12px 8px;
+  padding: 14px 8px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: var(--tab-bg-hover);
+  color: var(--fg-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.2s, transform 0.25s ease-out, color 0.15s;
+}
+
+.sidebar-tab:hover {
+  background: var(--tab-bg);
+  color: var(--fg);
+  transform: scale(1.04);
+}
+
+.sidebar-tab--active {
+  background: var(--tab-bg);
+  color: var(--fg);
+}
+
+.sidebar-tab--disabled {
+  cursor: default;
+}
+
+/* Spacer between agents and bottom items */
+.sidebar-spacer {
+  flex: 1;
+}

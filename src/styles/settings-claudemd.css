@@ -1,0 +1,163 @@
+/* ═══════════════════════════════════════════
+   CLAUDE.MD Section
+   ═══════════════════════════════════════════ */
+
+.claude-md-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+}
+
+.claude-md-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* ── File selector dropdown ── */
+
+.claude-md-selector {
+  position: relative;
+}
+
+.claude-md-selector-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--fg);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.claude-md-selector-btn:hover {
+  border-color: var(--fg-dim);
+}
+
+.claude-md-selector-label {
+  font-weight: 500;
+}
+
+.claude-md-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 100;
+  min-width: 240px;
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+  box-shadow: var(--shadow-md);
+}
+
+.claude-md-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 14px;
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  font-size: 0.84rem;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.claude-md-dropdown-item:hover {
+  background: var(--bg-hover);
+}
+
+.claude-md-dropdown-item + .claude-md-dropdown-item {
+  border-top: 1px solid var(--border);
+}
+
+.claude-md-dropdown-item--active {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.claude-md-badge-new {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent-icon);
+}
+
+/* ── Save button ── */
+
+.claude-md-save-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.claude-md-save-btn:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.claude-md-save-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* ── Path hint ── */
+
+.claude-md-path {
+  font-size: 0.75rem;
+  color: var(--fg-dim);
+  font-family: monospace;
+}
+
+/* ── Editor textarea ── */
+
+.claude-md-editor {
+  flex: 1;
+  min-height: 300px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--fg);
+  font-size: 0.84rem;
+  font-family: monospace;
+  line-height: 1.6;
+  resize: none;
+  outline: none;
+  transition: border-color 0.15s;
+  tab-size: 2;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.claude-md-editor:focus {
+  border-color: var(--accent);
+}
+
+.claude-md-editor::placeholder {
+  color: var(--fg-dim);
+}
+

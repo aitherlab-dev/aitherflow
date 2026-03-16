@@ -1,0 +1,193 @@
+/* ── Header ── */
+
+.app-header {
+  grid-column: 2 / -1;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 12px;
+  background: var(--header-bg);
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.header-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.header-btn:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.header-btn--active {
+  color: var(--accent-icon);
+}
+
+/* ── DevTools buttons (Build, Dev) ── */
+
+.devtools-btn-wrap {
+  position: relative;
+  flex: 1;
+  display: flex;
+}
+
+.devtools-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  flex: 1;
+  padding: 6px 0;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+
+.devtools-btn:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.devtools-btn--dev-active {
+  background: var(--dev-active-bg);
+  color: var(--dev-active);
+}
+
+.devtools-btn--dev-active:hover {
+  background: var(--dev-active-bg-hover);
+  color: var(--dev-active-hover);
+}
+
+.devtools-btn--blocked {
+  color: var(--accent-icon);
+}
+
+.devtools-btn--closing {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* Dev server pulse dot */
+.dev-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--dev-active);
+  animation: dev-pulse-anim 1.5s ease-in-out infinite;
+}
+
+@keyframes dev-pulse-anim {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* Build confirmation popup */
+.build-confirm-popup {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-sm);
+  z-index: 100;
+  white-space: nowrap;
+}
+
+.build-confirm-text {
+  font-size: 12px;
+  color: var(--fg);
+  font-weight: 500;
+}
+
+.build-confirm-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.build-confirm-btn {
+  flex: 1;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.build-confirm-no {
+  background: transparent;
+  color: var(--fg-muted);
+}
+
+.build-confirm-no:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.build-confirm-yes {
+  background: var(--accent);
+  color: var(--fg-on-accent);
+  border-color: var(--accent);
+}
+
+.build-confirm-yes:hover {
+  opacity: 0.85;
+}
+
+/* ── Brand ── */
+
+.brand-name {
+  font-family: "Oswald", sans-serif;
+  font-size: 15px;
+  letter-spacing: 0.05em;
+  line-height: 1;
+}
+
+.brand-aither {
+  font-weight: 700;
+  color: var(--fg);
+}
+
+.brand-flow {
+  font-weight: 200;
+  color: var(--accent);
+}
