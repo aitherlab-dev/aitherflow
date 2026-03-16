@@ -449,6 +449,9 @@ async fn execute_tool(
                 .as_str()
                 .ok_or("Missing 'to' parameter")?
                 .to_string();
+            if to == agent_id {
+                return Err("Cannot send message to yourself".into());
+            }
             let text = args["text"]
                 .as_str()
                 .ok_or("Missing 'text' parameter")?
@@ -584,6 +587,7 @@ async fn execute_tool(
                         "agent_id": id,
                         "role": info.role.name,
                         "can_manage": info.role.can_manage,
+                        "is_self": id == &agent_id,
                     })
                 })
                 .collect();
