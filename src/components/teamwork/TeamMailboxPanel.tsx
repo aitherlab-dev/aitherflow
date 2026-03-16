@@ -74,15 +74,16 @@ export const TeamMailboxPanel = memo(function TeamMailboxPanel() {
   // Build feed: deduplicate broadcasts, sort by time
   const feed = useMemo(() => {
     const items: FeedMessage[] = messages.map((msg) => {
+      const isUser = msg.from === "user";
       const info = agentNameMap.get(msg.from);
       return {
         id: msg.id,
-        sender: info?.name ?? "Agent",
+        sender: isUser ? "You" : (info?.name ?? "Agent"),
         fromId: msg.from,
         text: msg.text,
         timestamp: new Date(msg.timestamp).getTime(),
         broadcastId: msg.broadcast_id,
-        isManager: info?.canManage ?? false,
+        isManager: isUser || (info?.canManage ?? false),
       };
     });
 
@@ -231,7 +232,8 @@ export const TeamMailboxPanel = memo(function TeamMailboxPanel() {
 
 /* ── Single message bubble ── */
 
-function getRoleIconClass(sender: string): string {
+function getRoleIconClass(sender: string, fromId: string): string {
+  if (fromId === "user") return "team-mailbox__msg-icon--user";
   const lower = sender.toLowerCase();
   if (lower.includes("architect")) return "team-mailbox__msg-icon--architect";
   if (lower.includes("coder") || lower.includes("developer")) return "team-mailbox__msg-icon--coder";
@@ -254,7 +256,7 @@ function FeedItem({ msg }: { msg: FeedMessage }) {
       ) + "..."
     : msg.text;
 
-  const iconClass = getRoleIconClass(msg.sender);
+  const iconClass = getRoleIconClass(msg.sender, msg.fromId);
 
   return (
     <div className={`team-mailbox__msg-wrap team-mailbox__msg-wrap--${side}`}>

@@ -1,6 +1,6 @@
 import { memo, useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { Plus, Star, Mic, MicOff, ArrowUp, Square, MessageSquarePlus, Sparkles, Brain, Zap, Loader2, UserCog } from "lucide-react";
-import { openDialog } from "../../lib/transport";
+import { openDialog, invoke } from "../../lib/transport";
 import { useChatStore } from "../../stores/chatStore";
 import { sendMessage, stopGeneration, newChat, switchPermissionMode } from "../../stores/chatService";
 import { useAttachmentStore } from "../../stores/attachmentStore";
@@ -14,6 +14,7 @@ import { SkillsMenu } from "./SkillsMenu";
 import { CommandsMenu } from "./CommandsMenu";
 import { useConductorStore } from "../../stores/conductorStore";
 import { useVoice } from "../../hooks/useVoice";
+import { useAgentStore } from "../../stores/agentStore";
 import { IMAGE_EXTENSIONS } from "../../types/fileviewer";
 
 
@@ -48,6 +49,8 @@ export const InputBar = memo(function InputBar() {
   const agentId = useChatStore((s) => s.agentId);
   const agentRoles = useConductorStore((s) => s.agentRoles);
   const currentRoleName = agentRoles[agentId]?.name ?? null;
+  const projectPath = useChatStore((s) => s.projectPath);
+  const agents = useAgentStore((s) => s.agents);
   // Voice input — insert appends, replace overwrites (for streaming interim)
   const handleVoiceInsert = useCallback((transcribed: string) => {
     setText((prev) => (prev ? prev + " " + transcribed : transcribed));
@@ -150,18 +153,42 @@ export const InputBar = memo(function InputBar() {
     sendMessage(finalPrompt.trim(), attachments.length > 0 ? [...attachments] : undefined).catch(console.error);
   }, [text, attachments, isThinking, clearAttachments, resetStream]);
 
+  // Broadcast message to team mailbox (Ctrl+Enter)
+  const handleBroadcast = useCallback(async () => {
+    const trimmed = text.trim();
+    if (!trimmed || !projectPath) return;
+
+    try {
+      const teamSlug = await invoke<string>("get_teamwork_slug", { projectPath });
+      const agentIds = agents.map((a) => a.id);
+      await invoke("team_broadcast", {
+        team: teamSlug,
+        from: "user",
+        text: trimmed,
+        agentIds,
+      });
+      setText("");
+      resetStream();
+    } catch (e) {
+      console.error("Broadcast failed:", e);
+    }
+  }, [text, projectPath, agents, resetStream]);
+
   const handleStop = useCallback(() => {
     stopGeneration().catch(console.error);
   }, []);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.code === "Enter" && !e.shiftKey) {
+      if (e.code === "Enter" && e.ctrlKey) {
+        e.preventDefault();
+        handleBroadcast().catch(console.error);
+      } else if (e.code === "Enter" && !e.shiftKey) {
         e.preventDefault();
         handleSend();
       }
     },
-    [handleSend],
+    [handleSend, handleBroadcast],
   );
 
   return (
