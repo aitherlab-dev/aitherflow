@@ -6,6 +6,7 @@ import { useIsMobile } from "../../../hooks/useIsMobile";
 import { useLayoutStore } from "../../../stores/layoutStore";
 import { useChatStore } from "../../../stores/chatStore";
 import { useAgentStore } from "../../../stores/agentStore";
+import { useConductorStore } from "../../../stores/conductorStore";
 import { ResizeHandle } from "../ResizeHandle";
 import { FilesPanel } from "../files-panel";
 
@@ -48,6 +49,7 @@ export const Sidebar = memo(function Sidebar() {
     agents: s.agents,
     activeAgentId: s.activeAgentId,
   })));
+  const agentRoles = useConductorStore((s) => s.agentRoles);
 
   // Split agents into root (no parent) and children grouped by parent
   const rootAgents = useMemo(
@@ -269,7 +271,7 @@ export const Sidebar = memo(function Sidebar() {
                   >
                     <AgentTab
                       agentId={agent.id}
-                      projectName={agent.projectName}
+                      projectName={agentRoles[agent.id]?.name ? `${agent.projectName} | ${agentRoles[agent.id]!.name}` : `${agent.projectName} | Agent`}
                       isActive={agent.id === activeAgentId}
                       isThinking={agent.id === activeAgentId && isThinking}
                       isBackgroundThinking={thinkingAgentIds.includes(agent.id)}

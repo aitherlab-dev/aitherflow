@@ -1,7 +1,7 @@
 import { memo, useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { Plus, Star, Mic, MicOff, ArrowUp, Square, MessageSquarePlus, Sparkles, Brain, Zap, Loader2, UserCog } from "lucide-react";
+import { Plus, Star, Mic, MicOff, ArrowUp, Square, MessageSquarePlus, Sparkles, Brain, Zap, Loader2, UserCog, Radio } from "lucide-react";
 import { openDialog, invoke } from "../../lib/transport";
-import { useChatStore } from "../../stores/chatStore";
+import { useChatStore, agentStates } from "../../stores/chatStore";
 import { sendMessage, stopGeneration, newChat, switchPermissionMode } from "../../stores/chatService";
 import { useAttachmentStore } from "../../stores/attachmentStore";
 import { useFileAttach } from "../../hooks/useFileAttach";
@@ -159,14 +159,77 @@ export const InputBar = memo(function InputBar() {
     if (!trimmed || !projectPath) return;
 
     try {
+      // Auto-start agents that don't have a session yet
+      const projectAgents = agents.filter((a) => a.projectPath === projectPath);
+      const currentAgentId = useChatStore.getState().agentId;
+      const unstartedAgents = projectAgents.filter((a) => {
+        if (a.id === currentAgentId) return !useChatStore.getState().hasSession;
+        return !(agentStates.get(a.id)?.hasSession ?? false);
+      });
+
+      // Ensure agentStates entries exist so chatStreamHandler doesn't drop events
+      for (const agent of unstartedAgents) {
+        if (!agentStates.has(agent.id)) {
+          agentStates.set(agent.id, {
+            messages: [],
+            streamingMessage: null,
+            chatId: null,
+            hasSession: false,
+            isThinking: false,
+            planMode: false,
+            currentToolActivity: null,
+            toolCount: 0,
+            error: null,
+          });
+        }
+      }
+
+      if (unstartedAgents.length > 0) {
+        const settings = await invoke<{ bypassPermissions: boolean; enableChrome: boolean }>("load_settings");
+        const conductor = useConductorStore.getState();
+
+        const startPromises = unstartedAgents.map((agent) => {
+          const role = conductor.getAgentRole(agent.id);
+          return invoke("start_session", { options: {
+            agentId: agent.id,
+            prompt: trimmed,
+            projectPath: agent.projectPath,
+            model: conductor.selectedModel,
+            effort: conductor.selectedEffort !== "high" ? conductor.selectedEffort : undefined,
+            permissionMode: settings.bypassPermissions ? "bypassPermissions" : undefined,
+            chrome: settings.enableChrome ?? false,
+            roleSystemPrompt: role?.system_prompt || undefined,
+            roleAllowedTools: role?.allowed_tools?.length ? role.allowed_tools : undefined,
+          }});
+        });
+        const results = await Promise.allSettled(startPromises);
+        for (const r of results) {
+          if (r.status === "rejected") console.error("Agent start failed:", r.reason);
+        }
+      }
+
       const teamSlug = await invoke<string>("get_teamwork_slug", { projectPath });
-      const agentIds = agents.map((a) => a.id);
+      const agentIds = projectAgents.map((a) => a.id);
       await invoke("team_broadcast", {
         team: teamSlug,
         from: "user",
         text: trimmed,
         agentIds,
       });
+
+      // Send to already-running agents via stdin
+      const alreadyRunning = projectAgents.filter(a => !unstartedAgents.some(u => u.id === a.id));
+      if (alreadyRunning.length > 0) {
+        const sendResults = await Promise.allSettled(
+          alreadyRunning.map((agent) =>
+            invoke("send_message", { options: { agentId: agent.id, prompt: trimmed } })
+          ),
+        );
+        for (const r of sendResults) {
+          if (r.status === "rejected") console.error("Send to agent failed:", r.reason);
+        }
+      }
+
       setText("");
       resetStream();
     } catch (e) {
@@ -264,15 +327,28 @@ export const InputBar = memo(function InputBar() {
               <Square size={18} />
             </button>
           ) : (
-            <button
-              className="input-bar-btn input-bar-send"
-              onClick={handleSend}
-              disabled={!text.trim() && attachments.length === 0}
-              title="Send"
-              aria-label="Send message"
-            >
-              <ArrowUp size={18} />
-            </button>
+            <>
+              {agents.length > 0 && (
+                <button
+                  className="input-bar-btn"
+                  onClick={handleBroadcast}
+                  disabled={!text.trim() || !projectPath}
+                  title="Broadcast to team (Ctrl+Enter)"
+                  aria-label="Broadcast to team"
+                >
+                  <Radio size={18} />
+                </button>
+              )}
+              <button
+                className="input-bar-btn input-bar-send"
+                onClick={handleSend}
+                disabled={!text.trim() && attachments.length === 0}
+                title="Send"
+                aria-label="Send message"
+              >
+                <ArrowUp size={18} />
+              </button>
+            </>
           )}
           <button
             className={`input-bar-btn input-bar-btn--icon${voiceState === "recording" || voiceState === "streaming" ? " voice-recording" : ""}`}

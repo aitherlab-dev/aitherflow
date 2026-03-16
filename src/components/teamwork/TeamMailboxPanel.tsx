@@ -238,11 +238,12 @@ function getRoleIconClass(sender: string, fromId: string): string {
   if (lower.includes("architect")) return "team-mailbox__msg-icon--architect";
   if (lower.includes("coder") || lower.includes("developer")) return "team-mailbox__msg-icon--coder";
   if (lower.includes("review")) return "team-mailbox__msg-icon--reviewer";
+  if (lower.includes("research")) return "team-mailbox__msg-icon--researcher";
   return "";
 }
 
 function FeedItem({ msg }: { msg: FeedMessage }) {
-  const side = msg.isManager ? "right" : "left";
+  const side = msg.fromId === "user" ? "right" : "left";
 
   const needsCollapse = msg.text.length > COLLAPSE_THRESHOLD;
   const [collapsed, setCollapsed] = useState(needsCollapse);
@@ -263,7 +264,7 @@ function FeedItem({ msg }: { msg: FeedMessage }) {
       <div className={`team-mailbox__bubble team-mailbox__bubble--${side}`}>
         <div className="team-mailbox__msg-header">
           <User size={12} className={`team-mailbox__msg-icon ${iconClass}`} />
-          <span className="team-mailbox__msg-sender">{msg.sender}</span>
+          <span className={`team-mailbox__msg-sender ${iconClass}`}>{msg.sender}</span>
           <span className="team-mailbox__msg-time">
             {new Date(msg.timestamp).toLocaleTimeString()}
           </span>
