@@ -39,14 +39,19 @@ jobs:
 
       - run: pnpm tauri build
 
+      - name: Collect Linux bundles
+        run: |
+          mkdir -p release-assets
+          cp src-tauri/target/release/bundle/deb/*.deb release-assets/ 2>/dev/null || true
+          cp src-tauri/target/release/bundle/rpm/*.rpm release-assets/ 2>/dev/null || true
+          cp src-tauri/target/release/bundle/appimage/*.AppImage release-assets/ 2>/dev/null || true
+          ls -la release-assets/
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: linux-bundles
-          path: |
-            src-tauri/target/release/bundle/deb/*.deb
-            src-tauri/target/release/bundle/rpm/*.rpm
-            src-tauri/target/release/bundle/appimage/*.AppImage
+          path: release-assets/*
 
   build-macos:
     name: Build macOS
@@ -71,14 +76,20 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm tauri build
+      - run: pnpm tauri build --bundles app
+
+      - name: Create DMG from .app
+        run: |
+          APP_PATH="src-tauri/target/release/bundle/macos/aitherflow.app"
+          DMG_NAME="aitherflow_$(grep '"version"' src-tauri/tauri.conf.json | head -1 | sed 's/.*: "//;s/".*//')_aarch64.dmg"
+          hdiutil create -volname "aitherflow" -srcfolder "$APP_PATH" -ov -format UDZO "release-assets/$DMG_NAME"
+          ls -la release-assets/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: macos-bundles
-          path: |
-            src-tauri/target/release/bundle/dmg/*.dmg
+          path: release-assets/*
 
   publish:
     name: Publish Release
@@ -88,12 +99,14 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -laR artifacts/
 
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
           draft: true
           generate_release_notes: true
-          files: |
-            artifacts/linux-bundles/**/*
-            artifacts/macos-bundles/**/*
+          files: artifacts/*
