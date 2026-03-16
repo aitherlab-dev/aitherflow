@@ -12,6 +12,54 @@ use crate::attachments;
 /// Maximum stderr buffer size (64 KB) to prevent memory issues.
 const MAX_STDERR_BYTES: usize = 64 * 1024;
 
+/// Resolve the `claude` CLI binary path.
+/// Checks PATH first, then common install locations per platform.
+fn resolve_claude_binary() -> String {
+    // Check if `claude` is already in PATH
+    let which_cmd = if cfg!(windows) { "where" } else { "which" };
+    if let Ok(output) = std::process::Command::new(which_cmd)
+        .arg("claude")
+        .output()
+    {
+        if output.status.success() {
+            let path = String::from_utf8_lossy(&output.stdout)
+                .lines().next().unwrap_or("").trim().to_string();
+            if !path.is_empty() {
+                return path;
+            }
+        }
+    }
+
+    // Common locations to check
+    let home = dirs::home_dir().unwrap_or_default();
+    let candidates: Vec<std::path::PathBuf> = vec![
+        // npm global (unix)
+        home.join(".local/node/bin/claude"),
+        home.join(".local/bin/claude"),
+        home.join(".nvm/current/bin/claude"),
+        // macOS / Homebrew
+        "/usr/local/bin/claude".into(),
+        "/opt/homebrew/bin/claude".into(),
+        // npm global (default)
+        home.join(".npm-global/bin/claude"),
+        // fnm / volta
+        home.join(".local/share/fnm/aliases/default/bin/claude"),
+        home.join(".volta/bin/claude"),
+        // Windows
+        home.join("AppData/Roaming/npm/claude.cmd"),
+        home.join("AppData/Roaming/npm/claude"),
+    ];
+
+    for candidate in candidates {
+        if candidate.exists() {
+            return candidate.to_string_lossy().into_owned();
+        }
+    }
+
+    // Fallback — let the OS try to find it
+    "claude".to_string()
+}
+
 /// Guard that removes a temp file on drop. Call `disarm()` to take
 /// ownership of the path and prevent automatic deletion.
 struct TempFileGuard(Option<std::path::PathBuf>);
@@ -208,7 +256,8 @@ pub async fn run_cli_session(
     };
 
     // Build command
-    let mut cmd = Command::new("claude");
+    let claude_bin = resolve_claude_binary();
+    let mut cmd = Command::new(&claude_bin);
     cmd.args(&args)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
