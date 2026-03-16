@@ -5,6 +5,10 @@ use std::path::PathBuf;
 use crate::config;
 use crate::file_ops::{read_json, write_json};
 
+fn default_true() -> bool {
+    true
+}
+
 /// A single project bookmark
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -13,7 +17,7 @@ pub struct ProjectBookmark {
     pub name: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub additional_dirs: Vec<String>,
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[serde(default = "default_true", skip_serializing_if = "Clone::clone")]
     pub teamwork_enabled: bool,
 }
 
@@ -56,7 +60,7 @@ pub async fn load_projects() -> Result<ProjectsConfig, String> {
                     path: workspace,
                     name: "Workspace".to_string(),
                     additional_dirs: Vec::new(),
-                    teamwork_enabled: false,
+                    teamwork_enabled: true,
                 }],
                 last_opened_project: None,
                 last_opened_chat_id: None,
@@ -75,7 +79,7 @@ pub async fn load_projects() -> Result<ProjectsConfig, String> {
                     path: workspace,
                     name: "Workspace".to_string(),
                     additional_dirs: Vec::new(),
-                    teamwork_enabled: false,
+                    teamwork_enabled: true,
                 },
             );
         }
@@ -120,7 +124,7 @@ pub fn ensure_projects_file() -> Result<(), String> {
             path: workspace,
             name: "Workspace".to_string(),
             additional_dirs: Vec::new(),
-            teamwork_enabled: false,
+            teamwork_enabled: true,
         }],
         last_opened_project: None,
         last_opened_chat_id: None,
@@ -133,7 +137,7 @@ pub fn ensure_projects_file() -> Result<(), String> {
 pub fn is_teamwork_enabled_sync(project_path: &str) -> bool {
     let path = projects_path();
     if !path.exists() {
-        return false;
+        return true;
     }
     let config: ProjectsConfig = match read_json(&path) {
         Ok(c) => c,
