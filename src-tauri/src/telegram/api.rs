@@ -171,13 +171,17 @@ pub(crate) async fn tg_send_inline_keyboard(
         "text": text,
         "reply_markup": { "inline_keyboard": buttons },
     });
-    client
-        .post(&url)
-        .json(&body)
-        .send()
-        .await
-        .map_err(|e| sanitize_error(&format!("sendInlineKeyboard: {e}"), token))?;
-    Ok(())
+    match client.post(&url).json(&body).send().await {
+        Ok(r) if !r.status().is_success() => {
+            let resp_text = r.text().await.unwrap_or_default();
+            eprintln!("[TG] sendInlineKeyboard error: {}", sanitize_error(&resp_text, token));
+            Err(sanitize_error(&format!("sendInlineKeyboard failed: {resp_text}"), token))
+        }
+        Err(e) => {
+            Err(sanitize_error(&format!("sendInlineKeyboard: {e}"), token))
+        }
+        _ => Ok(()),
+    }
 }
 
 pub(crate) async fn tg_send_with_reply_keyboard(

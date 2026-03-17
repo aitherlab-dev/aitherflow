@@ -7,24 +7,13 @@ use crate::file_ops::atomic_write;
 use super::api::{groq_transcribe, tg_delete_message, tg_download_file, tg_send_message};
 use super::TgIncoming;
 
-/// Check if text matches a pending skill name; if so, return the command and clear pending.
-pub(super) fn take_pending_skill(text: &str) -> Option<String> {
+/// Resolve an indexed callback ("cb:N") to its registered payload.
+fn resolve_callback(data: &str) -> Option<String> {
+    let idx_str = data.strip_prefix("cb:")?;
+    let idx: usize = idx_str.parse().ok()?;
     super::with_state(|s| {
-        let state = s.as_mut()?;
-        let cmd = state.pending_skills.remove(text)?;
-        state.pending_skills.clear();
-        Some(cmd)
-    })
-}
-
-/// Check if text matches a pending project name; if so, return (path, name) and clear pending.
-pub(super) fn take_pending_project(text: &str) -> Option<(String, String)> {
-    super::with_state(|s| {
-        let state = s.as_mut()?;
-        let path = state.pending_projects.remove(text)?;
-        let name = text.to_string();
-        state.pending_projects.clear();
-        Some((path, name))
+        let state = s.as_ref()?;
+        state.callback_registry.get(idx).cloned()
     })
 }
 
@@ -60,11 +49,22 @@ pub(super) async fn handle_callback(
         return;
     }
 
-    if let Some(payload) = data.strip_prefix("agent:") {
-        let (agent_id, agent_name) = match payload.split_once('|') {
-            Some((id, name)) => (id, name),
-            None => (payload, payload),
+    // Resolve indexed callback to actual payload
+    let resolved;
+    let data = if data.starts_with("cb:") {
+        resolved = match resolve_callback(data) {
+            Some(r) => r,
+            None => {
+                eprintln!("[TG] Unknown callback index: {data}");
+                return;
+            }
         };
+        &resolved
+    } else {
+        data
+    };
+
+    if let Some(agent_id) = data.strip_prefix("agent:") {
         if let Err(e) = incoming_tx.send(TgIncoming {
             kind: "switch_agent".into(),
             text: agent_id.to_string(),
@@ -73,9 +73,6 @@ pub(super) async fn handle_callback(
             attachment_path: None,
         }) {
             eprintln!("[TG] send switch_agent: {e}");
-        }
-        if let Err(e) = tg_send_message(client, token, chat_id, &format!("Switched to: {agent_name}")).await {
-            eprintln!("[TG] confirm switch_agent: {e}");
         }
     } else if let Some(skill_cmd) = data.strip_prefix("skill:") {
         if let Err(e) = incoming_tx.send(TgIncoming {

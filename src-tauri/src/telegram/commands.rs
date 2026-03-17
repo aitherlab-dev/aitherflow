@@ -66,8 +66,7 @@ pub async fn start_telegram_bot() -> Result<TelegramStatus, String> {
             incoming_rx: None,
             http_client: None,
             stream_message_id: 0,
-            pending_projects: std::collections::HashMap::new(),
-            pending_skills: std::collections::HashMap::new(),
+            callback_registry: Vec::new(),
         });
 
         if state.task_handle.is_some() {
@@ -129,8 +128,7 @@ pub async fn start_telegram_bot() -> Result<TelegramStatus, String> {
             incoming_rx: None,
             http_client: None,
             stream_message_id: 0,
-            pending_projects: std::collections::HashMap::new(),
-            pending_skills: std::collections::HashMap::new(),
+            callback_registry: Vec::new(),
         });
 
         // Guard: if another start/stop happened while we were connecting, abort our task
@@ -230,6 +228,30 @@ pub fn notify_telegram(text: String) -> Result<(), String> {
     })
 }
 
+/// Register a callback payload in BotState and return its index-based callback_data.
+/// Format: "cb:{index}" — always under 64 bytes.
+fn register_callback(payload: &str) -> String {
+    with_state(|s| {
+        if let Some(state) = s.as_mut() {
+            let idx = state.callback_registry.len();
+            state.callback_registry.push(payload.to_string());
+            format!("cb:{idx}")
+        } else {
+            // Fallback — should not happen when bot is running
+            payload.to_string()
+        }
+    })
+}
+
+/// Clear the callback registry (called before populating new inline keyboards)
+fn clear_callbacks() {
+    with_state(|s| {
+        if let Some(state) = s.as_mut() {
+            state.callback_registry.clear();
+        }
+    });
+}
+
 /// Send dashboard: current agent + last message + reply keyboard (3+3 grid)
 #[tauri::command]
 pub async fn telegram_send_menu(
@@ -263,13 +285,15 @@ pub async fn telegram_send_menu(
 
     // If agents > 1, also show inline switch buttons
     if agents.len() > 1 {
+        clear_callbacks();
         let mut buttons: Vec<Vec<serde_json::Value>> = Vec::new();
         for agent in &agents {
             let id = agent["id"].as_str().unwrap_or("");
             let name = agent["projectName"].as_str().unwrap_or("Agent");
+            let cb = register_callback(&format!("agent:{id}"));
             buttons.push(vec![serde_json::json!({
                 "text": format!("-> {name}"),
-                "callback_data": format!("agent:{id}|{name}"),
+                "callback_data": cb,
             })]);
         }
         buttons.push(vec![serde_json::json!({
@@ -292,6 +316,7 @@ pub async fn telegram_send_agents(agents: Vec<serde_json::Value>) -> Result<(), 
         return Ok(());
     }
 
+    clear_callbacks();
     let mut seen = std::collections::HashSet::new();
     let mut buttons: Vec<Vec<serde_json::Value>> = Vec::new();
     for agent in &agents {
@@ -302,9 +327,10 @@ pub async fn telegram_send_agents(agents: Vec<serde_json::Value>) -> Result<(), 
         let name = agent["projectName"].as_str().unwrap_or("Agent");
         let active = agent["active"].as_bool().unwrap_or(false);
         let prefix = if active { ">> " } else { "" };
+        let cb = register_callback(&format!("agent:{id}"));
         buttons.push(vec![serde_json::json!({
             "text": format!("{prefix}{name}"),
-            "callback_data": format!("agent:{id}|{name}"),
+            "callback_data": cb,
         })]);
     }
     buttons.push(vec![serde_json::json!({
@@ -324,25 +350,16 @@ pub async fn telegram_send_projects(projects: Vec<serde_json::Value>) -> Result<
         return Ok(());
     }
 
+    clear_callbacks();
     let mut buttons: Vec<Vec<serde_json::Value>> = Vec::new();
     for project in &projects {
         let path = project["path"].as_str().unwrap_or("");
         let name = project["name"].as_str().unwrap_or("Project");
-        // callback_data max 64 bytes — use path directly (shorter than name+path)
-        let cb_data = format!("project:{path}");
-        if cb_data.len() > 64 {
-            // Fallback: use last path component
-            let short = path.rsplit('/').next().unwrap_or(path);
-            buttons.push(vec![serde_json::json!({
-                "text": name,
-                "callback_data": format!("project:{short}"),
-            })]);
-        } else {
-            buttons.push(vec![serde_json::json!({
-                "text": name,
-                "callback_data": cb_data,
-            })]);
-        }
+        let cb = register_callback(&format!("project:{path}"));
+        buttons.push(vec![serde_json::json!({
+            "text": name,
+            "callback_data": cb,
+        })]);
     }
     buttons.push(vec![serde_json::json!({
         "text": "\u{2715} Cancel",
@@ -403,13 +420,15 @@ pub async fn telegram_send_skills(skills: Vec<serde_json::Value>) -> Result<(), 
         return Ok(());
     }
 
+    clear_callbacks();
     let mut buttons: Vec<Vec<serde_json::Value>> = Vec::new();
     for skill in &skills {
         let id = skill["id"].as_str().unwrap_or("");
         let name = skill["name"].as_str().unwrap_or(id);
+        let cb = register_callback(&format!("skill:{id}"));
         buttons.push(vec![serde_json::json!({
             "text": name,
-            "callback_data": format!("skill:{id}"),
+            "callback_data": cb,
         })]);
     }
     buttons.push(vec![serde_json::json!({
@@ -430,13 +449,15 @@ pub async fn telegram_send_stop(agents: Vec<serde_json::Value>) -> Result<(), St
         return Ok(());
     }
 
+    clear_callbacks();
     let mut buttons: Vec<Vec<serde_json::Value>> = Vec::new();
     for agent in &agents {
         let id = agent["id"].as_str().unwrap_or("");
         let name = agent["projectName"].as_str().unwrap_or("Agent");
+        let cb = register_callback(&format!("stop:{id}"));
         buttons.push(vec![serde_json::json!({
             "text": format!("Stop {name}"),
-            "callback_data": format!("stop:{id}"),
+            "callback_data": cb,
         })]);
     }
     buttons.push(vec![serde_json::json!({
