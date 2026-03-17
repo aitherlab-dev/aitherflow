@@ -72,6 +72,12 @@ pub(crate) struct TgCallbackQuery {
     pub id: String,
     pub from: TgCallbackFrom,
     pub data: Option<String>,
+    pub message: Option<TgCallbackMessage>,
+}
+
+#[derive(Deserialize, Clone)]
+pub(crate) struct TgCallbackMessage {
+    pub message_id: i64,
 }
 
 #[derive(Deserialize, Clone)]

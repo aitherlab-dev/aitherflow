@@ -1,7 +1,7 @@
 use tokio::sync::mpsc;
 
 use super::api::{
-    tg_get_me, tg_send_inline_keyboard, tg_send_message, tg_send_one_time_keyboard,
+    tg_send_inline_keyboard, tg_send_message,
     tg_send_with_reply_keyboard,
 };
 use super::bot::{bot_loop, get_bot_connection};
@@ -97,7 +97,7 @@ pub async fn start_telegram_bot() -> Result<TelegramStatus, String> {
         .unwrap_or_default();
 
     let client = super::HTTP_CLIENT.clone();
-    let me = tg_get_me(&client, &token).await?;
+    let me = super::api::tg_get_me(&client, &token).await?;
 
     let (incoming_tx, incoming_rx) = mpsc::unbounded_channel::<TgIncoming>();
     let (outgoing_tx, outgoing_rx) = mpsc::unbounded_channel::<TgOutgoing>();
@@ -230,7 +230,7 @@ pub fn notify_telegram(text: String) -> Result<(), String> {
     })
 }
 
-/// Send dashboard: current agent + last message + reply keyboard
+/// Send dashboard: current agent + last message + reply keyboard (3+3 grid)
 #[tauri::command]
 pub async fn telegram_send_menu(
     agents: Vec<serde_json::Value>,
@@ -241,8 +241,8 @@ pub async fn telegram_send_menu(
     let (token, chat_id, client) = get_bot_connection()?;
 
     let keyboard = vec![
-        vec!["Active".to_string(), "Projects".to_string()],
-        vec!["Status".to_string(), "History".to_string()],
+        vec!["Active".to_string(), "Projects".to_string(), "Skills".to_string()],
+        vec!["Stop".to_string(), "Files".to_string(), "Status".to_string()],
     ];
 
     // Build dashboard text
@@ -272,6 +272,10 @@ pub async fn telegram_send_menu(
                 "callback_data": format!("agent:{id}|{name}"),
             })]);
         }
+        buttons.push(vec![serde_json::json!({
+            "text": "\u{2715} Cancel",
+            "callback_data": "cancel",
+        })]);
         tg_send_inline_keyboard(&client, &token, chat_id, "Switch agent:", buttons).await?;
     }
 
@@ -288,9 +292,13 @@ pub async fn telegram_send_agents(agents: Vec<serde_json::Value>) -> Result<(), 
         return Ok(());
     }
 
+    let mut seen = std::collections::HashSet::new();
     let mut buttons: Vec<Vec<serde_json::Value>> = Vec::new();
     for agent in &agents {
         let id = agent["id"].as_str().unwrap_or("");
+        if !seen.insert(id.to_string()) {
+            continue; // skip duplicates
+        }
         let name = agent["projectName"].as_str().unwrap_or("Agent");
         let active = agent["active"].as_bool().unwrap_or(false);
         let prefix = if active { ">> " } else { "" };
@@ -299,10 +307,14 @@ pub async fn telegram_send_agents(agents: Vec<serde_json::Value>) -> Result<(), 
             "callback_data": format!("agent:{id}|{name}"),
         })]);
     }
+    buttons.push(vec![serde_json::json!({
+        "text": "\u{2715} Cancel",
+        "callback_data": "cancel",
+    })]);
     tg_send_inline_keyboard(&client, &token, chat_id, "Active agents:", buttons).await
 }
 
-/// Send projects list with one-time reply keyboard
+/// Send projects list with inline keyboard
 #[tauri::command]
 pub async fn telegram_send_projects(projects: Vec<serde_json::Value>) -> Result<(), String> {
     let (token, chat_id, client) = get_bot_connection()?;
@@ -312,22 +324,32 @@ pub async fn telegram_send_projects(projects: Vec<serde_json::Value>) -> Result<
         return Ok(());
     }
 
-    let mut buttons: Vec<Vec<String>> = Vec::new();
-    let mut mapping: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    let mut buttons: Vec<Vec<serde_json::Value>> = Vec::new();
     for project in &projects {
-        let path = project["path"].as_str().unwrap_or("").to_string();
-        let name = project["name"].as_str().unwrap_or("Project").to_string();
-        buttons.push(vec![name.clone()]);
-        mapping.insert(name, path);
-    }
-
-    with_state(|s| {
-        if let Some(state) = s.as_mut() {
-            state.pending_projects = mapping;
+        let path = project["path"].as_str().unwrap_or("");
+        let name = project["name"].as_str().unwrap_or("Project");
+        // callback_data max 64 bytes — use path directly (shorter than name+path)
+        let cb_data = format!("project:{path}");
+        if cb_data.len() > 64 {
+            // Fallback: use last path component
+            let short = path.rsplit('/').next().unwrap_or(path);
+            buttons.push(vec![serde_json::json!({
+                "text": name,
+                "callback_data": format!("project:{short}"),
+            })]);
+        } else {
+            buttons.push(vec![serde_json::json!({
+                "text": name,
+                "callback_data": cb_data,
+            })]);
         }
-    });
+    }
+    buttons.push(vec![serde_json::json!({
+        "text": "\u{2715} Cancel",
+        "callback_data": "cancel",
+    })]);
 
-    tg_send_one_time_keyboard(&client, &token, chat_id, "Start session:", buttons).await
+    tg_send_inline_keyboard(&client, &token, chat_id, "Start session:", buttons).await
 }
 
 /// Send status info
@@ -345,37 +367,6 @@ pub async fn telegram_send_status(
 
     let text = format!("Agent: *{agent}*\nModel: {model}\nStatus: {status}");
     tg_send_message(&client, &token, chat_id, &text).await
-}
-
-/// Send chat history snippet to Telegram
-#[tauri::command]
-pub async fn telegram_send_history(messages: Vec<serde_json::Value>) -> Result<(), String> {
-    let (token, chat_id, client) = get_bot_connection()?;
-
-    if messages.is_empty() {
-        tg_send_message(&client, &token, chat_id, "No messages yet").await?;
-        return Ok(());
-    }
-
-    let mut out = String::new();
-    for m in &messages {
-        let role = m["role"].as_str().unwrap_or("?");
-        let text = m["text"].as_str().unwrap_or("");
-        let icon = if role == "user" { "👤" } else { "🤖" };
-        let preview = if text.len() > 500 {
-            let end = text
-                .char_indices()
-                .nth(500)
-                .map(|(i, _)| i)
-                .unwrap_or(text.len());
-            format!("{}…", &text[..end])
-        } else {
-            text.to_string()
-        };
-        out.push_str(&format!("{icon} {preview}\n\n"));
-    }
-
-    tg_send_message(&client, &token, chat_id, out.trim()).await
 }
 
 /// Stream via sendMessage + editMessageText.
@@ -402,7 +393,7 @@ pub async fn telegram_stream_edit(text: String) -> Result<(), String> {
     Ok(())
 }
 
-/// Send skills list with one-time reply keyboard
+/// Send skills list with inline keyboard
 #[tauri::command]
 pub async fn telegram_send_skills(skills: Vec<serde_json::Value>) -> Result<(), String> {
     let (token, chat_id, client) = get_bot_connection()?;
@@ -412,22 +403,48 @@ pub async fn telegram_send_skills(skills: Vec<serde_json::Value>) -> Result<(), 
         return Ok(());
     }
 
-    let mut buttons: Vec<Vec<String>> = Vec::new();
-    let mut mapping: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    let mut buttons: Vec<Vec<serde_json::Value>> = Vec::new();
     for skill in &skills {
-        let id = skill["id"].as_str().unwrap_or("").to_string();
-        let name = skill["name"].as_str().unwrap_or(&id).to_string();
-        buttons.push(vec![name.clone()]);
-        mapping.insert(name, id);
+        let id = skill["id"].as_str().unwrap_or("");
+        let name = skill["name"].as_str().unwrap_or(id);
+        buttons.push(vec![serde_json::json!({
+            "text": name,
+            "callback_data": format!("skill:{id}"),
+        })]);
+    }
+    buttons.push(vec![serde_json::json!({
+        "text": "\u{2715} Cancel",
+        "callback_data": "cancel",
+    })]);
+
+    tg_send_inline_keyboard(&client, &token, chat_id, "Skills:", buttons).await
+}
+
+/// Send stop menu with inline keyboard listing active agents
+#[tauri::command]
+pub async fn telegram_send_stop(agents: Vec<serde_json::Value>) -> Result<(), String> {
+    let (token, chat_id, client) = get_bot_connection()?;
+
+    if agents.is_empty() {
+        tg_send_message(&client, &token, chat_id, "No active sessions").await?;
+        return Ok(());
     }
 
-    with_state(|s| {
-        if let Some(state) = s.as_mut() {
-            state.pending_skills = mapping;
-        }
-    });
+    let mut buttons: Vec<Vec<serde_json::Value>> = Vec::new();
+    for agent in &agents {
+        let id = agent["id"].as_str().unwrap_or("");
+        let name = agent["projectName"].as_str().unwrap_or("Agent");
+        buttons.push(vec![serde_json::json!({
+            "text": format!("Stop {name}"),
+            "callback_data": format!("stop:{id}"),
+        })]);
+    }
+    buttons.push(vec![serde_json::json!({
+        "text": "\u{2715} Cancel",
+        "callback_data": "cancel",
+    })]);
 
-    tg_send_one_time_keyboard(&client, &token, chat_id, "Skills:", buttons).await
+    tg_send_inline_keyboard(&client, &token, chat_id, "Stop session:", buttons).await
 }
 
 /// Reset stream message_id (call after streaming finishes)

@@ -52,8 +52,9 @@ pub(super) async fn bot_loop(
                                     if let Err(e) = tg_answer_callback(&client, &token, &cb.id).await {
                                         eprintln!("[TG] answerCallback failed: {e}");
                                     }
+                                    let message_id = cb.message.as_ref().map(|m| m.message_id);
                                     if let Some(data) = cb.data {
-                                        super::handlers::handle_callback(&client, &token, owner_chat_id, &data, &incoming_tx).await;
+                                        super::handlers::handle_callback(&client, &token, owner_chat_id, &data, message_id, &incoming_tx).await;
                                     }
                                 }
                                 continue;
