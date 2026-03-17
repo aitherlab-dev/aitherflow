@@ -72,6 +72,12 @@ pub(crate) struct TgCallbackQuery {
     pub id: String,
     pub from: TgCallbackFrom,
     pub data: Option<String>,
+    pub message: Option<TgCallbackMessage>,
+}
+
+#[derive(Deserialize, Clone)]
+pub(crate) struct TgCallbackMessage {
+    pub message_id: i64,
 }
 
 #[derive(Deserialize, Clone)]
@@ -133,10 +139,10 @@ pub(crate) struct BotState {
     pub http_client: Option<reqwest::Client>,
     /// Message ID for edit-based streaming; 0 = no active stream
     pub stream_message_id: i64,
-    /// Pending project selection: name → path
-    pub pending_projects: std::collections::HashMap<String, String>,
-    /// Pending skill selection: display name → command (e.g. "/commit")
-    pub pending_skills: std::collections::HashMap<String, String>,
+    /// Indexed callback registry: index → payload string.
+    /// Used for inline keyboard callbacks where data might exceed 64 bytes.
+    /// Populated when sending inline keyboards, consumed when handling callbacks.
+    pub callback_registry: Vec<String>,
 }
 
 static BOT_STATE: Mutex<Option<BotState>> = Mutex::new(None);

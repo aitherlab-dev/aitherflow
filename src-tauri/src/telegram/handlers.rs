@@ -4,27 +4,16 @@ use tokio::sync::mpsc;
 
 use crate::file_ops::atomic_write;
 
-use super::api::{groq_transcribe, tg_download_file, tg_send_message};
+use super::api::{groq_transcribe, tg_delete_message, tg_download_file, tg_send_message};
 use super::TgIncoming;
 
-/// Check if text matches a pending skill name; if so, return the command and clear pending.
-pub(super) fn take_pending_skill(text: &str) -> Option<String> {
+/// Resolve an indexed callback ("cb:N") to its registered payload.
+fn resolve_callback(data: &str) -> Option<String> {
+    let idx_str = data.strip_prefix("cb:")?;
+    let idx: usize = idx_str.parse().ok()?;
     super::with_state(|s| {
-        let state = s.as_mut()?;
-        let cmd = state.pending_skills.remove(text)?;
-        state.pending_skills.clear();
-        Some(cmd)
-    })
-}
-
-/// Check if text matches a pending project name; if so, return (path, name) and clear pending.
-pub(super) fn take_pending_project(text: &str) -> Option<(String, String)> {
-    super::with_state(|s| {
-        let state = s.as_mut()?;
-        let path = state.pending_projects.remove(text)?;
-        let name = text.to_string();
-        state.pending_projects.clear();
-        Some((path, name))
+        let state = s.as_ref()?;
+        state.callback_registry.get(idx).cloned()
     })
 }
 
@@ -32,8 +21,10 @@ pub(super) fn keyboard_button_kind(text: &str) -> Option<&'static str> {
     match text {
         "Active" => Some("request_agents"),
         "Projects" => Some("request_projects"),
+        "Skills" => Some("request_skills"),
         "Status" => Some("request_status"),
-        "History" => Some("request_history"),
+        "Stop" => Some("request_stop"),
+        "Files" => Some("request_files"),
         _ => None,
     }
 }
@@ -43,13 +34,37 @@ pub(super) async fn handle_callback(
     token: &str,
     chat_id: i64,
     data: &str,
+    message_id: Option<i64>,
     incoming_tx: &mpsc::UnboundedSender<TgIncoming>,
 ) {
-    if let Some(payload) = data.strip_prefix("agent:") {
-        let (agent_id, agent_name) = match payload.split_once('|') {
-            Some((id, name)) => (id, name),
-            None => (payload, payload),
+    // Delete the inline keyboard message first
+    if let Some(mid) = message_id {
+        if let Err(e) = tg_delete_message(client, token, chat_id, mid).await {
+            eprintln!("[TG] delete callback message: {e}");
+        }
+    }
+
+    // Cancel button — just delete, no action
+    if data == "cancel" {
+        return;
+    }
+
+    // Resolve indexed callback to actual payload
+    let resolved;
+    let data = if data.starts_with("cb:") {
+        resolved = match resolve_callback(data) {
+            Some(r) => r,
+            None => {
+                eprintln!("[TG] Unknown callback index: {data}");
+                return;
+            }
         };
+        &resolved
+    } else {
+        data
+    };
+
+    if let Some(agent_id) = data.strip_prefix("agent:") {
         if let Err(e) = incoming_tx.send(TgIncoming {
             kind: "switch_agent".into(),
             text: agent_id.to_string(),
@@ -58,9 +73,6 @@ pub(super) async fn handle_callback(
             attachment_path: None,
         }) {
             eprintln!("[TG] send switch_agent: {e}");
-        }
-        if let Err(e) = tg_send_message(client, token, chat_id, &format!("Switched to: {agent_name}")).await {
-            eprintln!("[TG] confirm switch_agent: {e}");
         }
     } else if let Some(skill_cmd) = data.strip_prefix("skill:") {
         if let Err(e) = incoming_tx.send(TgIncoming {
@@ -96,6 +108,16 @@ pub(super) async fn handle_callback(
         if let Err(e) = tg_send_message(client, token, chat_id, &format!("Starting session in: {name}")).await {
             eprintln!("[TG] confirm new_session: {e}");
         }
+    } else if let Some(agent_id) = data.strip_prefix("stop:") {
+        if let Err(e) = incoming_tx.send(TgIncoming {
+            kind: "stop_agent".into(),
+            text: agent_id.to_string(),
+            project_path: None,
+            project_name: None,
+            attachment_path: None,
+        }) {
+            eprintln!("[TG] send stop_agent: {e}");
+        }
     }
 }
 
@@ -117,44 +139,16 @@ pub(super) async fn handle_command(
         })
     };
     match cmd {
-        "/start" | "/menu_bot" => {
+        "/start" | "/menu_bot" | "/restart" => {
             if let Err(e) = send_request("request_menu") {
                 eprintln!("[TG] send request_menu: {e}");
-            }
-        }
-        "/agents_bot" => {
-            if let Err(e) = send_request("request_agents") {
-                eprintln!("[TG] send request_agents: {e}");
-            }
-        }
-        "/projects_bot" => {
-            if let Err(e) = send_request("request_projects") {
-                eprintln!("[TG] send request_projects: {e}");
-            }
-        }
-        "/history_bot" => {
-            if let Err(e) = send_request("request_history") {
-                eprintln!("[TG] send request_history: {e}");
-            }
-        }
-        "/status_bot" => {
-            if let Err(e) = send_request("request_status") {
-                eprintln!("[TG] send request_status: {e}");
-            }
-        }
-        "/skills_bot" => {
-            if let Err(e) = send_request("request_skills") {
-                eprintln!("[TG] send request_skills: {e}");
             }
         }
         "/help_bot" => {
             let help = "\
 /start — dashboard\n\
-/agents_bot — active agents\n\
-/projects_bot — start new session\n\
-/skills_bot — favorite skills\n\
-/history_bot — recent messages\n\
-/status_bot — current status\n\n\
+/restart — restart dashboard\n\n\
+Use dashboard buttons to navigate.\n\
 Text or voice goes to the active agent.";
             if let Err(e) = tg_send_message(client, token, chat_id, help).await {
                 eprintln!("[TG] send help: {e}");

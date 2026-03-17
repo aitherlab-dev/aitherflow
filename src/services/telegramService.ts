@@ -1,6 +1,6 @@
 /**
  * Telegram bot bridge logic — handles incoming messages,
- * sends menus/history, manages streaming responses.
+ * sends menus/agents/skills, manages streaming responses.
  *
  * Pure service — no React, no hooks. Called by useTelegramBridge.
  */
@@ -173,17 +173,23 @@ async function handleIncoming(msg: TgIncoming): Promise<void> {
     case "request_status":
       await handleRequestStatus();
       break;
-    case "request_history":
-      await handleRequestHistory();
-      break;
     case "request_skills":
       await handleRequestSkills();
+      break;
+    case "request_stop":
+      await handleRequestStop();
+      break;
+    case "request_files":
+      await handleRequestFiles();
       break;
     case "switch_agent":
       await handleSwitchAgent(msg.text);
       break;
     case "new_session":
       await handleNewSession(msg.project_path, msg.project_name);
+      break;
+    case "stop_agent":
+      await handleStopAgent(msg.text);
       break;
   }
 }
@@ -289,17 +295,6 @@ async function handleRequestStatus(): Promise<void> {
   }).catch(console.error);
 }
 
-async function handleRequestHistory(): Promise<void> {
-  const { messages } = useChatStore.getState();
-  const last5 = messages.slice(-5);
-  await invoke("telegram_send_history", {
-    messages: last5.map((m) => ({
-      role: m.role,
-      text: m.text,
-    })),
-  }).catch(console.error);
-}
-
 async function handleRequestSkills(): Promise<void> {
   const allFavorites = useSkillStore.getState().getFavorites();
   const agentState = useAgentStore.getState();
@@ -317,24 +312,40 @@ async function handleRequestSkills(): Promise<void> {
   }).catch(console.error);
 }
 
+async function handleRequestStop(): Promise<void> {
+  const { agents } = useAgentStore.getState();
+  await invoke("telegram_send_stop", {
+    agents: agents.map((a) => ({
+      id: a.id,
+      projectName: a.projectName,
+    })),
+  }).catch(console.error);
+}
+
+async function handleRequestFiles(): Promise<void> {
+  await invoke("send_to_telegram", {
+    text: "Files: Coming soon",
+  }).catch(console.error);
+}
+
+async function handleStopAgent(agentId: string): Promise<void> {
+  const { agents } = useAgentStore.getState();
+  const target = agents.find((a) => a.id === agentId);
+  if (!target) return;
+
+  const name = target.projectName;
+  await useAgentStore.getState().removeAgent(agentId);
+  await invoke("send_to_telegram", {
+    text: `Stopped: ${name}`,
+  }).catch(console.error);
+}
+
 async function handleSwitchAgent(agentId: string): Promise<void> {
   const { agents } = useAgentStore.getState();
   const target = agents.find((a) => a.id === agentId);
   if (!target) return;
 
   await useAgentStore.getState().setActiveAgent(agentId);
-
-  // Send last 2 messages as context
-  const { messages } = useChatStore.getState();
-  const lastTwo = messages.slice(-2);
-  if (lastTwo.length > 0) {
-    await invoke("telegram_send_history", {
-      messages: lastTwo.map((m) => ({
-        role: m.role,
-        text: m.text,
-      })),
-    }).catch(console.error);
-  }
 }
 
 async function handleNewSession(
