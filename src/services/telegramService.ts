@@ -9,7 +9,7 @@ import { invoke } from "../lib/transport";
 import { useChatStore } from "../stores/chatStore";
 import { useAgentStore } from "../stores/agentStore";
 import { useProjectStore } from "../stores/projectStore";
-import { useConductorStore } from "../stores/conductorStore";
+
 import { useSkillStore } from "../stores/skillStore";
 import { sendMessage } from "../stores/chatService";
 import { toFileType } from "../types/chat";
@@ -170,17 +170,11 @@ async function handleIncoming(msg: TgIncoming): Promise<void> {
     case "request_projects":
       await handleRequestProjects();
       break;
-    case "request_status":
-      await handleRequestStatus();
-      break;
     case "request_skills":
       await handleRequestSkills();
       break;
     case "request_stop":
       await handleRequestStop();
-      break;
-    case "request_files":
-      await handleRequestFiles();
       break;
     case "switch_agent":
       await handleSwitchAgent(msg.text);
@@ -285,16 +279,6 @@ async function handleRequestProjects(): Promise<void> {
   }).catch(console.error);
 }
 
-async function handleRequestStatus(): Promise<void> {
-  const { isThinking } = useChatStore.getState();
-  const { model } = useConductorStore.getState();
-  await invoke("telegram_send_status", {
-    currentAgent: getCurrentAgentName(),
-    model: model ?? null,
-    isThinking,
-  }).catch(console.error);
-}
-
 async function handleRequestSkills(): Promise<void> {
   const allFavorites = useSkillStore.getState().getFavorites();
   const agentState = useAgentStore.getState();
@@ -319,12 +303,6 @@ async function handleRequestStop(): Promise<void> {
       id: a.id,
       projectName: a.projectName,
     })),
-  }).catch(console.error);
-}
-
-async function handleRequestFiles(): Promise<void> {
-  await invoke("send_to_telegram", {
-    text: "Files: Coming soon",
   }).catch(console.error);
 }
 

@@ -22,9 +22,7 @@ pub(super) fn keyboard_button_kind(text: &str) -> Option<&'static str> {
         "Active" => Some("request_agents"),
         "Projects" => Some("request_projects"),
         "Skills" => Some("request_skills"),
-        "Status" => Some("request_status"),
         "Stop" => Some("request_stop"),
-        "Files" => Some("request_files"),
         _ => None,
     }
 }

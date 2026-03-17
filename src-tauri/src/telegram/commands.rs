@@ -369,23 +369,6 @@ pub async fn telegram_send_projects(projects: Vec<serde_json::Value>) -> Result<
     tg_send_inline_keyboard(&client, &token, chat_id, "Start session:", buttons).await
 }
 
-/// Send status info
-#[tauri::command]
-pub async fn telegram_send_status(
-    current_agent: Option<String>,
-    model: Option<String>,
-    is_thinking: bool,
-) -> Result<(), String> {
-    let (token, chat_id, client) = get_bot_connection()?;
-
-    let agent = current_agent.as_deref().unwrap_or("none");
-    let model = model.as_deref().unwrap_or("unknown");
-    let status = if is_thinking { "thinking..." } else { "idle" };
-
-    let text = format!("Agent: *{agent}*\nModel: {model}\nStatus: {status}");
-    tg_send_message(&client, &token, chat_id, &text).await
-}
-
 /// Stream via sendMessage + editMessageText.
 /// First call sends a new message; subsequent calls edit it.
 #[tauri::command]
