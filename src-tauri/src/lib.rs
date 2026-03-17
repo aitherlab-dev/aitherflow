@@ -110,7 +110,7 @@ pub fn run() {
             telegram::commands::telegram_send_menu,
             telegram::commands::telegram_send_agents,
             telegram::commands::telegram_send_projects,
-            telegram::commands::telegram_send_status,
+
             telegram::commands::telegram_send_skills,
             telegram::commands::telegram_send_stop,
             telegram::commands::telegram_stream_edit,

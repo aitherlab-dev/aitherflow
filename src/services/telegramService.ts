@@ -6,10 +6,10 @@
  */
 
 import { invoke } from "../lib/transport";
-import { useChatStore } from "../stores/chatStore";
+import { useChatStore, agentStates } from "../stores/chatStore";
 import { useAgentStore } from "../stores/agentStore";
 import { useProjectStore } from "../stores/projectStore";
-import { useConductorStore } from "../stores/conductorStore";
+
 import { useSkillStore } from "../stores/skillStore";
 import { sendMessage } from "../stores/chatService";
 import { toFileType } from "../types/chat";
@@ -170,17 +170,11 @@ async function handleIncoming(msg: TgIncoming): Promise<void> {
     case "request_projects":
       await handleRequestProjects();
       break;
-    case "request_status":
-      await handleRequestStatus();
-      break;
     case "request_skills":
       await handleRequestSkills();
       break;
     case "request_stop":
       await handleRequestStop();
-      break;
-    case "request_files":
-      await handleRequestFiles();
       break;
     case "switch_agent":
       await handleSwitchAgent(msg.text);
@@ -285,23 +279,13 @@ async function handleRequestProjects(): Promise<void> {
   }).catch(console.error);
 }
 
-async function handleRequestStatus(): Promise<void> {
-  const { isThinking } = useChatStore.getState();
-  const { model } = useConductorStore.getState();
-  await invoke("telegram_send_status", {
-    currentAgent: getCurrentAgentName(),
-    model: model ?? null,
-    isThinking,
-  }).catch(console.error);
-}
-
 async function handleRequestSkills(): Promise<void> {
-  const allFavorites = useSkillStore.getState().getFavorites();
+  const all = useSkillStore.getState().allSkills();
   const agentState = useAgentStore.getState();
   const projectPath = agentState.agents.find(
     (a) => a.id === agentState.activeAgentId,
   )?.projectPath;
-  const skills = allFavorites.filter(
+  const skills = all.filter(
     (s) => s.source.type !== "project" || s.source.projectPath === projectPath,
   );
   await invoke("telegram_send_skills", {
@@ -319,12 +303,6 @@ async function handleRequestStop(): Promise<void> {
       id: a.id,
       projectName: a.projectName,
     })),
-  }).catch(console.error);
-}
-
-async function handleRequestFiles(): Promise<void> {
-  await invoke("send_to_telegram", {
-    text: "Files: Coming soon",
   }).catch(console.error);
 }
 
@@ -346,6 +324,20 @@ async function handleSwitchAgent(agentId: string): Promise<void> {
   if (!target) return;
 
   await useAgentStore.getState().setActiveAgent(agentId);
+
+  // Send last 2 messages from this agent to Telegram
+  const agentState = agentStates.get(agentId);
+  const messages = agentState?.messages ?? [];
+  const last2 = messages.filter((m) => m.text).slice(-2);
+  for (const m of last2) {
+    const prefix = m.role === "user" ? "\u{1F464} User" : "\u{1F916} Assistant";
+    const text = stripThinking(m.text!);
+    if (text) {
+      await invoke("send_to_telegram", {
+        text: `${prefix}:\n${text}`,
+      }).catch(console.error);
+    }
+  }
 }
 
 async function handleNewSession(

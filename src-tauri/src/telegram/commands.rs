@@ -252,7 +252,7 @@ fn clear_callbacks() {
     });
 }
 
-/// Send dashboard: current agent + last message + reply keyboard (3+3 grid)
+/// Send dashboard: current agent + last message + reply keyboard (2×2 grid)
 #[tauri::command]
 pub async fn telegram_send_menu(
     agents: Vec<serde_json::Value>,
@@ -263,8 +263,8 @@ pub async fn telegram_send_menu(
     let (token, chat_id, client) = get_bot_connection()?;
 
     let keyboard = vec![
-        vec!["Active".to_string(), "Projects".to_string(), "Skills".to_string()],
-        vec!["Stop".to_string(), "Files".to_string(), "Status".to_string()],
+        vec!["Active".to_string(), "Projects".to_string()],
+        vec!["Skills".to_string(), "Stop".to_string()],
     ];
 
     // Build dashboard text
@@ -367,23 +367,6 @@ pub async fn telegram_send_projects(projects: Vec<serde_json::Value>) -> Result<
     })]);
 
     tg_send_inline_keyboard(&client, &token, chat_id, "Start session:", buttons).await
-}
-
-/// Send status info
-#[tauri::command]
-pub async fn telegram_send_status(
-    current_agent: Option<String>,
-    model: Option<String>,
-    is_thinking: bool,
-) -> Result<(), String> {
-    let (token, chat_id, client) = get_bot_connection()?;
-
-    let agent = current_agent.as_deref().unwrap_or("none");
-    let model = model.as_deref().unwrap_or("unknown");
-    let status = if is_thinking { "thinking..." } else { "idle" };
-
-    let text = format!("Agent: *{agent}*\nModel: {model}\nStatus: {status}");
-    tg_send_message(&client, &token, chat_id, &text).await
 }
 
 /// Stream via sendMessage + editMessageText.
