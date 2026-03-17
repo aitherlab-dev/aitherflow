@@ -280,12 +280,12 @@ async function handleRequestProjects(): Promise<void> {
 }
 
 async function handleRequestSkills(): Promise<void> {
-  const allFavorites = useSkillStore.getState().getFavorites();
+  const all = useSkillStore.getState().allSkills();
   const agentState = useAgentStore.getState();
   const projectPath = agentState.agents.find(
     (a) => a.id === agentState.activeAgentId,
   )?.projectPath;
-  const skills = allFavorites.filter(
+  const skills = all.filter(
     (s) => s.source.type !== "project" || s.source.projectPath === projectPath,
   );
   await invoke("telegram_send_skills", {
