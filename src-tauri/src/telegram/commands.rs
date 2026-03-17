@@ -252,7 +252,7 @@ fn clear_callbacks() {
     });
 }
 
-/// Send dashboard: current agent + last message + reply keyboard (3+3 grid)
+/// Send dashboard: current agent + last message + reply keyboard (2×2 grid)
 #[tauri::command]
 pub async fn telegram_send_menu(
     agents: Vec<serde_json::Value>,
