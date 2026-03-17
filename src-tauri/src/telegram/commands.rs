@@ -362,17 +362,7 @@ pub async fn telegram_send_history(messages: Vec<serde_json::Value>) -> Result<(
         let role = m["role"].as_str().unwrap_or("?");
         let text = m["text"].as_str().unwrap_or("");
         let icon = if role == "user" { "👤" } else { "🤖" };
-        let preview = if text.len() > 500 {
-            let end = text
-                .char_indices()
-                .nth(500)
-                .map(|(i, _)| i)
-                .unwrap_or(text.len());
-            format!("{}…", &text[..end])
-        } else {
-            text.to_string()
-        };
-        out.push_str(&format!("{icon} {preview}\n\n"));
+        out.push_str(&format!("{icon} {text}\n\n"));
     }
 
     tg_send_message(&client, &token, chat_id, out.trim()).await

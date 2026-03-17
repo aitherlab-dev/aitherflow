@@ -86,3 +86,7 @@ CSS-переменные: `:root` (тёмная) и `[data-theme="light"]`. Фо
 ## Брендинг
 
 **aitherflow** — Oswald, aither Bold 700, flow Extra Light 200. GitHub: github.com/aitherlab-dev/aitherflow
+
+## Свои MCP-серверы
+
+- **mcp-telegram-files** — отправка файлов в Telegram. Rust, stdio. Репо: github.com/aitherlab-dev/mcp-telegram-files
