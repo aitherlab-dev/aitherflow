@@ -6,7 +6,7 @@
  */
 
 import { invoke } from "../lib/transport";
-import { useChatStore } from "../stores/chatStore";
+import { useChatStore, agentStates } from "../stores/chatStore";
 import { useAgentStore } from "../stores/agentStore";
 import { useProjectStore } from "../stores/projectStore";
 
@@ -324,6 +324,20 @@ async function handleSwitchAgent(agentId: string): Promise<void> {
   if (!target) return;
 
   await useAgentStore.getState().setActiveAgent(agentId);
+
+  // Send last 2 messages from this agent to Telegram
+  const agentState = agentStates.get(agentId);
+  const messages = agentState?.messages ?? useChatStore.getState().messages;
+  const last2 = messages.filter((m) => m.text).slice(-2);
+  for (const m of last2) {
+    const prefix = m.role === "user" ? "\u{1F464} User" : "\u{1F916} Assistant";
+    const text = stripThinking(m.text!);
+    if (text) {
+      await invoke("send_to_telegram", {
+        text: `${prefix}:\n${text}`,
+      }).catch(console.error);
+    }
+  }
 }
 
 async function handleNewSession(
