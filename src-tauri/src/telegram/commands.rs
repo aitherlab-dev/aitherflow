@@ -263,8 +263,8 @@ pub async fn telegram_send_menu(
     let (token, chat_id, client) = get_bot_connection()?;
 
     let keyboard = vec![
-        vec!["Active".to_string(), "Projects".to_string(), "Skills".to_string()],
-        vec!["Stop".to_string(), "Files".to_string(), "Status".to_string()],
+        vec!["Active".to_string(), "Projects".to_string()],
+        vec!["Skills".to_string(), "Stop".to_string()],
     ];
 
     // Build dashboard text
