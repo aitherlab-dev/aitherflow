@@ -97,6 +97,32 @@ pub(super) async fn bot_loop(
                                 if let Some(text) = msg.text {
                                     if text.starts_with('/') {
                                         super::handlers::handle_command(&client, &token, owner_chat_id, &text, &incoming_tx).await;
+                                    } else if let Some(skill_cmd) = super::handlers::take_pending_skill(&text) {
+                                        if let Err(e) = incoming_tx.send(TgIncoming {
+                                            kind: "text".into(),
+                                            text: skill_cmd.clone(),
+                                            project_path: None,
+                                            project_name: None,
+                                            attachment_path: None,
+                                        }) {
+                                            eprintln!("[TG] send skill command: {e}");
+                                        }
+                                        if let Err(e) = tg_send_message(&client, &token, owner_chat_id, &format!("Running {skill_cmd}")).await {
+                                            eprintln!("[TG] confirm skill: {e}");
+                                        }
+                                    } else if let Some((path, name)) = super::handlers::take_pending_project(&text) {
+                                        if let Err(e) = incoming_tx.send(TgIncoming {
+                                            kind: "new_session".into(),
+                                            text: String::new(),
+                                            project_path: Some(path),
+                                            project_name: Some(name.clone()),
+                                            attachment_path: None,
+                                        }) {
+                                            eprintln!("[TG] send new_session from project: {e}");
+                                        }
+                                        if let Err(e) = tg_send_message(&client, &token, owner_chat_id, &format!("Starting session in: {name}")).await {
+                                            eprintln!("[TG] confirm new_session: {e}");
+                                        }
                                     } else if let Some(kind) = super::handlers::keyboard_button_kind(&text) {
                                         if let Err(e) = incoming_tx.send(TgIncoming {
                                             kind: kind.into(),

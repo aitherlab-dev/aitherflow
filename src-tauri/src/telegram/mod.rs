@@ -133,6 +133,10 @@ pub(crate) struct BotState {
     pub http_client: Option<reqwest::Client>,
     /// Message ID for edit-based streaming; 0 = no active stream
     pub stream_message_id: i64,
+    /// Pending project selection: name → path
+    pub pending_projects: std::collections::HashMap<String, String>,
+    /// Pending skill selection: display name → command (e.g. "/commit")
+    pub pending_skills: std::collections::HashMap<String, String>,
 }
 
 static BOT_STATE: Mutex<Option<BotState>> = Mutex::new(None);

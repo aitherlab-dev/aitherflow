@@ -224,6 +224,37 @@ pub(crate) async fn tg_send_with_reply_keyboard(
     Ok(())
 }
 
+pub(crate) async fn tg_send_one_time_keyboard(
+    client: &reqwest::Client,
+    token: &str,
+    chat_id: i64,
+    text: &str,
+    buttons: Vec<Vec<String>>,
+) -> Result<(), String> {
+    let url = format!("{TG_API}{token}/sendMessage");
+    let keyboard: Vec<Vec<serde_json::Value>> = buttons
+        .into_iter()
+        .map(|row| row.into_iter().map(|t| serde_json::json!({"text": t})).collect())
+        .collect();
+    let reply_markup = serde_json::json!({
+        "keyboard": keyboard,
+        "resize_keyboard": true,
+        "one_time_keyboard": true,
+    });
+    let body = serde_json::json!({
+        "chat_id": chat_id,
+        "text": text,
+        "reply_markup": reply_markup,
+    });
+    client
+        .post(&url)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| sanitize_error(&format!("sendOneTimeKeyboard: {e}"), token))?;
+    Ok(())
+}
+
 pub(crate) async fn tg_answer_callback(
     client: &reqwest::Client,
     token: &str,
@@ -309,6 +340,7 @@ pub(crate) async fn tg_set_my_commands(
             {"command": "start", "description": "Dashboard"},
             {"command": "agents_bot", "description": "Active agents"},
             {"command": "projects_bot", "description": "Start new session"},
+            {"command": "skills_bot", "description": "Favorite skills"},
             {"command": "history_bot", "description": "Recent messages"},
             {"command": "status_bot", "description": "Current status"},
             {"command": "help_bot", "description": "Help"}

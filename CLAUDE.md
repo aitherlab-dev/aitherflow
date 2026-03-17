@@ -10,15 +10,15 @@ aitherflow — десктопная GUI-обёртка для Claude Code CLI. C
 - **Фронтенд:** React 19 + TypeScript + Vite + Tailwind CSS v4
 - **Тема:** тёплая палитра (dark: кофейные тона, light: aitherlab.org), CSS-переменные
 - **Данные:** JSON (чаты, настройки)
-- **Платформы:** Linux (macOS планируется)
+- **Платформы:** Linux + macOS (два билда в CI и Release)
 
 ## Структура
 
-- `src/components/` — React: `chat/`, `layout/`, `settings/`, `fileviewer/`, `dashboard/`
+- `src/components/` — React: `chat/`, `layout/`, `settings/`, `fileviewer/`, `dashboard/`, `teamwork/`
 - `src/hooks/` — React-хуки, `src/stores/` — Zustand-сторы, `src/types/` — TypeScript-типы
 - `src/lib/` — транспорт, `src/services/` — Telegram-сервис, `src/data/` — описания команд
-- `src-tauri/src/` — Tauri-команды + модули: `conductor/` (ядро), `plugins/`, `telegram/`, `voice/`, `worktree.rs`
-  Отдельные модули: `agents.rs`, `chats.rs`, `config.rs`, `file_ops.rs`, `files.rs`, `mcp.rs`, `settings.rs`, `skills.rs`, `hooks.rs`, `projects.rs`, `secrets.rs`, `attachments.rs`, `translations.rs`
+- `src-tauri/src/` — Tauri-команды + модули: `conductor/` (ядро), `plugins/`, `telegram/`, `teamwork/`, `voice/`, `worktree.rs`
+  Отдельные модули: `agents.rs`, `chats.rs`, `claude_md.rs`, `config.rs`, `devtools.rs`, `file_ops.rs`, `files.rs`, `file_watcher.rs`, `hooks.rs`, `mcp.rs`, `projects.rs`, `secrets.rs`, `settings.rs`, `skills.rs`, `attachments.rs`, `translations.rs`
 
 ## Команды
 
@@ -31,7 +31,8 @@ cargo clippy            # lint Rust (из src-tauri/)
 cargo test              # тесты Rust (из src-tauri/)
 ```
 
-CI: `tsc --noEmit` + `eslint` + `cargo clippy -D warnings`
+CI (Linux + macOS): `tsc --noEmit` + `eslint` + `cargo clippy -D warnings`
+Release: Linux (deb, rpm, AppImage) + macOS (dmg) — собирается на тег `v*`
 
 ## Как работает
 
@@ -50,6 +51,11 @@ CI: `tsc --noEmit` + `eslint` + `cargo clippy -D warnings`
 - `atomic_write()` для записи файлов, `validate_path_safe()` для пользовательских путей
 - `entry.file_type()` вместо `entry.path().is_dir()` — избегать блокирующий `stat()`
 - Не проглатывать ошибки: НЕ `let _ =`, логировать через `.map_err()`
+- **Кроссплатформенность (Linux + macOS):**
+  - Предпочитать `#[cfg(unix)]` вместо `#[cfg(target_os = "linux")]` — покрывает оба
+  - Если нужен linux-only код — обязательно обработать macOS (хотя бы no-op)
+  - Пути: только `PathBuf` / `dirs` crate, никаких захардкоженных `/`
+  - Не добавлять linux-only зависимости без `#[cfg]` guard в Cargo.toml
 
 **TypeScript/React:**
 - Иконки: **только Lucide React**. Никаких CSS-иконок, никакого инлайн-SVG

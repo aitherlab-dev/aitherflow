@@ -7,13 +7,33 @@ use crate::file_ops::atomic_write;
 use super::api::{groq_transcribe, tg_download_file, tg_send_message};
 use super::TgIncoming;
 
+/// Check if text matches a pending skill name; if so, return the command and clear pending.
+pub(super) fn take_pending_skill(text: &str) -> Option<String> {
+    super::with_state(|s| {
+        let state = s.as_mut()?;
+        let cmd = state.pending_skills.remove(text)?;
+        state.pending_skills.clear();
+        Some(cmd)
+    })
+}
+
+/// Check if text matches a pending project name; if so, return (path, name) and clear pending.
+pub(super) fn take_pending_project(text: &str) -> Option<(String, String)> {
+    super::with_state(|s| {
+        let state = s.as_mut()?;
+        let path = state.pending_projects.remove(text)?;
+        let name = text.to_string();
+        state.pending_projects.clear();
+        Some((path, name))
+    })
+}
+
 pub(super) fn keyboard_button_kind(text: &str) -> Option<&'static str> {
     match text {
-        "Agents" => Some("request_agents"),
+        "Active" => Some("request_agents"),
         "Projects" => Some("request_projects"),
         "Status" => Some("request_status"),
         "History" => Some("request_history"),
-        "Skills" => Some("request_skills"),
         _ => None,
     }
 }
@@ -122,11 +142,17 @@ pub(super) async fn handle_command(
                 eprintln!("[TG] send request_status: {e}");
             }
         }
+        "/skills_bot" => {
+            if let Err(e) = send_request("request_skills") {
+                eprintln!("[TG] send request_skills: {e}");
+            }
+        }
         "/help_bot" => {
             let help = "\
 /start — dashboard\n\
 /agents_bot — active agents\n\
 /projects_bot — start new session\n\
+/skills_bot — favorite skills\n\
 /history_bot — recent messages\n\
 /status_bot — current status\n\n\
 Text or voice goes to the active agent.";

@@ -1,7 +1,8 @@
 use tokio::sync::mpsc;
 
 use super::api::{
-    tg_get_me, tg_send_inline_keyboard, tg_send_message, tg_send_with_reply_keyboard,
+    tg_get_me, tg_send_inline_keyboard, tg_send_message, tg_send_one_time_keyboard,
+    tg_send_with_reply_keyboard,
 };
 use super::bot::{bot_loop, get_bot_connection};
 use super::{
@@ -65,6 +66,8 @@ pub async fn start_telegram_bot() -> Result<TelegramStatus, String> {
             incoming_rx: None,
             http_client: None,
             stream_message_id: 0,
+            pending_projects: std::collections::HashMap::new(),
+            pending_skills: std::collections::HashMap::new(),
         });
 
         if state.task_handle.is_some() {
@@ -126,6 +129,8 @@ pub async fn start_telegram_bot() -> Result<TelegramStatus, String> {
             incoming_rx: None,
             http_client: None,
             stream_message_id: 0,
+            pending_projects: std::collections::HashMap::new(),
+            pending_skills: std::collections::HashMap::new(),
         });
 
         // Guard: if another start/stop happened while we were connecting, abort our task
@@ -236,9 +241,8 @@ pub async fn telegram_send_menu(
     let (token, chat_id, client) = get_bot_connection()?;
 
     let keyboard = vec![
-        vec!["Agents".to_string(), "Projects".to_string()],
+        vec!["Active".to_string(), "Projects".to_string()],
         vec!["Status".to_string(), "History".to_string()],
-        vec!["Skills".to_string()],
     ];
 
     // Build dashboard text
@@ -298,7 +302,7 @@ pub async fn telegram_send_agents(agents: Vec<serde_json::Value>) -> Result<(), 
     tg_send_inline_keyboard(&client, &token, chat_id, "Active agents:", buttons).await
 }
 
-/// Send projects list with inline buttons
+/// Send projects list with one-time reply keyboard
 #[tauri::command]
 pub async fn telegram_send_projects(projects: Vec<serde_json::Value>) -> Result<(), String> {
     let (token, chat_id, client) = get_bot_connection()?;
@@ -308,16 +312,22 @@ pub async fn telegram_send_projects(projects: Vec<serde_json::Value>) -> Result<
         return Ok(());
     }
 
-    let mut buttons: Vec<Vec<serde_json::Value>> = Vec::new();
+    let mut buttons: Vec<Vec<String>> = Vec::new();
+    let mut mapping: std::collections::HashMap<String, String> = std::collections::HashMap::new();
     for project in &projects {
-        let path = project["path"].as_str().unwrap_or("");
-        let name = project["name"].as_str().unwrap_or("Project");
-        buttons.push(vec![serde_json::json!({
-            "text": name,
-            "callback_data": format!("project:{path}"),
-        })]);
+        let path = project["path"].as_str().unwrap_or("").to_string();
+        let name = project["name"].as_str().unwrap_or("Project").to_string();
+        buttons.push(vec![name.clone()]);
+        mapping.insert(name, path);
     }
-    tg_send_inline_keyboard(&client, &token, chat_id, "Start session:", buttons).await
+
+    with_state(|s| {
+        if let Some(state) = s.as_mut() {
+            state.pending_projects = mapping;
+        }
+    });
+
+    tg_send_one_time_keyboard(&client, &token, chat_id, "Start session:", buttons).await
 }
 
 /// Send status info
@@ -392,7 +402,7 @@ pub async fn telegram_stream_edit(text: String) -> Result<(), String> {
     Ok(())
 }
 
-/// Send skills list with inline buttons
+/// Send skills list with one-time reply keyboard
 #[tauri::command]
 pub async fn telegram_send_skills(skills: Vec<serde_json::Value>) -> Result<(), String> {
     let (token, chat_id, client) = get_bot_connection()?;
@@ -402,16 +412,22 @@ pub async fn telegram_send_skills(skills: Vec<serde_json::Value>) -> Result<(), 
         return Ok(());
     }
 
-    let mut buttons: Vec<Vec<serde_json::Value>> = Vec::new();
+    let mut buttons: Vec<Vec<String>> = Vec::new();
+    let mut mapping: std::collections::HashMap<String, String> = std::collections::HashMap::new();
     for skill in &skills {
-        let id = skill["id"].as_str().unwrap_or("");
-        let name = skill["name"].as_str().unwrap_or(id);
-        buttons.push(vec![serde_json::json!({
-            "text": name,
-            "callback_data": format!("skill:{id}"),
-        })]);
+        let id = skill["id"].as_str().unwrap_or("").to_string();
+        let name = skill["name"].as_str().unwrap_or(&id).to_string();
+        buttons.push(vec![name.clone()]);
+        mapping.insert(name, id);
     }
-    tg_send_inline_keyboard(&client, &token, chat_id, "Skills:", buttons).await
+
+    with_state(|s| {
+        if let Some(state) = s.as_mut() {
+            state.pending_skills = mapping;
+        }
+    });
+
+    tg_send_one_time_keyboard(&client, &token, chat_id, "Skills:", buttons).await
 }
 
 /// Reset stream message_id (call after streaming finishes)
