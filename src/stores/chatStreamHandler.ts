@@ -409,7 +409,10 @@ function handleCliEvent(e: CliEvent) {
 }
 
 // ── Register listener (singleton, lives for app lifetime) ──
-
-listen<CliEvent>("cli-event", (event) => handleCliEvent(event.payload)).catch(
-  console.error,
-);
+// Guard against duplicate listeners during HMR
+if (!(globalThis as Record<string, unknown>).__chatStreamListenerRegistered) {
+  (globalThis as Record<string, unknown>).__chatStreamListenerRegistered = true;
+  listen<CliEvent>("cli-event", (event) => handleCliEvent(event.payload)).catch(
+    console.error,
+  );
+}

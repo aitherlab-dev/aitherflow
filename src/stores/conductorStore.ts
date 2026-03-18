@@ -171,6 +171,9 @@ export const useConductorStore = create<ConductorState>((set, get) => ({
 }));
 
 // ── Module-level event listener (singleton, lives for app lifetime) ──
+// Guard against duplicate listeners during HMR
+if (!(globalThis as Record<string, unknown>).__conductorListenerRegistered) {
+(globalThis as Record<string, unknown>).__conductorListenerRegistered = true;
 
 listen<CliEvent>("cli-event", (event) => {
   const e = event.payload;
@@ -257,3 +260,4 @@ listen<CliEvent>("cli-event", (event) => {
       break;
   }
 }).catch(console.error);
+}

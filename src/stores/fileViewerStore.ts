@@ -357,13 +357,15 @@ export const useFileViewerStore = create<FileViewerState>((set, get) => ({
         await invoke("delete_file", { path: diff.filePath });
       }
 
-      // Re-read the file in the tab
-      const tab = state.tabs.find((t) => t.filePath === diff.filePath);
+      // Re-read the file in the tab (re-fetch tabs after await — they may have changed)
+      const freshTabs = get().tabs;
+      const tab = freshTabs.find((t) => t.filePath === diff.filePath);
       if (tab && diff.snapshot !== null) {
-        const newTabs = state.tabs.map((t) =>
-          t.id === tab.id ? { ...t, content: diff.snapshot } : t,
-        );
-        set({ tabs: newTabs });
+        set((s) => ({
+          tabs: s.tabs.map((t) =>
+            t.id === tab.id ? { ...t, content: diff.snapshot } : t,
+          ),
+        }));
       } else if (tab && diff.snapshot === null) {
         // File was deleted — close the tab
         get().closeTab(tab.id);
