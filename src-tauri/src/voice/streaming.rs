@@ -182,16 +182,22 @@ pub async fn voice_start_stream(
         })
     };
 
-    // Spawn WebSocket task
+    // Spawn WebSocket task — sends stop signal on exit so audio_thread is always cleaned up
     let prov = provider.clone();
-    let ws_task = tokio::spawn(run_websocket(
-        ws_url,
-        auth_header,
-        audio_rx,
-        stop_rx2,
-        app.clone(),
-        prov,
-    ));
+    let stop_tx_ws = stop_tx.clone();
+    let ws_task = tokio::spawn(async move {
+        run_websocket(
+            ws_url,
+            auth_header,
+            audio_rx,
+            stop_rx2,
+            app.clone(),
+            prov,
+        )
+        .await;
+        // Ensure audio_thread stops even if WebSocket exits before voice_stop_stream
+        let _ = stop_tx_ws.send(true);
+    });
 
     *guard = Some(StreamSession {
         stop_tx,

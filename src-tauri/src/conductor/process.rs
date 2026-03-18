@@ -239,12 +239,9 @@ pub async fn run_cli_session(
             });
             let path_clone = path.clone();
             tokio::task::spawn_blocking(move || {
-                crate::file_ops::atomic_write(
-                    &path_clone,
-                    serde_json::to_string_pretty(&config_json)
-                        .expect("Failed to serialize MCP config")
-                        .as_bytes(),
-                )
+                let json_str = serde_json::to_string_pretty(&config_json)
+                    .map_err(|e| format!("Failed to serialize MCP config: {e}"))?;
+                crate::file_ops::atomic_write(&path_clone, json_str.as_bytes())
             })
             .await
             .map_err(|e| format!("MCP config task panic: {e}"))??;
@@ -261,7 +258,9 @@ pub async fn run_cli_session(
     };
 
     // Build command
-    let claude_bin = resolve_claude_binary();
+    let claude_bin = tokio::task::spawn_blocking(resolve_claude_binary)
+        .await
+        .map_err(|e| format!("resolve_claude_binary task panic: {e}"))?;
     let mut cmd = Command::new(&claude_bin);
 
     // Extend PATH so child process can find node, claude, etc.
@@ -339,12 +338,13 @@ pub async fn run_cli_session(
     }
 
     // Spawn mailbox polling task if project teamwork is enabled
-    let polling_handle = if let Some(ref team) = project_teamwork_slug {
+    let (polling_handle, polling_stop_tx) = if let Some(ref team) = project_teamwork_slug {
         let writer_poll = Arc::clone(&writer);
         let agent_id_poll = agent_id.clone();
         let team_poll = team.clone();
+        let (stop_tx, mut stop_rx) = tokio::sync::oneshot::channel::<()>();
 
-        Some(tokio::spawn(async move {
+        let handle = tokio::spawn(async move {
             let mut interval = tokio::time::interval(std::time::Duration::from_secs(3));
             // Skip the first immediate tick
             interval.tick().await;
@@ -354,7 +354,27 @@ pub async fn run_cli_session(
             let mut pending_ndjson: Option<String> = None;
 
             loop {
-                interval.tick().await;
+                // Check for stop signal alongside interval tick
+                tokio::select! {
+                    _ = &mut stop_rx => {
+                        // Graceful shutdown: process any pending messages before exiting
+                        if !pending_messages.is_empty() {
+                            let ids: Vec<String> = pending_messages.iter().map(|m| m.id.clone()).collect();
+                            let team_m = team_poll.clone();
+                            let agent_m = agent_id_poll.clone();
+                            if let Err(e) = tokio::task::spawn_blocking(move || {
+                                crate::teamwork::mailbox::mark_read_sync(&team_m, &agent_m, &ids)
+                            })
+                            .await
+                            .unwrap_or_else(|e| Err(format!("Task panic: {e}")))
+                            {
+                                eprintln!("[teamwork] Failed to mark pending messages as read on shutdown: {e}");
+                            }
+                        }
+                        break;
+                    }
+                    _ = interval.tick() => {}
+                }
 
                 // Quick status check (avoids inbox I/O when not idle)
                 match writer_poll.get_status().await {
@@ -437,9 +457,11 @@ pub async fn run_cli_session(
                     eprintln!("[teamwork] Failed to mark messages as read: {e}");
                 }
             }
-        }))
+        });
+
+        (Some(handle), Some(stop_tx))
     } else {
-        None
+        (None, None)
     };
 
     // Spawn stderr reader in background (capped at 64KB)
@@ -506,9 +528,22 @@ pub async fn run_cli_session(
         }
     }
 
-    // stdout closed — process is finishing; stop mailbox polling
+    // stdout closed — process is finishing; gracefully stop mailbox polling
+    if let Some(stop_tx) = polling_stop_tx {
+        // Send stop signal; ignore error (task may have already exited)
+        let _ = stop_tx.send(());
+    }
     if let Some(handle) = polling_handle {
-        handle.abort();
+        // Give the polling task time to flush pending messages
+        let abort_handle = handle.abort_handle();
+        match tokio::time::timeout(std::time::Duration::from_secs(5), handle).await {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => eprintln!("[{tag}] Polling task panic on shutdown: {e}"),
+            Err(_) => {
+                eprintln!("[{tag}] Polling task did not finish within 5s, aborting");
+                abort_handle.abort();
+            }
+        }
     }
 
     writer.set_status(SessionStatus::Exited).await;

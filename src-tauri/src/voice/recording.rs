@@ -119,14 +119,13 @@ pub async fn voice_stop(state: tauri::State<'_, VoiceState>) -> Result<Vec<u8>, 
 
     // Wait for the thread to finish (blocking — run off tokio)
     let thread_handle = recording.thread.take();
-    if thread_handle.is_some() {
-        tokio::task::spawn_blocking(move || {
-            if let Some(t) = thread_handle {
-                let _ = t.join();
-            }
-        })
-        .await
-        .map_err(|e| format!("Join task error: {e}"))?;
+    if let Some(t) = thread_handle {
+        let join_result = tokio::task::spawn_blocking(move || t.join())
+            .await
+            .map_err(|e| format!("Join task error: {e}"))?;
+        if join_result.is_err() {
+            return Err("Recording thread panicked — audio data may be corrupted".into());
+        }
     }
 
     let buffer = recording.buffer;
