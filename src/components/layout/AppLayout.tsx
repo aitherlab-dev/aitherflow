@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Menu } from "lucide-react";
 import { useTelegramBridge } from "../../hooks/useTelegramBridge";
 import { useIsMobile } from "../../hooks/useIsMobile";
@@ -5,15 +6,16 @@ import { useHotkeys } from "../../hooks/useHotkeys";
 import { Header } from "./Header";
 import { Sidebar } from "./sidebar";
 import { ChatView } from "../chat/ChatView";
-import { SettingsView } from "../settings/SettingsView";
-import { WelcomeScreen } from "./WelcomeScreen";
-import { FileViewerPanel } from "../fileviewer/FileViewerPanel";
 import { FileViewerResizeHandle } from "../fileviewer/FileViewerResizeHandle";
 import { ChatPanel } from "./chat-panel";
-import { TeamMailboxPanel } from "../teamwork/TeamMailboxPanel";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useShallow } from "zustand/react/shallow";
 import { BrandFooter } from "./BrandFooter";
+
+const SettingsView = lazy(() => import("../settings/SettingsView").then((m) => ({ default: m.SettingsView })));
+const WelcomeScreen = lazy(() => import("./WelcomeScreen").then((m) => ({ default: m.WelcomeScreen })));
+const FileViewerPanel = lazy(() => import("../fileviewer/FileViewerPanel").then((m) => ({ default: m.FileViewerPanel })));
+const TeamMailboxPanel = lazy(() => import("../teamwork/TeamMailboxPanel").then((m) => ({ default: m.TeamMailboxPanel })));
 
 export function AppLayout() {
   useTelegramBridge();
@@ -49,6 +51,7 @@ export function AppLayout() {
       <Sidebar />
       <main className="app-main">
         <div className="main-row">
+          <Suspense fallback={null}>
           {activeView === "welcome" ? (
             <WelcomeScreen />
           ) : activeView === "settings" ? (
@@ -74,6 +77,7 @@ export function AppLayout() {
               <TeamMailboxPanel />
             </div>
           )}
+          </Suspense>
         </div>
       </main>
       {chatPanelVisible && (

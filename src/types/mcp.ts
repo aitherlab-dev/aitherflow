@@ -1,5 +1,7 @@
+export type McpServerType = "stdio" | "sse" | "http";
+
 export interface McpServerConfig {
-  serverType: string; // "stdio" | "sse" | "http"
+  serverType: McpServerType;
   command?: string;
   args?: string[];
   url?: string;
@@ -9,7 +11,7 @@ export interface McpServerConfig {
 
 export interface McpServer {
   name: string;
-  serverType: string;
+  serverType: McpServerType;
   command?: string;
   args?: string[];
   url?: string;

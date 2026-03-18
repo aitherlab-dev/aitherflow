@@ -3,6 +3,7 @@ use std::net::TcpListener;
 use std::path::PathBuf;
 
 use crate::config;
+use crate::files::validate_path_safe;
 
 // Track dev server PIDs per project path
 static DEV_SERVER_PIDS: std::sync::LazyLock<std::sync::Mutex<HashMap<String, u32>>> =
@@ -109,28 +110,10 @@ pub async fn self_build(app: tauri::AppHandle) -> Result<(), String> {
 pub async fn self_dev(project_path: String) -> Result<String, String> {
     tokio::task::spawn_blocking(move || {
         let project_dir = PathBuf::from(&project_path);
+        validate_path_safe(&project_dir)?;
+
         if !project_dir.exists() {
             return Err(format!("Project dir not found: {project_path}"));
-        }
-
-        // Canonicalize to resolve symlinks before checking
-        let project_dir = project_dir
-            .canonicalize()
-            .map_err(|e| format!("Cannot resolve path: {e}"))?;
-
-        // Verify resolved path is under $HOME
-        let home = PathBuf::from(
-            std::env::var("HOME").map_err(|_| "HOME not set".to_string())?
-        );
-        let home = home
-            .canonicalize()
-            .unwrap_or(home);
-        if !project_dir.starts_with(&home) {
-            return Err(format!(
-                "Project dir must be under HOME ({}), found: {}",
-                home.display(),
-                project_dir.display()
-            ));
         }
 
         // Read package.json
@@ -212,7 +195,7 @@ pub async fn self_dev(project_path: String) -> Result<String, String> {
         // Pass port to Vite via env variable
         dev_cmd.env("VITE_PORT", dev_port.to_string());
 
-        // WebKitGTK workarounds for Tauri projects (Linux-only)
+        // WebKitGTK workarounds for Tauri projects (Linux-specific, macOS uses WKWebView)
         #[cfg(target_os = "linux")]
         if is_tauri {
             dev_cmd

@@ -2,6 +2,25 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::process::Command;
 
+/// Validate a git branch name using `git check-ref-format --branch`.
+/// Also rejects names starting with `-` to prevent argument injection.
+fn validate_branch_name(name: &str) -> Result<(), String> {
+    if name.is_empty() {
+        return Err("Branch name cannot be empty".to_string());
+    }
+    if name.starts_with('-') {
+        return Err(format!("Invalid branch name (starts with dash): {name}"));
+    }
+    let output = Command::new("git")
+        .args(["check-ref-format", "--branch", name])
+        .output()
+        .map_err(|e| format!("Failed to run git check-ref-format: {e}"))?;
+    if !output.status.success() {
+        return Err(format!("Invalid branch name: {name}"));
+    }
+    Ok(())
+}
+
 /// A single git worktree entry
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -269,6 +288,8 @@ pub async fn create_worktree(options: CreateWorktreeOptions) -> Result<CreateWor
     tokio::task::spawn_blocking(move || {
         let project = Path::new(&options.project_path);
         crate::files::validate_path_safe(project)?;
+        validate_branch_name(&options.branch_name)?;
+
         let parent = project
             .parent()
             .ok_or_else(|| "Cannot determine parent directory".to_string())?;
@@ -285,6 +306,7 @@ pub async fn create_worktree(options: CreateWorktreeOptions) -> Result<CreateWor
             args.push("-b");
             args.push(&options.branch_name);
         }
+        args.push("--");
         args.push(&worktree_path);
         if !options.create_branch {
             args.push(&options.branch_name);

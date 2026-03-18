@@ -1,9 +1,15 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "../../lib/transport";
 import { invalidateSettingsCache } from "../../stores/chatService";
 import { Tooltip } from "../shared/Tooltip";
 
 import type { AppSettings } from "../../types/settings";
+
+/** Keys kept separate from AppSettings — only loaded in this component */
+interface VoiceSettings extends AppSettings {
+  groqApiKey: string;
+  deepgramApiKey: string;
+}
 
 interface AnthropicAuthStatus {
   available: boolean;
@@ -31,12 +37,12 @@ const POST_MODELS = [
 ];
 
 export function VoiceSection() {
-  const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [settings, setSettings] = useState<VoiceSettings | null>(null);
   const [showKey, setShowKey] = useState(false);
   const [authStatus, setAuthStatus] = useState<AnthropicAuthStatus | null>(null);
 
   useEffect(() => {
-    invoke<AppSettings>("load_settings")
+    invoke<VoiceSettings>("load_settings")
       .then(setSettings)
       .catch(console.error);
     invoke<AnthropicAuthStatus>("voice_check_anthropic_auth")
@@ -44,10 +50,15 @@ export function VoiceSection() {
       .catch(console.error);
   }, []);
 
-  const save = useCallback((updated: AppSettings) => {
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(saveTimerRef.current), []);
+  const save = useCallback((updated: VoiceSettings) => {
     setSettings(updated);
-    invoke("save_settings", { settings: updated }).catch(console.error);
     invalidateSettingsCache();
+    clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      invoke("save_settings", { settings: updated }).catch(console.error);
+    }, 400);
   }, []);
 
   if (!settings) return null;

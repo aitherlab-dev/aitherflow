@@ -100,7 +100,7 @@ export async function sendMessage(text: string, allAttachments?: Attachment[]) {
     timestamp: Date.now(),
     attachments: allAttachments && allAttachments.length > 0 ? allAttachments : undefined,
   };
-  useChatStore.setState({ messages: [...state.messages, userMsg], error: null, isThinking: true });
+  useChatStore.setState((prev) => ({ messages: [...prev.messages, userMsg], error: null, isThinking: true }));
 
   try {
     // Lazy chat creation: create on first message (guard against double-click)
@@ -154,7 +154,7 @@ export async function sendMessage(text: string, allAttachments?: Attachment[]) {
       const resumeSessionId = chatMeta?.sessionId ?? undefined;
 
       let enableChrome = true;
-      let settingsPermMode: string | undefined;
+      let settingsPermMode: "default" | "plan" | "bypassPermissions" | undefined;
       try {
         const settings = await getSettings();
         if (settings.bypassPermissions) {
@@ -188,7 +188,8 @@ export async function sendMessage(text: string, allAttachments?: Attachment[]) {
       });
     }
   } catch (e) {
-    useChatStore.setState({ error: String(e), isThinking: false });
+    console.error("[sendMessage] Failed:", e);
+    useChatStore.setState({ error: "Failed to send message. Please try again.", isThinking: false });
   }
 }
 
@@ -197,7 +198,8 @@ export async function stopGeneration() {
   try {
     await invoke("stop_session", { agentId });
   } catch (e) {
-    useChatStore.setState({ error: String(e), isThinking: false });
+    console.error("[stopGeneration] Failed:", e);
+    useChatStore.setState({ error: "Failed to stop session.", isThinking: false });
   }
   // Only reset state if the session hasn't changed during await
   if (useChatStore.getState().agentId === agentId) {
@@ -254,7 +256,7 @@ export async function switchPermissionMode(mode: "default" | "plan") {
   try {
     const settings = await invoke<{ enableChrome: boolean }>("load_settings");
     enableChrome = settings.enableChrome;
-  } catch { /* use default */ }
+  } catch (e) { console.error("Failed to load settings for mode switch:", e); }
 
   const permissionMode = mode !== "default" ? mode : undefined;
 
@@ -279,7 +281,8 @@ export async function switchPermissionMode(mode: "default" | "plan") {
     });
     useChatStore.setState({ hasSession: true });
   } catch (e) {
-    useChatStore.setState({ error: String(e) });
+    console.error("[switchPermissionMode] Failed:", e);
+    useChatStore.setState({ error: "Failed to switch mode. Please try again." });
   }
 }
 
@@ -371,7 +374,8 @@ export async function switchChat(chatId: string) {
       useConductorStore.getState().restoreUsageForAgent(useChatStore.getState().agentId);
     }
   } catch (e) {
-    useChatStore.setState({ error: String(e) });
+    console.error("[switchChat] Failed:", e);
+    useChatStore.setState({ error: "Failed to load chat." });
   }
 }
 
@@ -392,6 +396,7 @@ export async function newChat() {
   useChatStore.setState({
     currentChatId: null,
     messages: [],
+    streamingMessage: null,
     hasSession: false,
     isThinking: false,
     planMode: false,
@@ -427,8 +432,10 @@ export async function deleteChat(chatId: string) {
     }
 
     // Clean up agentStates entries that referenced the deleted chat
+    // Skip active agent — its real state is in Zustand, not the Map snapshot
+    const activeAgentId = useChatStore.getState().agentId;
     for (const [agentId, agentState] of agentStates) {
-      if (agentState.chatId === chatId) {
+      if (agentId !== activeAgentId && agentState.chatId === chatId) {
         agentStates.delete(agentId);
       }
     }
@@ -647,7 +654,8 @@ export async function respondToCard(agentId: string, toolUseId: string, response
         options: { agentId, prompt: response } satisfies SendMessageOptions,
       });
     } catch (e) {
-      if (isActive) useChatStore.setState({ error: String(e), isThinking: false });
+      console.error("[respondToCard] send_message failed:", e);
+      if (isActive) useChatStore.setState({ error: "Failed to send response.", isThinking: false });
     }
     return;
   }
@@ -678,6 +686,7 @@ export async function respondToCard(agentId: string, toolUseId: string, response
       response: controlResponse,
     });
   } catch (e) {
-    if (isActive) useChatStore.setState({ error: String(e), isThinking: false });
+    console.error("[respondToCard] respond_to_tool failed:", e);
+    if (isActive) useChatStore.setState({ error: "Failed to process response.", isThinking: false });
   }
 }

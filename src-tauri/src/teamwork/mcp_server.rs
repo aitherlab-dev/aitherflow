@@ -139,7 +139,9 @@ pub async fn team_list_agents(
 /// Signal the MCP server to shut down gracefully.
 pub fn shutdown_mcp_server() {
     if let Some(tx) = SHUTDOWN_TX.get() {
-        let _ = tx.send(true);
+        if let Err(e) = tx.send(true) {
+            eprintln!("[mcp-server] Failed to send shutdown signal: {e}");
+        }
     }
 }
 
@@ -182,12 +184,14 @@ pub async fn start_mcp_server(
         .with_state(state);
 
     let (shutdown_tx, mut shutdown_rx) = tokio::sync::watch::channel(false);
-    let _ = SHUTDOWN_TX.set(shutdown_tx);
+    SHUTDOWN_TX.set(shutdown_tx).map_err(|_| "Shutdown channel already initialized".to_string())?;
 
     tokio::spawn(async move {
         if let Err(e) = axum::serve(listener, app)
             .with_graceful_shutdown(async move {
-                let _ = shutdown_rx.wait_for(|&v| v).await;
+                if let Err(e) = shutdown_rx.wait_for(|&v| v).await {
+                    eprintln!("[mcp-server] Shutdown watch error: {e}");
+                }
             })
             .await
         {
@@ -501,12 +505,14 @@ async fn execute_tool(
             let team_m = team_name;
             let aid_m = agent_id;
             tokio::spawn(async move {
-                let _ = tokio::task::spawn_blocking(move || {
+                if let Err(e) = tokio::task::spawn_blocking(move || {
                     if let Err(e) = mailbox::mark_read_sync(&team_m, &aid_m, &ids) {
                         eprintln!("[mcp-server] Failed to mark messages as read: {e}");
                     }
                 })
-                .await;
+                .await {
+                    eprintln!("[mcp-server] mark_read task panicked: {e}");
+                }
             });
 
             Ok(text)

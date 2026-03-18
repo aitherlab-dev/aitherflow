@@ -3,27 +3,28 @@ import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
 import type { Extension } from "@codemirror/state";
 
-function cssVar(name: string): string {
-  return getComputedStyle(document.documentElement)
-    .getPropertyValue(name)
-    .trim();
+let cachedVars: Record<string, string> | null = null;
+let cachedThemeAttr: string | null = null;
+
+function getCssVars(): Record<string, string> {
+  const currentTheme = document.documentElement.getAttribute("data-theme") ?? "dark";
+  if (cachedVars && cachedThemeAttr === currentTheme) return cachedVars;
+
+  const style = getComputedStyle(document.documentElement);
+  const get = (name: string) => style.getPropertyValue(name).trim();
+  cachedVars = {
+    bg: get("--bg"), fg: get("--fg"), fgMuted: get("--fg-muted"), fgDim: get("--fg-dim"),
+    bgHover: get("--bg-hover"), selectionBg: get("--selection-bg"),
+    red: get("--red"), green: get("--green"), blue: get("--blue"),
+    yellow: get("--yellow"), purple: get("--purple"), aqua: get("--aqua"), gray: get("--gray"),
+  };
+  cachedThemeAttr = currentTheme;
+  return cachedVars;
 }
 
 export function createTheme(): Extension[] {
-  const bg = cssVar("--bg");
-  const fg = cssVar("--fg");
-  const fgMuted = cssVar("--fg-muted");
-  const fgDim = cssVar("--fg-dim");
-  const bgHover = cssVar("--bg-hover");
-  const selectionBg = cssVar("--selection-bg");
-
-  const red = cssVar("--red");
-  const green = cssVar("--green");
-  const blue = cssVar("--blue");
-  const yellow = cssVar("--yellow");
-  const purple = cssVar("--purple");
-  const aqua = cssVar("--aqua");
-  const gray = cssVar("--gray");
+  const v = getCssVars();
+  const { bg, fg, fgMuted, fgDim, bgHover, selectionBg, red, green, blue, yellow, purple, aqua, gray } = v;
 
   const theme = EditorView.theme({
     "&": {

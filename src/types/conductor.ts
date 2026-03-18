@@ -61,9 +61,9 @@ export interface StartSessionOptions {
   prompt: string;
   projectPath?: string;
   model?: string;
-  effort?: string;
+  effort?: "high" | "medium" | "low";
   resumeSessionId?: string;
-  permissionMode?: string;
+  permissionMode?: "default" | "plan" | "bypassPermissions";
   chrome?: boolean;
   attachments?: AttachmentPayload[];
   /** Standalone role system prompt */

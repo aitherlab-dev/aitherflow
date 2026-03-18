@@ -136,9 +136,8 @@ export const useTranslationStore = create<TranslationState>((set, get) => ({
       });
       set({ cache, translating: false });
     } catch (e) {
-      const msg = String(e);
-      console.error("Translation failed:", msg);
-      set({ translating: false, error: msg });
+      console.error("Translation failed:", e);
+      set({ translating: false, error: "Translation failed. Check console for details." });
       // Reload cache to get partial results
       await get().load();
       throw e;
@@ -158,9 +157,8 @@ export const useTranslationStore = create<TranslationState>((set, get) => ({
       });
       set({ cache, translating: false });
     } catch (e) {
-      const msg = String(e);
-      console.error("Translation update failed:", msg);
-      set({ translating: false, error: msg });
+      console.error("Translation update failed:", e);
+      set({ translating: false, error: "Translation update failed. Check console for details." });
       await get().load();
       throw e;
     }

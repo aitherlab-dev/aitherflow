@@ -59,11 +59,9 @@ export async function listen<T = unknown>(
 }
 
 /** Convert a filesystem path to a URL the webview can load. */
-export function convertFileSrc(path: string): string {
-  if (_tauriConvertFileSrc) {
-    return _tauriConvertFileSrc(path);
-  }
-  return path;
+export async function convertFileSrc(path: string): Promise<string> {
+  await tauriReady;
+  return _tauriConvertFileSrc!(path);
 }
 
 /** Open a native file/folder dialog. */

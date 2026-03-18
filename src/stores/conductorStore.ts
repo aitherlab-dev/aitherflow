@@ -23,6 +23,8 @@ interface AgentUsageState {
   contextUsed: number;
   contextMax: number;
   costUsd: number;
+  sessionId: string | null;
+  model: string | null;
 }
 
 /** Module-level map: stores usage for ALL agents. Survives agent switches. */
@@ -37,6 +39,8 @@ function emptyUsage(): AgentUsageState {
     contextUsed: 0,
     contextMax: DEFAULT_CONTEXT_WINDOW,
     costUsd: 0,
+    sessionId: null,
+    model: null,
   };
 }
 
@@ -45,7 +49,7 @@ interface ConductorState {
   sessionId: string | null;
   model: string | null;
   selectedModel: string;
-  selectedEffort: string;
+  selectedEffort: "high" | "medium" | "low";
   selectedPermissionMode: "default" | "plan";
   error: string | null;
   inputTokens: number;
@@ -61,7 +65,7 @@ interface ConductorState {
 
   // Actions
   setSelectedModel: (model: string) => void;
-  setSelectedEffort: (effort: string) => void;
+  setSelectedEffort: (effort: "high" | "medium" | "low") => void;
   setSelectedPermissionMode: (mode: "default" | "plan") => void;
   setAgentRole: (agentId: string, role: AgentRole | null) => void;
   getAgentRole: (agentId: string) => AgentRole | null;
@@ -90,7 +94,7 @@ export const useConductorStore = create<ConductorState>((set, get) => ({
   agentRoles: {},
 
   setSelectedModel: (model: string) => set({ selectedModel: model }),
-  setSelectedEffort: (effort: string) => set({ selectedEffort: effort }),
+  setSelectedEffort: (effort: "high" | "medium" | "low") => set({ selectedEffort: effort }),
   setSelectedPermissionMode: (mode: "default" | "plan") => set({ selectedPermissionMode: mode }),
   setAgentRole: (agentId: string, role: AgentRole | null) =>
     set((s) => ({ agentRoles: { ...s.agentRoles, [agentId]: role } })),
@@ -121,17 +125,24 @@ export const useConductorStore = create<ConductorState>((set, get) => ({
       contextUsed: s.contextUsed,
       contextMax: s.contextMax,
       costUsd: s.costUsd,
+      sessionId: s.sessionId,
+      model: s.model,
     });
   },
 
   restoreUsageForAgent: (agentId: string) => {
-    const saved = agentUsage.get(agentId);
-    if (saved) {
-      set({ ...saved });
-    } else {
-      const fresh = emptyUsage();
-      set({ ...fresh });
-    }
+    const saved = agentUsage.get(agentId) ?? emptyUsage();
+    set({
+      inputTokens: saved.inputTokens,
+      outputTokens: saved.outputTokens,
+      cacheCreationTokens: saved.cacheCreationTokens,
+      cacheReadTokens: saved.cacheReadTokens,
+      contextUsed: saved.contextUsed,
+      contextMax: saved.contextMax,
+      costUsd: saved.costUsd,
+      sessionId: saved.sessionId,
+      model: saved.model,
+    });
   },
 
   loadSavedUsage: async (sessionId: string, projectPath: string) => {
@@ -171,7 +182,7 @@ listen<CliEvent>("cli-event", (event) => {
     const existing = agentUsage.get(e.agent_id) ?? emptyUsage();
     existing.contextUsed = e.context_used;
     existing.outputTokens = e.output_tokens;
-    agentUsage.set(e.agent_id, { ...existing });
+    if (!agentUsage.has(e.agent_id)) agentUsage.set(e.agent_id, existing);
 
     if (e.agent_id === activeAgentId) {
       useConductorStore.setState({
@@ -196,7 +207,7 @@ listen<CliEvent>("cli-event", (event) => {
     existing.cacheReadTokens = e.cache_read_input_tokens;
     existing.contextMax = contextMax;
     existing.costUsd = e.cost_usd;
-    agentUsage.set(e.agent_id, { ...existing });
+    if (!agentUsage.has(e.agent_id)) agentUsage.set(e.agent_id, existing);
 
     if (e.agent_id === activeAgentId) {
       useConductorStore.setState({
@@ -208,6 +219,18 @@ listen<CliEvent>("cli-event", (event) => {
       });
     }
     return;
+  }
+
+  // Save sessionId/model for all agents (including background) in usage map
+  if (e.type === "sessionId") {
+    const existing = agentUsage.get(e.agent_id) ?? emptyUsage();
+    existing.sessionId = e.session_id;
+    agentUsage.set(e.agent_id, { ...existing });
+  }
+  if (e.type === "modelInfo") {
+    const existing = agentUsage.get(e.agent_id) ?? emptyUsage();
+    existing.model = e.model;
+    agentUsage.set(e.agent_id, { ...existing });
   }
 
   // All other events: only process for active agent

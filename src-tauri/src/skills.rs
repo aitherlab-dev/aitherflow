@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use crate::config;
 use crate::file_ops::{read_json, write_json};
+use crate::files::validate_path_safe;
 use crate::plugins::types::InstalledPluginsFile;
 
 // ── Types ──
@@ -373,7 +374,12 @@ pub async fn load_skills(project_list: Vec<ProjectInfo>) -> Result<SkillsData, S
         // Project skills: scan all registered projects
         let mut projects: Vec<ProjectSkillGroup> = Vec::new();
         for proj in &project_list {
-            let skills_dir = PathBuf::from(&proj.path)
+            let proj_path = PathBuf::from(&proj.path);
+            if let Err(e) = validate_path_safe(&proj_path) {
+                eprintln!("[skills] Skipping project with unsafe path {}: {e}", proj.path);
+                continue;
+            }
+            let skills_dir = proj_path
                 .join(".claude")
                 .join("skills");
             let skills: Vec<SkillEntry> = scan_skills_dir(&skills_dir)
@@ -473,7 +479,6 @@ pub async fn move_skill(
     new_name: Option<String>,
 ) -> Result<String, String> {
     use crate::file_ops::copy_dir_recursive;
-    use crate::files::validate_path_safe;
 
     tokio::task::spawn_blocking(move || {
         let skill_file = PathBuf::from(&file_path);
@@ -503,7 +508,9 @@ pub async fn move_skill(
             "project" => {
                 let pp = project_path
                     .ok_or_else(|| "project_path is required for project target".to_string())?;
-                PathBuf::from(pp).join(".claude").join("skills")
+                let pp_path = PathBuf::from(&pp);
+                validate_path_safe(&pp_path)?;
+                pp_path.join(".claude").join("skills")
             }
             _ => return Err(format!("Invalid target_type: {}", target_type)),
         };

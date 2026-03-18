@@ -87,7 +87,7 @@ export const TreeEntry = memo(function TreeEntry({
   );
 });
 
-export function TreeLevel({
+export const TreeLevel = memo(function TreeLevel({
   parentPath,
   depth,
   expandedSet,
@@ -166,4 +166,4 @@ export function TreeLevel({
       )}
     </>
   );
-}
+});

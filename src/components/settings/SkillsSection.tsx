@@ -194,13 +194,14 @@ function InstalledTab() {
       );
       setMoveTarget(null);
     } catch (e) {
+      console.error("Failed to move skill:", e);
       const msg = String(e);
       if (msg.includes("already exists")) {
         setMoveConflict(true);
         setMoveNewName(moveTarget.id.replace(/^project:[^:]+:/, ""));
         setMoveError("Skill with this name already exists. Choose a new name.");
       } else {
-        setMoveError(msg);
+        setMoveError("Failed to move skill. Check console for details.");
       }
     }
   }, [moveTarget, moveProjectPath, moveNewName, moveSkill]);
@@ -406,8 +407,8 @@ const AvailableRow = memo(function AvailableRow({
 // ── Available tab ──
 
 function AvailableTab() {
-  const available = usePluginStore((s) => s.available);
-  const sources = usePluginStore((s) => s.sources);
+  const available = usePluginStore(useShallow((s) => s.available));
+  const sources = usePluginStore(useShallow((s) => s.sources));
   const installing = usePluginStore((s) => s.installing);
   const install = usePluginStore((s) => s.install);
 
@@ -526,7 +527,7 @@ const SourceRow = memo(function SourceRow({
 // ── Sources tab ──
 
 function SourcesTab() {
-  const sources = usePluginStore((s) => s.sources);
+  const sources = usePluginStore(useShallow((s) => s.sources));
   const updatingSources = usePluginStore((s) => s.updatingSources);
   const addSource = usePluginStore((s) => s.addSource);
   const removeSource = usePluginStore((s) => s.removeSource);
@@ -559,7 +560,8 @@ function SourcesTab() {
       setAdding(false);
       setNewUrl("");
     } catch (e) {
-      setAddError(String(e));
+      console.error("Failed to add skill source:", e);
+      setAddError("Failed to add source. Check console for details.");
     }
   }, [newUrl, addSource]);
 

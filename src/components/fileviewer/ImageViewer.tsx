@@ -1,4 +1,4 @@
-import { memo, useState, useCallback, useRef } from "react";
+import { memo, useState, useCallback, useRef, useEffect } from "react";
 import { ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
 import { convertFileSrc } from "../../lib/transport";
 import { Tooltip } from "../shared/Tooltip";
@@ -16,8 +16,11 @@ export const ImageViewer = memo(function ImageViewer({
 }: ImageViewerProps) {
   const [zoom, setZoom] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [imgSrc, setImgSrc] = useState("");
 
-  const imgSrc = convertFileSrc(filePath);
+  useEffect(() => {
+    convertFileSrc(filePath).then(setImgSrc).catch(console.error);
+  }, [filePath]);
 
   const handleZoomIn = useCallback(() => {
     setZoom((z) => Math.min(MAX_ZOOM, z + ZOOM_STEP));
