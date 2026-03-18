@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -7,39 +9,43 @@ pub const DEFAULT_AGENT_ID: &str = "default";
 
 /// Events emitted from conductor to frontend via Tauri global events.
 /// Tagged union — frontend receives `{ type: "streamChunk", agent_id: "...", text: "..." }`.
+///
+/// `agent_id` uses `Arc<str>` to avoid repeated heap allocations in the hot
+/// parsing path — one Arc is created per NDJSON line and cloned (refcount bump)
+/// for each event produced from that line.
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type")]
 pub enum CliEvent {
     /// CLI session initialized — contains session ID
     #[serde(rename = "sessionId")]
     SessionId {
-        agent_id: String,
+        agent_id: Arc<str>,
         session_id: String,
     },
 
     /// Partial streaming text (accumulated across deltas)
     #[serde(rename = "streamChunk")]
-    StreamChunk { agent_id: String, text: String },
+    StreamChunk { agent_id: Arc<str>, text: String },
 
     /// Final complete message text after a turn
     #[serde(rename = "messageComplete")]
-    MessageComplete { agent_id: String, text: String },
+    MessageComplete { agent_id: Arc<str>, text: String },
 
     /// Model information from system event
     #[serde(rename = "modelInfo")]
-    ModelInfo { agent_id: String, model: String },
+    ModelInfo { agent_id: Arc<str>, model: String },
 
     /// Slash commands available in this CLI session
     #[serde(rename = "slashCommands")]
     SlashCommands {
-        agent_id: String,
+        agent_id: Arc<str>,
         commands: Vec<String>,
     },
 
     /// Token usage and cost from result event (cumulative over session)
     #[serde(rename = "usageInfo")]
     UsageInfo {
-        agent_id: String,
+        agent_id: Arc<str>,
         input_tokens: u64,
         output_tokens: u64,
         cache_creation_input_tokens: u64,
@@ -52,7 +58,7 @@ pub enum CliEvent {
     /// Context window usage from assistant event (per-turn = actual context size)
     #[serde(rename = "contextInfo")]
     ContextInfo {
-        agent_id: String,
+        agent_id: Arc<str>,
         /// input + cache_creation + cache_read = how much context is used
         context_used: u64,
         output_tokens: u64,
@@ -61,7 +67,7 @@ pub enum CliEvent {
     /// Tool invocation (from assistant message)
     #[serde(rename = "toolUse")]
     ToolUse {
-        agent_id: String,
+        agent_id: Arc<str>,
         tool_use_id: String,
         tool_name: String,
         tool_input: Value,
@@ -70,7 +76,7 @@ pub enum CliEvent {
     /// Tool result (from user/tool_result message)
     #[serde(rename = "toolResult")]
     ToolResult {
-        agent_id: String,
+        agent_id: Arc<str>,
         tool_use_id: String,
         output_preview: String,
         is_error: bool,
@@ -79,7 +85,7 @@ pub enum CliEvent {
     /// CLI requests permission or user input (control_request protocol)
     #[serde(rename = "controlRequest")]
     ControlRequest {
-        agent_id: String,
+        agent_id: Arc<str>,
         request_id: String,
         tool_name: String,
         tool_use_id: String,
@@ -89,18 +95,18 @@ pub enum CliEvent {
 
     /// One CLI turn completed — process still alive, awaiting input
     #[serde(rename = "turnComplete")]
-    TurnComplete { agent_id: String },
+    TurnComplete { agent_id: Arc<str> },
 
     /// CLI process exited (naturally or killed)
     #[serde(rename = "processExited")]
     ProcessExited {
-        agent_id: String,
+        agent_id: Arc<str>,
         exit_code: Option<i32>,
     },
 
     /// Error: CLI stderr, parse failure, or spawn failure
     #[serde(rename = "error")]
-    Error { agent_id: String, message: String },
+    Error { agent_id: Arc<str>, message: String },
 }
 
 /// Status of an agent session.
