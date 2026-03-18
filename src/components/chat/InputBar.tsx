@@ -1,4 +1,5 @@
 import { memo, useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { Plus, Star, Mic, MicOff, ArrowUp, Square, MessageSquarePlus, Sparkles, Brain, Zap, Loader2, UserCog, Radio } from "lucide-react";
 import { openDialog, invoke } from "../../lib/transport";
 import { useChatStore, agentStates } from "../../stores/chatStore";
@@ -54,10 +55,10 @@ export const InputBar = memo(function InputBar() {
   const hasSession = useChatStore((s) => s.hasSession);
   const planMode = useChatStore((s) => s.planMode);
   const agentId = useChatStore((s) => s.agentId);
-  const agentRoles = useConductorStore((s) => s.agentRoles);
+  const agentRoles = useConductorStore(useShallow((s) => s.agentRoles));
   const currentRoleName = agentRoles[agentId]?.name ?? null;
   const projectPath = useChatStore((s) => s.projectPath);
-  const agents = useAgentStore((s) => s.agents);
+  const agents = useAgentStore(useShallow((s) => s.agents));
   // Voice input — insert appends, replace overwrites (for streaming interim)
   const handleVoiceInsert = useCallback((transcribed: string) => {
     setText((prev) => (prev ? prev + " " + transcribed : transcribed));

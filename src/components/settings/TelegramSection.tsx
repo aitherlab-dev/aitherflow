@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { invoke } from "../../lib/transport";
 import { Tooltip } from "../shared/Tooltip";
@@ -50,9 +50,13 @@ export function TelegramSection() {
       .catch(console.error);
   }, []);
 
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const save = useCallback((updated: TelegramConfig) => {
     setConfig(updated);
-    invoke("save_telegram_config", { config: updated }).catch(console.error);
+    clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      invoke("save_telegram_config", { config: updated }).catch(console.error);
+    }, 400);
   }, []);
 
   const handleToggle = useCallback(() => {

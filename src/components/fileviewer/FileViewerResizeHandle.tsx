@@ -20,22 +20,27 @@ export const FileViewerResizeHandle = memo(function FileViewerResizeHandle() {
       ) as HTMLElement | null;
       if (wrapper) wrapper.style.transition = "none";
 
+      let rafId = 0;
       const onMove = (ev: MouseEvent) => {
         if (!dragging.current) return;
-        if (isRight) {
-          const newSize = window.innerWidth - ev.clientX;
-          setFileViewerSize(newSize);
-        } else {
-          const main = document.querySelector(".app-main") as HTMLElement | null;
-          if (main) {
-            const rect = main.getBoundingClientRect();
-            const newSize = rect.bottom - ev.clientY;
+        cancelAnimationFrame(rafId);
+        rafId = requestAnimationFrame(() => {
+          if (isRight) {
+            const newSize = window.innerWidth - ev.clientX;
             setFileViewerSize(newSize);
+          } else {
+            const main = document.querySelector(".app-main") as HTMLElement | null;
+            if (main) {
+              const rect = main.getBoundingClientRect();
+              const newSize = rect.bottom - ev.clientY;
+              setFileViewerSize(newSize);
+            }
           }
-        }
+        });
       };
 
       const onUp = () => {
+        cancelAnimationFrame(rafId);
         dragging.current = false;
         document.body.classList.remove("select-none");
         document.body.style.cursor = "";

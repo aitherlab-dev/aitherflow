@@ -9,20 +9,25 @@ export function useFileAttach() {
 
   /** Process file paths via Rust backend and add as attachments */
   const processFromPaths = useCallback(async (paths: string[]) => {
-    for (const path of paths) {
-      try {
-        const result = await invoke<ProcessFileResult>("process_file", { path });
-        const att: Attachment = {
+    const results = await Promise.allSettled(
+      paths.map((path) => invoke<ProcessFileResult>("process_file", { path })),
+    );
+    const newAttachments: Attachment[] = [];
+    for (const r of results) {
+      if (r.status === "fulfilled") {
+        newAttachments.push({
           id: crypto.randomUUID(),
-          name: result.name,
-          content: result.content,
-          size: result.size,
-          fileType: toFileType(result.fileType),
-        };
-        setAttachments((prev) => [...prev, att]);
-      } catch (e) {
-        console.error("Failed to process file:", e);
+          name: r.value.name,
+          content: r.value.content,
+          size: r.value.size,
+          fileType: toFileType(r.value.fileType),
+        });
+      } else {
+        console.error("Failed to process file:", r.reason);
       }
+    }
+    if (newAttachments.length > 0) {
+      setAttachments((prev) => [...prev, ...newAttachments]);
     }
   }, []);
 

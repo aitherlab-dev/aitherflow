@@ -50,22 +50,31 @@ export function useDragReorder<T extends string | number>(
   });
   const dragElRef = useRef<HTMLElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
+  const rectsCache = useRef<Map<string | number, { id: T; rect: DOMRect }>>(new Map());
+
+  /** Cache all item rects at drag start; reuse on every pointermove */
+  const cacheRects = useCallback(() => {
+    rectsCache.current.clear();
+    if (!gridRef.current) return;
+    const items = gridRef.current.querySelectorAll<HTMLElement>(`[data-${dataAttr}]`);
+    const camelAttr = toCamelCase(dataAttr);
+    for (const item of items) {
+      const val = item.dataset[camelAttr];
+      if (val == null) continue;
+      const id = (typeof state.dragId === "number" ? Number(val) : val) as T;
+      rectsCache.current.set(id as string | number, { id, rect: item.getBoundingClientRect() });
+    }
+  }, [dataAttr, state.dragId]);
 
   const findAtPoint = useCallback(
     (x: number, y: number, excludeId: T): T | null => {
-      if (!gridRef.current) return null;
-      const items = gridRef.current.querySelectorAll<HTMLElement>(`[data-${dataAttr}]`);
-      for (const item of items) {
-        const val = item.dataset[toCamelCase(dataAttr)];
-        if (val == null) continue;
-        const id = (typeof excludeId === "number" ? Number(val) : val) as T;
+      for (const { id, rect } of rectsCache.current.values()) {
         if (id === excludeId) continue;
-        const rect = item.getBoundingClientRect();
         if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) return id;
       }
       return null;
     },
-    [dataAttr],
+    [],
   );
 
   const handlePointerDown = useCallback(
@@ -83,6 +92,8 @@ export function useDragReorder<T extends string | number>(
         dropTargetId: null,
         dragging: false,
       });
+      // Cache all item rects once at drag start
+      requestAnimationFrame(() => cacheRects());
       target.setPointerCapture(e.pointerId);
     },
     [],

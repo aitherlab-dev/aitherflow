@@ -171,7 +171,7 @@ listen<CliEvent>("cli-event", (event) => {
     const existing = agentUsage.get(e.agent_id) ?? emptyUsage();
     existing.contextUsed = e.context_used;
     existing.outputTokens = e.output_tokens;
-    agentUsage.set(e.agent_id, { ...existing });
+    if (!agentUsage.has(e.agent_id)) agentUsage.set(e.agent_id, existing);
 
     if (e.agent_id === activeAgentId) {
       useConductorStore.setState({
@@ -196,7 +196,7 @@ listen<CliEvent>("cli-event", (event) => {
     existing.cacheReadTokens = e.cache_read_input_tokens;
     existing.contextMax = contextMax;
     existing.costUsd = e.cost_usd;
-    agentUsage.set(e.agent_id, { ...existing });
+    if (!agentUsage.has(e.agent_id)) agentUsage.set(e.agent_id, existing);
 
     if (e.agent_id === activeAgentId) {
       useConductorStore.setState({
