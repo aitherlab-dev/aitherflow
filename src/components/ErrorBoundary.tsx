@@ -18,7 +18,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error("[ErrorBoundary]", error, info.componentStack);
+    console.error("[ErrorBoundary]", error.message, error.stack, info.componentStack);
   }
 
   handleReload = () => {
@@ -57,7 +57,7 @@ export class ErrorBoundary extends Component<Props, State> {
             lineHeight: 1.5,
           }}
         >
-          {this.state.error?.message || "An unexpected error occurred"}
+          An unexpected error occurred
         </p>
         <button
           onClick={this.handleReload}

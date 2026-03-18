@@ -32,7 +32,8 @@ export function McpAddForm({
       await addServer(scope, trimName, config, projectDir);
       onDone();
     } catch (e) {
-      setError(String(e));
+      console.error("Failed to add MCP server:", e);
+      setError("Failed to add server. Check console for details.");
     }
   }, [name, config, scope, projectDir, addServer, onDone]);
 

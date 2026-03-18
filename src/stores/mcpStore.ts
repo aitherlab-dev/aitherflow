@@ -116,8 +116,9 @@ export const useMcpStore = create<McpState>((set, get) => ({
       results.set(name, result);
       set({ testResults: results });
     } catch (e) {
+      console.error(`MCP test failed for ${name}:`, e);
       const results = new Map(get().testResults);
-      results.set(name, { ok: false, message: String(e) });
+      results.set(name, { ok: false, message: "Test failed. Check console for details." });
       set({ testResults: results });
     } finally {
       const current = get().testing;

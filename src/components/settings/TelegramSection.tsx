@@ -1,12 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "../../lib/transport";
-import { Tooltip } from "../shared/Tooltip";
 
 interface TelegramConfig {
   bot_token: string | null;
   chat_id: number | null;
-  groq_api_key: string | null;
   enabled: boolean;
   notify_on_complete: boolean;
 }
@@ -22,7 +19,6 @@ export function TelegramSection() {
   const [config, setConfig] = useState<TelegramConfig>({
     bot_token: null,
     chat_id: null,
-    groq_api_key: null,
     enabled: false,
     notify_on_complete: false,
   });
@@ -33,17 +29,22 @@ export function TelegramSection() {
     bot_username: null,
   });
   const [loaded, setLoaded] = useState(false);
-  const [showToken, setShowToken] = useState(false);
-  const [showGroqKey, setShowGroqKey] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
+  /** Real bot token kept out of React state (not visible in DevTools) */
+  const realTokenRef = useRef<string | null>(null);
 
   useEffect(() => {
     Promise.all([
-      invoke<TelegramConfig>("load_telegram_config"),
+      invoke<TelegramConfig & { groq_api_key?: string | null }>("load_telegram_config"),
       invoke<TelegramStatus>("get_telegram_status"),
     ])
       .then(([cfg, st]) => {
-        setConfig(cfg);
+        realTokenRef.current = cfg.bot_token;
+        const masked = cfg.bot_token
+          ? `****${cfg.bot_token.slice(-4)}`
+          : null;
+        const { groq_api_key: _, ...rest } = cfg;
+        setConfig({ ...rest, bot_token: masked });
         setStatus(st);
         setLoaded(true);
       })
@@ -52,7 +53,13 @@ export function TelegramSection() {
 
   const save = useCallback((updated: TelegramConfig) => {
     setConfig(updated);
-    invoke("save_telegram_config", { config: updated }).catch(console.error);
+    // Resolve real token: if user entered a new value (not masked), use it; otherwise keep existing
+    const token = updated.bot_token;
+    if (token && !token.startsWith("****")) {
+      realTokenRef.current = token;
+    }
+    const toSave = { ...updated, bot_token: realTokenRef.current };
+    invoke("save_telegram_config", { config: toSave }).catch(console.error);
   }, []);
 
   const handleToggle = useCallback(() => {
@@ -64,8 +71,10 @@ export function TelegramSection() {
       invoke<TelegramStatus>("start_telegram_bot")
         .then((st) => setStatus(st))
         .catch((e) => {
-          setStartError(String(e));
-          setStatus({ running: false, connected: false, error: String(e), bot_username: null });
+          console.error("Failed to start Telegram bot:", e);
+          const msg = "Failed to start bot. Check console for details.";
+          setStartError(msg);
+          setStatus({ running: false, connected: false, error: msg, bot_username: null });
         });
     } else {
       invoke("stop_telegram_bot")
@@ -110,28 +119,19 @@ export function TelegramSection() {
         </div>
       )}
 
-      {/* Bot token */}
+      {/* Bot token — always masked, last 4 chars visible */}
       <div className="webserver-field">
         <label className="webserver-field-label">Bot token (from @BotFather)</label>
-        <div className="webserver-token-row">
-          <input
-            type={showToken ? "text" : "password"}
-            className="webserver-input webserver-token-input"
-            value={config.bot_token ?? ""}
-            onChange={(e) =>
-              handleFieldChange("bot_token", e.target.value || null)
-            }
-            placeholder="123456:ABC-DEF..."
-          />
-          <Tooltip text={showToken ? "Hide" : "Show"}>
-            <button
-              className="webserver-icon-btn"
-              onClick={() => setShowToken(!showToken)}
-            >
-              {showToken ? <EyeOff size={16} /> : <Eye size={16} />}
-            </button>
-          </Tooltip>
-        </div>
+        <input
+          type="password"
+          className="webserver-input"
+          value={config.bot_token ?? ""}
+          onChange={(e) =>
+            handleFieldChange("bot_token", e.target.value || null)
+          }
+          placeholder="123456:ABC-DEF..."
+          autoComplete="off"
+        />
       </div>
 
       {/* Chat ID */}
@@ -151,33 +151,6 @@ export function TelegramSection() {
         />
         <span className="webserver-note">
           Send /start to @userinfobot in Telegram to get your ID.
-        </span>
-      </div>
-
-      {/* Groq API key */}
-      <div className="webserver-field">
-        <label className="webserver-field-label">Groq API key (for voice messages)</label>
-        <div className="webserver-token-row">
-          <input
-            type={showGroqKey ? "text" : "password"}
-            className="webserver-input webserver-token-input"
-            value={config.groq_api_key ?? ""}
-            onChange={(e) =>
-              handleFieldChange("groq_api_key", e.target.value || null)
-            }
-            placeholder="gsk_..."
-          />
-          <Tooltip text={showGroqKey ? "Hide" : "Show"}>
-            <button
-              className="webserver-icon-btn"
-              onClick={() => setShowGroqKey(!showGroqKey)}
-            >
-              {showGroqKey ? <EyeOff size={16} /> : <Eye size={16} />}
-            </button>
-          </Tooltip>
-        </div>
-        <span className="webserver-note">
-          Optional. Required only for voice message transcription via Whisper.
         </span>
       </div>
 

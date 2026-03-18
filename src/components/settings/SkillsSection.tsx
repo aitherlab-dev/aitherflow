@@ -194,13 +194,14 @@ function InstalledTab() {
       );
       setMoveTarget(null);
     } catch (e) {
+      console.error("Failed to move skill:", e);
       const msg = String(e);
       if (msg.includes("already exists")) {
         setMoveConflict(true);
         setMoveNewName(moveTarget.id.replace(/^project:[^:]+:/, ""));
         setMoveError("Skill with this name already exists. Choose a new name.");
       } else {
-        setMoveError(msg);
+        setMoveError("Failed to move skill. Check console for details.");
       }
     }
   }, [moveTarget, moveProjectPath, moveNewName, moveSkill]);
@@ -559,7 +560,8 @@ function SourcesTab() {
       setAdding(false);
       setNewUrl("");
     } catch (e) {
-      setAddError(String(e));
+      console.error("Failed to add skill source:", e);
+      setAddError("Failed to add source. Check console for details.");
     }
   }, [newUrl, addSource]);
 

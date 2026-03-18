@@ -115,7 +115,7 @@ export const McpServerCard = memo(function McpServerCard({
               <div className="mcp-card-env">
                 {Object.entries(server.env).map(([k, v]) => (
                   <span key={k} className="mcp-card-env-entry">
-                    {k}={v.length > 20 ? v.slice(0, 20) + "…" : v}
+                    {k}={/KEY|TOKEN|SECRET|PASSWORD/i.test(k) ? "****" : v.length > 20 ? v.slice(0, 20) + "…" : v}
                   </span>
                 ))}
               </div>
@@ -127,7 +127,7 @@ export const McpServerCard = memo(function McpServerCard({
               <div className="mcp-card-env">
                 {Object.entries(server.headers).map(([k, v]) => (
                   <span key={k} className="mcp-card-env-entry">
-                    {k}: {v.length > 30 ? v.slice(0, 30) + "…" : v}
+                    {k}: {/^authorization$/i.test(k) ? "Bearer ****" : v.length > 30 ? v.slice(0, 30) + "…" : v}
                   </span>
                 ))}
               </div>
