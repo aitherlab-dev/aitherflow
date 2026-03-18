@@ -285,21 +285,42 @@ fn validate_http_url(url: &str) -> Result<(), String> {
         return Err("Localhost URLs are not allowed".into());
     }
 
-    // Block private/link-local IPs
+    // Block private/link-local IPs (literal)
+    check_ip_not_private(host)?;
+
+    // DNS rebinding protection: resolve hostname and check all resulting IPs
+    if host.parse::<std::net::Ipv4Addr>().is_err()
+        && host.parse::<std::net::Ipv6Addr>().is_err()
+    {
+        // It's a hostname, resolve it
+        let host_with_port = format!("{}:0", host);
+        if let Ok(addrs) = std::net::ToSocketAddrs::to_socket_addrs(&host_with_port) {
+            for addr in addrs {
+                check_ip_not_private(&addr.ip().to_string())?;
+            }
+        }
+        // If resolution fails, allow — the actual connection will fail later
+    }
+
+    Ok(())
+}
+
+/// Check that an IP address (as string) is not in a private/loopback/link-local range.
+fn check_ip_not_private(host: &str) -> Result<(), String> {
     if let Ok(ip) = host.parse::<std::net::Ipv4Addr>() {
         if ip.is_loopback()           // 127.0.0.0/8
             || ip.is_private()         // 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
             || ip.is_link_local()      // 169.254.0.0/16 (includes AWS metadata)
+            || ip.is_unspecified()     // 0.0.0.0
         {
             return Err(format!("Private/loopback IP not allowed: {ip}"));
         }
     }
     if let Ok(ip) = host.parse::<std::net::Ipv6Addr>() {
-        if ip.is_loopback() {
-            return Err(format!("Loopback IPv6 not allowed: {ip}"));
+        if ip.is_loopback() || ip.is_unspecified() {
+            return Err(format!("Loopback/unspecified IPv6 not allowed: {ip}"));
         }
     }
-
     Ok(())
 }
 

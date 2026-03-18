@@ -237,11 +237,16 @@ pub async fn run_cli_session(
             }
             let path =
                 std::env::temp_dir().join(format!("aitherflow-mcp-{safe_agent_id}.json"));
+            let token = crate::teamwork::mcp_server::get_mcp_token()
+                .unwrap_or_default();
             let config_json = serde_json::json!({
                 "mcpServers": {
                     "teamwork": {
                         "type": "http",
-                        "url": format!("http://127.0.0.1:{port}/mcp/{safe_agent_id}")
+                        "url": format!("http://127.0.0.1:{port}/mcp/{safe_agent_id}"),
+                        "headers": {
+                            "Authorization": format!("Bearer {token}")
+                        }
                     }
                 }
             });

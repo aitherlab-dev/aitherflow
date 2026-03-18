@@ -384,15 +384,16 @@ pub async fn save_chat_messages(
             ChatFileMeta::from_chat(&chat)
         };
 
-        // Serialize metadata and messages separately, then combine.
-        // This avoids building the full ChatFile struct just to serialize it.
-        let meta_json = serde_json::to_string(&meta)
+        // Deserialize meta into a Value, insert messages, serialize back
+        let mut chat_value = serde_json::to_value(&meta)
             .map_err(|e| format!("Failed to serialize meta: {e}"))?;
-        let msgs_json = serde_json::to_string(&messages)
+        let msgs_value = serde_json::to_value(&messages)
             .map_err(|e| format!("Failed to serialize messages: {e}"))?;
-
-        // meta_json is like {"id":"...", ...} — inject "messages" field
-        let data = format!("{},\"messages\":{}}}", &meta_json[..meta_json.len() - 1], msgs_json);
+        chat_value.as_object_mut()
+            .ok_or_else(|| "Meta serialized to non-object".to_string())?
+            .insert("messages".to_string(), msgs_value);
+        let data = serde_json::to_string(&chat_value)
+            .map_err(|e| format!("Failed to serialize chat: {e}"))?;
         atomic_write(&chat_path(&chat_id), data.as_bytes())
     })
     .await
