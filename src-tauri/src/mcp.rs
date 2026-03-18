@@ -320,6 +320,12 @@ fn check_ip_not_private(host: &str) -> Result<(), String> {
         if ip.is_loopback() || ip.is_unspecified() {
             return Err(format!("Loopback/unspecified IPv6 not allowed: {ip}"));
         }
+        // Check IPv4-mapped IPv6 addresses (e.g. ::ffff:127.0.0.1)
+        if let Some(mapped) = ip.to_ipv4_mapped() {
+            if mapped.is_loopback() || mapped.is_private() || mapped.is_link_local() || mapped.is_unspecified() {
+                return Err(format!("Private/loopback IPv4-mapped IPv6 not allowed: {ip}"));
+            }
+        }
     }
     Ok(())
 }
