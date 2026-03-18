@@ -3,6 +3,7 @@ import { ChevronRight, Plus, Trash2 } from "lucide-react";
 import type { HookEvent, HookEntry, HookHandler, HookScope } from "../../../types/hooks";
 import { HOOK_EVENT_DESCRIPTIONS, MATCHER_EVENTS } from "../../../types/hooks";
 import { HookEntryCard } from "./HookEntryCard";
+import { Tooltip } from "../../shared/Tooltip";
 
 interface Props {
   event: HookEvent;
@@ -108,13 +109,14 @@ export function HooksEventCard({
         {totalHandlers > 0 && (
           <span className="hooks-badge">{totalHandlers}</span>
         )}
-        <button
-          className="hooks-delete-btn"
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          title="Remove event"
-        >
-          <Trash2 size={13} />
-        </button>
+        <Tooltip text="Remove event">
+          <button
+            className="hooks-delete-btn"
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          >
+            <Trash2 size={13} />
+          </button>
+        </Tooltip>
       </div>
 
       {expanded && (

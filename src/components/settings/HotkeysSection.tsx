@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { RotateCcw } from "lucide-react";
+import { Tooltip } from "../shared/Tooltip";
 import {
   useHotkeyStore,
   HOTKEY_LABELS,
@@ -26,10 +27,12 @@ export function HotkeysSection() {
         <p className="settings-toggle-desc">
           Click a shortcut to record a new binding. Press Escape to cancel.
         </p>
-        <button className="hotkeys-reset-all" onClick={resetAll} title="Reset all to defaults">
-          <RotateCcw size={14} />
-          <span>Reset all</span>
-        </button>
+        <Tooltip text="Reset all to defaults">
+          <button className="hotkeys-reset-all" onClick={resetAll}>
+            <RotateCcw size={14} />
+            <span>Reset all</span>
+          </button>
+        </Tooltip>
       </div>
 
       {/* Voice mode toggle */}
@@ -146,21 +149,23 @@ function HotkeyRow({
   return (
     <div className={`hotkeys-row ${isRecording ? "hotkeys-row--recording" : ""}`}>
       <span className="hotkeys-row-label">{HOTKEY_LABELS[action]}</span>
-      <button
-        className={`hotkeys-row-binding ${isRecording ? "hotkeys-row-binding--active" : ""}`}
-        onClick={onStartRecord}
-        title="Click to change"
-      >
-        {isRecording ? "Press keys…" : bindingToString(binding)}
-      </button>
-      <button
-        className="hotkeys-row-reset"
-        onClick={onReset}
-        disabled={isDefault}
-        title="Reset to default"
-      >
-        <RotateCcw size={13} />
-      </button>
+      <Tooltip text="Click to change">
+        <button
+          className={`hotkeys-row-binding ${isRecording ? "hotkeys-row-binding--active" : ""}`}
+          onClick={onStartRecord}
+        >
+          {isRecording ? "Press keys…" : bindingToString(binding)}
+        </button>
+      </Tooltip>
+      <Tooltip text="Reset to default">
+        <button
+          className="hotkeys-row-reset"
+          onClick={onReset}
+          disabled={isDefault}
+        >
+          <RotateCcw size={13} />
+        </button>
+      </Tooltip>
     </div>
   );
 }

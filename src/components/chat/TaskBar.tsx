@@ -4,6 +4,8 @@ import { useChatStore, getToolLabel, selectRecentTools, selectToolActivities, se
 import { useShallow } from "zustand/react/shallow";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { ToolCard } from "./ToolCard";
+import { Tooltip } from "../shared/Tooltip";
+import { useHotkeyStore, bindingToString } from "../../stores/hotkeyStore";
 
 export const TaskBar = memo(function TaskBar() {
   const recentTools = useChatStore(useShallow(selectRecentTools));
@@ -33,17 +35,18 @@ export const TaskBar = memo(function TaskBar() {
           <span className="taskbar__label">Agent Log</span>
           <span className="taskbar__count">{count} actions</span>
         </div>
-        <button
-          className={`taskbar__toggle ${agentLogOpen ? "taskbar__toggle--active" : ""}`}
-          onClick={() => useLayoutStore.getState().toggleAgentLog()}
-          title="Agent Log (Alt+L)"
-        >
-          <List size={12} />
-          <span>Tasks</span>
-          {toolCount > 0 && (
-            <span className="taskbar__badge">{toolCount}</span>
-          )}
-        </button>
+        <Tooltip text={`Agent Log (${bindingToString(useHotkeyStore.getState().bindings.toggleAgentLog)})`}>
+          <button
+            className={`taskbar__toggle ${agentLogOpen ? "taskbar__toggle--active" : ""}`}
+            onClick={() => useLayoutStore.getState().toggleAgentLog()}
+          >
+            <List size={12} />
+            <span>Tasks</span>
+            {toolCount > 0 && (
+              <span className="taskbar__badge">{toolCount}</span>
+            )}
+          </button>
+        </Tooltip>
       </div>
 
       {/* Always visible: last 2 tasks */}

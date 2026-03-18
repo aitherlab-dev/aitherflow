@@ -1,5 +1,6 @@
 import { memo, useCallback } from "react";
 import { GitBranch, Loader, X } from "lucide-react";
+import { Tooltip } from "../../shared/Tooltip";
 
 export const WorktreeTab = memo(function WorktreeTab({
   agentId,
@@ -40,13 +41,14 @@ export const WorktreeTab = memo(function WorktreeTab({
           <Loader size={12} className="sidebar-project__bg-spinner" />
         )}
       </button>
-      <button
-        className="sidebar-project__close"
-        onClick={handleClose}
-        title="Close worktree"
-      >
-        <X size={12} />
-      </button>
+      <Tooltip text="Close worktree">
+        <button
+          className="sidebar-project__close"
+          onClick={handleClose}
+        >
+          <X size={12} />
+        </button>
+      </Tooltip>
     </div>
   );
 });

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Save, ChevronDown, FileText } from "lucide-react";
 import { invoke } from "../../lib/transport";
+import { Tooltip } from "../shared/Tooltip";
 
 interface ClaudeMdEntry {
   label: string;
@@ -123,15 +124,16 @@ export function ClaudeMdSection() {
           )}
         </div>
 
-        <button
-          className="claude-md-save-btn"
-          onClick={handleSave}
-          disabled={!hasChanges || saving}
-          title="Save (Ctrl+S)"
-        >
-          <Save size={14} />
-          <span>{saving ? "Saving..." : "Save"}</span>
-        </button>
+        <Tooltip text="Save (Ctrl+S)">
+          <button
+            className="claude-md-save-btn"
+            onClick={handleSave}
+            disabled={!hasChanges || saving}
+          >
+            <Save size={14} />
+            <span>{saving ? "Saving..." : "Save"}</span>
+          </button>
+        </Tooltip>
       </div>
 
       {/* Path hint */}

@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from "react";
 import { Play, Trash2, ChevronDown, ChevronRight, Pencil } from "lucide-react";
 import { invoke } from "../../../lib/transport";
 import { useTranslationStore } from "../../../stores/translationStore";
+import { Tooltip } from "../../shared/Tooltip";
 import type { HookHandler, HandlerType, HookTestResult, HookEvent, HookScope } from "../../../types/hooks";
 
 interface Props {
@@ -116,13 +117,14 @@ export function HookHandlerForm({ handler, onUpdate, onDelete, projectPath, scop
             <option key={t.value} value={t.value}>{t.label}</option>
           ))}
         </select>
-        <button
-          className="hooks-delete-btn"
-          onClick={onDelete}
-          title="Remove handler"
-        >
-          <Trash2 size={13} />
-        </button>
+        <Tooltip text="Remove handler">
+          <button
+            className="hooks-delete-btn"
+            onClick={onDelete}
+          >
+            <Trash2 size={13} />
+          </button>
+        </Tooltip>
       </div>
 
       {/* Description field */}

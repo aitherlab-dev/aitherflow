@@ -1,6 +1,7 @@
 import { memo, useState, useCallback, useRef } from "react";
 import { ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
 import { convertFileSrc } from "../../lib/transport";
+import { Tooltip } from "../shared/Tooltip";
 
 interface ImageViewerProps {
   filePath: string;
@@ -42,28 +43,31 @@ export const ImageViewer = memo(function ImageViewer({
   return (
     <div className="fv-image-viewer" ref={containerRef}>
       <div className="fv-image-toolbar">
-        <button
-          className="fv-image-btn"
-          onClick={handleZoomOut}
-          title="Zoom out"
-        >
-          <ZoomOut size={14} />
-        </button>
+        <Tooltip text="Zoom out">
+          <button
+            className="fv-image-btn"
+            onClick={handleZoomOut}
+          >
+            <ZoomOut size={14} />
+          </button>
+        </Tooltip>
         <span className="fv-image-zoom">{Math.round(zoom * 100)}%</span>
-        <button
-          className="fv-image-btn"
-          onClick={handleZoomIn}
-          title="Zoom in"
-        >
-          <ZoomIn size={14} />
-        </button>
-        <button
-          className="fv-image-btn"
-          onClick={handleReset}
-          title="Reset zoom"
-        >
-          <RotateCcw size={14} />
-        </button>
+        <Tooltip text="Zoom in">
+          <button
+            className="fv-image-btn"
+            onClick={handleZoomIn}
+          >
+            <ZoomIn size={14} />
+          </button>
+        </Tooltip>
+        <Tooltip text="Reset zoom">
+          <button
+            className="fv-image-btn"
+            onClick={handleReset}
+          >
+            <RotateCcw size={14} />
+          </button>
+        </Tooltip>
       </div>
       <div className="fv-image-container" onWheel={handleWheel}>
         <img

@@ -7,6 +7,7 @@ import { sendMessage } from "../../stores/chatService";
 import { useTranslationStore } from "../../stores/translationStore";
 import type { SkillEntry } from "../../types/skills";
 import { useClickOutside } from "../../hooks/useClickOutside";
+import { Tooltip } from "../shared/Tooltip";
 
 interface SkillsMenuProps {
   anchorRect: DOMRect;
@@ -58,16 +59,16 @@ export const SkillsMenu = memo(function SkillsMenu({
         </div>
       ) : (
         favorites.map((skill) => (
-          <button
-            key={skill.id}
-            className="skills-menu__item"
-            onClick={() => handleSkillClick(skill)}
-            title={translations[`skill:${skill.id}`] || skill.description || skill.name}
-          >
-            <Star size={12} className="skills-menu__star" />
-            <span className="skills-menu__name">{skill.name}</span>
-            <span className="skills-menu__command">{skill.command}</span>
-          </button>
+          <Tooltip key={skill.id} text={translations[`skill:${skill.id}`] || skill.description || skill.name}>
+            <button
+              className="skills-menu__item"
+              onClick={() => handleSkillClick(skill)}
+            >
+              <Star size={12} className="skills-menu__star" />
+              <span className="skills-menu__name">{skill.name}</span>
+              <span className="skills-menu__command">{skill.command}</span>
+            </button>
+          </Tooltip>
         ))
       )}
     </div>,

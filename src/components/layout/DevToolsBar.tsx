@@ -2,10 +2,11 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "../../lib/transport";
 import { useAgentStore } from "../../stores/agentStore";
 import { useChatStore } from "../../stores/chatStore";
+import { Tooltip } from "../shared/Tooltip";
 
 // ── Build button with confirmation popup ──
 
-const BuildButton = memo(function BuildButton() {
+export const BuildButton = memo(function BuildButton() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [status, setStatus] = useState<"idle" | "blocked" | "closing">("idle");
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -52,11 +53,11 @@ const BuildButton = memo(function BuildButton() {
 
   return (
     <div className="devtools-btn-wrap">
+      <Tooltip text="Build and install">
       <button
         ref={btnRef}
         className={`devtools-btn ${status === "blocked" ? "devtools-btn--blocked" : ""} ${status === "closing" ? "devtools-btn--closing" : ""}`}
         onClick={handleClick}
-        title="Build and install"
       >
         {status === "blocked"
           ? "BUSY"
@@ -64,6 +65,7 @@ const BuildButton = memo(function BuildButton() {
             ? "CLOSING..."
             : "BUILD"}
       </button>
+      </Tooltip>
       {confirmOpen && (
         <div ref={popupRef} className="build-confirm-popup">
           <span className="build-confirm-text">Build & restart?</span>
@@ -89,7 +91,7 @@ const BuildButton = memo(function BuildButton() {
 
 // ── Dev toggle button ──
 
-const DevButton = memo(function DevButton() {
+export const DevButton = memo(function DevButton() {
   const [devServers, setDevServers] = useState<Set<string>>(new Set());
   const projectPath = useAgentStore(
     (s) => s.agents.find((a) => a.id === s.activeAgentId)?.projectPath ?? "",
@@ -122,14 +124,15 @@ const DevButton = memo(function DevButton() {
   }, [projectPath, isRunning]);
 
   return (
-    <button
-      className={`devtools-btn ${isRunning ? "devtools-btn--dev-active" : ""}`}
-      onClick={handleToggle}
-      title={isRunning ? "Stop dev server" : "Start dev server"}
-    >
-      {isRunning && <span className="dev-pulse" />}
-      {isRunning ? "STOP" : "DEV"}
-    </button>
+    <Tooltip text={isRunning ? "Stop dev server" : "Start dev server"}>
+      <button
+        className={`devtools-btn ${isRunning ? "devtools-btn--dev-active" : ""}`}
+        onClick={handleToggle}
+      >
+        {isRunning && <span className="dev-pulse" />}
+        {isRunning ? "STOP" : "DEV"}
+      </button>
+    </Tooltip>
   );
 });
 

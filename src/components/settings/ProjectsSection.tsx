@@ -8,6 +8,7 @@ import {
 import { openDialog } from "../../lib/transport";
 import { useProjectStore } from "../../stores/projectStore";
 import type { ProjectBookmark } from "../../types/projects";
+import { Tooltip } from "../shared/Tooltip";
 
 /** Shorten an absolute path for display: remove /home/<user>/ prefix */
 function shortenPath(fullPath: string): string {
@@ -116,13 +117,14 @@ const ProjectItem = memo(function ProjectItem({
           </span>
         )}
         {!isFirst && (
-          <button
-            className="project-item-remove"
-            onClick={handleRemove}
-            title="Remove project"
-          >
-            <X size={14} />
-          </button>
+          <Tooltip text="Remove project">
+            <button
+              className="project-item-remove"
+              onClick={handleRemove}
+            >
+              <X size={14} />
+            </button>
+          </Tooltip>
         )}
       </div>
 
@@ -132,13 +134,14 @@ const ProjectItem = memo(function ProjectItem({
           {dirs.map((dir) => (
             <div key={dir} className="project-dir">
               <span className="project-dir-path">{dir}</span>
-              <button
-                className="project-dir-remove"
-                onClick={() => handleRemoveDir(dir)}
-                title="Remove directory"
-              >
-                <X size={12} />
-              </button>
+              <Tooltip text="Remove directory">
+                <button
+                  className="project-dir-remove"
+                  onClick={() => handleRemoveDir(dir)}
+                >
+                  <X size={12} />
+                </button>
+              </Tooltip>
             </div>
           ))}
           <button className="project-add-dir" onClick={handleAddDir}>

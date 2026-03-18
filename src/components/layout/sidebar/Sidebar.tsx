@@ -14,6 +14,7 @@ import { DashboardPanel } from "../../dashboard/DashboardPanel";
 import { WorktreePanel } from "../../chat/WorktreePanel";
 import { AgentTab } from "./AgentTab";
 import { WorktreeTab } from "./WorktreeTab";
+import { Tooltip } from "../../shared/Tooltip";
 
 export const Sidebar = memo(function Sidebar() {
   const isMobile = useIsMobile();
@@ -307,13 +308,14 @@ export const Sidebar = memo(function Sidebar() {
               {extraWorktreeCount > 0 && (
                 <span className="dash-card__dot dash-card__dot--orange" />
               )}
-              <button
-                className="dash-card__action"
-                onClick={handleBranchCreate}
-                title="Add worktree"
-              >
-                <Plus size={14} />
-              </button>
+              <Tooltip text="Add worktree">
+                <button
+                  className="dash-card__action"
+                  onClick={handleBranchCreate}
+                >
+                  <Plus size={14} />
+                </button>
+              </Tooltip>
             </div>
           </div>
           {branchesOpen && (

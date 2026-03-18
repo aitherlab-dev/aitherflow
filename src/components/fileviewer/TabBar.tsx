@@ -2,6 +2,7 @@ import { memo, useCallback, useState } from "react";
 import { X, ChevronDown, Check, Undo2, Save } from "lucide-react";
 import { useFileViewerStore } from "../../stores/fileViewerStore";
 import { useShallow } from "zustand/react/shallow";
+import { Tooltip } from "../shared/Tooltip";
 
 export const TabBar = memo(function TabBar() {
   const tabs = useFileViewerStore(useShallow((s) => s.tabs));
@@ -67,48 +68,50 @@ export const TabBar = memo(function TabBar() {
       <div className="fv-tabbar">
         <div className="fv-tabbar__tabs">
           {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              className={`fv-tab ${tab.id === activeTabId ? "fv-tab--active" : ""} ${tab.isPreview ? "fv-tab--preview" : ""} ${tab.isModified ? "fv-tab--modified" : ""}`}
-              onClick={() => setActiveTab(tab.id)}
-              title={tab.filePath}
-            >
-              <span className="fv-tab__name">{tab.fileName}</span>
-              {tab.isModified && <span className="fv-tab__dot" />}
-              {!tab.isPreview && (
-                <span
-                  className="fv-tab__close"
-                  onClick={(e) => handleClose(e, tab.id)}
-                >
-                  <X size={12} />
-                </span>
-              )}
-            </button>
+            <Tooltip key={tab.id} text={tab.filePath}>
+              <button
+                className={`fv-tab ${tab.id === activeTabId ? "fv-tab--active" : ""} ${tab.isPreview ? "fv-tab--preview" : ""} ${tab.isModified ? "fv-tab--modified" : ""}`}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                <span className="fv-tab__name">{tab.fileName}</span>
+                {tab.isModified && <span className="fv-tab__dot" />}
+                {!tab.isPreview && (
+                  <span
+                    className="fv-tab__close"
+                    onClick={(e) => handleClose(e, tab.id)}
+                  >
+                    <X size={12} />
+                  </span>
+                )}
+              </button>
+            </Tooltip>
           ))}
         </div>
 
         {/* Save button */}
         {activeTab?.isModified && (
-          <button
-            className="fv-save-btn"
-            onClick={handleSave}
-            title="Save (Ctrl+S)"
-          >
-            <Save size={14} />
-          </button>
+          <Tooltip text="Save (Ctrl+S)">
+            <button
+              className="fv-save-btn"
+              onClick={handleSave}
+            >
+              <Save size={14} />
+            </button>
+          </Tooltip>
         )}
 
         {/* Changed files dropdown */}
         {pendingDiffs.length > 0 && (
           <div className="fv-changed-trigger">
-            <button
-              className="fv-changed-btn"
-              onClick={toggleChangedList}
-              title="Changed files"
-            >
-              <ChevronDown size={14} />
-              <span className="fv-changed-badge">{pendingDiffs.length}</span>
-            </button>
+            <Tooltip text="Changed files">
+              <button
+                className="fv-changed-btn"
+                onClick={toggleChangedList}
+              >
+                <ChevronDown size={14} />
+                <span className="fv-changed-badge">{pendingDiffs.length}</span>
+              </button>
+            </Tooltip>
             {changedListOpen && (
               <div className="fv-changed-list">
                 {pendingDiffs.map((diff) => (
@@ -129,22 +132,24 @@ export const TabBar = memo(function TabBar() {
       {/* Accept / Reject bar */}
       {activeDiff && (
         <div className="fv-diff-actions">
-          <button
-            className="fv-diff-btn fv-diff-btn--accept"
-            onClick={() => acceptDiff(activeDiff.toolUseId)}
-            title="Accept changes"
-          >
-            <Check size={14} />
-            <span>Accept</span>
-          </button>
-          <button
-            className="fv-diff-btn fv-diff-btn--reject"
-            onClick={() => rejectDiff(activeDiff.toolUseId)}
-            title="Reject changes"
-          >
-            <Undo2 size={14} />
-            <span>Reject</span>
-          </button>
+          <Tooltip text="Accept changes">
+            <button
+              className="fv-diff-btn fv-diff-btn--accept"
+              onClick={() => acceptDiff(activeDiff.toolUseId)}
+            >
+              <Check size={14} />
+              <span>Accept</span>
+            </button>
+          </Tooltip>
+          <Tooltip text="Reject changes">
+            <button
+              className="fv-diff-btn fv-diff-btn--reject"
+              onClick={() => rejectDiff(activeDiff.toolUseId)}
+            >
+              <Undo2 size={14} />
+              <span>Reject</span>
+            </button>
+          </Tooltip>
         </div>
       )}
       {/* Unsaved changes modal */}

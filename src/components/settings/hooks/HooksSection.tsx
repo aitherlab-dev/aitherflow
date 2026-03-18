@@ -6,6 +6,7 @@ import type { HookEvent, HookEntry, HookHandler, HooksConfig, HookScope } from "
 import { HOOK_EVENT_DESCRIPTIONS } from "../../../types/hooks";
 import { HooksEventCard } from "./HooksEventCard";
 import { HooksTemplates } from "./HooksTemplates";
+import { Tooltip } from "../../shared/Tooltip";
 
 const ALL_EVENTS: HookEvent[] = [
   "PreToolUse", "PostToolUse", "PostToolUseFailure", "Stop",
@@ -252,14 +253,15 @@ export function HooksSection() {
         >
           Global
         </button>
-        <button
-          className={`hooks-scope-btn ${scope === "project" ? "hooks-scope-btn--active" : ""}`}
-          onClick={() => setScope("project")}
-          disabled={!projectPath}
-          title={!projectPath ? "No active project" : undefined}
-        >
-          Project
-        </button>
+        <Tooltip text={!projectPath ? "No active project" : ""}>
+          <button
+            className={`hooks-scope-btn ${scope === "project" ? "hooks-scope-btn--active" : ""}`}
+            onClick={() => setScope("project")}
+            disabled={!projectPath}
+          >
+            Project
+          </button>
+        </Tooltip>
       </div>
 
       <p className="hooks-scope-path">
@@ -287,14 +289,18 @@ export function HooksSection() {
           </div>
         </div>
         <div className="hooks-toolbar-right">
-          <button className="hooks-toolbar-btn" onClick={handleImport} title="Import hooks from JSON">
-            <Upload size={14} />
-            Import
-          </button>
-          <button className="hooks-toolbar-btn" onClick={handleExport} title="Export hooks to JSON">
-            <Download size={14} />
-            Export
-          </button>
+          <Tooltip text="Import hooks from JSON">
+            <button className="hooks-toolbar-btn" onClick={handleImport}>
+              <Upload size={14} />
+              Import
+            </button>
+          </Tooltip>
+          <Tooltip text="Export hooks to JSON">
+            <button className="hooks-toolbar-btn" onClick={handleExport}>
+              <Download size={14} />
+              Export
+            </button>
+          </Tooltip>
         </div>
       </div>
 

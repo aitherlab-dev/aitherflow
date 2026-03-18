@@ -1,6 +1,7 @@
 import { memo } from "react";
 import { X } from "lucide-react";
 import type { Attachment } from "../../types/chat";
+import { Tooltip } from "../shared/Tooltip";
 
 interface AttachmentListProps {
   attachments: Attachment[];
@@ -14,13 +15,14 @@ export const AttachmentList = memo(function AttachmentList({ attachments, onRemo
     <div className="attachment-chips">
       {attachments.map((att) => (
         <div key={att.id} className={`attachment-chip ${att.fileType === "image" ? "attachment-chip--image" : "attachment-chip--file"}`}>
-          <button
-            className="attachment-chip-remove"
-            onClick={() => onRemove(att.id)}
-            title="Remove"
-          >
-            <X size={10} />
-          </button>
+          <Tooltip text="Remove">
+            <button
+              className="attachment-chip-remove"
+              onClick={() => onRemove(att.id)}
+            >
+              <X size={10} />
+            </button>
+          </Tooltip>
           {att.fileType === "image" ? (
             <img
               src={att.content}

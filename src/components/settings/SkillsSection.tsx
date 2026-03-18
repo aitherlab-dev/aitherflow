@@ -18,6 +18,7 @@ import { useSkillStore } from "../../stores/skillStore";
 import { useProjectStore } from "../../stores/projectStore";
 import { useTranslationStore } from "../../stores/translationStore";
 import { Modal } from "../Modal";
+import { Tooltip } from "../shared/Tooltip";
 import type { AvailablePlugin, MarketplaceSource } from "../../types/plugins";
 import type { SkillEntry } from "../../types/skills";
 
@@ -510,13 +511,14 @@ const SourceRow = memo(function SourceRow({
         <span className="plugin-badge plugin-badge--scope">{source.sourceType}</span>
         <span className="source-row-url">{source.url}</span>
       </div>
-      <button
-        className="source-row-remove"
-        onClick={() => onRemove(source.name)}
-        title="Remove source"
-      >
-        <X size={14} />
-      </button>
+      <Tooltip text="Remove source">
+        <button
+          className="source-row-remove"
+          onClick={() => onRemove(source.name)}
+        >
+          <X size={14} />
+        </button>
+      </Tooltip>
     </div>
   );
 });

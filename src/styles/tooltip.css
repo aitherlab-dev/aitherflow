@@ -33,3 +33,24 @@
 [data-tooltip=""]:hover::after {
   display: none;
 }
+
+/* ── Portal tooltip (React component) ── */
+
+.portal-tooltip {
+  position: fixed;
+  transform: translateY(-50%);
+  width: max-content;
+  max-width: 360px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  color: var(--fg);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  white-space: normal;
+  word-wrap: break-word;
+  pointer-events: none;
+  z-index: 9999;
+}

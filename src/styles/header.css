@@ -1,12 +1,12 @@
 /* ── Header ── */
 
 .app-header {
-  grid-column: 2 / -1;
+  grid-column: 1 / -1;
   grid-row: 1;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  padding: 0 12px;
+  padding: 0 8px;
+  gap: 4px;
   background: var(--header-bg);
   border-bottom: 1px solid var(--border);
   user-select: none;
@@ -15,13 +15,25 @@
 .header-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
-.header-right {
+.header-separator {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+.header-controls {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.header-spacer {
+  flex: 1;
 }
 
 .header-btn {
@@ -51,7 +63,6 @@
 
 .devtools-btn-wrap {
   position: relative;
-  flex: 1;
   display: flex;
 }
 
@@ -60,8 +71,8 @@
   align-items: center;
   justify-content: center;
   gap: 5px;
-  flex: 1;
-  padding: 6px 0;
+  min-width: 60px;
+  padding: 4px 12px;
   border: 1px solid var(--accent);
   border-radius: 6px;
   background: transparent;
@@ -73,7 +84,6 @@
   transition: background 0.15s, color 0.15s;
   white-space: nowrap;
 }
-
 
 .devtools-btn:hover {
   background: var(--bg-hover);

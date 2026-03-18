@@ -5,6 +5,7 @@ import { useLayoutStore } from "../../stores/layoutStore";
 import { useChatStore } from "../../stores/chatStore";
 import { useConductorStore } from "../../stores/conductorStore";
 import { useAgentStore } from "../../stores/agentStore";
+import { Tooltip } from "../shared/Tooltip";
 import type { TeamMessage } from "../../types/team";
 
 /* ── Types ── */
@@ -198,12 +199,16 @@ export const TeamMailboxPanel = memo(function TeamMailboxPanel() {
       <div className="team-mailbox__header">
         <MessagesSquare size={15} className="team-mailbox__header-icon" />
         <span className="team-mailbox__title">Team Mailbox</span>
-        <button className="team-mailbox__clear-btn" onClick={handleClearMessages} title="Clear messages">
-          <Trash2 size={14} />
-        </button>
-        <button className="settings-close" onClick={toggleTeamMailbox} title="Close (Esc)">
-          <X size={16} />
-        </button>
+        <Tooltip text="Clear messages">
+          <button className="team-mailbox__clear-btn" onClick={handleClearMessages}>
+            <Trash2 size={14} />
+          </button>
+        </Tooltip>
+        <Tooltip text="Close (Esc)">
+          <button className="settings-close" onClick={toggleTeamMailbox}>
+            <X size={16} />
+          </button>
+        </Tooltip>
       </div>
 
       <div className="team-mailbox__feed" ref={scrollRef} onScroll={handleScroll}>
@@ -217,13 +222,14 @@ export const TeamMailboxPanel = memo(function TeamMailboxPanel() {
           ))
         )}
         {showScrollBtn && (
-          <button
-            className="scroll-to-bottom"
-            onClick={scrollToBottom}
-            title="Scroll to bottom"
-          >
-            <ArrowDown size={16} />
-          </button>
+          <Tooltip text="Scroll to bottom">
+            <button
+              className="scroll-to-bottom"
+              onClick={scrollToBottom}
+            >
+              <ArrowDown size={16} />
+            </button>
+          </Tooltip>
         )}
       </div>
     </div>

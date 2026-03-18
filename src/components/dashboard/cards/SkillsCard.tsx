@@ -7,6 +7,7 @@ import { sendMessage } from "../../../stores/chatService";
 import { useLayoutStore } from "../../../stores/layoutStore";
 import { useTranslationStore } from "../../../stores/translationStore";
 import { DashboardCard } from "../DashboardCard";
+import { Tooltip } from "../../shared/Tooltip";
 import type { SkillEntry, PluginSkillGroup } from "../../../types/skills";
 
 // ── Skill row (compact for dashboard) ──
@@ -30,29 +31,26 @@ const SkillRowMini = memo(function SkillRowMini({
   const desc = translated || skill.description || skill.name;
 
   return (
-    <div
-      className={`skills-row ${disabled ? "skills-row--disabled" : ""}`}
-      onClick={() => { if (!disabled) onInvoke(skill.command); }}
-      data-tooltip={disabled ? "" : desc}
-      onMouseEnter={(e) => {
-        const r = e.currentTarget.getBoundingClientRect();
-        e.currentTarget.style.setProperty("--tt-top", `${r.top + r.height / 2}px`);
-        e.currentTarget.style.setProperty("--tt-left", `${r.right + 8}px`);
-      }}
-    >
-      <span className="skills-row__name">{skill.name}</span>
-      <span className="skills-row__command">{skill.command}</span>
-      <button
-        className={`skills-row__star ${isFavorite ? "skills-row__star--active" : ""}`}
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggleFav(skill.id);
-        }}
-        title={isFavorite ? "Remove from favorites" : "Add to favorites"}
+    <Tooltip text={disabled ? "" : desc}>
+      <div
+        className={`skills-row ${disabled ? "skills-row--disabled" : ""}`}
+        onClick={() => { if (!disabled) onInvoke(skill.command); }}
       >
-        <Star size={14} />
-      </button>
-    </div>
+        <span className="skills-row__name">{skill.name}</span>
+        <span className="skills-row__command">{skill.command}</span>
+        <Tooltip text={isFavorite ? "Remove from favorites" : "Add to favorites"}>
+          <button
+            className={`skills-row__star ${isFavorite ? "skills-row__star--active" : ""}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleFav(skill.id);
+            }}
+          >
+            <Star size={14} />
+          </button>
+        </Tooltip>
+      </div>
+    </Tooltip>
   );
 });
 
@@ -157,13 +155,14 @@ export const SkillsCard = memo(function SkillsCard({
       onToggle={onToggle}
       headerExtra={
         expanded ? (
-          <button
-            className="dash-card__settings-btn"
-            onClick={handleSettingsClick}
-            title="Skills settings"
-          >
-            <Settings size={12} />
-          </button>
+          <Tooltip text="Skills settings">
+            <button
+              className="dash-card__settings-btn"
+              onClick={handleSettingsClick}
+            >
+              <Settings size={12} />
+            </button>
+          </Tooltip>
         ) : undefined
       }
     >
