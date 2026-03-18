@@ -22,6 +22,8 @@ static SHUTDOWN_TX: OnceLock<tokio::sync::watch::Sender<bool>> = OnceLock::new()
 
 pub struct McpServerState {
     pub port: u16,
+    /// Shared secret token — must be sent as `Authorization: Bearer <token>` in every request.
+    pub auth_token: String,
     /// agent_id → project info (registered when agent starts, removed on stop/exit)
     agents: RwLock<HashMap<String, AgentMcpInfo>>,
     /// session_id → agent_id (MCP sessions, spec compliance)
@@ -111,6 +113,11 @@ pub fn get_mcp_port() -> Option<u16> {
     MCP_STATE.get().map(|s| s.port)
 }
 
+/// Get the MCP server auth token (None if server not started yet).
+pub fn get_mcp_token() -> Option<&'static str> {
+    MCP_STATE.get().map(|s| s.auth_token.as_str())
+}
+
 /// Get a reference to the global MCP state.
 pub fn get_state() -> Option<&'static Arc<McpServerState>> {
     MCP_STATE.get()
@@ -162,8 +169,11 @@ pub async fn start_mcp_server(
         .map_err(|e| format!("Failed to get local addr: {e}"))?
         .port();
 
+    let auth_token = uuid::Uuid::new_v4().to_string();
+
     let state = Arc::new(McpServerState {
         port,
+        auth_token,
         agents: RwLock::new(HashMap::new()),
         sessions: RwLock::new(HashMap::new()),
         session_manager,
@@ -207,12 +217,30 @@ pub async fn start_mcp_server(
 // HTTP handlers
 // ---------------------------------------------------------------------------
 
+/// Check Authorization: Bearer <token> header against the server's shared secret.
+/// Returns Some(response) if auth fails, None if ok.
+fn check_auth(headers: &HeaderMap, expected: &str) -> Option<Response> {
+    let auth = headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    let token = auth.strip_prefix("Bearer ").unwrap_or("");
+    if token != expected {
+        return Some((StatusCode::UNAUTHORIZED, "Invalid or missing auth token").into_response());
+    }
+    None
+}
+
 async fn handle_post(
     Path(agent_id): Path<String>,
     State(state): State<Arc<McpServerState>>,
     headers: HeaderMap,
     Json(msg): Json<Value>,
 ) -> Response {
+    if let Some(resp) = check_auth(&headers, &state.auth_token) {
+        return resp;
+    }
+
     let method = msg.get("method").and_then(|m| m.as_str()).unwrap_or("");
     let id = msg.get("id").cloned();
 
@@ -277,6 +305,10 @@ async fn handle_delete(
     State(state): State<Arc<McpServerState>>,
     headers: HeaderMap,
 ) -> Response {
+    if let Some(resp) = check_auth(&headers, &state.auth_token) {
+        return resp;
+    }
+
     let sid = match headers
         .get("mcp-session-id")
         .and_then(|v| v.to_str().ok())

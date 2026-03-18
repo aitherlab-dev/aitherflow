@@ -281,31 +281,37 @@ pub(crate) fn mark_read_sync(
     let ids_set: std::collections::HashSet<&str> =
         message_ids.iter().map(|s| s.as_str()).collect();
 
+    // Keep only messages that are NOT being marked as read now and were not
+    // already read — this prevents the file from growing unboundedly.
     let mut lines = Vec::new();
     for line in data.lines() {
         if line.trim().is_empty() {
             continue;
         }
         match serde_json::from_str::<TeamMessage>(line) {
-            Ok(mut msg) => {
-                if ids_set.contains(msg.id.as_str()) {
-                    msg.read = true;
+            Ok(msg) => {
+                // Drop messages being marked as read now, and already-read messages
+                if ids_set.contains(msg.id.as_str()) || msg.read {
+                    continue;
                 }
-                let updated = serde_json::to_string(&msg)
-                    .map_err(|e| format!("Failed to serialize message: {e}"))?;
-                lines.push(updated);
+                lines.push(line.to_string());
             }
             Err(e) => {
                 eprintln!("[teamwork] Skipping bad line during mark_read: {e}");
-                lines.push(line.to_string());
             }
         }
     }
 
-    let mut output = lines.join("\n");
-    if !output.is_empty() {
-        output.push('\n');
+    if lines.is_empty() {
+        // All messages read — remove the file entirely
+        if let Err(e) = fs::remove_file(&path) {
+            eprintln!("[teamwork] Failed to remove empty inbox {}: {e}", path.display());
+        }
+        return Ok(());
     }
+
+    let mut output = lines.join("\n");
+    output.push('\n');
 
     atomic_write(&path, output.as_bytes())
 }
