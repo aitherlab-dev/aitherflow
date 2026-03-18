@@ -379,6 +379,19 @@
 }
 
 
+/* ── Markdown preview ── */
+
+.fv-markdown-preview {
+  height: 100%;
+  overflow-y: auto;
+  padding: 16px 24px;
+  cursor: default;
+}
+
+.fv-markdown-preview .markdown-body {
+  max-width: 800px;
+}
+
 /* ── Code editor (CodeMirror) ── */
 
 .fv-code-editor {

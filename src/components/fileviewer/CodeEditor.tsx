@@ -116,6 +116,7 @@ export const CodeEditor = memo(function CodeEditor({
       closeBrackets(),
       highlightActiveLine(),
       highlightSelectionMatches(),
+      EditorView.lineWrapping,
       keymap.of([
         ...closeBracketsKeymap,
         ...defaultKeymap,
