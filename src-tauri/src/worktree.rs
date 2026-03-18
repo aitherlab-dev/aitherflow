@@ -2,22 +2,20 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::process::Command;
 
-/// Validate a git branch name: reject traversal, spaces, and shell-dangerous characters.
+/// Validate a git branch name using `git check-ref-format --branch`.
+/// Also rejects names starting with `-` to prevent argument injection.
 fn validate_branch_name(name: &str) -> Result<(), String> {
     if name.is_empty() {
         return Err("Branch name cannot be empty".to_string());
     }
-    if name.contains("..") || name.contains('/') && name.contains("..") {
-        return Err(format!("Invalid branch name (path traversal): {name}"));
+    if name.starts_with('-') {
+        return Err(format!("Invalid branch name (starts with dash): {name}"));
     }
-    // Reject characters dangerous for shell injection or invalid for git refs
-    let forbidden = [' ', '\t', '\n', '~', '^', ':', '\\', '*', '?', '[', '\x7f'];
-    for ch in forbidden {
-        if name.contains(ch) {
-            return Err(format!("Invalid branch name (forbidden char '{ch}'): {name}"));
-        }
-    }
-    if name.starts_with('-') || name.starts_with('.') || name.ends_with('.') || name.ends_with(".lock") {
+    let output = Command::new("git")
+        .args(["check-ref-format", "--branch", name])
+        .output()
+        .map_err(|e| format!("Failed to run git check-ref-format: {e}"))?;
+    if !output.status.success() {
         return Err(format!("Invalid branch name: {name}"));
     }
     Ok(())
