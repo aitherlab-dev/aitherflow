@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "../../lib/transport";
 import { invalidateSettingsCache } from "../../stores/chatService";
 import { Tooltip } from "../shared/Tooltip";
@@ -50,10 +50,15 @@ export function VoiceSection() {
       .catch(console.error);
   }, []);
 
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(saveTimerRef.current), []);
   const save = useCallback((updated: VoiceSettings) => {
     setSettings(updated);
-    invoke("save_settings", { settings: updated }).catch(console.error);
     invalidateSettingsCache();
+    clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      invoke("save_settings", { settings: updated }).catch(console.error);
+    }, 400);
   }, []);
 
   if (!settings) return null;

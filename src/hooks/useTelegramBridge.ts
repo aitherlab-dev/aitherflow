@@ -25,10 +25,12 @@ export function useTelegramBridge() {
     let timer: ReturnType<typeof setTimeout> | null = null;
     let botActive = false;
 
+    const servicePromise = import("../services/telegramService");
+
     async function poll() {
       if (abortRef.current) return;
       try {
-        const { isBotRunning } = await import("../services/telegramService");
+        const { isBotRunning } = await servicePromise;
         const running = await isBotRunning();
         botActive = running;
         if (running) await pollAndHandle();

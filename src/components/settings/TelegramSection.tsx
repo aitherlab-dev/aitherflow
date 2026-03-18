@@ -51,6 +51,8 @@ export function TelegramSection() {
       .catch(console.error);
   }, []);
 
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(saveTimerRef.current), []);
   const save = useCallback((updated: TelegramConfig) => {
     setConfig(updated);
     // Resolve real token: if user entered a new value (not masked), use it; otherwise keep existing
@@ -59,7 +61,10 @@ export function TelegramSection() {
       realTokenRef.current = token;
     }
     const toSave = { ...updated, bot_token: realTokenRef.current };
-    invoke("save_telegram_config", { config: toSave }).catch(console.error);
+    clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      invoke("save_telegram_config", { config: toSave }).catch(console.error);
+    }, 400);
   }, []);
 
   const handleToggle = useCallback(() => {

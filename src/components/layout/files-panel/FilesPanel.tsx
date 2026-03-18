@@ -132,6 +132,9 @@ export const FilesPanel = memo(function FilesPanel() {
 
   // Tree: toggle folder expand/collapse
   const loadingPaths = useRef(new Set<string>());
+  const childrenCacheRef = useRef(childrenCache);
+  childrenCacheRef.current = childrenCache;
+
   const handleToggle = useCallback(async (path: string) => {
     setExpandedSet((prev) => {
       const next = new Set(prev);
@@ -143,7 +146,7 @@ export const FilesPanel = memo(function FilesPanel() {
       return next;
     });
 
-    if (!childrenCache.has(path) && !loadingPaths.current.has(path)) {
+    if (!childrenCacheRef.current.has(path) && !loadingPaths.current.has(path)) {
       loadingPaths.current.add(path);
       try {
         const entries = await loadDirectory(path);
@@ -158,7 +161,7 @@ export const FilesPanel = memo(function FilesPanel() {
         loadingPaths.current.delete(path);
       }
     }
-  }, [childrenCache, loadDirectory]);
+  }, [loadDirectory]);
 
   // File click → open in viewer
   const handleFileClick = useCallback((path: string) => {

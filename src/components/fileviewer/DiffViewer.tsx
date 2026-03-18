@@ -105,7 +105,7 @@ export const DiffViewer = memo(function DiffViewer({
         <tbody>
           {diffLines.map((dl, idx) => (
             <tr
-              key={idx}
+              key={`${dl.type}-${dl.lineNumber ?? idx}-${idx}`}
               className={`fv-line${dl.type !== "normal" ? ` fv-line--${dl.type}` : ""}`}
             >
               <td className="fv-line-number">

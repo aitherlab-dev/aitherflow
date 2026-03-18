@@ -1,12 +1,13 @@
-import { memo, useCallback, useState, useEffect } from "react";
+import { memo, useCallback, useState, useEffect, lazy, Suspense } from "react";
 import { useFileViewerStore } from "../../stores/fileViewerStore";
 import { useShallow } from "zustand/react/shallow";
 import { TabBar } from "./TabBar";
-import { CodeEditor } from "./CodeEditor";
-import { DiffViewer } from "./DiffViewer";
 import { ImageViewer } from "./ImageViewer";
-import { MarkdownPreview } from "./MarkdownPreview";
 import { FileWarning } from "lucide-react";
+
+const CodeEditor = lazy(() => import("./CodeEditor").then((m) => ({ default: m.CodeEditor })));
+const DiffViewer = lazy(() => import("./DiffViewer").then((m) => ({ default: m.DiffViewer })));
+const MarkdownPreview = lazy(() => import("./MarkdownPreview").then((m) => ({ default: m.MarkdownPreview })));
 
 export const FileViewerPanel = memo(function FileViewerPanel() {
   const tabs = useFileViewerStore(useShallow((s) => s.tabs));
@@ -49,6 +50,7 @@ export const FileViewerPanel = memo(function FileViewerPanel() {
   return (
     <div className="file-viewer-panel">
       <TabBar />
+      <Suspense fallback={<div className="fv-empty">Loading…</div>}>
       <div className="fv-content">
         {!activeTab ? (
           <div className="fv-empty">No file open</div>
@@ -80,6 +82,7 @@ export const FileViewerPanel = memo(function FileViewerPanel() {
           />
         )}
       </div>
+      </Suspense>
     </div>
   );
 });

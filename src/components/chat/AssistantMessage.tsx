@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from "react";
+import { memo, useMemo, useState, useCallback } from "react";
 import { ChevronRight, Sparkles } from "lucide-react";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { InlineMarkdown } from "./InlineMarkdown";
@@ -20,8 +20,10 @@ export const AssistantMessage = memo(function AssistantMessage({
   agentId,
 }: AssistantMessageProps) {
   const [thinkingOpen, setThinkingOpen] = useState(false);
-  const interactiveTools = message.tools?.filter((t) =>
-    isInteractiveTool(t.toolName),
+  const toggleThinking = useCallback(() => setThinkingOpen((v) => !v), []);
+  const interactiveTools = useMemo(
+    () => message.tools?.filter((t) => isInteractiveTool(t.toolName)),
+    [message.tools],
   );
   const displayText = useTypewriter(message.text, message.isStreaming ?? false);
 
@@ -47,7 +49,7 @@ export const AssistantMessage = memo(function AssistantMessage({
           <ThinkingToggle
             thinking={thinking}
             open={thinkingOpen}
-            onToggle={() => setThinkingOpen((v) => !v)}
+            onToggle={toggleThinking}
             isStreaming
           />
         )}
