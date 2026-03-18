@@ -304,7 +304,9 @@ pub(crate) fn mark_read_sync(
 
     if lines.is_empty() {
         // All messages read — remove the file entirely
-        let _ = fs::remove_file(&path);
+        if let Err(e) = fs::remove_file(&path) {
+            eprintln!("[teamwork] Failed to remove empty inbox {}: {e}", path.display());
+        }
         return Ok(());
     }
 
