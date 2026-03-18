@@ -97,7 +97,8 @@ export function HookHandlerForm({ handler, onUpdate, onDelete, projectPath, scop
       });
       setTestResult(result);
     } catch (e) {
-      setTestResult({ exit_code: -1, stdout: "", stderr: String(e) });
+      console.error("Hook test failed:", e);
+      setTestResult({ exit_code: -1, stdout: "", stderr: "Test failed. Check console for details." });
     }
     setTesting(false);
   }, [handler, projectPath]);

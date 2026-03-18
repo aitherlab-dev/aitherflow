@@ -188,7 +188,8 @@ export async function sendMessage(text: string, allAttachments?: Attachment[]) {
       });
     }
   } catch (e) {
-    useChatStore.setState({ error: String(e), isThinking: false });
+    console.error("[sendMessage] Failed:", e);
+    useChatStore.setState({ error: "Failed to send message. Please try again.", isThinking: false });
   }
 }
 
@@ -197,7 +198,8 @@ export async function stopGeneration() {
   try {
     await invoke("stop_session", { agentId });
   } catch (e) {
-    useChatStore.setState({ error: String(e), isThinking: false });
+    console.error("[stopGeneration] Failed:", e);
+    useChatStore.setState({ error: "Failed to stop session.", isThinking: false });
   }
   // Only reset state if the session hasn't changed during await
   if (useChatStore.getState().agentId === agentId) {
@@ -279,7 +281,8 @@ export async function switchPermissionMode(mode: "default" | "plan") {
     });
     useChatStore.setState({ hasSession: true });
   } catch (e) {
-    useChatStore.setState({ error: String(e) });
+    console.error("[switchPermissionMode] Failed:", e);
+    useChatStore.setState({ error: "Failed to switch mode. Please try again." });
   }
 }
 
@@ -371,7 +374,8 @@ export async function switchChat(chatId: string) {
       useConductorStore.getState().restoreUsageForAgent(useChatStore.getState().agentId);
     }
   } catch (e) {
-    useChatStore.setState({ error: String(e) });
+    console.error("[switchChat] Failed:", e);
+    useChatStore.setState({ error: "Failed to load chat." });
   }
 }
 
@@ -647,7 +651,8 @@ export async function respondToCard(agentId: string, toolUseId: string, response
         options: { agentId, prompt: response } satisfies SendMessageOptions,
       });
     } catch (e) {
-      if (isActive) useChatStore.setState({ error: String(e), isThinking: false });
+      console.error("[respondToCard] send_message failed:", e);
+      if (isActive) useChatStore.setState({ error: "Failed to send response.", isThinking: false });
     }
     return;
   }
@@ -678,6 +683,7 @@ export async function respondToCard(agentId: string, toolUseId: string, response
       response: controlResponse,
     });
   } catch (e) {
-    if (isActive) useChatStore.setState({ error: String(e), isThinking: false });
+    console.error("[respondToCard] respond_to_tool failed:", e);
+    if (isActive) useChatStore.setState({ error: "Failed to process response.", isThinking: false });
   }
 }
