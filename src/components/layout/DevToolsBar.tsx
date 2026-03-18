@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { invoke } from "../../lib/transport";
 import { useAgentStore } from "../../stores/agentStore";
 import { useChatStore } from "../../stores/chatStore";
@@ -94,7 +95,7 @@ export const BuildButton = memo(function BuildButton() {
 export const DevButton = memo(function DevButton() {
   const [devServers, setDevServers] = useState<Set<string>>(new Set());
   const projectPath = useAgentStore(
-    (s) => s.agents.find((a) => a.id === s.activeAgentId)?.projectPath ?? "",
+    useShallow((s) => s.agents.find((a) => a.id === s.activeAgentId)?.projectPath ?? ""),
   );
   const isRunning = projectPath ? devServers.has(projectPath) : false;
 

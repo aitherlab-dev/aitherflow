@@ -9,7 +9,7 @@ export interface InstalledPlugin {
   /** Version string (semver or commit hash) */
   version: string;
   /** Scope: "user" or "project" */
-  scope: string;
+  scope: "user" | "project";
   /** Absolute path to installed files */
   installPath: string;
   /** ISO datetime of installation */

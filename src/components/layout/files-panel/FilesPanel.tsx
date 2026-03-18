@@ -131,6 +131,7 @@ export const FilesPanel = memo(function FilesPanel() {
   }, []);
 
   // Tree: toggle folder expand/collapse
+  const loadingPaths = useRef(new Set<string>());
   const handleToggle = useCallback(async (path: string) => {
     setExpandedSet((prev) => {
       const next = new Set(prev);
@@ -142,14 +143,19 @@ export const FilesPanel = memo(function FilesPanel() {
       return next;
     });
 
-    if (!childrenCache.has(path)) {
-      const entries = await loadDirectory(path);
-      if (entries) {
-        setChildrenCache((prev) => {
-          const next = new Map(prev);
-          next.set(path, entries);
-          return next;
-        });
+    if (!childrenCache.has(path) && !loadingPaths.current.has(path)) {
+      loadingPaths.current.add(path);
+      try {
+        const entries = await loadDirectory(path);
+        if (entries) {
+          setChildrenCache((prev) => {
+            const next = new Map(prev);
+            next.set(path, entries);
+            return next;
+          });
+        }
+      } finally {
+        loadingPaths.current.delete(path);
       }
     }
   }, [childrenCache, loadDirectory]);

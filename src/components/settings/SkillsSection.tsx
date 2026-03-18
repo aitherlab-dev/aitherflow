@@ -406,8 +406,8 @@ const AvailableRow = memo(function AvailableRow({
 // ── Available tab ──
 
 function AvailableTab() {
-  const available = usePluginStore((s) => s.available);
-  const sources = usePluginStore((s) => s.sources);
+  const available = usePluginStore(useShallow((s) => s.available));
+  const sources = usePluginStore(useShallow((s) => s.sources));
   const installing = usePluginStore((s) => s.installing);
   const install = usePluginStore((s) => s.install);
 
@@ -526,7 +526,7 @@ const SourceRow = memo(function SourceRow({
 // ── Sources tab ──
 
 function SourcesTab() {
-  const sources = usePluginStore((s) => s.sources);
+  const sources = usePluginStore(useShallow((s) => s.sources));
   const updatingSources = usePluginStore((s) => s.updatingSources);
   const addSource = usePluginStore((s) => s.addSource);
   const removeSource = usePluginStore((s) => s.removeSource);

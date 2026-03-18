@@ -39,6 +39,13 @@ const TURN_SEPARATOR = "\n<!-- turn -->\n";
 /** True when the last user message came from Telegram (not from the app) */
 let lastFromTelegram = false;
 
+/** Reset Telegram state when switching agents */
+export function resetTelegramAgentState(): void {
+  lastFromTelegram = false;
+  lastStreamText = "";
+  lastSentMessageId = null;
+}
+
 let lastStreamText = "";
 let streamTimer: ReturnType<typeof setInterval> | null = null;
 /** ID of the last assistant message sent to Telegram (to avoid duplicates) */

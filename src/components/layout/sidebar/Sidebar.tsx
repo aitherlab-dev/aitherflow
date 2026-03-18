@@ -50,7 +50,7 @@ export const Sidebar = memo(function Sidebar() {
     agents: s.agents,
     activeAgentId: s.activeAgentId,
   })));
-  const agentRoles = useConductorStore((s) => s.agentRoles);
+  const agentRoles = useConductorStore(useShallow((s) => s.agentRoles));
 
   // Split agents into root (no parent) and children grouped by parent
   const rootAgents = useMemo(
@@ -158,6 +158,7 @@ export const Sidebar = memo(function Sidebar() {
   } | null>(null);
   const [agentDragIndex, setAgentDragIndex] = useState<number | null>(null);
   const [agentDropIndex, setAgentDropIndex] = useState<number | null>(null);
+  const agentDropRef = useRef<number | null>(null);
   const agentRefs = useRef<(HTMLElement | null)[]>([]);
 
   const handleAgentMouseDown = useCallback(
@@ -176,6 +177,7 @@ export const Sidebar = memo(function Sidebar() {
       };
       setAgentDragIndex(index);
       setAgentDropIndex(index);
+      agentDropRef.current = index;
       document.body.classList.add("select-none");
     },
     [],
@@ -201,17 +203,20 @@ export const Sidebar = memo(function Sidebar() {
         newDrop = i + 1;
       }
       newDrop = Math.max(0, Math.min(newDrop, agents.length - 1));
+      agentDropRef.current = newDrop;
       setAgentDropIndex(newDrop);
     };
 
     const handleMouseUp = () => {
-      if (agentDragRef.current && agentDropIndex !== null) {
+      const dropIdx = agentDropRef.current;
+      if (agentDragRef.current && dropIdx !== null) {
         const from = agentDragRef.current.fromIndex;
-        if (from !== agentDropIndex) {
-          useAgentStore.getState().reorderAgent(from, agentDropIndex).catch(console.error);
+        if (from !== dropIdx) {
+          useAgentStore.getState().reorderAgent(from, dropIdx).catch(console.error);
         }
       }
       agentDragRef.current = null;
+      agentDropRef.current = null;
       setAgentDragIndex(null);
       setAgentDropIndex(null);
       document.body.classList.remove("select-none");
@@ -223,7 +228,7 @@ export const Sidebar = memo(function Sidebar() {
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [agentDragIndex, agentDropIndex, agents.length]);
+  }, [agentDragIndex, agents.length]);
 
   return (
     <aside

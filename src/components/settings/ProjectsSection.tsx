@@ -1,4 +1,5 @@
 import { memo, useCallback, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import {
   ChevronRight,
   Plus,
@@ -163,7 +164,7 @@ const ProjectItem = memo(function ProjectItem({
 });
 
 export function ProjectsSection() {
-  const projects = useProjectStore((s) => s.projects);
+  const projects = useProjectStore(useShallow((s) => s.projects));
   const addProject = useProjectStore((s) => s.addProject);
 
   const handleAdd = useCallback(async () => {

@@ -4,6 +4,7 @@ import type { AgentEntry, AgentsConfig } from "../types/agents";
 import { useChatStore } from "./chatStore";
 import { switchAgent, clearAgentState } from "./chatService";
 import { useProjectStore } from "./projectStore";
+import { resetTelegramAgentState } from "../services/telegramService";
 
 interface AgentState {
   agents: AgentEntry[];
@@ -198,6 +199,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     saveChatLock(get, set);
 
     set({ activeAgentId: agentId });
+    resetTelegramAgentState();
     await persist(agents, agentId);
 
     // Restore saved chat position for the new agent
