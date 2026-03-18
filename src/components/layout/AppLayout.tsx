@@ -13,7 +13,6 @@ import { ChatPanel } from "./chat-panel";
 import { TeamMailboxPanel } from "../teamwork/TeamMailboxPanel";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useShallow } from "zustand/react/shallow";
-import { DevToolsBar } from "./DevToolsBar";
 import { BrandFooter } from "./BrandFooter";
 
 export function AppLayout() {
@@ -46,7 +45,6 @@ export function AppLayout() {
 
   return (
     <div className="app-layout">
-      <DevToolsBar />
       <Header />
       <Sidebar />
       <main className="app-main">

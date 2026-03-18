@@ -7,6 +7,8 @@ import { newChat, switchChat, deleteChat, renameChat, toggleChatPin } from "../.
 import { useLayoutStore } from "../../../stores/layoutStore";
 import { ChatItem } from "../sidebar/ChatItem";
 import { ChatContextMenu } from "../sidebar/ChatContextMenu";
+import { Tooltip } from "../../shared/Tooltip";
+import { useHotkeyStore, bindingToString } from "../../../stores/hotkeyStore";
 
 export const ChatPanel = memo(function ChatPanel() {
   const { chatList, currentChatId, isThinking } = useChatStore(
@@ -95,14 +97,15 @@ export const ChatPanel = memo(function ChatPanel() {
     <div className="chat-panel">
       <div className="chat-panel__header">
         <span className="chat-panel__title">Chats</span>
-        <button
-          className={`chat-panel__new-btn ${isThinking ? "chat-panel__new-btn--disabled" : ""}`}
-          onClick={handleNewChat}
-          disabled={isThinking}
-          title="New Chat"
-        >
-          <Plus size={14} />
-        </button>
+        <Tooltip text={`New Chat (${bindingToString(useHotkeyStore.getState().bindings.newChat)})`}>
+          <button
+            className={`chat-panel__new-btn ${isThinking ? "chat-panel__new-btn--disabled" : ""}`}
+            onClick={handleNewChat}
+            disabled={isThinking}
+          >
+            <Plus size={14} />
+          </button>
+        </Tooltip>
       </div>
 
       <div className="chat-panel__list">

@@ -8,6 +8,7 @@ import {
 import { invoke, listen } from "../../../lib/transport";
 import { useAgentStore } from "../../../stores/agentStore";
 import { useFileViewerStore } from "../../../stores/fileViewerStore";
+import { Tooltip } from "../../shared/Tooltip";
 import type { FileEntry, MountEntry } from "../../../types/files";
 import type { FilesMode, ContextMenuState } from "./types";
 import { InlineNameInput } from "./InlineNameInput";
@@ -357,21 +358,23 @@ export const FilesPanel = memo(function FilesPanel() {
           {mode === "tree" ? projectName : "File Manager"}
         </span>
         {mode === "tree" ? (
-          <button
-            className="files-panel-header__mode"
-            onClick={handleGoHome}
-            title="Browse from home"
-          >
-            <Home size={14} />
-          </button>
+          <Tooltip text="Browse from home">
+            <button
+              className="files-panel-header__mode"
+              onClick={handleGoHome}
+            >
+              <Home size={14} />
+            </button>
+          </Tooltip>
         ) : (
-          <button
-            className="files-panel-header__mode"
-            onClick={handleGoTree}
-            title="Back to project tree"
-          >
-            <FolderTree size={14} />
-          </button>
+          <Tooltip text="Back to project tree">
+            <button
+              className="files-panel-header__mode"
+              onClick={handleGoTree}
+            >
+              <FolderTree size={14} />
+            </button>
+          </Tooltip>
         )}
       </div>
 

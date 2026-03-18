@@ -16,6 +16,13 @@ import { useConductorStore } from "../../stores/conductorStore";
 import { useVoice } from "../../hooks/useVoice";
 import { useAgentStore } from "../../stores/agentStore";
 import { IMAGE_EXTENSIONS } from "../../types/fileviewer";
+import { Tooltip } from "../shared/Tooltip";
+import { useHotkeyStore, bindingToString, type HotkeyAction } from "../../stores/hotkeyStore";
+
+function hk(action: HotkeyAction): string {
+  const b = useHotkeyStore.getState().bindings[action];
+  return b ? ` (${bindingToString(b)})` : "";
+}
 
 
 /** Max textarea height in px (8 full lines) */
@@ -285,20 +292,21 @@ export const InputBar = memo(function InputBar() {
       <div className="input-bar-bottom">
         {/* Row 1 */}
         <div className="input-bar-cell input-bar-cell--btns">
-          <button
-            className="input-bar-btn"
-            title="Add file"
-            aria-label="Add file"
-            onClick={handleAddFile}
-          >
-            <Plus size={18} />
-          </button>
+          <Tooltip text="Add file">
+            <button
+              className="input-bar-btn"
+              aria-label="Add file"
+              onClick={handleAddFile}
+            >
+              <Plus size={18} />
+            </button>
+          </Tooltip>
           {hasSession && (
+            <Tooltip text={planMode ? "Switch to Edit mode (restarts session)" : "Switch to Plan mode (restarts session)"}>
             <button
               className={`input-bar-mode-badge${modeSwitching ? " input-bar-mode-badge--switching" : ""}`}
               style={planMode ? { color: "var(--blue)" } : undefined}
               disabled={isThinking || modeSwitching}
-              title={planMode ? "Switch to Edit mode (restarts session)" : "Switch to Plan mode (restarts session)"}
               onClick={async () => {
                 const newMode = planMode ? "default" : "plan";
                 setModeSwitching(true);
@@ -313,76 +321,82 @@ export const InputBar = memo(function InputBar() {
             >
               {modeSwitching ? "..." : (planMode ? "Plan" : "Edit")}
             </button>
+            </Tooltip>
           )}
           <ThinkingIndicator />
         </div>
         <div className="input-bar-cell input-bar-cell--btns input-bar-cell--end">
           {isThinking ? (
-            <button
-              className="input-bar-btn input-bar-stop"
-              onClick={handleStop}
-              title="Stop"
-              aria-label="Stop generation"
-            >
-              <Square size={18} />
-            </button>
+            <Tooltip text={"Stop" + hk("stopGeneration")}>
+              <button
+                className="input-bar-btn input-bar-stop"
+                onClick={handleStop}
+                aria-label="Stop generation"
+              >
+                <Square size={18} />
+              </button>
+            </Tooltip>
           ) : (
             <>
               {agents.length > 0 && (
-                <button
-                  className="input-bar-btn"
-                  onClick={handleBroadcast}
-                  disabled={!text.trim() || !projectPath}
-                  title="Broadcast to team (Ctrl+Enter)"
-                  aria-label="Broadcast to team"
-                >
-                  <Radio size={18} />
-                </button>
+                <Tooltip text="Broadcast to team (Ctrl+Enter)">
+                  <button
+                    className="input-bar-btn"
+                    onClick={handleBroadcast}
+                    disabled={!text.trim() || !projectPath}
+                    aria-label="Broadcast to team"
+                  >
+                    <Radio size={18} />
+                  </button>
+                </Tooltip>
               )}
-              <button
-                className="input-bar-btn input-bar-send"
-                onClick={handleSend}
-                disabled={!text.trim() && attachments.length === 0}
-                title="Send"
-                aria-label="Send message"
-              >
-                <ArrowUp size={18} />
-              </button>
+              <Tooltip text="Send">
+                <button
+                  className="input-bar-btn input-bar-send"
+                  onClick={handleSend}
+                  disabled={!text.trim() && attachments.length === 0}
+                  aria-label="Send message"
+                >
+                  <ArrowUp size={18} />
+                </button>
+              </Tooltip>
             </>
           )}
-          <button
-            className={`input-bar-btn input-bar-btn--icon${voiceState === "recording" || voiceState === "streaming" ? " voice-recording" : ""}`}
-            title={voiceState === "recording" || voiceState === "streaming" ? "Stop recording" : voiceState === "processing" ? "Processing..." : "Voice input"}
-            aria-label="Voice input"
-            onClick={toggleVoice}
-            disabled={voiceState === "processing"}
-          >
-            {voiceState === "processing" ? (
-              <Loader2 size={18} className="voice-spinner" />
-            ) : voiceState === "recording" || voiceState === "streaming" ? (
-              <MicOff size={18} />
-            ) : (
-              <Mic size={18} />
-            )}
-          </button>
+          <Tooltip text={voiceState === "recording" || voiceState === "streaming" ? "Stop recording" + hk("toggleVoice") : voiceState === "processing" ? "Processing..." : "Voice input" + hk("toggleVoice")}>
+            <button
+              className={`input-bar-btn input-bar-btn--icon${voiceState === "recording" || voiceState === "streaming" ? " voice-recording" : ""}`}
+              aria-label="Voice input"
+              onClick={toggleVoice}
+              disabled={voiceState === "processing"}
+            >
+              {voiceState === "processing" ? (
+                <Loader2 size={18} className="voice-spinner" />
+              ) : voiceState === "recording" || voiceState === "streaming" ? (
+                <MicOff size={18} />
+              ) : (
+                <Mic size={18} />
+              )}
+            </button>
+          </Tooltip>
         </div>
 
         {/* Row 2 */}
         <div className="input-bar-cell input-bar-cell--btns">
-          <button
-            className="input-bar-label-btn"
-            onClick={() => { if (!isThinking) newChat().catch(console.error); }}
-            disabled={isThinking}
-            title="New chat"
-            aria-label="New chat"
-          >
-            <MessageSquarePlus size={14} />
-            <span>New Chat</span>
-          </button>
+          <Tooltip text={"New chat" + hk("newChat")}>
+            <button
+              className="input-bar-label-btn"
+              onClick={() => { if (!isThinking) newChat().catch(console.error); }}
+              disabled={isThinking}
+              aria-label="New chat"
+            >
+              <MessageSquarePlus size={14} />
+              <span>New Chat</span>
+            </button>
+          </Tooltip>
+          <Tooltip text="Switch model (right-click for effort)">
           <button
             ref={modelBtnRef}
             className="input-bar-label-btn"
-            title="Switch model (right-click for effort)"
             aria-label="Switch model"
             onClick={() => {
               if (modelBtnRef.current) {
@@ -396,10 +410,11 @@ export const InputBar = memo(function InputBar() {
               <span className="model-effort-badge">{selectedEffort}</span>
             )}
           </button>
+          </Tooltip>
+          <Tooltip text="Select role">
           <button
             ref={roleBtnRef}
             className="input-bar-label-btn"
-            title="Select role"
             aria-label="Select role"
             onClick={() => {
               if (roleBtnRef.current) {
@@ -410,12 +425,13 @@ export const InputBar = memo(function InputBar() {
             <UserCog size={14} />
             <span>{currentRoleName ?? "No role"}</span>
           </button>
+          </Tooltip>
         </div>
         <div className="input-bar-cell input-bar-cell--btns input-bar-cell--end">
+          <Tooltip text="Favorite skills">
           <button
             ref={skillsBtnRef}
             className="input-bar-label-btn"
-            title="Favorite skills"
             aria-label="Favorite skills"
             onClick={() => {
               if (skillsMenuRect) {
@@ -428,6 +444,7 @@ export const InputBar = memo(function InputBar() {
             <Star size={14} />
             <span>Skills</span>
           </button>
+          </Tooltip>
         </div>
       </div>
       {modelMenuRect && (

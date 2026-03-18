@@ -3,6 +3,7 @@ import { useShallow } from "zustand/react/shallow";
 import { ArrowDown } from "lucide-react";
 import { MessageBubble } from "./MessageBubble";
 import { useChatStore } from "../../stores/chatStore";
+import { Tooltip } from "../shared/Tooltip";
 
 /** Distance from bottom (px) to consider "at bottom" */
 const BOTTOM_THRESHOLD = 50;
@@ -116,13 +117,14 @@ export const MessageList = memo(function MessageList() {
         )}
       </div>
       {showScrollBtn && (
-        <button
-          className="scroll-to-bottom"
-          onClick={scrollToBottom}
-          title="Scroll to bottom"
-        >
-          <ArrowDown size={16} />
-        </button>
+        <Tooltip text="Scroll to bottom">
+          <button
+            className="scroll-to-bottom"
+            onClick={scrollToBottom}
+          >
+            <ArrowDown size={16} />
+          </button>
+        </Tooltip>
       )}
     </div>
   );

@@ -1,5 +1,6 @@
 import { memo, useCallback } from "react";
 import { Loader, X } from "lucide-react";
+import { Tooltip } from "../../shared/Tooltip";
 
 export const AgentTab = memo(function AgentTab({
   agentId,
@@ -44,13 +45,14 @@ export const AgentTab = memo(function AgentTab({
           <Loader size={14} className="sidebar-project__bg-spinner" />
         )}
       </button>
-      <button
-        className="sidebar-project__close"
-        onClick={handleClose}
-        title="Close agent"
-      >
-        <X size={14} />
-      </button>
+      <Tooltip text="Close agent">
+        <button
+          className="sidebar-project__close"
+          onClick={handleClose}
+        >
+          <X size={14} />
+        </button>
+      </Tooltip>
     </div>
   );
 });

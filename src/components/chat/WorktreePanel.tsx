@@ -7,6 +7,7 @@ import {
 import { useChatStore } from "../../stores/chatStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { useShallow } from "zustand/react/shallow";
+import { Tooltip } from "../shared/Tooltip";
 
 interface WorktreeEntry {
   path: string;
@@ -286,13 +287,14 @@ export const WorktreePanel = memo(function WorktreePanel({
             </button>
             {/* Don't allow removing the root worktree */}
             {wt.path !== rootProjectPath && (
-              <button
-                className="worktree-panel__item-remove"
-                onClick={() => handleRemove(wt)}
-                title="Remove worktree"
-              >
-                <Trash2 size={12} />
-              </button>
+              <Tooltip text="Remove worktree">
+                <button
+                  className="worktree-panel__item-remove"
+                  onClick={() => handleRemove(wt)}
+                >
+                  <Trash2 size={12} />
+                </button>
+              </Tooltip>
             )}
           </div>
           {expandedWt === wt.path && (

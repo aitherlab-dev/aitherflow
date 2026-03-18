@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { Pin, Trash2 } from "lucide-react";
 import type { ChatMeta } from "../../../stores/chatStore";
+import { Tooltip } from "../../shared/Tooltip";
 
 export const ChatItem = memo(function ChatItem({
   chat,
@@ -99,13 +100,14 @@ export const ChatItem = memo(function ChatItem({
         <span className="chat-item__title">{displayTitle}</span>
       )}
       {!disabled && !locked && !isEditing && (
-        <button
-          className="chat-item__delete"
-          onClick={handleDelete}
-          title="Delete chat"
-        >
-          <Trash2 size={14} />
-        </button>
+        <Tooltip text="Delete chat">
+          <button
+            className="chat-item__delete"
+            onClick={handleDelete}
+          >
+            <Trash2 size={14} />
+          </button>
+        </Tooltip>
       )}
     </div>
   );

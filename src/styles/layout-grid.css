@@ -53,19 +53,6 @@
   min-width: 0;
 }
 
-/* Sidebar header — Build/Dev buttons (top-left) */
-.sidebar-footer {
-  grid-column: 1;
-  grid-row: 1;
-  display: flex;
-  align-items: center;
-  padding: 4px 12px;
-  gap: 6px;
-  background: var(--bg-soft);
-  border-right: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-}
-
 /* Brand footer — logo (bottom-left) */
 .brand-footer {
   grid-column: 1;

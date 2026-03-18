@@ -3,6 +3,7 @@ import { GripVertical, Plus, Trash2 } from "lucide-react";
 import type { HookEvent, HookEntry, HookHandler, HookScope } from "../../../types/hooks";
 import { MATCHER_EVENTS } from "../../../types/hooks";
 import { HookHandlerForm } from "./HookHandlerForm";
+import { Tooltip } from "../../shared/Tooltip";
 
 interface Props {
   entry: HookEntry;
@@ -89,13 +90,14 @@ export function HookEntryCard({
             {matcherError && <span className="hooks-validation-error">{matcherError}</span>}
           </div>
         )}
-        <button
-          className="hooks-delete-btn"
-          onClick={onDeleteEntry}
-          title="Remove entry"
-        >
-          <Trash2 size={13} />
-        </button>
+        <Tooltip text="Remove entry">
+          <button
+            className="hooks-delete-btn"
+            onClick={onDeleteEntry}
+          >
+            <Trash2 size={13} />
+          </button>
+        </Tooltip>
       </div>
 
       <div className="hooks-handler-list">
@@ -109,9 +111,11 @@ export function HookEntryCard({
             onDrop={() => handleDrop(idx)}
             onDragEnd={handleDragEnd}
           >
-            <div className="hooks-drag-handle" title="Drag to reorder">
-              <GripVertical size={14} />
-            </div>
+            <Tooltip text="Drag to reorder">
+              <div className="hooks-drag-handle">
+                <GripVertical size={14} />
+              </div>
+            </Tooltip>
             <HookHandlerForm
               handler={handler}
               onUpdate={(h) => onUpdateHandler(idx, h)}

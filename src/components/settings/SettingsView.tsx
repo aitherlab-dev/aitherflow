@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from "react";
+import { Tooltip } from "../shared/Tooltip";
 import {
   X,
   User,
@@ -86,9 +87,11 @@ export function SettingsView() {
           <h2 className="settings-content-title">
             {NAV_ITEMS.find((n) => n.id === section)?.label ?? "Settings"}
           </h2>
-          <button className="settings-close" onClick={close} title="Close (Esc)">
-            <X size={18} />
-          </button>
+          <Tooltip text="Close (Esc)">
+            <button className="settings-close" onClick={close}>
+              <X size={18} />
+            </button>
+          </Tooltip>
         </div>
         <div className="settings-content-body">
           <SectionContent section={section} />

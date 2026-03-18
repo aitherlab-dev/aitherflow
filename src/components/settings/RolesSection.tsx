@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Plus, Trash2, Shield, X, RotateCcw } from "lucide-react";
 import { invoke } from "../../lib/transport";
 import type { AgentRole, RoleEntry } from "../../types/team";
+import { Tooltip } from "../shared/Tooltip";
 
 const ALL_TOOLS = ["Edit", "Write", "Bash", "Glob", "Grep", "Read"];
 
@@ -64,10 +65,12 @@ export function RolesSection() {
         <p className="settings-toggle-desc">
           Manage agent roles for team collaboration.
         </p>
-        <button className="roles-add-btn" onClick={handleNew} title="New role">
-          <Plus size={14} />
-          <span>New Role</span>
-        </button>
+        <Tooltip text="New role">
+          <button className="roles-add-btn" onClick={handleNew}>
+            <Plus size={14} />
+            <span>New Role</span>
+          </button>
+        </Tooltip>
       </div>
 
       <div className="roles-list">
@@ -182,9 +185,11 @@ function RoleEditor({
       <div className="roles-editor" onClick={(e) => e.stopPropagation()}>
         <div className="roles-editor__header">
           <h3 className="roles-editor__title">{isNew ? "New Role" : `Edit: ${role.name}`}</h3>
-          <button className="settings-close" onClick={onCancel} title="Cancel">
-            <X size={16} />
-          </button>
+          <Tooltip text="Cancel">
+            <button className="settings-close" onClick={onCancel}>
+              <X size={16} />
+            </button>
+          </Tooltip>
         </div>
 
         <div className="roles-editor__body">

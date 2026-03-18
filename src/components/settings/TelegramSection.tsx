@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { invoke } from "../../lib/transport";
+import { Tooltip } from "../shared/Tooltip";
 
 interface TelegramConfig {
   bot_token: string | null;
@@ -122,13 +123,14 @@ export function TelegramSection() {
             }
             placeholder="123456:ABC-DEF..."
           />
-          <button
-            className="webserver-icon-btn"
-            onClick={() => setShowToken(!showToken)}
-            title={showToken ? "Hide" : "Show"}
-          >
-            {showToken ? <EyeOff size={16} /> : <Eye size={16} />}
-          </button>
+          <Tooltip text={showToken ? "Hide" : "Show"}>
+            <button
+              className="webserver-icon-btn"
+              onClick={() => setShowToken(!showToken)}
+            >
+              {showToken ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </Tooltip>
         </div>
       </div>
 
@@ -165,13 +167,14 @@ export function TelegramSection() {
             }
             placeholder="gsk_..."
           />
-          <button
-            className="webserver-icon-btn"
-            onClick={() => setShowGroqKey(!showGroqKey)}
-            title={showGroqKey ? "Hide" : "Show"}
-          >
-            {showGroqKey ? <EyeOff size={16} /> : <Eye size={16} />}
-          </button>
+          <Tooltip text={showGroqKey ? "Hide" : "Show"}>
+            <button
+              className="webserver-icon-btn"
+              onClick={() => setShowGroqKey(!showGroqKey)}
+            >
+              {showGroqKey ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </Tooltip>
         </div>
         <span className="webserver-note">
           Optional. Required only for voice message transcription via Whisper.

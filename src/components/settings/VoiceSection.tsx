@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { invoke } from "../../lib/transport";
 import { invalidateSettingsCache } from "../../stores/chatService";
+import { Tooltip } from "../shared/Tooltip";
 
 import type { AppSettings } from "../../types/settings";
 
@@ -97,13 +98,14 @@ export function VoiceSection() {
                 spellCheck={false}
                 autoComplete="off"
               />
-              <button
-                className="settings-input-toggle"
-                onClick={() => setShowKey(!showKey)}
-                title={showKey ? "Hide" : "Show"}
-              >
-                {showKey ? "Hide" : "Show"}
-              </button>
+              <Tooltip text={showKey ? "Hide" : "Show"}>
+                <button
+                  className="settings-input-toggle"
+                  onClick={() => setShowKey(!showKey)}
+                >
+                  {showKey ? "Hide" : "Show"}
+                </button>
+              </Tooltip>
             </div>
           </div>
 
@@ -167,13 +169,14 @@ export function VoiceSection() {
               spellCheck={false}
               autoComplete="off"
             />
-            <button
-              className="settings-input-toggle"
-              onClick={() => setShowKey(!showKey)}
-              title={showKey ? "Hide" : "Show"}
-            >
-              {showKey ? "Hide" : "Show"}
-            </button>
+            <Tooltip text={showKey ? "Hide" : "Show"}>
+              <button
+                className="settings-input-toggle"
+                onClick={() => setShowKey(!showKey)}
+              >
+                {showKey ? "Hide" : "Show"}
+              </button>
+            </Tooltip>
           </div>
         </div>
       )}
