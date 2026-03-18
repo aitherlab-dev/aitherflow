@@ -267,8 +267,11 @@ function handleCliEvent(e: CliEvent) {
     const agentState = agentStates.get(e.agent_id);
     if (!agentState) return;
     const wasThinking = agentState.isThinking;
-    processEventCore(e, agentState.streamingMessage, agentState.messages,
-      (patch) => Object.assign(agentState, patch));
+    const updated = { ...agentState };
+    processEventCore(e, updated.streamingMessage, updated.messages,
+      (patch) => Object.assign(updated, patch));
+    if (e.type === "toolUse") updated.toolCount += 1;
+    agentStates.set(e.agent_id, updated);
     if (wasThinking !== (agentStates.get(e.agent_id)?.isThinking ?? false)) syncThinkingIds();
     if (e.type === "turnComplete" || e.type === "processExited") {
       persistAgentMessages(e.agent_id).catch(console.error);

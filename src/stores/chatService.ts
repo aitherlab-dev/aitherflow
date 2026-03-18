@@ -100,7 +100,7 @@ export async function sendMessage(text: string, allAttachments?: Attachment[]) {
     timestamp: Date.now(),
     attachments: allAttachments && allAttachments.length > 0 ? allAttachments : undefined,
   };
-  useChatStore.setState({ messages: [...state.messages, userMsg], error: null, isThinking: true });
+  useChatStore.setState((prev) => ({ messages: [...prev.messages, userMsg], error: null, isThinking: true }));
 
   try {
     // Lazy chat creation: create on first message (guard against double-click)
@@ -256,7 +256,7 @@ export async function switchPermissionMode(mode: "default" | "plan") {
   try {
     const settings = await invoke<{ enableChrome: boolean }>("load_settings");
     enableChrome = settings.enableChrome;
-  } catch { /* use default */ }
+  } catch (e) { console.error("Failed to load settings for mode switch:", e); }
 
   const permissionMode = mode !== "default" ? mode : undefined;
 
@@ -396,6 +396,7 @@ export async function newChat() {
   useChatStore.setState({
     currentChatId: null,
     messages: [],
+    streamingMessage: null,
     hasSession: false,
     isThinking: false,
     planMode: false,
@@ -431,8 +432,10 @@ export async function deleteChat(chatId: string) {
     }
 
     // Clean up agentStates entries that referenced the deleted chat
+    // Skip active agent — its real state is in Zustand, not the Map snapshot
+    const activeAgentId = useChatStore.getState().agentId;
     for (const [agentId, agentState] of agentStates) {
-      if (agentState.chatId === chatId) {
+      if (agentId !== activeAgentId && agentState.chatId === chatId) {
         agentStates.delete(agentId);
       }
     }

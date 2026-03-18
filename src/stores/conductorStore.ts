@@ -23,6 +23,8 @@ interface AgentUsageState {
   contextUsed: number;
   contextMax: number;
   costUsd: number;
+  sessionId: string | null;
+  model: string | null;
 }
 
 /** Module-level map: stores usage for ALL agents. Survives agent switches. */
@@ -37,6 +39,8 @@ function emptyUsage(): AgentUsageState {
     contextUsed: 0,
     contextMax: DEFAULT_CONTEXT_WINDOW,
     costUsd: 0,
+    sessionId: null,
+    model: null,
   };
 }
 
@@ -121,17 +125,24 @@ export const useConductorStore = create<ConductorState>((set, get) => ({
       contextUsed: s.contextUsed,
       contextMax: s.contextMax,
       costUsd: s.costUsd,
+      sessionId: s.sessionId,
+      model: s.model,
     });
   },
 
   restoreUsageForAgent: (agentId: string) => {
-    const saved = agentUsage.get(agentId);
-    if (saved) {
-      set({ ...saved });
-    } else {
-      const fresh = emptyUsage();
-      set({ ...fresh });
-    }
+    const saved = agentUsage.get(agentId) ?? emptyUsage();
+    set({
+      inputTokens: saved.inputTokens,
+      outputTokens: saved.outputTokens,
+      cacheCreationTokens: saved.cacheCreationTokens,
+      cacheReadTokens: saved.cacheReadTokens,
+      contextUsed: saved.contextUsed,
+      contextMax: saved.contextMax,
+      costUsd: saved.costUsd,
+      sessionId: saved.sessionId,
+      model: saved.model,
+    });
   },
 
   loadSavedUsage: async (sessionId: string, projectPath: string) => {
@@ -208,6 +219,18 @@ listen<CliEvent>("cli-event", (event) => {
       });
     }
     return;
+  }
+
+  // Save sessionId/model for all agents (including background) in usage map
+  if (e.type === "sessionId") {
+    const existing = agentUsage.get(e.agent_id) ?? emptyUsage();
+    existing.sessionId = e.session_id;
+    agentUsage.set(e.agent_id, { ...existing });
+  }
+  if (e.type === "modelInfo") {
+    const existing = agentUsage.get(e.agent_id) ?? emptyUsage();
+    existing.model = e.model;
+    agentUsage.set(e.agent_id, { ...existing });
   }
 
   // All other events: only process for active agent
