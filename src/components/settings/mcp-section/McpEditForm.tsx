@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { Check } from "lucide-react";
-import type { McpServerConfig } from "../../../types/mcp";
+import type { McpServerConfig, McpServerType } from "../../../types/mcp";
 
 export function McpEditForm({
   config,
@@ -31,7 +31,7 @@ export function McpEditForm({
   );
 
   const updateType = useCallback(
-    (serverType: string) => {
+    (serverType: McpServerType) => {
       onChange({ ...config, serverType });
     },
     [config, onChange],
@@ -97,7 +97,7 @@ export function McpEditForm({
         <select
           className="mcp-edit-select"
           value={config.serverType}
-          onChange={(e) => updateType(e.target.value)}
+          onChange={(e) => updateType(e.target.value as McpServerType)}
         >
           <option value="stdio">stdio</option>
           <option value="sse">sse</option>

@@ -54,7 +54,7 @@
 .tool-card-name--read { color: var(--blue); }
 .tool-card-name--edit { color: var(--yellow); }
 .tool-card-name--write { color: var(--green); }
-.tool-card-name--bash { color: var(--cyan); }
+.tool-card-name--bash { color: var(--aqua); }
 .tool-card-name--search { color: var(--purple); }
 .tool-card-name--web { color: var(--accent); }
 .tool-card-name--agent { color: var(--fg-muted); }

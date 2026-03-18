@@ -102,15 +102,21 @@ export function useDragReorder<T extends string | number>(
 
   const handlePointerUp = useCallback(
     (e: React.PointerEvent) => {
+      let reorderFrom: T | null = null;
+      let reorderTo: T | null = null;
       setState((prev) => {
         if (prev.dragId === null) return prev;
         if (dragElRef.current) dragElRef.current.releasePointerCapture(e.pointerId);
         if (prev.dragging && prev.dropTargetId !== null && prev.dropTargetId !== prev.dragId) {
-          onReorder(prev.dragId, prev.dropTargetId);
+          reorderFrom = prev.dragId;
+          reorderTo = prev.dropTargetId;
         }
         dragElRef.current = null;
         return { dragId: null, dragPos: { x: 0, y: 0 }, dragOffset: { x: 0, y: 0 }, dropTargetId: null, dragging: false };
       });
+      if (reorderFrom !== null && reorderTo !== null) {
+        onReorder(reorderFrom, reorderTo);
+      }
     },
     [onReorder],
   );

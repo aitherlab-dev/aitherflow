@@ -15,7 +15,7 @@ const MODELS: ModelDef[] = [
   { id: "haiku", label: "Haiku" },
 ];
 
-const EFFORT_LEVELS = [
+const EFFORT_LEVELS: { id: "high" | "medium" | "low"; label: string }[] = [
   { id: "low", label: "Low" },
   { id: "medium", label: "Medium" },
   { id: "high", label: "High" },
@@ -61,7 +61,7 @@ export const ModelMenu = memo(function ModelMenu({ anchorRect, onClose }: ModelM
     setSubPos({ x: rect.right + 4, y: rect.top });
   }, []);
 
-  const handleEffortClick = useCallback((effortId: string) => {
+  const handleEffortClick = useCallback((effortId: "high" | "medium" | "low") => {
     setSelectedEffort(effortId);
     // If the user picked effort for a different model, also switch to that model
     if (effortFor && effortFor !== selectedModel) {

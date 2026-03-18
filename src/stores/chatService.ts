@@ -154,7 +154,7 @@ export async function sendMessage(text: string, allAttachments?: Attachment[]) {
       const resumeSessionId = chatMeta?.sessionId ?? undefined;
 
       let enableChrome = true;
-      let settingsPermMode: string | undefined;
+      let settingsPermMode: "default" | "plan" | "bypassPermissions" | undefined;
       try {
         const settings = await getSettings();
         if (settings.bypassPermissions) {

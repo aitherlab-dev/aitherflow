@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { MessagesSquare, X, ArrowDown, User, Trash2 } from "lucide-react";
 import { invoke } from "../../lib/transport";
 import { useLayoutStore } from "../../stores/layoutStore";
@@ -31,8 +32,8 @@ export const TeamMailboxPanel = memo(function TeamMailboxPanel() {
 
   const [messages, setMessages] = useState<TeamMessage[]>([]);
   const [teamSlug, setTeamSlug] = useState<string | null>(null);
-  const agentRoles = useConductorStore((s) => s.agentRoles);
-  const agents = useAgentStore((s) => s.agents);
+  const agentRoles = useConductorStore(useShallow((s) => s.agentRoles));
+  const agents = useAgentStore(useShallow((s) => s.agents));
 
   // Resolve project slug once
   useEffect(() => {

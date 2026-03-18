@@ -126,6 +126,7 @@ export const WorktreePanel = memo(function WorktreePanel({
   const [worktreeStatuses, setWorktreeStatuses] = useState<Map<string, GitStatus>>(new Map());
   const [creating, setCreating] = useState(false);
   const [newBranch, setNewBranch] = useState("");
+  const newBranchRef = useRef("");
   const [expandedWt, setExpandedWt] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -202,10 +203,11 @@ export const WorktreePanel = memo(function WorktreePanel({
   }, []);
 
   const handleCreateSubmit = useCallback(async () => {
-    const branch = newBranch.trim();
+    const branch = newBranchRef.current.trim();
     if (!branch || !rootProjectPath || !parentAgent) {
       setCreating(false);
       setNewBranch("");
+      newBranchRef.current = "";
       return;
     }
 
@@ -226,7 +228,8 @@ export const WorktreePanel = memo(function WorktreePanel({
 
     setCreating(false);
     setNewBranch("");
-  }, [newBranch, rootProjectPath, parentAgent]);
+    newBranchRef.current = "";
+  }, [rootProjectPath, parentAgent]);
 
   const handleCreateKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.code === "Enter") handleCreateSubmit();
@@ -310,9 +313,9 @@ export const WorktreePanel = memo(function WorktreePanel({
             ref={inputRef}
             className="worktree-panel__input"
             value={newBranch}
-            onChange={(e) => setNewBranch(e.target.value)}
+            onChange={(e) => { setNewBranch(e.target.value); newBranchRef.current = e.target.value; }}
             onKeyDown={handleCreateKeyDown}
-            onBlur={() => { setCreating(false); setNewBranch(""); }}
+            onBlur={() => { setTimeout(() => { setCreating(false); setNewBranch(""); newBranchRef.current = ""; }, 150); }}
             placeholder="branch name"
           />
         </div>

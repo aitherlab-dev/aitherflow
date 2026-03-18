@@ -49,7 +49,7 @@ interface ConductorState {
   sessionId: string | null;
   model: string | null;
   selectedModel: string;
-  selectedEffort: string;
+  selectedEffort: "high" | "medium" | "low";
   selectedPermissionMode: "default" | "plan";
   error: string | null;
   inputTokens: number;
@@ -65,7 +65,7 @@ interface ConductorState {
 
   // Actions
   setSelectedModel: (model: string) => void;
-  setSelectedEffort: (effort: string) => void;
+  setSelectedEffort: (effort: "high" | "medium" | "low") => void;
   setSelectedPermissionMode: (mode: "default" | "plan") => void;
   setAgentRole: (agentId: string, role: AgentRole | null) => void;
   getAgentRole: (agentId: string) => AgentRole | null;
@@ -94,7 +94,7 @@ export const useConductorStore = create<ConductorState>((set, get) => ({
   agentRoles: {},
 
   setSelectedModel: (model: string) => set({ selectedModel: model }),
-  setSelectedEffort: (effort: string) => set({ selectedEffort: effort }),
+  setSelectedEffort: (effort: "high" | "medium" | "low") => set({ selectedEffort: effort }),
   setSelectedPermissionMode: (mode: "default" | "plan") => set({ selectedPermissionMode: mode }),
   setAgentRole: (agentId: string, role: AgentRole | null) =>
     set((s) => ({ agentRoles: { ...s.agentRoles, [agentId]: role } })),

@@ -1,4 +1,5 @@
 import { memo, useRef, useCallback, useMemo } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { createPortal } from "react-dom";
 import { Terminal } from "lucide-react";
 import { useConductorStore } from "../../stores/conductorStore";
@@ -21,7 +22,7 @@ export const CommandsMenu = memo(function CommandsMenu({
   onClose,
 }: CommandsMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
-  const allCommands = useConductorStore((s) => s.slashCommands);
+  const allCommands = useConductorStore(useShallow((s) => s.slashCommands));
   const translations = useTranslationStore((s) => s.cache.entries);
 
   // Filter out skills — keep only built-in CLI commands
