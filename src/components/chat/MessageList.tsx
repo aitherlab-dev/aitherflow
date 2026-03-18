@@ -137,6 +137,8 @@ export const MessageList = memo(function MessageList() {
     [agentId],
   );
 
+  const VirtuosoFooter = useMemo(() => () => <StreamingBubble agentId={agentId} />, [agentId]);
+
   if (messages.length === 0 && !hasStreamingMessage) {
     return (
       <div ref={containerRef} className="message-list">
@@ -162,7 +164,7 @@ export const MessageList = memo(function MessageList() {
           atBottomStateChange={handleAtBottomChange}
           increaseViewportBy={200}
           components={{
-            Footer: () => <StreamingBubble agentId={agentId} />,
+            Footer: VirtuosoFooter,
           }}
         />
         {showScrollBtn && (

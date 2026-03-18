@@ -45,6 +45,7 @@ export function VoiceSection() {
   }, []);
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(saveTimerRef.current), []);
   const save = useCallback((updated: AppSettings) => {
     setSettings(updated);
     invalidateSettingsCache();

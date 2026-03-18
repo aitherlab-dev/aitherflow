@@ -53,7 +53,7 @@ export function useDragReorder<T extends string | number>(
   const rectsCache = useRef<Map<string | number, { id: T; rect: DOMRect }>>(new Map());
 
   /** Cache all item rects at drag start; reuse on every pointermove */
-  const cacheRects = useCallback(() => {
+  const cacheRects = useCallback((dragId: T) => {
     rectsCache.current.clear();
     if (!gridRef.current) return;
     const items = gridRef.current.querySelectorAll<HTMLElement>(`[data-${dataAttr}]`);
@@ -61,10 +61,10 @@ export function useDragReorder<T extends string | number>(
     for (const item of items) {
       const val = item.dataset[camelAttr];
       if (val == null) continue;
-      const id = (typeof state.dragId === "number" ? Number(val) : val) as T;
+      const id = (typeof dragId === "number" ? Number(val) : val) as T;
       rectsCache.current.set(id as string | number, { id, rect: item.getBoundingClientRect() });
     }
-  }, [dataAttr, state.dragId]);
+  }, [dataAttr]);
 
   const findAtPoint = useCallback(
     (x: number, y: number, excludeId: T): T | null => {
@@ -93,10 +93,10 @@ export function useDragReorder<T extends string | number>(
         dragging: false,
       });
       // Cache all item rects once at drag start
-      requestAnimationFrame(() => cacheRects());
+      requestAnimationFrame(() => cacheRects(id));
       target.setPointerCapture(e.pointerId);
     },
-    [],
+    [cacheRects],
   );
 
   const handlePointerMove = useCallback(

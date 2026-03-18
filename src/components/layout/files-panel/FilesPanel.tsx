@@ -131,6 +131,9 @@ export const FilesPanel = memo(function FilesPanel() {
   }, []);
 
   // Tree: toggle folder expand/collapse
+  const childrenCacheRef = useRef(childrenCache);
+  childrenCacheRef.current = childrenCache;
+
   const handleToggle = useCallback(async (path: string) => {
     setExpandedSet((prev) => {
       const next = new Set(prev);
@@ -142,21 +145,16 @@ export const FilesPanel = memo(function FilesPanel() {
       return next;
     });
 
-    // Check cache via setter to avoid deps on childrenCache
-    setChildrenCache((prev) => {
-      if (prev.has(path)) return prev;
-      // Load async, update cache when done
-      loadDirectory(path).then((entries) => {
-        if (entries) {
-          setChildrenCache((p) => {
-            const next = new Map(p);
-            next.set(path, entries);
-            return next;
-          });
-        }
-      }).catch(console.error);
-      return prev;
-    });
+    if (!childrenCacheRef.current.has(path)) {
+      const entries = await loadDirectory(path);
+      if (entries) {
+        setChildrenCache((prev) => {
+          const next = new Map(prev);
+          next.set(path, entries);
+          return next;
+        });
+      }
+    }
   }, [loadDirectory]);
 
   // File click → open in viewer
