@@ -514,6 +514,7 @@ pub async fn run_cli_session(
     let mut completed_text = String::new();
     let mut delta_text = String::new();
     let mut combined_buf = String::new();
+    let agent_id_arc: Arc<str> = Arc::from(agent_id.as_str());
 
     while let Ok(Some(line)) = lines.next_line().await {
         if line.trim().is_empty() {
@@ -526,15 +527,13 @@ pub async fn run_cli_session(
                     if matches!(event, CliEvent::TurnComplete { .. }) {
                         writer.set_status(SessionStatus::Idle).await;
                     }
-                }
-                for event in events {
-                    sink.emit(&event);
+                    sink.emit(event);
                 }
             }
             Err(e) => {
                 eprintln!("[{tag}] Parse error: {e} — line: {line}");
                 sink.emit(&CliEvent::Error {
-                    agent_id: agent_id.clone(),
+                    agent_id: agent_id_arc.clone(),
                     message: format!("Parse error: {e}"),
                 });
             }
@@ -578,7 +577,7 @@ pub async fn run_cli_session(
 
     // Emit process exited
     sink.emit(&CliEvent::ProcessExited {
-        agent_id: agent_id.clone(),
+        agent_id: agent_id_arc.clone(),
         exit_code,
     });
 

@@ -78,7 +78,7 @@ pub async fn start_session(
                 &app_clone,
                 "cli-event",
                 &CliEvent::Error {
-                    agent_id: agent_id_clone,
+                    agent_id: agent_id_clone.into(),
                     message: e,
                 },
             ) {

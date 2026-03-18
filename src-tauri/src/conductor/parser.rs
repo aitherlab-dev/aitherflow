@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use serde_json::Value;
 use smallvec::SmallVec;
 
@@ -26,19 +28,21 @@ pub fn parse_line(
         .and_then(|v| v.as_str())
         .unwrap_or("");
 
+    // Single allocation — Arc::clone is just a refcount bump
+    let aid: Arc<str> = Arc::from(agent_id);
     let mut events = SmallVec::new();
 
     match event_type {
         "system" => {
             if let Some(sid) = parsed.get("session_id").and_then(|v| v.as_str()) {
                 events.push(CliEvent::SessionId {
-                    agent_id: agent_id.to_string(),
+                    agent_id: aid.clone(),
                     session_id: sid.to_string(),
                 });
             }
             if let Some(m) = parsed.get("model").and_then(|v| v.as_str()) {
                 events.push(CliEvent::ModelInfo {
-                    agent_id: agent_id.to_string(),
+                    agent_id: aid.clone(),
                     model: m.to_string(),
                 });
             }
@@ -49,7 +53,7 @@ pub fn parse_line(
                     .collect();
                 if !commands.is_empty() {
                     events.push(CliEvent::SlashCommands {
-                        agent_id: agent_id.to_string(),
+                        agent_id: aid.clone(),
                         commands,
                     });
                 }
@@ -73,7 +77,7 @@ pub fn parse_line(
             {
                 delta_text.push_str(chunk);
                 events.push(CliEvent::StreamChunk {
-                    agent_id: agent_id.to_string(),
+                    agent_id: aid.clone(),
                     text: chunk.to_string(),
                 });
             }
@@ -101,7 +105,7 @@ pub fn parse_line(
                 completed_text.push_str(&text);
                 // No streaming deltas came — send the text as a chunk
                 events.push(CliEvent::StreamChunk {
-                    agent_id: agent_id.to_string(),
+                    agent_id: aid.clone(),
                     text,
                 });
             }
@@ -127,7 +131,7 @@ pub fn parse_line(
                 let context_used = input + cache_creation + cache_read;
                 if context_used > 0 {
                     events.push(CliEvent::ContextInfo {
-                        agent_id: agent_id.to_string(),
+                        agent_id: aid.clone(),
                         context_used,
                         output_tokens: output,
                     });
@@ -143,7 +147,7 @@ pub fn parse_line(
                 for item in arr {
                     if item.get("type").and_then(|t| t.as_str()) == Some("tool_use") {
                         events.push(CliEvent::ToolUse {
-                            agent_id: agent_id.to_string(),
+                            agent_id: aid.clone(),
                             tool_use_id: item
                                 .get("id")
                                 .and_then(|v| v.as_str())
@@ -181,7 +185,7 @@ pub fn parse_line(
                         let content_text = extract_tool_result_text(item);
                         let preview: String = content_text.chars().take(500).collect();
                         events.push(CliEvent::ToolResult {
-                            agent_id: agent_id.to_string(),
+                            agent_id: aid.clone(),
                             tool_use_id: item
                                 .get("tool_use_id")
                                 .and_then(|v| v.as_str())
@@ -219,7 +223,7 @@ pub fn parse_line(
 
             if is_error {
                 events.push(CliEvent::Error {
-                    agent_id: agent_id.to_string(),
+                    agent_id: aid.clone(),
                     message: parsed
                         .get("result")
                         .and_then(|r| r.as_str())
@@ -228,7 +232,7 @@ pub fn parse_line(
                 });
             } else if !final_text.is_empty() {
                 events.push(CliEvent::MessageComplete {
-                    agent_id: agent_id.to_string(),
+                    agent_id: aid.clone(),
                     text: final_text,
                 });
             }
@@ -267,7 +271,7 @@ pub fn parse_line(
 
             if input_tokens > 0 || output_tokens > 0 {
                 events.push(CliEvent::UsageInfo {
-                    agent_id: agent_id.to_string(),
+                    agent_id: aid.clone(),
                     input_tokens,
                     output_tokens,
                     cache_creation_input_tokens,
@@ -282,7 +286,7 @@ pub fn parse_line(
             delta_text.clear();
 
             // Turn complete
-            events.push(CliEvent::TurnComplete { agent_id: agent_id.to_string() });
+            events.push(CliEvent::TurnComplete { agent_id: aid.clone() });
         }
 
         "control_request" => {
@@ -314,7 +318,7 @@ pub fn parse_line(
 
             if !request_id.is_empty() {
                 events.push(CliEvent::ControlRequest {
-                    agent_id: agent_id.to_string(),
+                    agent_id: aid.clone(),
                     request_id,
                     tool_name,
                     tool_use_id,
@@ -416,14 +420,14 @@ mod tests {
                 agent_id,
                 session_id,
             } => {
-                assert_eq!(agent_id, "agent1");
+                assert_eq!(&**agent_id, "agent1");
                 assert_eq!(session_id, "sess_abc");
             }
             other => panic!("Expected SessionId, got {other:?}"),
         }
         match &events[1] {
             CliEvent::ModelInfo { agent_id, model } => {
-                assert_eq!(agent_id, "agent1");
+                assert_eq!(&**agent_id, "agent1");
                 assert_eq!(model, "claude-sonnet-4-20250514");
             }
             other => panic!("Expected ModelInfo, got {other:?}"),
