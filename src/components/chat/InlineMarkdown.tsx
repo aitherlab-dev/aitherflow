@@ -1,4 +1,4 @@
-import { type ReactNode, memo, useEffect, useRef } from "react";
+import { type ReactNode, memo, useRef } from "react";
 import { openUrl } from "../../lib/transport";
 
 /**
@@ -122,11 +122,9 @@ export const InlineMarkdown = memo(function InlineMarkdown({ content }: InlineMa
     result.push(renderParagraph(paragraphs[i], i));
   }
 
-  // Update cache after render (mutating ref during render breaks Strict Mode)
-  useEffect(() => {
-    cacheRef.current.texts = paragraphs;
-    cacheRef.current.nodes = result;
-  });
+  // Update cache directly during render
+  cacheRef.current.texts = paragraphs;
+  cacheRef.current.nodes = result;
 
   if (!content) return null;
 

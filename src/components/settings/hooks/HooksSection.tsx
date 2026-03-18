@@ -75,6 +75,14 @@ export function HooksSection() {
   const [showTemplates, setShowTemplates] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+    };
+  }, []);
+
   const projectPath = useAgentStore(
     (s) => s.agents.find((a) => a.id === s.activeAgentId)?.projectPath,
   );
