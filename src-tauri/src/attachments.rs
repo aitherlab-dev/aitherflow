@@ -1,7 +1,6 @@
 use base64::Engine;
 use serde::Serialize;
 use std::fs;
-use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -211,10 +210,7 @@ pub async fn read_clipboard_image() -> Result<ClipboardImage, String> {
         let filename = format!("paste-{ts}.png");
         let file_path = dir.join(&filename);
 
-        let mut file = fs::File::create(&file_path)
-            .map_err(|e| format!("Failed to create temp file: {e}"))?;
-        file.write_all(&png_buf)
-            .map_err(|e| format!("Failed to write temp file: {e}"))?;
+        crate::file_ops::atomic_write(&file_path, &png_buf)?;
 
         let size = png_buf.len() as u64;
         let b64 = base64::engine::general_purpose::STANDARD.encode(&png_buf);

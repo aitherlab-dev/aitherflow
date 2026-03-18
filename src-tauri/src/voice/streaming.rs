@@ -196,7 +196,9 @@ pub async fn voice_start_stream(
         )
         .await;
         // Ensure audio_thread stops even if WebSocket exits before voice_stop_stream
-        let _ = stop_tx_ws.send(true);
+        if let Err(e) = stop_tx_ws.send(true) {
+            eprintln!("[voice] Failed to send stop signal after WebSocket exit: {e}");
+        }
     });
 
     *guard = Some(StreamSession {

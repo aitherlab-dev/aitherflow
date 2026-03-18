@@ -33,23 +33,31 @@ fn resolve_claude_binary() -> String {
     // Common locations to check
     let home = dirs::home_dir().unwrap_or_default();
     eprintln!("[conductor] resolve_claude_binary: home={}", home.display());
-    let candidates: Vec<std::path::PathBuf> = vec![
+    let mut candidates: Vec<std::path::PathBuf> = vec![
         // npm global (unix)
         home.join(".local/node/bin/claude"),
         home.join(".local/bin/claude"),
         home.join(".nvm/current/bin/claude"),
-        // macOS / Homebrew
-        "/usr/local/bin/claude".into(),
-        "/opt/homebrew/bin/claude".into(),
+    ];
+    // macOS / Homebrew
+    #[cfg(target_os = "macos")]
+    {
+        candidates.push("/usr/local/bin/claude".into());
+        candidates.push("/opt/homebrew/bin/claude".into());
+    }
+    candidates.extend([
         // npm global (default)
         home.join(".npm-global/bin/claude"),
         // fnm / volta
         home.join(".local/share/fnm/aliases/default/bin/claude"),
         home.join(".volta/bin/claude"),
-        // Windows
-        home.join("AppData/Roaming/npm/claude.cmd"),
-        home.join("AppData/Roaming/npm/claude"),
-    ];
+    ]);
+    // Windows
+    #[cfg(target_os = "windows")]
+    {
+        candidates.push(home.join("AppData/Roaming/npm/claude.cmd"));
+        candidates.push(home.join("AppData/Roaming/npm/claude"));
+    }
 
     for candidate in &candidates {
         let exists = candidate.exists();
@@ -530,8 +538,9 @@ pub async fn run_cli_session(
 
     // stdout closed — process is finishing; gracefully stop mailbox polling
     if let Some(stop_tx) = polling_stop_tx {
-        // Send stop signal; ignore error (task may have already exited)
-        let _ = stop_tx.send(());
+        if stop_tx.send(()).is_err() {
+            eprintln!("[{tag}] Polling stop signal already consumed (receiver dropped)");
+        }
     }
     if let Some(handle) = polling_handle {
         // Give the polling task time to flush pending messages

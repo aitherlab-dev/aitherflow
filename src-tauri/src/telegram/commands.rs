@@ -171,7 +171,9 @@ pub async fn stop_telegram_bot() -> Result<(), String> {
             _ = tokio::time::sleep(std::time::Duration::from_secs(3)) => {
                 eprintln!("[TG] Graceful shutdown timed out, aborting");
                 handle.abort();
-                let _ = handle.await;
+                if let Err(e) = handle.await {
+                    eprintln!("[TG] Aborted task join error: {e}");
+                }
             }
         }
     }

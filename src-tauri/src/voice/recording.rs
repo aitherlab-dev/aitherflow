@@ -66,17 +66,23 @@ pub async fn voice_start(state: tauri::State<'_, VoiceState>) -> Result<(), Stri
         let stream = match super::capture::build_input_stream(&device, supported_config, buf_clone, "voice") {
             Ok(s) => s,
             Err(e) => {
-                let _ = ready_tx.send(Err(e));
+                if let Err(send_err) = ready_tx.send(Err(e)) {
+                    eprintln!("[voice] Failed to send build_input_stream error: {send_err:?}");
+                }
                 return;
             }
         };
 
         if let Err(e) = stream.play() {
-            let _ = ready_tx.send(Err(format!("[voice] Play error: {e}")));
+            if let Err(send_err) = ready_tx.send(Err(format!("[voice] Play error: {e}"))) {
+                eprintln!("[voice] Failed to send play error: {send_err:?}");
+            }
             return;
         }
 
-        let _ = ready_tx.send(Ok(()));
+        if let Err(send_err) = ready_tx.send(Ok(())) {
+            eprintln!("[voice] Failed to send ready signal: {send_err:?}");
+        }
 
         // Block until stop signal
         if let Err(e) = stop_rx.recv() {
@@ -92,7 +98,9 @@ pub async fn voice_start(state: tauri::State<'_, VoiceState>) -> Result<(), Stri
 
     if let Err(e) = start_result {
         // Thread failed — join it and don't store ActiveRecording
-        let _ = thread.join();
+        if let Err(e) = thread.join() {
+            eprintln!("[voice] Recording thread panicked on join: {e:?}");
+        }
         return Err(e);
     }
 

@@ -2,6 +2,27 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::process::Command;
 
+/// Validate a git branch name: reject traversal, spaces, and shell-dangerous characters.
+fn validate_branch_name(name: &str) -> Result<(), String> {
+    if name.is_empty() {
+        return Err("Branch name cannot be empty".to_string());
+    }
+    if name.contains("..") || name.contains('/') && name.contains("..") {
+        return Err(format!("Invalid branch name (path traversal): {name}"));
+    }
+    // Reject characters dangerous for shell injection or invalid for git refs
+    let forbidden = [' ', '\t', '\n', '~', '^', ':', '\\', '*', '?', '[', '\x7f'];
+    for ch in forbidden {
+        if name.contains(ch) {
+            return Err(format!("Invalid branch name (forbidden char '{ch}'): {name}"));
+        }
+    }
+    if name.starts_with('-') || name.starts_with('.') || name.ends_with('.') || name.ends_with(".lock") {
+        return Err(format!("Invalid branch name: {name}"));
+    }
+    Ok(())
+}
+
 /// A single git worktree entry
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -269,6 +290,8 @@ pub async fn create_worktree(options: CreateWorktreeOptions) -> Result<CreateWor
     tokio::task::spawn_blocking(move || {
         let project = Path::new(&options.project_path);
         crate::files::validate_path_safe(project)?;
+        validate_branch_name(&options.branch_name)?;
+
         let parent = project
             .parent()
             .ok_or_else(|| "Cannot determine parent directory".to_string())?;
@@ -285,6 +308,7 @@ pub async fn create_worktree(options: CreateWorktreeOptions) -> Result<CreateWor
             args.push("-b");
             args.push(&options.branch_name);
         }
+        args.push("--");
         args.push(&worktree_path);
         if !options.create_branch {
             args.push(&options.branch_name);

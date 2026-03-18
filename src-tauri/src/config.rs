@@ -12,7 +12,7 @@ fn fallback_home() -> PathBuf {
         eprintln!("[config] WARNING: $HOME unset, using XDG_RUNTIME_DIR={}", dir.to_string_lossy());
         return PathBuf::from(dir);
     }
-    #[cfg(unix)]
+    #[cfg(target_os = "linux")]
     {
         use std::os::unix::fs::MetadataExt;
         if let Ok(meta) = std::fs::metadata("/proc/self") {
@@ -21,7 +21,7 @@ fn fallback_home() -> PathBuf {
             return p;
         }
     }
-    let p = PathBuf::from("/tmp/aither-flow-fallback");
+    let p = std::env::temp_dir().join("aither-flow-fallback");
     eprintln!("[config] WARNING: $HOME unset, falling back to {}", p.display());
     p
 }
