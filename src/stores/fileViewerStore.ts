@@ -102,17 +102,18 @@ export const useFileViewerStore = create<FileViewerState>((set, get) => ({
     const tab = await loadFileTab(filePath, true);
     if (!tab) return;
 
-    // Replace existing preview tab, or add new one
-    const oldPreviewIdx = state.tabs.findIndex((t) => t.isPreview);
-    let newTabs: FileTab[];
-    if (oldPreviewIdx >= 0) {
-      newTabs = [...state.tabs];
-      newTabs[oldPreviewIdx] = tab;
-    } else {
-      newTabs = [...state.tabs, tab];
-    }
-
-    set({ tabs: newTabs, activeTabId: tab.id });
+    // Replace existing preview tab, or add new one (use fresh state after await)
+    set((s) => {
+      const oldPreviewIdx = s.tabs.findIndex((t) => t.isPreview);
+      let newTabs: FileTab[];
+      if (oldPreviewIdx >= 0) {
+        newTabs = [...s.tabs];
+        newTabs[oldPreviewIdx] = tab;
+      } else {
+        newTabs = [...s.tabs, tab];
+      }
+      return { tabs: newTabs, activeTabId: tab.id };
+    });
     notifyHasContent(true);
   },
 
@@ -140,25 +141,25 @@ export const useFileViewerStore = create<FileViewerState>((set, get) => ({
       return;
     }
 
-    // Enforce max pinned tabs
-    const pinnedCount = state.tabs.filter((t) => !t.isPreview).length;
-    let newTabs = [...state.tabs];
-    if (pinnedCount >= MAX_PINNED_TABS) {
-      // Close the oldest pinned tab that isn't active
-      const oldest = newTabs.find(
-        (t) => !t.isPreview && t.id !== state.activeTabId,
-      );
-      if (oldest) {
-        newTabs = newTabs.filter((t) => t.id !== oldest.id);
-      }
-    }
-
     // Load file content
     const tab = await loadFileTab(filePath, false);
     if (!tab) return;
 
-    newTabs.push(tab);
-    set({ tabs: newTabs, activeTabId: tab.id });
+    // Enforce max pinned tabs and add new tab (use fresh state after await)
+    set((s) => {
+      const pinnedCount = s.tabs.filter((t) => !t.isPreview).length;
+      let tabs = [...s.tabs];
+      if (pinnedCount >= MAX_PINNED_TABS) {
+        const oldest = tabs.find(
+          (t) => !t.isPreview && t.id !== s.activeTabId,
+        );
+        if (oldest) {
+          tabs = tabs.filter((t) => t.id !== oldest.id);
+        }
+      }
+      tabs.push(tab);
+      return { tabs, activeTabId: tab.id };
+    });
     notifyHasContent(true);
   },
 
@@ -217,10 +218,12 @@ export const useFileViewerStore = create<FileViewerState>((set, get) => ({
 
     try {
       await invoke("write_file", { path: tab.filePath, content: tab.content });
-      const newTabs = state.tabs.map((t) =>
-        t.id === tabId ? { ...t, isModified: false, isPreview: false } : t,
-      );
-      set({ tabs: newTabs });
+      // Use fresh state after await
+      set((s) => ({
+        tabs: s.tabs.map((t) =>
+          t.id === tabId ? { ...t, isModified: false, isPreview: false } : t,
+        ),
+      }));
     } catch (e) {
       console.error("Failed to save file:", e);
     }
