@@ -125,6 +125,9 @@ export function ExternalModelsSection() {
   const visionProfileRef = useRef(visionProfile);
   visionProfileRef.current = visionProfile;
 
+  const providersRef = useRef(providers);
+  providersRef.current = providers;
+
   const save = useCallback((updated: Record<Provider, ProviderState>) => {
     setProviders(updated);
     clearTimeout(saveTimerRef.current);
@@ -162,10 +165,10 @@ export function ExternalModelsSection() {
     (profile: VisionProfile) => {
       setVisionProfile(profile);
       visionProfileRef.current = profile;
-      // Trigger a save with current providers
-      save({ ...providers });
+      // Trigger a save with current providers (via ref to avoid stale closure)
+      save({ ...providersRef.current });
     },
-    [providers, save],
+    [save],
   );
 
   const updateProvider = useCallback(
@@ -644,27 +647,25 @@ function VisionSettingsBlock({
           </div>
 
           {/* JPEG Quality */}
-          {showFrameSettings && (
-            <div className="webserver-field">
-              <label className="webserver-field-label">
-                JPEG Quality: {profile.jpegQuality} (lower = better)
-              </label>
-              <input
-                type="range"
-                min="2"
-                max="31"
-                step="1"
-                value={profile.jpegQuality}
-                onChange={(e) =>
-                  onUpdate({
-                    ...profile,
-                    jpegQuality: parseInt(e.target.value, 10),
-                  })
-                }
-                style={{ width: "200px" }}
-              />
-            </div>
-          )}
+          <div className="webserver-field">
+            <label className="webserver-field-label">
+              JPEG Quality: {profile.jpegQuality} (lower = better)
+            </label>
+            <input
+              type="range"
+              min="2"
+              max="31"
+              step="1"
+              value={profile.jpegQuality}
+              onChange={(e) =>
+                onUpdate({
+                  ...profile,
+                  jpegQuality: parseInt(e.target.value, 10),
+                })
+              }
+              style={{ width: "200px" }}
+            />
+          </div>
         </>
       )}
     </div>
