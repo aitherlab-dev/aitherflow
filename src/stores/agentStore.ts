@@ -154,17 +154,19 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
     // Stop CLI and clean up for all removed agents
     const remainingLocks = { ...chatLocks };
-    for (const id of idsToRemove) {
-      try {
-        await invoke("stop_session", { agentId: id });
-      } catch (e) {
-        console.error(`[agentStore] stop_session for ${id}:`, e);
+    try {
+      for (const id of idsToRemove) {
+        try {
+          await invoke("stop_session", { agentId: id });
+        } catch (e) {
+          console.error(`[agentStore] stop_session for ${id}:`, e);
+        }
+        await clearAgentState(id);
+        delete remainingLocks[id];
       }
-      await clearAgentState(id);
-      delete remainingLocks[id];
+    } finally {
+      for (const id of idsToRemove) removingAgentIds.delete(id);
     }
-
-    for (const id of idsToRemove) removingAgentIds.delete(id);
 
     const updated = agents.filter((a) => !idsToRemove.has(a.id));
     let newActiveId = activeAgentId;
