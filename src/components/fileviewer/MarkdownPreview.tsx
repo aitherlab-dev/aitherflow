@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { MarkdownRenderer } from "../chat/MarkdownRenderer";
+import { StreamdownRenderer } from "../chat/StreamdownRenderer";
 
 interface MarkdownPreviewProps {
   content: string;
@@ -12,7 +12,7 @@ export const MarkdownPreview = memo(function MarkdownPreview({
 }: MarkdownPreviewProps) {
   return (
     <div className="fv-markdown-preview" onDoubleClick={onDoubleClick}>
-      <MarkdownRenderer content={content} />
+      <StreamdownRenderer content={content} />
     </div>
   );
 });

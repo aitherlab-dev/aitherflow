@@ -1,0 +1,85 @@
+/* ═══════════════════════════════════════════
+   Streamdown overrides — map to project theme
+   ═══════════════════════════════════════════ */
+
+/* ── Streamdown CSS variables (shadcn compat) ── */
+:root {
+  --primary: var(--fg);
+  --primary-foreground: var(--bg);
+  --muted: var(--bg-hard);
+  --muted-foreground: var(--fg-muted);
+  --radius: 8px;
+}
+
+/* ── Code blocks ── */
+[data-streamdown="code-block"] {
+  border-radius: 8px;
+  background: var(--bg-hard) !important;
+  border: 1px solid var(--border) !important;
+  overflow: hidden;
+  margin: 0.75em 0;
+}
+
+[data-theme="light"] [data-streamdown="code-block"] {
+  background: var(--code-bg) !important;
+  border-color: var(--code-border) !important;
+}
+
+/* ── Shiki theme toggle: our app uses data-theme, not .dark class ── */
+/* Dark mode = default (root), show dark tokens */
+:root .shiki,
+:root .shiki span {
+  color: var(--shiki-dark) !important;
+  background-color: transparent !important;
+}
+
+/* Light theme still uses dark code blocks, so keep dark tokens */
+[data-theme="light"] .shiki,
+[data-theme="light"] .shiki span {
+  color: var(--shiki-dark) !important;
+  background-color: transparent !important;
+}
+
+/* ── Tables ── */
+[data-streamdown="table"] {
+  border-collapse: collapse;
+  font-size: 0.85em;
+}
+
+[data-streamdown="table-header"] {
+  background: var(--bg-hover);
+  font-weight: 600;
+}
+
+[data-theme="light"] [data-streamdown="table-header"] {
+  background: var(--bg-hover);
+}
+
+/* ── Links ── */
+[data-streamdown="link"] {
+  color: var(--blue);
+  text-decoration: none;
+}
+
+[data-streamdown="link"]:hover {
+  text-decoration: underline;
+}
+
+/* ── Blockquotes ── */
+[data-streamdown="blockquote"] {
+  border-left-color: var(--accent);
+  color: var(--fg-muted);
+}
+
+/* ── Headings ── */
+[data-streamdown="heading-1"],
+[data-streamdown="heading-2"],
+[data-streamdown="heading-3"],
+[data-streamdown="heading-4"] {
+  color: var(--fg);
+}
+
+/* ── Streamdown caret cursor ── */
+[data-sd-animate] {
+  --sd-duration: 100ms;
+}
