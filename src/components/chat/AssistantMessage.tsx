@@ -1,9 +1,7 @@
 import { memo, useMemo, useState, useCallback } from "react";
 import { ChevronRight, Sparkles } from "lucide-react";
-import { MarkdownRenderer } from "./MarkdownRenderer";
-import { InlineMarkdown } from "./InlineMarkdown";
+import { StreamdownRenderer } from "./StreamdownRenderer";
 import { InteractiveCard } from "./InteractiveCard";
-import { useTypewriter } from "./useTypewriter";
 import type { ChatMessage } from "../../types/chat";
 import { isInteractiveTool } from "../../types/chat";
 import { formatMessageTime } from "../../lib/formatTime";
@@ -25,11 +23,9 @@ export const AssistantMessage = memo(function AssistantMessage({
     () => message.tools?.filter((t) => isInteractiveTool(t.toolName)),
     [message.tools],
   );
-  const displayText = useTypewriter(message.text, message.isStreaming ?? false);
-
   // Split text into thinking blocks (intermediate) and final answer
   const { thinking, final: finalText } = useMemo(() => {
-    const raw = message.isStreaming ? displayText : message.text;
+    const raw = message.text;
     if (!raw) return { thinking: [], final: "" };
 
     const parts = raw.split(TURN_SEPARATOR);
@@ -39,7 +35,7 @@ export const AssistantMessage = memo(function AssistantMessage({
       thinking: parts.slice(0, -1).filter((p) => p.trim()),
       final: parts[parts.length - 1],
     };
-  }, [message.text, message.isStreaming, displayText]);
+  }, [message.text]);
 
   // While streaming — show current block, with collapsible thinking above
   if (message.isStreaming) {
@@ -54,8 +50,7 @@ export const AssistantMessage = memo(function AssistantMessage({
           />
         )}
         <div className="chat-message-content">
-          <InlineMarkdown content={thinking.length > 0 ? finalText : displayText} />
-          <span className="streaming-cursor" />
+          <StreamdownRenderer content={thinking.length > 0 ? finalText : (message.text ?? "")} isStreaming />
         </div>
       </div>
     );
@@ -74,7 +69,7 @@ export const AssistantMessage = memo(function AssistantMessage({
       )}
       {finalText && (
         <div className="chat-message-content">
-          <MarkdownRenderer content={finalText} />
+          <StreamdownRenderer content={finalText} />
         </div>
       )}
       {interactiveTools &&
@@ -116,7 +111,7 @@ const ThinkingToggle = memo(function ThinkingToggle({
         <div className="thinking-toggle-content">
           {thinking.map((block, i) => (
             <div key={`think-${i}-${block.length}`} className="thinking-block">
-              <InlineMarkdown content={block} />
+              <StreamdownRenderer content={block} />
             </div>
           ))}
         </div>
