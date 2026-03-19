@@ -26,6 +26,7 @@ use super::types::{
 // Global state
 // ---------------------------------------------------------------------------
 
+// NOTE: std::sync::Mutex intentional — lock held briefly, no .await inside
 static MCP_INFO: Mutex<Option<McpInfo>> = Mutex::new(None);
 
 struct McpInfo {
@@ -196,9 +197,18 @@ pub fn stop_server_sync() {
 // SSE handler
 // ---------------------------------------------------------------------------
 
+const MAX_SSE_SESSIONS: usize = 100;
+
 async fn handle_sse(
     State(state): State<Arc<ModelsMcpState>>,
-) -> Sse<McpSseStream> {
+) -> Response {
+    {
+        let sessions = state.sessions.read().await;
+        if sessions.len() >= MAX_SSE_SESSIONS {
+            return axum::http::StatusCode::SERVICE_UNAVAILABLE.into_response();
+        }
+    }
+
     let session_id = uuid::Uuid::new_v4().to_string();
     let (tx, rx) = mpsc::channel(32);
 
@@ -215,7 +225,9 @@ async fn handle_sse(
         state,
     };
 
-    Sse::new(stream).keep_alive(KeepAlive::new().interval(Duration::from_secs(30)))
+    Sse::new(stream)
+        .keep_alive(KeepAlive::new().interval(Duration::from_secs(30)))
+        .into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -350,10 +362,7 @@ async fn tool_call_model(args: &Value) -> Result<String, String> {
         .as_str()
         .ok_or("Missing 'prompt' parameter")?;
     let system_prompt = args["system_prompt"].as_str();
-    let max_tokens = args["max_tokens"]
-        .as_u64()
-        .map(|n| n as u32)
-        .or(Some(4096));
+    let max_tokens = args["max_tokens"].as_u64().map(|n| n as u32);
 
     let api_key = get_api_key_blocking(&provider).await?;
 
@@ -392,10 +401,7 @@ async fn tool_call_vision(args: &Value) -> Result<String, String> {
     let file_paths = args["file_paths"]
         .as_array()
         .ok_or("Missing 'file_paths' parameter")?;
-    let max_tokens = args["max_tokens"]
-        .as_u64()
-        .map(|n| n as u32)
-        .or(Some(4096));
+    let max_tokens = args["max_tokens"].as_u64().map(|n| n as u32);
 
     if file_paths.is_empty() {
         return Err("file_paths must not be empty".into());
@@ -532,10 +538,14 @@ async fn register_in_claude_config(port: u16) -> Result<(), String> {
         .map_err(|e| format!("Task join error: {e}"))?
 }
 
+// NOTE: read-modify-write without file lock — known limitation.
+// Low risk in practice: MCP start/stop are rare, single-instance operations.
 fn register_in_claude_config_sync(port: u16) -> Result<(), String> {
     let path = crate::config::home_dir().join(".claude.json");
     let mut root = if path.exists() {
-        crate::file_ops::read_json::<Value>(&path).unwrap_or(json!({}))
+        crate::file_ops::read_json::<Value>(&path).map_err(|e| {
+            format!("Failed to parse {}: {e} — not overwriting", path.display())
+        })?
     } else {
         json!({})
     };
@@ -568,7 +578,9 @@ fn unregister_from_claude_config_sync() -> Result<(), String> {
         return Ok(());
     }
 
-    let mut root = crate::file_ops::read_json::<Value>(&path).unwrap_or(json!({}));
+    let mut root = crate::file_ops::read_json::<Value>(&path).map_err(|e| {
+        format!("Failed to parse {}: {e} — not overwriting", path.display())
+    })?;
 
     if let Some(servers) = root.get_mut("mcpServers").and_then(|v| v.as_object_mut()) {
         servers.remove(MCP_SERVER_NAME);
@@ -610,7 +622,7 @@ fn tool_definitions() -> Value {
                     },
                     "max_tokens": {
                         "type": "number",
-                        "description": "Maximum tokens in response (default: 4096)"
+                        "description": "Maximum tokens in response (optional, model default if omitted)"
                     }
                 },
                 "required": ["provider", "model", "prompt"]
@@ -642,7 +654,7 @@ fn tool_definitions() -> Value {
                     },
                     "max_tokens": {
                         "type": "number",
-                        "description": "Maximum tokens in response (default: 4096)"
+                        "description": "Maximum tokens in response (optional, model default if omitted)"
                     }
                 },
                 "required": ["provider", "model", "prompt", "file_paths"]
