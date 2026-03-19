@@ -1,5 +1,6 @@
 mod client;
 pub mod config;
+pub mod mcp_server;
 pub mod types;
 
 use types::{
@@ -159,4 +160,37 @@ fn get_test_model(provider: &Provider) -> String {
         Provider::OpenRouter => "openrouter/auto".to_string(),
         Provider::Groq => "llama-3.1-8b-instant".to_string(),
     }
+}
+
+// ---------------------------------------------------------------------------
+// MCP server management commands
+// ---------------------------------------------------------------------------
+
+/// MCP server status info
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpStatus {
+    pub running: bool,
+    pub port: Option<u16>,
+}
+
+/// Start the external models MCP server
+#[tauri::command]
+pub async fn external_models_start_mcp() -> Result<u16, String> {
+    mcp_server::start_server().await
+}
+
+/// Stop the external models MCP server
+#[tauri::command]
+pub async fn external_models_stop_mcp() -> Result<(), String> {
+    mcp_server::stop_server().await
+}
+
+/// Get MCP server status
+#[tauri::command]
+pub async fn external_models_mcp_status() -> Result<McpStatus, String> {
+    Ok(McpStatus {
+        running: mcp_server::is_running(),
+        port: mcp_server::get_port(),
+    })
 }

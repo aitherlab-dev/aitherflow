@@ -133,6 +133,9 @@ pub fn run() {
             external_models::external_models_list_models,
             external_models::external_models_save_config,
             external_models::external_models_load_config,
+            external_models::external_models_start_mcp,
+            external_models::external_models_stop_mcp,
+            external_models::external_models_mcp_status,
             worktree::get_worktrees,
             worktree::get_git_status,
             worktree::get_worktree_details,
@@ -210,6 +213,7 @@ pub fn run() {
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
                 teamwork::mcp_server::shutdown_mcp_server();
+                external_models::mcp_server::stop_server_sync();
                 devtools::stop_all_dev_servers();
                 app.state::<SessionManager>().kill_all_sync();
             }
