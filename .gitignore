@@ -31,3 +31,4 @@ AUDIT-*.md
 
 # Claude Code local files (personal, not part of the project)
 .claude/
+.mcp.json
