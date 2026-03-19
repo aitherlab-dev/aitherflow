@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { invoke } from "../../lib/transport";
 import { useAgentStore } from "../../stores/agentStore";
@@ -10,25 +10,9 @@ import { Tooltip } from "../shared/Tooltip";
 export const BuildButton = memo(function BuildButton() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [status, setStatus] = useState<"idle" | "blocked" | "closing">("idle");
-  const btnRef = useRef<HTMLButtonElement>(null);
-  const popupRef = useRef<HTMLDivElement>(null);
 
   const isThinking = useChatStore((s) => s.isThinking);
 
-  // Close popup on outside click
-  useEffect(() => {
-    if (!confirmOpen) return;
-    function handleMouseDown(e: MouseEvent) {
-      if (
-        btnRef.current?.contains(e.target as Node) ||
-        popupRef.current?.contains(e.target as Node)
-      )
-        return;
-      setConfirmOpen(false);
-    }
-    document.addEventListener("mousedown", handleMouseDown);
-    return () => document.removeEventListener("mousedown", handleMouseDown);
-  }, [confirmOpen]);
 
   const handleClick = useCallback(() => {
     setConfirmOpen((prev) => !prev);
@@ -56,7 +40,6 @@ export const BuildButton = memo(function BuildButton() {
     <div className="devtools-btn-wrap">
       <Tooltip text="Build and install">
       <button
-        ref={btnRef}
         className={`devtools-btn ${status === "blocked" ? "devtools-btn--blocked" : ""} ${status === "closing" ? "devtools-btn--closing" : ""}`}
         onClick={handleClick}
       >
@@ -68,21 +51,25 @@ export const BuildButton = memo(function BuildButton() {
       </button>
       </Tooltip>
       {confirmOpen && (
-        <div ref={popupRef} className="build-confirm-popup">
-          <span className="build-confirm-text">Build & restart?</span>
-          <div className="build-confirm-buttons">
-            <button
-              className="build-confirm-btn build-confirm-no"
-              onClick={() => setConfirmOpen(false)}
-            >
-              No
-            </button>
-            <button
-              className="build-confirm-btn build-confirm-yes"
-              onClick={handleConfirm}
-            >
-              Yes
-            </button>
+        <div className="modal-overlay" onMouseDown={() => setConfirmOpen(false)}>
+          <div className="modal-card" style={{ width: 280 }} onMouseDown={(e) => e.stopPropagation()}>
+            <div className="modal-body" style={{ textAlign: "center" }}>
+              Build & restart?
+            </div>
+            <div className="modal-footer" style={{ justifyContent: "center" }}>
+              <button
+                className="modal-btn"
+                onClick={() => setConfirmOpen(false)}
+              >
+                No
+              </button>
+              <button
+                className="modal-btn modal-btn--accent"
+                onClick={handleConfirm}
+              >
+                Yes
+              </button>
+            </div>
           </div>
         </div>
       )}

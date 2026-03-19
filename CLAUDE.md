@@ -83,6 +83,11 @@ CSS-переменные: `:root` (тёмная) и `[data-theme="light"]`. Фо
 - **Одно изменение за раз.** Сделал → проверил → следующее
 - `pnpm tauri dev` запускает **пользователь**. Интерфейс на английском, общение на русском
 
+## Тесты
+
+Rust: `cargo test` из `src-tauri/`. Один тест: `cargo test test_name`.
+Фронт: тестов нет (визуальная проверка через GUI).
+
 ## Брендинг
 
 **aitherflow** — Oswald, aither Bold 700, flow Extra Light 200. GitHub: github.com/aitherlab-dev/aitherflow

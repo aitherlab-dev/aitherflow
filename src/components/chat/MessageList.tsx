@@ -139,18 +139,6 @@ export const MessageList = memo(function MessageList() {
 
   const VirtuosoFooter = useMemo(() => () => <StreamingBubble agentId={agentId} />, [agentId]);
 
-  if (messages.length === 0 && !hasStreamingMessage) {
-    return (
-      <div ref={containerRef} className="message-list">
-        <div className="message-list-inner">
-          <div className="message-list-empty">
-            <p>Start a conversation</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // ── Virtualized path ──
   if (useVirtualization) {
     return (
@@ -186,8 +174,16 @@ export const MessageList = memo(function MessageList() {
       onScroll={handleScroll}
     >
       <div ref={innerRef} className="message-list-inner">
-        {messages.map((msg) => <MessageBubble key={msg.id} message={msg} agentId={agentId} />)}
-        <StreamingBubble agentId={agentId} />
+        {messages.length === 0 && !hasStreamingMessage ? (
+          <div className="message-list-empty">
+            <p>Start a conversation</p>
+          </div>
+        ) : (
+          <>
+            {messages.map((msg) => <MessageBubble key={msg.id} message={msg} agentId={agentId} />)}
+            <StreamingBubble agentId={agentId} />
+          </>
+        )}
       </div>
       {showScrollBtn && (
         <Tooltip text="Scroll to bottom">

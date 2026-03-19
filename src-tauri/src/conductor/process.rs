@@ -115,9 +115,7 @@ pub struct CliSessionConfig {
     pub agent_id: String,
     pub prompt: String,
     pub project_path: Option<String>,
-    #[allow(dead_code)]
     pub model: Option<String>,
-    #[allow(dead_code)]
     pub effort: Option<String>,
     pub resume_session_id: Option<String>,
     pub permission_mode: Option<String>,
@@ -145,8 +143,8 @@ pub async fn run_cli_session(
         agent_id,
         prompt,
         project_path,
-        model: _,
-        effort: _,
+        model,
+        effort,
         resume_session_id,
         permission_mode,
         chrome,
@@ -191,9 +189,13 @@ pub async fn run_cli_session(
         "--include-partial-messages".into(),
     ];
 
-    // Model intentionally not passed — let CLI use its default (includes extended context)
+    // model is intentionally not passed — CLI auto-selects 1M context variant
+    let _ = model;
 
-    // effort intentionally not passed — let CLI use its default
+    if let Some(ref e) = effort {
+        args.push("--effort".into());
+        args.push(e.clone());
+    }
 
     if let Some(ref sid) = resume_session_id {
         args.push("--resume".into());
