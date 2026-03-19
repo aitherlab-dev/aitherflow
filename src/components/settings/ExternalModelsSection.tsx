@@ -594,7 +594,7 @@ function VisionSettingsBlock({
           </div>
 
           {/* JPEG Quality */}
-          {profile.strategy === "extract_frames" && (
+          {showFrameSettings && (
             <div className="webserver-field">
               <label className="webserver-field-label">
                 JPEG Quality: {profile.jpegQuality} (lower = better)

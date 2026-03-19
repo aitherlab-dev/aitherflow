@@ -119,6 +119,8 @@ pub fn is_video_file(path: &str) -> bool {
 }
 
 /// Resolve the effective strategy based on profile and model name.
+/// NOTE: Auto detection is a heuristic — matches "gemini" in the model ID string.
+/// Known limitation: won't detect Gemini if the model ID doesn't contain "gemini".
 pub fn resolve_strategy(profile: &VisionProfile, model: &str) -> VisionStrategy {
     match &profile.strategy {
         VisionStrategy::Auto => {
@@ -169,6 +171,10 @@ pub fn encode_video_native(video_path: &str) -> Result<ContentPart, String> {
     let data = std::fs::read(p).map_err(|e| format!("Failed to read {video_path}: {e}"))?;
     let b64 = base64::engine::general_purpose::STANDARD.encode(&data);
 
+    // NOTE: Using ImageUrl with a video MIME data URL is an OpenRouter-specific behavior.
+    // Formally, OpenAI API only supports image_url for images. OpenRouter forwards the
+    // data URL to Gemini which handles video natively. If this breaks, we may need a
+    // separate ContentPart variant.
     Ok(ContentPart::ImageUrl {
         image_url: ImageUrlData {
             url: format!("data:{mime};base64,{b64}"),
