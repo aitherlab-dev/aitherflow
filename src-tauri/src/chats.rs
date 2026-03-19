@@ -430,15 +430,16 @@ pub async fn update_chat_session(chat_id: String, session_id: String) -> Result<
 #[tauri::command]
 pub async fn delete_chat(chat_id: String) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
+        // Take per-chat lock to prevent races with save_chat_messages / modify_chat
+        let lock = chat_lock(&chat_id);
+        let _guard = lock.lock().map_err(|e| format!("Chat lock poisoned: {e}"))?;
+
         let path = chat_path(&chat_id);
         if path.exists() {
             fs::remove_file(&path)
                 .map_err(|e| format!("Failed to delete chat file: {e}"))?;
         }
-        // Clean up caches
-        if let Ok(mut map) = CHAT_LOCKS.lock() {
-            map.remove(&chat_id);
-        }
+        // Clean up caches (CHAT_LOCKS entry removed after guard is dropped)
         if let Ok(mut map) = META_CACHE.lock() {
             map.remove(&chat_id);
         }
@@ -446,6 +447,12 @@ pub async fn delete_chat(chat_id: String) -> Result<(), String> {
             eprintln!("[chats] Failed to update chat index: {e}");
             e
         })?;
+
+        // Drop guard before cleaning up CHAT_LOCKS entry
+        drop(_guard);
+        if let Ok(mut map) = CHAT_LOCKS.lock() {
+            map.remove(&chat_id);
+        }
         Ok(())
     })
     .await
