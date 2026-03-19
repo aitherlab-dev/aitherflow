@@ -136,6 +136,8 @@ pub fn run() {
             external_models::external_models_start_mcp,
             external_models::external_models_stop_mcp,
             external_models::external_models_mcp_status,
+            external_models::external_models_analyze_directory,
+            external_models::external_models_get_default_profile,
             worktree::get_worktrees,
             worktree::get_git_status,
             worktree::get_worktree_details,

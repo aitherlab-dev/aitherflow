@@ -21,6 +21,7 @@ use super::config;
 use super::types::{
     ChatMessage, ContentPart, ImageUrlData, MessageContent, Provider, Role,
 };
+use super::vision;
 
 // ---------------------------------------------------------------------------
 // Global state
@@ -349,6 +350,7 @@ async fn execute_tool(name: &str, args: &Value) -> Result<String, String> {
         "call_model" => tool_call_model(args).await,
         "call_vision" => tool_call_vision(args).await,
         "list_models" => tool_list_models(args).await,
+        "analyze_directory" => tool_analyze_directory(args).await,
         _ => Err(format!("Unknown tool: {name}")),
     }
 }
@@ -412,27 +414,43 @@ async fn tool_call_vision(args: &Value) -> Result<String, String> {
         .filter_map(|p| p.as_str().map(String::from))
         .collect();
 
-    // Read and encode images in blocking context
-    let image_parts = tokio::task::spawn_blocking(move || {
-        paths
-            .iter()
-            .map(|p| encode_image_file(p))
-            .collect::<Result<Vec<_>, _>>()
-    })
-    .await
-    .map_err(|e| format!("Task join error: {e}"))??;
+    let profile = parse_vision_profile(args);
+
+    // Process each file: video → extract frames, image → encode directly
+    let mut all_parts = Vec::new();
+    for path in &paths {
+        if vision::is_video_file(path) {
+            let frames = vision::extract_frames(path, &profile).await?;
+            for frame in frames {
+                all_parts.push(ContentPart::ImageUrl {
+                    image_url: ImageUrlData {
+                        url: format!("data:image/jpeg;base64,{}", frame.base64),
+                    },
+                });
+            }
+        } else {
+            let p = path.clone();
+            let part = tokio::task::spawn_blocking(move || encode_image_file(&p))
+                .await
+                .map_err(|e| format!("Task join error: {e}"))??;
+            all_parts.push(part);
+        }
+    }
+
+    if all_parts.is_empty() {
+        return Err("No frames or images could be extracted".into());
+    }
 
     let api_key = get_api_key_blocking(&provider).await?;
 
-    // Build multimodal message: images first, then text prompt
-    let mut parts = image_parts;
-    parts.push(ContentPart::Text {
+    // Build multimodal message: images/frames first, then text prompt
+    all_parts.push(ContentPart::Text {
         text: prompt.to_string(),
     });
 
     let messages = vec![ChatMessage {
         role: Role::User,
-        content: MessageContent::Parts(parts),
+        content: MessageContent::Parts(all_parts),
     }];
 
     let response = client::call_model(&provider, &api_key, model, messages, max_tokens).await?;
@@ -445,6 +463,28 @@ async fn tool_call_vision(args: &Value) -> Result<String, String> {
         .unwrap_or_default();
 
     Ok(text)
+}
+
+async fn tool_analyze_directory(args: &Value) -> Result<String, String> {
+    let provider = parse_provider(args)?;
+    let model = args["model"]
+        .as_str()
+        .ok_or("Missing 'model' parameter")?;
+    let prompt = args["prompt"]
+        .as_str()
+        .ok_or("Missing 'prompt' parameter")?;
+    let directory = args["directory"]
+        .as_str()
+        .ok_or("Missing 'directory' parameter")?;
+    let max_tokens = args["max_tokens"].as_u64().map(|n| n as u32);
+    let profile = parse_vision_profile(args);
+
+    let results = vision::analyze_directory(
+        directory, &profile, &provider, model, prompt, max_tokens,
+    )
+    .await?;
+
+    serde_json::to_string_pretty(&results).map_err(|e| format!("Serialize error: {e}"))
 }
 
 async fn tool_list_models(args: &Value) -> Result<String, String> {
@@ -471,6 +511,13 @@ fn parse_provider(args: &Value) -> Result<Provider, String> {
     }
 }
 
+/// Parse optional VisionProfile from args, or return default.
+fn parse_vision_profile(args: &Value) -> vision::VisionProfile {
+    args.get("profile")
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+        .unwrap_or_default()
+}
+
 /// Get API key via keyring in a blocking context.
 async fn get_api_key_blocking(provider: &Provider) -> Result<String, String> {
     let provider = provider.clone();
@@ -486,7 +533,7 @@ const MAX_IMAGE_SIZE: u64 = 20 * 1024 * 1024; // 20 MB
 
 /// Read an image file and encode it as a base64 data URL content part.
 /// Blocking I/O — must be called from spawn_blocking.
-fn encode_image_file(path: &str) -> Result<ContentPart, String> {
+pub fn encode_image_file(path: &str) -> Result<ContentPart, String> {
     let p = Path::new(path);
     crate::files::validate_path_safe(p)?;
 
@@ -630,7 +677,7 @@ fn tool_definitions() -> Value {
         },
         {
             "name": "call_vision",
-            "description": "Analyze images using a vision-capable model. Reads image files from disk, encodes them, and sends to a vision model for analysis.",
+            "description": "Analyze images or video files using a vision-capable model. Images are encoded directly; video files have frames extracted via ffmpeg. Supports PNG, JPG, GIF, WebP, BMP images and MP4, MOV, AVI, MKV, MTS, MXF, R3D, WebM video.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -645,12 +692,24 @@ fn tool_definitions() -> Value {
                     },
                     "prompt": {
                         "type": "string",
-                        "description": "What to analyze or look for in the images"
+                        "description": "What to analyze or look for in the images/video"
                     },
                     "file_paths": {
                         "type": "array",
                         "items": { "type": "string" },
-                        "description": "Absolute paths to image files (PNG, JPG, GIF, WebP, BMP)"
+                        "description": "Absolute paths to image or video files"
+                    },
+                    "profile": {
+                        "type": "object",
+                        "description": "Video processing profile (optional, defaults used if omitted)",
+                        "properties": {
+                            "framesPerClip": { "type": "number", "description": "Extract exactly N frames evenly spaced (default: 5)" },
+                            "fps": { "type": "number", "description": "Frames per second (alternative to framesPerClip)" },
+                            "sceneDetection": { "type": "boolean", "description": "Use ffmpeg scene detection" },
+                            "sceneThreshold": { "type": "number", "description": "Scene change threshold 0.0-1.0 (default: 0.3)" },
+                            "resolution": { "type": "number", "description": "Frame width in pixels (default: 720)" },
+                            "jpegQuality": { "type": "number", "description": "JPEG quality 2-31, lower=better (default: 5)" }
+                        }
                     },
                     "max_tokens": {
                         "type": "number",
@@ -658,6 +717,49 @@ fn tool_definitions() -> Value {
                     }
                 },
                 "required": ["provider", "model", "prompt", "file_paths"]
+            }
+        },
+        {
+            "name": "analyze_directory",
+            "description": "Analyze all video and image files in a directory using a vision model. Processes files sequentially, extracts frames from videos via ffmpeg, and returns per-file analysis.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "provider": {
+                        "type": "string",
+                        "enum": ["openrouter", "groq"],
+                        "description": "The model provider to use"
+                    },
+                    "model": {
+                        "type": "string",
+                        "description": "Vision-capable model ID"
+                    },
+                    "prompt": {
+                        "type": "string",
+                        "description": "What to analyze or look for in each file"
+                    },
+                    "directory": {
+                        "type": "string",
+                        "description": "Absolute path to the directory containing video/image files"
+                    },
+                    "profile": {
+                        "type": "object",
+                        "description": "Video processing profile (optional)",
+                        "properties": {
+                            "framesPerClip": { "type": "number" },
+                            "fps": { "type": "number" },
+                            "sceneDetection": { "type": "boolean" },
+                            "sceneThreshold": { "type": "number" },
+                            "resolution": { "type": "number" },
+                            "jpegQuality": { "type": "number" }
+                        }
+                    },
+                    "max_tokens": {
+                        "type": "number",
+                        "description": "Maximum tokens per file analysis (optional)"
+                    }
+                },
+                "required": ["provider", "model", "prompt", "directory"]
             }
         },
         {

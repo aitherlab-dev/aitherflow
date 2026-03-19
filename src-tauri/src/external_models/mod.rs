@@ -2,6 +2,7 @@ mod client;
 pub mod config;
 pub mod mcp_server;
 pub mod types;
+pub mod vision;
 
 use types::{
     ChatMessage, ChatResponse, ExternalModelsConfig, MessageContent, ModelInfo, Provider, Role,
@@ -193,4 +194,27 @@ pub async fn external_models_mcp_status() -> Result<McpStatus, String> {
         running: mcp_server::is_running(),
         port: mcp_server::get_port(),
     })
+}
+
+// ---------------------------------------------------------------------------
+// Vision commands
+// ---------------------------------------------------------------------------
+
+/// Analyze all video/image files in a directory using a vision model
+#[tauri::command]
+pub async fn external_models_analyze_directory(
+    provider: Provider,
+    model: String,
+    prompt: String,
+    directory: String,
+    profile: Option<vision::VisionProfile>,
+) -> Result<Vec<vision::ClipAnalysis>, String> {
+    let profile = profile.unwrap_or_default();
+    vision::analyze_directory(&directory, &profile, &provider, &model, &prompt, None).await
+}
+
+/// Get the default vision processing profile
+#[tauri::command]
+pub async fn external_models_get_default_profile() -> Result<vision::VisionProfile, String> {
+    Ok(vision::VisionProfile::default())
 }
