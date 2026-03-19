@@ -270,12 +270,19 @@ pub async fn analyze_directory(
     let p = Path::new(dir_path);
     crate::files::validate_path_safe(p)?;
 
-    // Get API key in blocking context
-    let api_key = {
+    // Get API key and base_url in blocking context (single config read)
+    let (api_key, base_url) = {
         let prov = provider.clone();
         tokio::task::spawn_blocking(move || {
-            config::get_api_key(&prov)
-                .ok_or_else(|| format!("No API key configured for {}", prov.display_name()))
+            let api_key = if prov.requires_api_key() {
+                config::get_api_key(&prov).ok_or_else(|| {
+                    format!("No API key configured for {}", prov.display_name())
+                })?
+            } else {
+                String::new()
+            };
+            let base_url = config::get_provider_base_url(&prov);
+            Ok::<_, String>((api_key, base_url))
         })
         .await
         .map_err(|e| format!("Task join error: {e}"))??
@@ -302,7 +309,7 @@ pub async fn analyze_directory(
             file_path
         );
 
-        match analyze_single_file(file_path, profile, provider, model, prompt, &api_key, max_tokens)
+        match analyze_single_file(file_path, profile, provider, model, prompt, &api_key, max_tokens, base_url.as_deref())
             .await
         {
             Ok(analysis) => results.push(analysis),
@@ -549,6 +556,7 @@ async fn analyze_single_file(
     prompt: &str,
     api_key: &str,
     max_tokens: Option<u32>,
+    base_url: Option<&str>,
 ) -> Result<ClipAnalysis, String> {
     let file_name = Path::new(file_path)
         .file_name()
@@ -612,7 +620,7 @@ async fn analyze_single_file(
         content: MessageContent::Parts(parts),
     }];
 
-    let response = client::call_model(provider, api_key, model, messages, max_tokens, None).await?;
+    let response = client::call_model(provider, api_key, model, messages, max_tokens, base_url).await?;
 
     let analysis = response
         .choices

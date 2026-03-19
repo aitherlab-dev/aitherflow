@@ -366,7 +366,7 @@ async fn tool_call_model(args: &Value) -> Result<String, String> {
     let system_prompt = args["system_prompt"].as_str();
     let max_tokens = args["max_tokens"].as_u64().map(|n| n as u32);
 
-    let api_key = get_api_key_blocking(&provider).await?;
+    let ctx = get_provider_context(&provider).await?;
 
     let mut messages = Vec::new();
     if let Some(sys) = system_prompt {
@@ -380,7 +380,7 @@ async fn tool_call_model(args: &Value) -> Result<String, String> {
         content: MessageContent::Text(prompt.to_string()),
     });
 
-    let response = client::call_model(&provider, &api_key, model, messages, max_tokens, None).await?;
+    let response = client::call_model(&provider, &ctx.api_key, model, messages, max_tokens, ctx.base_url.as_deref()).await?;
 
     let text = response
         .choices
@@ -463,7 +463,7 @@ async fn tool_call_vision(args: &Value) -> Result<String, String> {
         return Err("No frames or images could be extracted".into());
     }
 
-    let api_key = get_api_key_blocking(&provider).await?;
+    let ctx = get_provider_context(&provider).await?;
 
     // Build multimodal message: images/frames first, then text prompt
     all_parts.push(ContentPart::Text {
@@ -475,7 +475,7 @@ async fn tool_call_vision(args: &Value) -> Result<String, String> {
         content: MessageContent::Parts(all_parts),
     }];
 
-    let response = client::call_model(&provider, &api_key, model, messages, max_tokens, None).await?;
+    let response = client::call_model(&provider, &ctx.api_key, model, messages, max_tokens, ctx.base_url.as_deref()).await?;
 
     let text = response
         .choices
@@ -511,8 +511,8 @@ async fn tool_analyze_directory(args: &Value) -> Result<String, String> {
 
 async fn tool_list_models(args: &Value) -> Result<String, String> {
     let provider = parse_provider(args)?;
-    let api_key = get_api_key_blocking(&provider).await?;
-    let models = client::list_models(&provider, &api_key, None).await?;
+    let ctx = get_provider_context(&provider).await?;
+    let models = client::list_models(&provider, &ctx.api_key, ctx.base_url.as_deref()).await?;
     serde_json::to_string_pretty(&models).map_err(|e| format!("Serialize error: {e}"))
 }
 
@@ -555,12 +555,34 @@ async fn parse_vision_profile_with_config(args: &Value) -> vision::VisionProfile
     .unwrap_or_default()
 }
 
-/// Get API key via keyring in a blocking context.
-async fn get_api_key_blocking(provider: &Provider) -> Result<String, String> {
+/// Provider credentials: API key + optional custom base URL.
+struct ProviderContext {
+    api_key: String,
+    base_url: Option<String>,
+}
+
+/// Load API key and base_url for a provider in a single blocking config read.
+async fn get_provider_context(provider: &Provider) -> Result<ProviderContext, String> {
     let provider = provider.clone();
     tokio::task::spawn_blocking(move || {
-        config::get_api_key(&provider)
-            .ok_or_else(|| format!("No API key configured for {}", provider.display_name()))
+        let api_key = if provider.requires_api_key() {
+            config::get_api_key(&provider).ok_or_else(|| {
+                format!("No API key configured for {}", provider.display_name())
+            })?
+        } else {
+            String::new()
+        };
+
+        let base_url = config::load_config()
+            .ok()
+            .and_then(|c| {
+                c.providers
+                    .iter()
+                    .find(|p| p.provider == provider)
+                    .and_then(|p| p.base_url.clone())
+            });
+
+        Ok(ProviderContext { api_key, base_url })
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?

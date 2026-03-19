@@ -122,7 +122,7 @@ pub struct ExternalModelsConfigWithKeys {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Get API key and base URL for a provider (in blocking context).
+/// Get API key and base URL for a provider (single config read in blocking context).
 async fn get_provider_credentials(
     provider: &Provider,
 ) -> Result<(String, Option<String>), String> {
@@ -135,7 +135,15 @@ async fn get_provider_credentials(
         } else {
             String::new()
         };
-        let base_url = config::get_provider_base_url(&provider);
+        // Single config read for base_url
+        let base_url = config::load_config()
+            .ok()
+            .and_then(|c| {
+                c.providers
+                    .iter()
+                    .find(|p| p.provider == provider)
+                    .and_then(|p| p.base_url.clone())
+            });
         Ok((api_key, base_url))
     })
     .await
