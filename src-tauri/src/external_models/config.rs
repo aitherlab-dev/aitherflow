@@ -40,7 +40,6 @@ pub fn set_api_key(provider: &Provider, key: &str) -> Result<bool, String> {
     secrets::set_secret(provider.secret_key(), key)
 }
 
-/// Default configuration with both providers disabled
 /// Get the custom base URL for a provider from saved config.
 /// Blocking I/O — must be called from spawn_blocking.
 pub fn get_provider_base_url(provider: &Provider) -> Option<String> {
@@ -52,6 +51,7 @@ pub fn get_provider_base_url(provider: &Provider) -> Option<String> {
         .and_then(|p| p.base_url.clone())
 }
 
+/// Default configuration with all providers disabled.
 fn default_config() -> ExternalModelsConfig {
     ExternalModelsConfig {
         providers: vec![
