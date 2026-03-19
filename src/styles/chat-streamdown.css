@@ -8,7 +8,6 @@
   --primary-foreground: var(--bg);
   --muted: var(--bg-hard);
   --muted-foreground: var(--fg-muted);
-  --border: var(--border);
   --radius: 8px;
 }
 

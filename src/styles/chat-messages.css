@@ -142,22 +142,6 @@
   border-top: 1px dashed color-mix(in srgb, var(--border) 40%, transparent);
 }
 
-/* ── Streaming cursor ── */
-
-.streaming-cursor {
-  display: inline-block;
-  width: 2px;
-  height: 1em;
-  margin-left: 2px;
-  background: var(--accent);
-  vertical-align: text-bottom;
-  animation: blink 0.8s step-end infinite;
-}
-
-@keyframes blink {
-  50% { opacity: 0; }
-}
-
 /* ── Thinking Indicator ── */
 
 .thinking-indicator {
