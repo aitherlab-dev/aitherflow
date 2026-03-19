@@ -27,6 +27,20 @@ A full system prompt editor built into the interface — not markdown files with
 - Prompts shape agent behavior from the first message
 - Switch prompts between sessions without touching config files
 
+## External Models
+
+Connect additional AI providers alongside Claude Code. Models are available to agents through a built-in MCP server.
+
+- **OpenRouter** — access to 200+ models (GPT-4o, Gemini, Llama, Mistral, etc.)
+- **Groq** — ultra-fast inference for Llama and Mixtral
+- **Ollama** — local models, no API key needed
+
+**Vision.** Analyze images and videos with external models. Video frame extraction via ffmpeg, configurable frame limits, native video support for Gemini. Vision profiles let you tune strategy per provider.
+
+**MCP tools:** `call_model`, `list_models`, `analyze_directory` — agents can call external models mid-conversation for second opinions, translations, or specialized tasks.
+
+API keys are stored in the system keyring, never in config files.
+
 ## Features
 
 - Multi-agent tabs with full process isolation
@@ -36,6 +50,8 @@ A full system prompt editor built into the interface — not markdown files with
 - Interactive permission prompts and plan/edit mode toggle
 - System prompt editor with per-project management
 - Skill browser with favorites, plugin management
+- External model providers (OpenRouter, Groq, Ollama) with MCP server
+- Vision analysis — images and video via external models
 - Telegram bot integration
 - Voice input (Groq)
 - Dark and light themes (warm palette)
