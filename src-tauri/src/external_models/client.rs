@@ -1,4 +1,5 @@
 use reqwest::Client;
+use std::sync::OnceLock;
 use std::time::Duration;
 
 use super::types::{
@@ -9,12 +10,28 @@ const TIMEOUT_SECS: u64 = 120;
 const APP_TITLE: &str = "Aitherflow";
 const APP_URL: &str = "https://github.com/aitherlab-dev/aitherflow";
 
-/// Build a shared reqwest client with timeout
-fn build_client() -> Result<Client, String> {
-    Client::builder()
-        .timeout(Duration::from_secs(TIMEOUT_SECS))
-        .build()
-        .map_err(|e| format!("Failed to build HTTP client: {e}"))
+static HTTP_CLIENT: OnceLock<Client> = OnceLock::new();
+
+/// Get or create the shared reqwest client.
+/// Client::builder().build() only fails on TLS backend init issues,
+/// which would also fail on every retry, so panicking is acceptable here.
+fn get_client() -> &'static Client {
+    HTTP_CLIENT.get_or_init(|| {
+        Client::builder()
+            .timeout(Duration::from_secs(TIMEOUT_SECS))
+            .build()
+            .expect("Failed to build HTTP client — TLS backend unavailable")
+    })
+}
+
+/// Parse API error response body into a human-readable message
+fn parse_api_error(provider: &Provider, status: u16, body: &str) -> String {
+    let msg = serde_json::from_str::<ApiErrorResponse>(body)
+        .ok()
+        .and_then(|r| r.error)
+        .map(|e| e.message)
+        .unwrap_or_else(|| body.to_string());
+    format!("{} API error ({status}): {msg}", provider.display_name())
 }
 
 /// Call a chat completions model via OpenAI-compatible API
@@ -25,7 +42,7 @@ pub async fn call_model(
     messages: Vec<super::types::ChatMessage>,
     max_tokens: Option<u32>,
 ) -> Result<ChatResponse, String> {
-    let client = build_client()?;
+    let client = get_client();
     let url = format!("{}/chat/completions", provider.base_url());
 
     let request = ChatRequest {
@@ -40,7 +57,6 @@ pub async fn call_model(
         .header("Authorization", format!("Bearer {api_key}"))
         .json(&request);
 
-    // OpenRouter requires additional headers
     if *provider == Provider::OpenRouter {
         req = req
             .header("HTTP-Referer", APP_URL)
@@ -60,17 +76,7 @@ pub async fn call_model(
     let status = response.status();
     if !status.is_success() {
         let body = response.text().await.unwrap_or_default();
-        let api_msg = serde_json::from_str::<ApiErrorResponse>(&body)
-            .ok()
-            .and_then(|r| r.error)
-            .map(|e| e.message)
-            .unwrap_or(body);
-        return Err(format!(
-            "{} API error ({}): {}",
-            provider.display_name(),
-            status.as_u16(),
-            api_msg
-        ));
+        return Err(parse_api_error(provider, status.as_u16(), &body));
     }
 
     response
@@ -84,7 +90,7 @@ pub async fn list_models(
     provider: &Provider,
     api_key: &str,
 ) -> Result<Vec<ModelInfo>, String> {
-    let client = build_client()?;
+    let client = get_client();
     let url = format!("{}/models", provider.base_url());
 
     let mut req = client
@@ -104,12 +110,7 @@ pub async fn list_models(
     let status = response.status();
     if !status.is_success() {
         let body = response.text().await.unwrap_or_default();
-        return Err(format!(
-            "{} API error ({}): {}",
-            provider.display_name(),
-            status.as_u16(),
-            body
-        ));
+        return Err(parse_api_error(provider, status.as_u16(), &body));
     }
 
     let models_resp = response

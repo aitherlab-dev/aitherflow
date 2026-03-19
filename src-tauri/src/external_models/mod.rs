@@ -14,8 +14,15 @@ pub async fn external_models_call(
     messages: Vec<ChatMessage>,
     max_tokens: Option<u32>,
 ) -> Result<ChatResponse, String> {
-    let api_key = config::get_api_key(&provider)
-        .ok_or_else(|| format!("No API key configured for {}", provider.display_name()))?;
+    let api_key = tokio::task::spawn_blocking({
+        let provider = provider.clone();
+        move || {
+            config::get_api_key(&provider)
+                .ok_or_else(|| format!("No API key configured for {}", provider.display_name()))
+        }
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))??;
 
     client::call_model(&provider, &api_key, &model, messages, max_tokens).await
 }
@@ -23,8 +30,15 @@ pub async fn external_models_call(
 /// Test connection to a provider by sending a simple "say hi" request
 #[tauri::command]
 pub async fn external_models_test_connection(provider: Provider) -> Result<String, String> {
-    let api_key = config::get_api_key(&provider)
-        .ok_or_else(|| format!("No API key configured for {}", provider.display_name()))?;
+    let api_key = tokio::task::spawn_blocking({
+        let provider = provider.clone();
+        move || {
+            config::get_api_key(&provider)
+                .ok_or_else(|| format!("No API key configured for {}", provider.display_name()))
+        }
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))??;
 
     let test_model = get_test_model(&provider);
     let messages = vec![ChatMessage {
@@ -50,8 +64,15 @@ pub async fn external_models_test_connection(provider: Provider) -> Result<Strin
 pub async fn external_models_list_models(
     provider: Provider,
 ) -> Result<Vec<ModelInfo>, String> {
-    let api_key = config::get_api_key(&provider)
-        .ok_or_else(|| format!("No API key configured for {}", provider.display_name()))?;
+    let api_key = tokio::task::spawn_blocking({
+        let provider = provider.clone();
+        move || {
+            config::get_api_key(&provider)
+                .ok_or_else(|| format!("No API key configured for {}", provider.display_name()))
+        }
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))??;
 
     client::list_models(&provider, &api_key).await
 }
@@ -63,24 +84,26 @@ pub async fn external_models_save_config(
     openrouter_api_key: Option<String>,
     groq_api_key: Option<String>,
 ) -> Result<(), String> {
-    // Store API keys in keyring (only if provided and not masked)
-    if let Some(key) = openrouter_api_key {
-        if !key.is_empty() && !key.starts_with("****") {
-            config::set_api_key(&Provider::OpenRouter, &key)
-                .map_err(|e| format!("Failed to store OpenRouter API key: {e}"))?;
+    tokio::task::spawn_blocking(move || {
+        // Store API keys in keyring (only if provided and not masked)
+        if let Some(key) = openrouter_api_key {
+            if !key.is_empty() && !key.starts_with("****") {
+                config::set_api_key(&Provider::OpenRouter, &key)
+                    .map_err(|e| format!("Failed to store OpenRouter API key: {e}"))?;
+            }
         }
-    }
-    if let Some(key) = groq_api_key {
-        if !key.is_empty() && !key.starts_with("****") {
-            config::set_api_key(&Provider::Groq, &key)
-                .map_err(|e| format!("Failed to store Groq API key: {e}"))?;
+        if let Some(key) = groq_api_key {
+            if !key.is_empty() && !key.starts_with("****") {
+                config::set_api_key(&Provider::Groq, &key)
+                    .map_err(|e| format!("Failed to store Groq API key: {e}"))?;
+            }
         }
-    }
 
-    // Save config to disk (no API keys in the file)
-    tokio::task::spawn_blocking(move || config::save_config(&providers_config))
-        .await
-        .map_err(|e| format!("Task join error: {e}"))?
+        // Save config to disk (no API keys in the file)
+        config::save_config(&providers_config)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
 }
 
 /// Load external models configuration
@@ -122,8 +145,9 @@ fn mask_key(key: &str) -> String {
     if key.is_empty() {
         return String::new();
     }
-    if key.len() > 4 {
-        format!("****{}", &key[key.len() - 4..])
+    let last4: String = key.chars().rev().take(4).collect::<Vec<_>>().into_iter().rev().collect();
+    if last4.len() < key.len() {
+        format!("****{last4}")
     } else {
         "****".to_string()
     }

@@ -13,8 +13,10 @@ fn config_path() -> PathBuf {
 
 /// Load external models configuration from disk.
 /// API keys are NOT included — they live in the system keyring.
+/// Blocking I/O — must be called from spawn_blocking.
 pub fn load_config() -> Result<ExternalModelsConfig, String> {
     let path = config_path();
+    // Blocking: path.exists() calls stat()
     if !path.exists() {
         return Ok(default_config());
     }
@@ -23,6 +25,7 @@ pub fn load_config() -> Result<ExternalModelsConfig, String> {
 
 /// Save external models configuration to disk.
 /// API keys are stored separately in the system keyring.
+/// Blocking I/O — must be called from spawn_blocking.
 pub fn save_config(config: &ExternalModelsConfig) -> Result<(), String> {
     write_json(&config_path(), config)
 }
