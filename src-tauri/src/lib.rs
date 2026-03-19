@@ -5,6 +5,7 @@ mod claude_md;
 mod conductor;
 mod config;
 mod devtools;
+mod external_models;
 mod file_ops;
 mod file_watcher;
 mod files;
@@ -127,6 +128,11 @@ pub fn run() {
             claude_md::list_claude_md_files,
             claude_md::read_claude_md,
             claude_md::save_claude_md,
+            external_models::external_models_call,
+            external_models::external_models_test_connection,
+            external_models::external_models_list_models,
+            external_models::external_models_save_config,
+            external_models::external_models_load_config,
             worktree::get_worktrees,
             worktree::get_git_status,
             worktree::get_worktree_details,
