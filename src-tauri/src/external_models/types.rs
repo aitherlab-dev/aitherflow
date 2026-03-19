@@ -151,6 +151,8 @@ pub struct ProviderConfig {
 pub struct ExternalModelsConfig {
     #[serde(default)]
     pub providers: Vec<ProviderConfig>,
+    #[serde(default)]
+    pub vision_profile: Option<crate::external_models::vision::VisionProfile>,
 }
 
 /// Error response from API

@@ -20,6 +20,7 @@ const VIDEO_EXTENSIONS: &[&str] = &[
 
 const MAX_FRAME_SIZE: usize = 10 * 1024 * 1024; // 10 MB per frame
 const MAX_FRAMES: usize = 100;
+const MAX_NATIVE_VIDEO_SIZE: u64 = 20 * 1024 * 1024; // 20 MB for inline video
 
 /// JPEG stream markers
 const JPEG_SOI: [u8; 2] = [0xFF, 0xD8];
@@ -31,10 +32,30 @@ pub struct FrameData {
     pub base64: String,
 }
 
+/// Strategy for processing video files
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum VisionStrategy {
+    /// Send video file as-is (base64 inline) — works with Gemini via OpenRouter
+    NativeVideo,
+    /// Extract frames via ffmpeg and send as images
+    ExtractFrames,
+    /// Auto-detect: Gemini models → NativeVideo, others → ExtractFrames
+    Auto,
+}
+
+impl Default for VisionStrategy {
+    fn default() -> Self {
+        VisionStrategy::Auto
+    }
+}
+
 /// Vision processing profile
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VisionProfile {
+    #[serde(default)]
+    pub strategy: VisionStrategy,
     #[serde(default)]
     pub frames_per_clip: Option<u32>,
     #[serde(default)]
@@ -62,6 +83,7 @@ fn default_jpeg_quality() -> u32 {
 impl Default for VisionProfile {
     fn default() -> Self {
         Self {
+            strategy: VisionStrategy::default(),
             frames_per_clip: Some(5),
             fps: None,
             scene_detection: false,
@@ -94,6 +116,64 @@ pub fn is_video_file(path: &str) -> bool {
         .and_then(|e| e.to_str())
         .map(|e| VIDEO_EXTENSIONS.contains(&e.to_lowercase().as_str()))
         .unwrap_or(false)
+}
+
+/// Resolve the effective strategy based on profile and model name.
+pub fn resolve_strategy(profile: &VisionProfile, model: &str) -> VisionStrategy {
+    match &profile.strategy {
+        VisionStrategy::Auto => {
+            if model.to_lowercase().contains("gemini") {
+                VisionStrategy::NativeVideo
+            } else {
+                VisionStrategy::ExtractFrames
+            }
+        }
+        other => other.clone(),
+    }
+}
+
+/// Encode a video file as a base64 data URL content part (for Gemini native video).
+/// Blocking I/O — must be called from spawn_blocking.
+pub fn encode_video_native(video_path: &str) -> Result<ContentPart, String> {
+    let p = Path::new(video_path);
+    crate::files::validate_path_safe(p)?;
+
+    let meta = std::fs::metadata(p)
+        .map_err(|e| format!("Cannot read {video_path}: {e}"))?;
+
+    if meta.len() > MAX_NATIVE_VIDEO_SIZE {
+        return Err(format!(
+            "Video too large for native upload: {} ({} bytes, max {}). Will fallback to frame extraction.",
+            video_path, meta.len(), MAX_NATIVE_VIDEO_SIZE
+        ));
+    }
+
+    let ext = p
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_lowercase())
+        .unwrap_or_default();
+
+    let mime = match ext.as_str() {
+        "mp4" => "video/mp4",
+        "mov" => "video/quicktime",
+        "avi" => "video/x-msvideo",
+        "mkv" => "video/x-matroska",
+        "webm" => "video/webm",
+        "mts" => "video/mp2t",
+        "mxf" => "application/mxf",
+        "r3d" => "application/octet-stream",
+        _ => "video/mp4",
+    };
+
+    let data = std::fs::read(p).map_err(|e| format!("Failed to read {video_path}: {e}"))?;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&data);
+
+    Ok(ContentPart::ImageUrl {
+        image_url: ImageUrlData {
+            url: format!("data:{mime};base64,{b64}"),
+        },
+    })
 }
 
 /// Extract frames from a video file using ffmpeg (pipe, no disk writes).
@@ -442,6 +522,18 @@ fn scan_media_files(dir_path: &str) -> Result<Vec<String>, String> {
     Ok(files)
 }
 
+/// Convert extracted frames to ContentParts.
+fn frames_to_parts(frames: Vec<FrameData>) -> Vec<ContentPart> {
+    frames
+        .into_iter()
+        .map(|f| ContentPart::ImageUrl {
+            image_url: ImageUrlData {
+                url: format!("data:image/jpeg;base64,{}", f.base64),
+            },
+        })
+        .collect()
+}
+
 /// Analyze a single file (video or image).
 async fn analyze_single_file(
     file_path: &str,
@@ -458,20 +550,35 @@ async fn analyze_single_file(
         .unwrap_or_default();
 
     let (content_parts, duration, frame_count) = if is_video_file(file_path) {
-        let duration = get_duration(file_path).await.unwrap_or(0.0);
-        let frames = extract_frames(file_path, profile, Some(duration)).await?;
-        let count = frames.len();
+        let strategy = resolve_strategy(profile, model);
 
-        let parts: Vec<ContentPart> = frames
-            .into_iter()
-            .map(|f| ContentPart::ImageUrl {
-                image_url: ImageUrlData {
-                    url: format!("data:image/jpeg;base64,{}", f.base64),
-                },
-            })
-            .collect();
-
-        (parts, duration, count)
+        if strategy == VisionStrategy::NativeVideo {
+            // Try native video upload; fallback to frames if too large
+            let path = file_path.to_string();
+            match tokio::task::spawn_blocking(move || encode_video_native(&path))
+                .await
+                .map_err(|e| format!("Task join error: {e}"))?
+            {
+                Ok(part) => {
+                    let duration = get_duration(file_path).await.unwrap_or(0.0);
+                    (vec![part], duration, 1)
+                }
+                Err(e) => {
+                    eprintln!("[ext-models-vision] Native video failed, falling back to frames: {e}");
+                    let duration = get_duration(file_path).await.unwrap_or(0.0);
+                    let frames = extract_frames(file_path, profile, Some(duration)).await?;
+                    let count = frames.len();
+                    let parts = frames_to_parts(frames);
+                    (parts, duration, count)
+                }
+            }
+        } else {
+            let duration = get_duration(file_path).await.unwrap_or(0.0);
+            let frames = extract_frames(file_path, profile, Some(duration)).await?;
+            let count = frames.len();
+            let parts = frames_to_parts(frames);
+            (parts, duration, count)
+        }
     } else {
         // Image file — encode directly in blocking context
         let path = file_path.to_string();

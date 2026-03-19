@@ -414,19 +414,41 @@ async fn tool_call_vision(args: &Value) -> Result<String, String> {
         .filter_map(|p| p.as_str().map(String::from))
         .collect();
 
-    let profile = parse_vision_profile(args);
+    let profile = parse_vision_profile_with_config(args).await;
+    let strategy = vision::resolve_strategy(&profile, model);
 
-    // Process each file: video → extract frames, image → encode directly
+    // Process each file based on strategy
     let mut all_parts = Vec::new();
     for path in &paths {
         if vision::is_video_file(path) {
-            let frames = vision::extract_frames(path, &profile, None).await?;
-            for frame in frames {
-                all_parts.push(ContentPart::ImageUrl {
-                    image_url: ImageUrlData {
-                        url: format!("data:image/jpeg;base64,{}", frame.base64),
-                    },
-                });
+            if strategy == vision::VisionStrategy::NativeVideo {
+                let p = path.clone();
+                match tokio::task::spawn_blocking(move || vision::encode_video_native(&p))
+                    .await
+                    .map_err(|e| format!("Task join error: {e}"))?
+                {
+                    Ok(part) => all_parts.push(part),
+                    Err(e) => {
+                        eprintln!("[ext-models-mcp] Native video failed, falling back to frames: {e}");
+                        let frames = vision::extract_frames(path, &profile, None).await?;
+                        for frame in frames {
+                            all_parts.push(ContentPart::ImageUrl {
+                                image_url: ImageUrlData {
+                                    url: format!("data:image/jpeg;base64,{}", frame.base64),
+                                },
+                            });
+                        }
+                    }
+                }
+            } else {
+                let frames = vision::extract_frames(path, &profile, None).await?;
+                for frame in frames {
+                    all_parts.push(ContentPart::ImageUrl {
+                        image_url: ImageUrlData {
+                            url: format!("data:image/jpeg;base64,{}", frame.base64),
+                        },
+                    });
+                }
             }
         } else {
             let p = path.clone();
@@ -477,7 +499,7 @@ async fn tool_analyze_directory(args: &Value) -> Result<String, String> {
         .as_str()
         .ok_or("Missing 'directory' parameter")?;
     let max_tokens = args["max_tokens"].as_u64().map(|n| n as u32);
-    let profile = parse_vision_profile(args);
+    let profile = parse_vision_profile_with_config(args).await;
 
     let results = vision::analyze_directory(
         directory, &profile, &provider, model, prompt, max_tokens,
@@ -511,11 +533,25 @@ fn parse_provider(args: &Value) -> Result<Provider, String> {
     }
 }
 
-/// Parse optional VisionProfile from args, or return default.
-fn parse_vision_profile(args: &Value) -> vision::VisionProfile {
-    args.get("profile")
+/// Parse VisionProfile from args. If not provided, load from saved config.
+/// Falls back to default if neither is available.
+async fn parse_vision_profile_with_config(args: &Value) -> vision::VisionProfile {
+    if let Some(profile) = args
+        .get("profile")
         .and_then(|v| serde_json::from_value(v.clone()).ok())
-        .unwrap_or_default()
+    {
+        return profile;
+    }
+
+    // Try loading saved profile from config
+    tokio::task::spawn_blocking(|| {
+        config::load_config()
+            .ok()
+            .and_then(|c| c.vision_profile)
+            .unwrap_or_default()
+    })
+    .await
+    .unwrap_or_default()
 }
 
 /// Get API key via keyring in a blocking context.
@@ -703,6 +739,7 @@ fn tool_definitions() -> Value {
                         "type": "object",
                         "description": "Video processing profile (optional, defaults used if omitted)",
                         "properties": {
+                            "strategy": { "type": "string", "enum": ["auto", "native_video", "extract_frames"], "description": "Video processing strategy. Auto sends native video to Gemini, extracts frames for others (default: auto)" },
                             "framesPerClip": { "type": "number", "description": "Extract exactly N frames evenly spaced (default: 5)" },
                             "fps": { "type": "number", "description": "Frames per second (alternative to framesPerClip)" },
                             "sceneDetection": { "type": "boolean", "description": "Use ffmpeg scene detection" },
@@ -746,6 +783,7 @@ fn tool_definitions() -> Value {
                         "type": "object",
                         "description": "Video processing profile (optional)",
                         "properties": {
+                            "strategy": { "type": "string", "enum": ["auto", "native_video", "extract_frames"] },
                             "framesPerClip": { "type": "number" },
                             "fps": { "type": "number" },
                             "sceneDetection": { "type": "boolean" },

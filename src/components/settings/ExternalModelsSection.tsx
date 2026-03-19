@@ -6,12 +6,24 @@ import type {
   ExternalModelsConfigWithKeys,
   McpStatus,
   ModelInfo,
+  VisionProfile,
+  VisionStrategy,
 } from "../../types/external-models";
 
 const PROVIDERS: { id: Provider; label: string }[] = [
   { id: "openrouter", label: "OpenRouter" },
   { id: "groq", label: "Groq" },
 ];
+
+const DEFAULT_VISION_PROFILE: VisionProfile = {
+  strategy: "auto",
+  framesPerClip: 5,
+  fps: null,
+  sceneDetection: false,
+  sceneThreshold: 0.3,
+  resolution: 720,
+  jpegQuality: 5,
+};
 
 interface ProviderState {
   enabled: boolean;
@@ -40,6 +52,9 @@ export function ExternalModelsSection() {
     openrouter: defaultProviderState(),
     groq: defaultProviderState(),
   });
+  const [visionProfile, setVisionProfile] = useState<VisionProfile>(
+    DEFAULT_VISION_PROFILE,
+  );
   const [mcpStatus, setMcpStatus] = useState<McpStatus>({
     running: false,
     port: null,
@@ -85,6 +100,9 @@ export function ExternalModelsSection() {
         updated.groq.apiKey = cfg.groqApiKey;
 
         setProviders(updated);
+        if (cfg.visionProfile) {
+          setVisionProfile(cfg.visionProfile);
+        }
         setMcpStatus(status);
         setLoaded(true);
       })
@@ -95,11 +113,13 @@ export function ExternalModelsSection() {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(saveTimerRef.current), []);
 
+  const visionProfileRef = useRef(visionProfile);
+  visionProfileRef.current = visionProfile;
+
   const save = useCallback((updated: Record<Provider, ProviderState>) => {
     setProviders(updated);
     clearTimeout(saveTimerRef.current);
 
-    // Track real keys
     for (const id of ["openrouter", "groq"] as Provider[]) {
       const key = updated[id].apiKey;
       if (key && !key.startsWith("****")) {
@@ -118,12 +138,25 @@ export function ExternalModelsSection() {
       const grKey = realKeysRef.current.groq;
 
       invoke("external_models_save_config", {
-        providersConfig: { providers: providersConfig },
+        providersConfig: {
+          providers: providersConfig,
+          visionProfile: visionProfileRef.current,
+        },
         openrouterApiKey: orKey.startsWith("****") ? null : orKey || null,
         groqApiKey: grKey.startsWith("****") ? null : grKey || null,
       }).catch(console.error);
     }, 400);
   }, []);
+
+  const saveVisionProfile = useCallback(
+    (profile: VisionProfile) => {
+      setVisionProfile(profile);
+      visionProfileRef.current = profile;
+      // Trigger a save with current providers
+      save({ ...providers });
+    },
+    [providers, save],
+  );
 
   const updateProvider = useCallback(
     (id: Provider, patch: Partial<ProviderState>) => {
@@ -136,62 +169,56 @@ export function ExternalModelsSection() {
     [providers, save],
   );
 
-  const testConnection = useCallback(
-    (id: Provider) => {
-      setProviders((prev) => ({
-        ...prev,
-        [id]: { ...prev[id], testing: true, testResult: null },
-      }));
+  const testConnection = useCallback((id: Provider) => {
+    setProviders((prev) => ({
+      ...prev,
+      [id]: { ...prev[id], testing: true, testResult: null },
+    }));
 
-      invoke<string>("external_models_test_connection", { provider: id })
-        .then((reply) => {
-          setProviders((prev) => ({
-            ...prev,
-            [id]: {
-              ...prev[id],
-              testing: false,
-              testResult: { ok: true, message: reply },
-            },
-          }));
-        })
-        .catch((e) => {
-          setProviders((prev) => ({
-            ...prev,
-            [id]: {
-              ...prev[id],
-              testing: false,
-              testResult: { ok: false, message: String(e) },
-            },
-          }));
-        });
-    },
-    [],
-  );
+    invoke<string>("external_models_test_connection", { provider: id })
+      .then((reply) => {
+        setProviders((prev) => ({
+          ...prev,
+          [id]: {
+            ...prev[id],
+            testing: false,
+            testResult: { ok: true, message: reply },
+          },
+        }));
+      })
+      .catch((e) => {
+        setProviders((prev) => ({
+          ...prev,
+          [id]: {
+            ...prev[id],
+            testing: false,
+            testResult: { ok: false, message: String(e) },
+          },
+        }));
+      });
+  }, []);
 
-  const loadModels = useCallback(
-    (id: Provider) => {
-      setProviders((prev) => ({
-        ...prev,
-        [id]: { ...prev[id], modelsLoading: true },
-      }));
+  const loadModels = useCallback((id: Provider) => {
+    setProviders((prev) => ({
+      ...prev,
+      [id]: { ...prev[id], modelsLoading: true },
+    }));
 
-      invoke<ModelInfo[]>("external_models_list_models", { provider: id })
-        .then((models) => {
-          setProviders((prev) => ({
-            ...prev,
-            [id]: { ...prev[id], models, modelsLoading: false },
-          }));
-        })
-        .catch((e) => {
-          console.error(`Failed to load models for ${id}:`, e);
-          setProviders((prev) => ({
-            ...prev,
-            [id]: { ...prev[id], modelsLoading: false },
-          }));
-        });
-    },
-    [],
-  );
+    invoke<ModelInfo[]>("external_models_list_models", { provider: id })
+      .then((models) => {
+        setProviders((prev) => ({
+          ...prev,
+          [id]: { ...prev[id], models, modelsLoading: false },
+        }));
+      })
+      .catch((e) => {
+        console.error(`Failed to load models for ${id}:`, e);
+        setProviders((prev) => ({
+          ...prev,
+          [id]: { ...prev[id], modelsLoading: false },
+        }));
+      });
+  }, []);
 
   const toggleMcp = useCallback(() => {
     setMcpLoading(true);
@@ -255,6 +282,12 @@ export function ExternalModelsSection() {
           </button>
         </div>
       </div>
+
+      {/* Vision Settings */}
+      <VisionSettingsBlock
+        profile={visionProfile}
+        onUpdate={saveVisionProfile}
+      />
     </div>
   );
 }
@@ -316,9 +349,7 @@ function ProviderBlock({
                 value={state.apiKey}
                 onChange={(e) => onUpdate({ apiKey: e.target.value })}
                 placeholder={
-                  id === "openrouter"
-                    ? "sk-or-v1-..."
-                    : "gsk_..."
+                  id === "openrouter" ? "sk-or-v1-..." : "gsk_..."
                 }
                 autoComplete="off"
                 style={{ flex: 1 }}
@@ -406,6 +437,184 @@ function ProviderBlock({
               </button>
             </div>
           </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Vision Settings sub-component
+// ---------------------------------------------------------------------------
+
+const STRATEGY_OPTIONS: { value: VisionStrategy; label: string }[] = [
+  { value: "auto", label: "Auto" },
+  { value: "native_video", label: "Native Video" },
+  { value: "extract_frames", label: "Extract Frames" },
+];
+
+const RESOLUTION_OPTIONS = [
+  { value: 360, label: "360p" },
+  { value: 720, label: "720p" },
+  { value: 1080, label: "1080p" },
+];
+
+function VisionSettingsBlock({
+  profile,
+  onUpdate,
+}: {
+  profile: VisionProfile;
+  onUpdate: (profile: VisionProfile) => void;
+}) {
+  const showFrameSettings = profile.strategy !== "native_video";
+
+  return (
+    <div style={{ marginTop: "16px" }}>
+      <div className="settings-toggle-row">
+        <div className="settings-toggle-info">
+          <span className="settings-toggle-label">Vision Settings</span>
+          <span className="settings-toggle-desc">
+            How video files are processed for vision analysis.
+          </span>
+        </div>
+      </div>
+
+      {/* Strategy */}
+      <div className="webserver-field">
+        <label className="webserver-field-label">Strategy</label>
+        <select
+          className="settings-select"
+          value={profile.strategy}
+          onChange={(e) =>
+            onUpdate({ ...profile, strategy: e.target.value as VisionStrategy })
+          }
+          style={{ width: "240px" }}
+        >
+          {STRATEGY_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <span className="webserver-note">
+          {profile.strategy === "auto"
+            ? "Gemini models receive native video, others get extracted frames."
+            : profile.strategy === "native_video"
+              ? "Send video as-is (base64). Best for Gemini. Max 20MB."
+              : "Extract frames via ffmpeg and send as images."}
+        </span>
+      </div>
+
+      {showFrameSettings && (
+        <>
+          {/* Frames per clip */}
+          <div className="webserver-field">
+            <label className="webserver-field-label">Frames per clip</label>
+            <input
+              type="number"
+              className="webserver-input"
+              value={profile.framesPerClip ?? ""}
+              onChange={(e) => {
+                const val = e.target.value.trim();
+                onUpdate({
+                  ...profile,
+                  framesPerClip: val === "" ? null : parseInt(val, 10) || null,
+                });
+              }}
+              placeholder="5"
+              min={1}
+              max={100}
+              style={{ width: "100px" }}
+            />
+          </div>
+
+          {/* Scene detection */}
+          <div className="settings-toggle-row">
+            <div className="settings-toggle-info">
+              <span className="settings-toggle-label">Scene detection</span>
+              <span className="settings-toggle-desc">
+                Use ffmpeg scene change detection instead of fixed intervals.
+              </span>
+            </div>
+            <label className="toggle-switch">
+              <input
+                type="checkbox"
+                checked={profile.sceneDetection}
+                onChange={() =>
+                  onUpdate({
+                    ...profile,
+                    sceneDetection: !profile.sceneDetection,
+                  })
+                }
+              />
+              <span className="toggle-switch-track" />
+            </label>
+          </div>
+
+          {/* Scene threshold */}
+          {profile.sceneDetection && (
+            <div className="webserver-field">
+              <label className="webserver-field-label">
+                Scene threshold: {profile.sceneThreshold.toFixed(2)}
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={profile.sceneThreshold}
+                onChange={(e) =>
+                  onUpdate({
+                    ...profile,
+                    sceneThreshold: parseFloat(e.target.value),
+                  })
+                }
+                style={{ width: "200px" }}
+              />
+            </div>
+          )}
+
+          {/* Resolution */}
+          <div className="webserver-field">
+            <label className="webserver-field-label">Resolution</label>
+            <select
+              className="settings-select"
+              value={profile.resolution}
+              onChange={(e) =>
+                onUpdate({ ...profile, resolution: parseInt(e.target.value, 10) })
+              }
+              style={{ width: "120px" }}
+            >
+              {RESOLUTION_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* JPEG Quality */}
+          {profile.strategy === "extract_frames" && (
+            <div className="webserver-field">
+              <label className="webserver-field-label">
+                JPEG Quality: {profile.jpegQuality} (lower = better)
+              </label>
+              <input
+                type="range"
+                min="2"
+                max="31"
+                step="1"
+                value={profile.jpegQuality}
+                onChange={(e) =>
+                  onUpdate({
+                    ...profile,
+                    jpegQuality: parseInt(e.target.value, 10),
+                  })
+                }
+                style={{ width: "200px" }}
+              />
+            </div>
+          )}
         </>
       )}
     </div>

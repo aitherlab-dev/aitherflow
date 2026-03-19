@@ -55,5 +55,6 @@ fn default_config() -> ExternalModelsConfig {
                 default_model: String::new(),
             },
         ],
+        vision_profile: None,
     }
 }
