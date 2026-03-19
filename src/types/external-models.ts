@@ -6,7 +6,7 @@ export interface ProviderConfig {
   defaultModel: string;
 }
 
-export interface ExternalModelsConfig {
+export interface ExternalModelsConfigWithKeys {
   providers: ProviderConfig[];
   openrouterApiKey: string;
   groqApiKey: string;

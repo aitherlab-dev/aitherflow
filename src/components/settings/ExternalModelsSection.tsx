@@ -3,7 +3,7 @@ import { invoke } from "../../lib/transport";
 import { Eye, EyeOff, RefreshCw, Play, Square } from "lucide-react";
 import type {
   Provider,
-  ExternalModelsConfig,
+  ExternalModelsConfigWithKeys,
   McpStatus,
   ModelInfo,
 } from "../../types/external-models";
@@ -59,7 +59,7 @@ export function ExternalModelsSection() {
   // Load config and MCP status
   useEffect(() => {
     Promise.all([
-      invoke<ExternalModelsConfig>("external_models_load_config"),
+      invoke<ExternalModelsConfigWithKeys>("external_models_load_config"),
       invoke<McpStatus>("external_models_mcp_status"),
     ])
       .then(([cfg, status]) => {
@@ -400,7 +400,7 @@ function ProviderBlock({
               >
                 <RefreshCw
                   size={14}
-                  className={state.modelsLoading ? "spin" : ""}
+                  className={state.modelsLoading ? "spinning" : ""}
                 />
                 {state.modelsLoading ? "Loading..." : "Load Models"}
               </button>
