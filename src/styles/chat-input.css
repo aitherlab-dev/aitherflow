@@ -150,6 +150,8 @@
   flex-direction: column;
   gap: 2px;
   padding: 2px 0;
+  height: 40px;
+  overflow: hidden;
 }
 
 .taskbar__recent .tool-status {

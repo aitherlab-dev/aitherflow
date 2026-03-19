@@ -58,6 +58,7 @@ Release: Linux (deb, rpm, AppImage) + macOS (dmg) — собирается на 
   - Не добавлять linux-only зависимости без `#[cfg]` guard в Cargo.toml
 
 **TypeScript/React:**
+- **НЕ добавлять Virtuoso / виртуализацию в MessageList.** Убран осознанно: конфликтует с автоскроллом при стриминге, дёргает layout, ломает UX. Простой div + ResizeObserver + memo работает нормально даже на 500+ сообщениях
 - Иконки: **только Lucide React**. Никаких CSS-иконок, никакого инлайн-SVG
 - Все цвета через CSS-переменные, никаких захардкоженных hex
 - Не проглатывать ошибки: `.catch(console.error)`, НЕ `.catch(() => {})`
