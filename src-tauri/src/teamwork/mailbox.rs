@@ -66,6 +66,11 @@ fn inbox_path(team: &str, agent_id: &str) -> PathBuf {
     inboxes_dir(team).join(format!("{agent_id}.jsonl"))
 }
 
+/// Path to the persistent feed log (append-only, for UI display)
+fn feed_path(team: &str) -> PathBuf {
+    inboxes_dir(team).join("feed.jsonl")
+}
+
 /// Lock key for an inbox
 fn inbox_lock_key(team: &str, agent_id: &str) -> String {
     format!("{team}/{agent_id}")
@@ -124,6 +129,47 @@ fn append_to_inbox(team: &str, msg: &TeamMessage) -> Result<(), String> {
     Ok(())
 }
 
+/// Append a message to the persistent feed log (for UI display).
+/// The feed is append-only; messages are never removed except by team_clear_messages.
+fn append_to_feed(team: &str, msg: &TeamMessage) -> Result<(), String> {
+    let path = feed_path(team);
+    let key = format!("{team}/__feed__");
+    let lock = inbox_lock(&key);
+    let _guard = lock
+        .lock()
+        .map_err(|e| format!("Feed lock poisoned: {e}"))?;
+
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create inboxes dir: {e}"))?;
+    }
+
+    let mut line =
+        serde_json::to_string(msg).map_err(|e| format!("Failed to serialize message: {e}"))?;
+    line.push('\n');
+
+    let mut file = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .map_err(|e| format!("Failed to open feed {}: {e}", path.display()))?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Err(e) = file.set_permissions(fs::Permissions::from_mode(0o600)) {
+            eprintln!("[teamwork] Failed to set feed permissions: {e}");
+        }
+    }
+
+    file.write_all(line.as_bytes())
+        .map_err(|e| format!("Failed to write to feed: {e}"))?;
+    file.sync_all()
+        .map_err(|e| format!("Failed to sync feed: {e}"))?;
+
+    Ok(())
+}
+
 /// Send a message (sync, for use inside spawn_blocking).
 pub(crate) fn send_message_sync(
     team: &str,
@@ -135,7 +181,9 @@ pub(crate) fn send_message_sync(
     validate_name(from, "from")?;
     validate_name(to, "to")?;
     let msg = new_message(from, to, text, None);
-    append_to_inbox(team, &msg)
+    append_to_inbox(team, &msg)?;
+    append_to_feed(team, &msg)?;
+    Ok(())
 }
 
 /// Broadcast a message to specified agents except sender (sync).
@@ -148,6 +196,10 @@ pub(crate) fn broadcast_sync(
     validate_name(team, "team")?;
     validate_name(from, "from")?;
     let bid = uuid::Uuid::new_v4().to_string();
+    // Write one copy to the persistent feed for UI display
+    let feed_msg = new_message(from, "broadcast", text, Some(bid.clone()));
+    append_to_feed(team, &feed_msg)?;
+    // Write to each agent's inbox (consumed by MCP read_inbox)
     for agent_id in agent_ids {
         validate_name(agent_id, "agent_id")?;
         if agent_id == from {
@@ -175,6 +227,7 @@ pub async fn team_send_message(
         let msg = new_message(&from, &to, &text, None);
         let id = msg.id.clone();
         append_to_inbox(&team, &msg)?;
+        append_to_feed(&team, &msg)?;
         Ok(id)
     })
     .await
@@ -195,6 +248,10 @@ pub async fn team_broadcast(
         validate_name(&from, "from")?;
 
         let bid = uuid::Uuid::new_v4().to_string();
+        // Write one copy to the persistent feed for UI display
+        let feed_msg = new_message(&from, "broadcast", &text, Some(bid.clone()));
+        append_to_feed(&team, &feed_msg)?;
+        // Write to each agent's inbox
         let mut ids = HashMap::new();
         for agent_id in &agent_ids {
             validate_name(agent_id, "agent_id")?;
@@ -316,50 +373,35 @@ pub(crate) fn mark_read_sync(
     atomic_write(&path, output.as_bytes())
 }
 
-/// Read ALL messages from all inboxes in a team, sorted by timestamp.
+/// Read ALL messages from the persistent feed log, sorted by timestamp.
 #[tauri::command]
 pub async fn team_read_all_messages(team: String) -> Result<Vec<TeamMessage>, String> {
     tokio::task::spawn_blocking(move || {
         validate_name(&team, "team")?;
 
-        let dir = inboxes_dir(&team);
-        if !dir.exists() {
+        let path = feed_path(&team);
+        if !path.exists() {
             return Ok(Vec::new());
         }
 
-        let entries =
-            fs::read_dir(&dir).map_err(|e| format!("Failed to read inboxes dir: {e}"))?;
+        let key = format!("{team}/__feed__");
+        let lock = inbox_lock(&key);
+        let _guard = lock
+            .lock()
+            .map_err(|e| format!("Feed lock poisoned: {e}"))?;
+
+        let data =
+            fs::read_to_string(&path).map_err(|e| format!("Failed to read feed: {e}"))?;
 
         let mut all = Vec::new();
-        for entry in entries.flatten() {
-            let ft = entry
-                .file_type()
-                .map_err(|e| format!("Failed to get file type: {e}"))?;
-            if ft.is_symlink() || ft.is_dir() {
+        for (i, line) in data.lines().enumerate() {
+            if line.trim().is_empty() {
                 continue;
             }
-            let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) != Some("jsonl") {
-                continue;
-            }
-
-            let data = match fs::read_to_string(&path) {
-                Ok(d) => d,
+            match serde_json::from_str::<TeamMessage>(line) {
+                Ok(msg) => all.push(msg),
                 Err(e) => {
-                    eprintln!("[teamwork] Failed to read {}: {e}", path.display());
-                    continue;
-                }
-            };
-
-            for (i, line) in data.lines().enumerate() {
-                if line.trim().is_empty() {
-                    continue;
-                }
-                match serde_json::from_str::<TeamMessage>(line) {
-                    Ok(msg) => all.push(msg),
-                    Err(e) => {
-                        eprintln!("[teamwork] Bad line {} in {}: {e}", i + 1, path.display());
-                    }
+                    eprintln!("[teamwork] Bad line {} in feed: {e}", i + 1);
                 }
             }
         }
