@@ -327,7 +327,7 @@ export const InputBar = memo(function InputBar() {
           <ThinkingIndicator />
         </div>
         <div className="input-bar-cell input-bar-cell--btns input-bar-cell--end">
-          {isThinking ? (
+          {isThinking && hasSession ? (
             <Tooltip text={"Stop" + hk("stopGeneration")}>
               <button
                 className="input-bar-btn input-bar-stop"

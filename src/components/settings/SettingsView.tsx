@@ -14,6 +14,7 @@ import {
   Cable,
   BarChart3,
   Keyboard,
+  Blocks,
 } from "lucide-react";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { ProjectsSection } from "./ProjectsSection";
@@ -28,6 +29,7 @@ import { CliStatsSection } from "./CliStatsSection";
 import { HotkeysSection } from "./HotkeysSection";
 import { ClaudeMdSection } from "./ClaudeMdSection";
 import { RolesSection } from "./RolesSection";
+import { ExternalModelsSection } from "./ExternalModelsSection";
 
 const NAV_ITEMS = [
   { id: "general", label: "General", icon: User },
@@ -39,6 +41,7 @@ const NAV_ITEMS = [
   { id: "projects", label: "Projects", icon: FolderOpen },
   { id: "language", label: "Language", icon: Languages },
   { id: "voice", label: "Voice", icon: Mic },
+  { id: "external-models", label: "External Models", icon: Blocks },
   { id: "telegram", label: "Telegram", icon: Send },
   { id: "claude-md", label: "CLAUDE.MD", icon: FileText },
   { id: "cli-stats", label: "CLI Stats", icon: BarChart3 },
@@ -119,6 +122,9 @@ function SectionContent({ section }: { section: string }) {
   }
   if (section === "voice") {
     return <VoiceSection />;
+  }
+  if (section === "external-models") {
+    return <ExternalModelsSection />;
   }
   if (section === "telegram") {
     return <TelegramSection />;
