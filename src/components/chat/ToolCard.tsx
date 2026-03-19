@@ -9,6 +9,13 @@ const FILE_TOOLS = new Set([
   "Read", "Edit", "Write", "MultiEdit", "NotebookEdit", "NotebookRead",
 ]);
 
+/** Detect if a Bash command is a call to an external AI model API */
+function isAiApiCall(toolName: string, toolInput: Record<string, unknown>): boolean {
+  if (toolName !== "Bash") return false;
+  const cmd = typeof toolInput.command === "string" ? toolInput.command : "";
+  return /\/chat\/completions|\/api\/generate|\/api\/chat/.test(cmd);
+}
+
 /** Color class suffix per tool type */
 function toolColorClass(name: string): string {
   switch (name) {
@@ -38,6 +45,7 @@ export const ToolCard = memo(function ToolCard({ activity, isRunning }: ToolCard
   const isFile = FILE_TOOLS.has(activity.toolName) && summary.length > 0;
   const colorCls = toolColorClass(activity.toolName);
   const hasError = activity.isError === true;
+  const isAiResult = isAiApiCall(activity.toolName, activity.toolInput);
 
   const toggle = useCallback(() => setExpanded((v) => !v), []);
 
@@ -81,7 +89,7 @@ export const ToolCard = memo(function ToolCard({ activity, isRunning }: ToolCard
             {JSON.stringify(activity.toolInput, null, 2)}
           </pre>
           {activity.result && (
-            <pre className={`tool-card-result ${hasError ? "tool-card-result--error" : ""}`}>
+            <pre className={`tool-card-result ${hasError ? "tool-card-result--error" : isAiResult ? "tool-card-result--ai" : ""}`}>
               {activity.result}
             </pre>
           )}
