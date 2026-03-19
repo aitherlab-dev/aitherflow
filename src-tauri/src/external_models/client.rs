@@ -3,7 +3,8 @@ use std::sync::OnceLock;
 use std::time::Duration;
 
 use super::types::{
-    ApiErrorResponse, ChatRequest, ChatResponse, ModelInfo, ModelsResponse, Provider,
+    ApiErrorResponse, ChatRequest, ChatResponse, ModelInfo, ModelsResponse, OllamaTagsResponse,
+    Provider,
 };
 
 const TIMEOUT_SECS: u64 = 120;
@@ -24,6 +25,22 @@ fn get_client() -> &'static Client {
     })
 }
 
+/// Resolve the effective base URL: custom override or provider default.
+fn effective_base_url(provider: &Provider, base_url_override: Option<&str>) -> String {
+    match base_url_override {
+        Some(url) if !url.is_empty() => {
+            // For Ollama: stored URL is the server root (e.g. http://localhost:11434),
+            // chat completions need /v1 appended
+            if *provider == Provider::Ollama && !url.contains("/v1") {
+                format!("{}/v1", url.trim_end_matches('/'))
+            } else {
+                url.trim_end_matches('/').to_string()
+            }
+        }
+        _ => provider.base_url().to_string(),
+    }
+}
+
 /// Parse API error response body into a human-readable message
 fn parse_api_error(provider: &Provider, status: u16, body: &str) -> String {
     let msg = serde_json::from_str::<ApiErrorResponse>(body)
@@ -34,16 +51,19 @@ fn parse_api_error(provider: &Provider, status: u16, body: &str) -> String {
     format!("{} API error ({status}): {msg}", provider.display_name())
 }
 
-/// Call a chat completions model via OpenAI-compatible API
+/// Call a chat completions model via OpenAI-compatible API.
+/// `base_url_override` allows custom server URLs (e.g. Ollama on non-default port).
 pub async fn call_model(
     provider: &Provider,
     api_key: &str,
     model: &str,
     messages: Vec<super::types::ChatMessage>,
     max_tokens: Option<u32>,
+    base_url_override: Option<&str>,
 ) -> Result<ChatResponse, String> {
     let client = get_client();
-    let url = format!("{}/chat/completions", provider.base_url());
+    let base = effective_base_url(provider, base_url_override);
+    let url = format!("{base}/chat/completions");
 
     let request = ChatRequest {
         model: model.to_string(),
@@ -52,10 +72,12 @@ pub async fn call_model(
         temperature: None,
     };
 
-    let mut req = client
-        .post(&url)
-        .header("Authorization", format!("Bearer {api_key}"))
-        .json(&request);
+    let mut req = client.post(&url).json(&request);
+
+    // Add auth header only for providers that need it
+    if provider.requires_api_key() {
+        req = req.header("Authorization", format!("Bearer {api_key}"));
+    }
 
     if *provider == Provider::OpenRouter {
         req = req
@@ -67,7 +89,11 @@ pub async fn call_model(
         if e.is_timeout() {
             format!("{}: request timed out after {TIMEOUT_SECS}s", provider.display_name())
         } else if e.is_connect() {
-            format!("{}: connection failed — check your network", provider.display_name())
+            if *provider == Provider::Ollama {
+                format!("Ollama not running — connection refused. Start Ollama first.")
+            } else {
+                format!("{}: connection failed — check your network", provider.display_name())
+            }
         } else {
             format!("{}: request failed: {e}", provider.display_name())
         }
@@ -85,13 +111,20 @@ pub async fn call_model(
         .map_err(|e| format!("{}: failed to parse response: {e}", provider.display_name()))
 }
 
-/// List available models from the provider
+/// List available models from the provider.
+/// Ollama uses /api/tags instead of /v1/models.
 pub async fn list_models(
     provider: &Provider,
     api_key: &str,
+    base_url_override: Option<&str>,
 ) -> Result<Vec<ModelInfo>, String> {
+    if *provider == Provider::Ollama {
+        return list_ollama_models(base_url_override).await;
+    }
+
     let client = get_client();
-    let url = format!("{}/models", provider.base_url());
+    let base = effective_base_url(provider, base_url_override);
+    let url = format!("{base}/models");
 
     let mut req = client
         .get(&url)
@@ -119,4 +152,44 @@ pub async fn list_models(
         .map_err(|e| format!("{}: failed to parse models list: {e}", provider.display_name()))?;
 
     Ok(models_resp.data)
+}
+
+/// List models from Ollama via /api/tags endpoint.
+async fn list_ollama_models(
+    base_url_override: Option<&str>,
+) -> Result<Vec<ModelInfo>, String> {
+    let client = get_client();
+    let server = base_url_override
+        .filter(|u| !u.is_empty())
+        .unwrap_or("http://localhost:11434");
+    let url = format!("{}/api/tags", server.trim_end_matches('/'));
+
+    let response = client.get(&url).send().await.map_err(|e| {
+        if e.is_connect() {
+            "Ollama not running — connection refused. Start Ollama first.".to_string()
+        } else {
+            format!("Ollama: failed to fetch models: {e}")
+        }
+    })?;
+
+    let status = response.status();
+    if !status.is_success() {
+        let body = response.text().await.unwrap_or_default();
+        return Err(format!("Ollama API error ({status}): {body}"));
+    }
+
+    let tags = response
+        .json::<OllamaTagsResponse>()
+        .await
+        .map_err(|e| format!("Ollama: failed to parse models: {e}"))?;
+
+    Ok(tags
+        .models
+        .into_iter()
+        .map(|m| ModelInfo {
+            id: m.name.clone(),
+            name: Some(m.name),
+            context_length: None,
+        })
+        .collect())
 }

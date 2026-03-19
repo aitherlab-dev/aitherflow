@@ -612,7 +612,7 @@ async fn analyze_single_file(
         content: MessageContent::Parts(parts),
     }];
 
-    let response = client::call_model(provider, api_key, model, messages, max_tokens).await?;
+    let response = client::call_model(provider, api_key, model, messages, max_tokens, None).await?;
 
     let analysis = response
         .choices

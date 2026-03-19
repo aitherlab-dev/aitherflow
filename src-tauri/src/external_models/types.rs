@@ -7,6 +7,7 @@ use std::fmt;
 pub enum Provider {
     OpenRouter,
     Groq,
+    Ollama,
 }
 
 impl Provider {
@@ -14,6 +15,7 @@ impl Provider {
         match self {
             Provider::OpenRouter => "OpenRouter",
             Provider::Groq => "Groq",
+            Provider::Ollama => "Ollama",
         }
     }
 
@@ -21,6 +23,7 @@ impl Provider {
         match self {
             Provider::OpenRouter => "https://openrouter.ai/api/v1",
             Provider::Groq => "https://api.groq.com/openai/v1",
+            Provider::Ollama => "http://localhost:11434/v1",
         }
     }
 
@@ -29,7 +32,13 @@ impl Provider {
         match self {
             Provider::OpenRouter => "external-openrouter-api-key",
             Provider::Groq => "external-groq-api-key",
+            Provider::Ollama => "ollama-api-key",
         }
+    }
+
+    /// Whether this provider requires an API key
+    pub fn requires_api_key(&self) -> bool {
+        !matches!(self, Provider::Ollama)
     }
 }
 
@@ -129,10 +138,22 @@ pub struct ModelInfo {
     pub context_length: Option<u64>,
 }
 
-/// Response from the /models endpoint
+/// Response from the /models endpoint (OpenAI-compatible)
 #[derive(Debug, Clone, Deserialize)]
 pub struct ModelsResponse {
     pub data: Vec<ModelInfo>,
+}
+
+/// Response from Ollama /api/tags endpoint
+#[derive(Debug, Clone, Deserialize)]
+pub struct OllamaTagsResponse {
+    #[serde(default)]
+    pub models: Vec<OllamaModel>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct OllamaModel {
+    pub name: String,
 }
 
 /// Per-provider configuration (stored on disk, API key in keyring)
@@ -143,6 +164,9 @@ pub struct ProviderConfig {
     pub enabled: bool,
     #[serde(default)]
     pub default_model: String,
+    /// Custom base URL (used by Ollama for non-default ports)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base_url: Option<String>,
 }
 
 /// Top-level config file structure

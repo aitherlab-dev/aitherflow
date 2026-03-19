@@ -41,6 +41,17 @@ pub fn set_api_key(provider: &Provider, key: &str) -> Result<bool, String> {
 }
 
 /// Default configuration with both providers disabled
+/// Get the custom base URL for a provider from saved config.
+/// Blocking I/O — must be called from spawn_blocking.
+pub fn get_provider_base_url(provider: &Provider) -> Option<String> {
+    load_config()
+        .ok()?
+        .providers
+        .iter()
+        .find(|p| p.provider == *provider)
+        .and_then(|p| p.base_url.clone())
+}
+
 fn default_config() -> ExternalModelsConfig {
     ExternalModelsConfig {
         providers: vec![
@@ -48,11 +59,19 @@ fn default_config() -> ExternalModelsConfig {
                 provider: Provider::OpenRouter,
                 enabled: false,
                 default_model: String::new(),
+                base_url: None,
             },
             ProviderConfig {
                 provider: Provider::Groq,
                 enabled: false,
                 default_model: String::new(),
+                base_url: None,
+            },
+            ProviderConfig {
+                provider: Provider::Ollama,
+                enabled: false,
+                default_model: String::new(),
+                base_url: None,
             },
         ],
         vision_profile: None,

@@ -16,40 +16,25 @@ pub async fn external_models_call(
     messages: Vec<ChatMessage>,
     max_tokens: Option<u32>,
 ) -> Result<ChatResponse, String> {
-    let api_key = tokio::task::spawn_blocking({
-        let provider = provider.clone();
-        move || {
-            config::get_api_key(&provider)
-                .ok_or_else(|| format!("No API key configured for {}", provider.display_name()))
-        }
-    })
-    .await
-    .map_err(|e| format!("Task join error: {e}"))??;
-
-    client::call_model(&provider, &api_key, &model, messages, max_tokens).await
+    let (api_key, base_url) = get_provider_credentials(&provider).await?;
+    client::call_model(&provider, &api_key, &model, messages, max_tokens, base_url.as_deref())
+        .await
 }
 
 /// Test connection to a provider by sending a simple "say hi" request
 #[tauri::command]
 pub async fn external_models_test_connection(provider: Provider) -> Result<String, String> {
-    let api_key = tokio::task::spawn_blocking({
-        let provider = provider.clone();
-        move || {
-            config::get_api_key(&provider)
-                .ok_or_else(|| format!("No API key configured for {}", provider.display_name()))
-        }
-    })
-    .await
-    .map_err(|e| format!("Task join error: {e}"))??;
+    let (api_key, base_url) = get_provider_credentials(&provider).await?;
 
-    let test_model = get_test_model(&provider);
+    let test_model = get_test_model(&provider, base_url.as_deref()).await?;
     let messages = vec![ChatMessage {
         role: Role::User,
         content: MessageContent::Text("Say hi in one word.".to_string()),
     }];
 
     let response =
-        client::call_model(&provider, &api_key, &test_model, messages, Some(10)).await?;
+        client::call_model(&provider, &api_key, &test_model, messages, Some(10), base_url.as_deref())
+            .await?;
 
     let reply = response
         .choices
@@ -66,17 +51,8 @@ pub async fn external_models_test_connection(provider: Provider) -> Result<Strin
 pub async fn external_models_list_models(
     provider: Provider,
 ) -> Result<Vec<ModelInfo>, String> {
-    let api_key = tokio::task::spawn_blocking({
-        let provider = provider.clone();
-        move || {
-            config::get_api_key(&provider)
-                .ok_or_else(|| format!("No API key configured for {}", provider.display_name()))
-        }
-    })
-    .await
-    .map_err(|e| format!("Task join error: {e}"))??;
-
-    client::list_models(&provider, &api_key).await
+    let (api_key, base_url) = get_provider_credentials(&provider).await?;
+    client::list_models(&provider, &api_key, base_url.as_deref()).await
 }
 
 /// Save external models configuration (provider settings + API keys)
@@ -142,12 +118,43 @@ pub struct ExternalModelsConfigWithKeys {
     pub groq_api_key: String,
 }
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/// Get API key and base URL for a provider (in blocking context).
+async fn get_provider_credentials(
+    provider: &Provider,
+) -> Result<(String, Option<String>), String> {
+    let provider = provider.clone();
+    tokio::task::spawn_blocking(move || {
+        let api_key = if provider.requires_api_key() {
+            config::get_api_key(&provider).ok_or_else(|| {
+                format!("No API key configured for {}", provider.display_name())
+            })?
+        } else {
+            String::new()
+        };
+        let base_url = config::get_provider_base_url(&provider);
+        Ok((api_key, base_url))
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
 /// Mask an API key for display: "sk-abc123xyz" → "****3xyz"
 fn mask_key(key: &str) -> String {
     if key.is_empty() {
         return String::new();
     }
-    let last4: String = key.chars().rev().take(4).collect::<Vec<_>>().into_iter().rev().collect();
+    let last4: String = key
+        .chars()
+        .rev()
+        .take(4)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect();
     if last4.len() < key.len() {
         format!("****{last4}")
     } else {
@@ -155,11 +162,22 @@ fn mask_key(key: &str) -> String {
     }
 }
 
-/// Pick a small/cheap model for connection testing
-fn get_test_model(provider: &Provider) -> String {
+/// Pick a model for connection testing.
+/// For Ollama: pick the first installed model.
+async fn get_test_model(
+    provider: &Provider,
+    base_url: Option<&str>,
+) -> Result<String, String> {
     match provider {
-        Provider::OpenRouter => "openrouter/auto".to_string(),
-        Provider::Groq => "llama-3.1-8b-instant".to_string(),
+        Provider::OpenRouter => Ok("openrouter/auto".to_string()),
+        Provider::Groq => Ok("llama-3.1-8b-instant".to_string()),
+        Provider::Ollama => {
+            let models = client::list_models(provider, "", base_url).await?;
+            models
+                .first()
+                .map(|m| m.id.clone())
+                .ok_or_else(|| "No models installed in Ollama. Run: ollama pull <model>".into())
+        }
     }
 }
 

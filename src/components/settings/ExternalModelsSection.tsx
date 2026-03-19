@@ -13,6 +13,7 @@ import type {
 const PROVIDERS: { id: Provider; label: string }[] = [
   { id: "openrouter", label: "OpenRouter" },
   { id: "groq", label: "Groq" },
+  { id: "ollama", label: "Ollama" },
 ];
 
 const DEFAULT_VISION_PROFILE: VisionProfile = {
@@ -29,6 +30,7 @@ interface ProviderState {
   enabled: boolean;
   apiKey: string;
   defaultModel: string;
+  baseUrl: string;
   models: ModelInfo[];
   modelsLoading: boolean;
   testResult: { ok: boolean; message: string } | null;
@@ -40,6 +42,7 @@ function defaultProviderState(): ProviderState {
     enabled: false,
     apiKey: "",
     defaultModel: "",
+    baseUrl: "",
     models: [],
     modelsLoading: false,
     testResult: null,
@@ -51,6 +54,7 @@ export function ExternalModelsSection() {
   const [providers, setProviders] = useState<Record<Provider, ProviderState>>({
     openrouter: defaultProviderState(),
     groq: defaultProviderState(),
+    ollama: defaultProviderState(),
   });
   const [visionProfile, setVisionProfile] = useState<VisionProfile>(
     DEFAULT_VISION_PROFILE,
@@ -64,11 +68,13 @@ export function ExternalModelsSection() {
   const [showKeys, setShowKeys] = useState<Record<Provider, boolean>>({
     openrouter: false,
     groq: false,
+    ollama: false,
   });
 
   const realKeysRef = useRef<Record<Provider, string>>({
     openrouter: "",
     groq: "",
+    ollama: "",
   });
 
   // Load config and MCP status
@@ -81,11 +87,13 @@ export function ExternalModelsSection() {
         realKeysRef.current = {
           openrouter: cfg.openrouterApiKey,
           groq: cfg.groqApiKey,
+          ollama: "",
         };
 
         const updated: Record<Provider, ProviderState> = {
           openrouter: defaultProviderState(),
           groq: defaultProviderState(),
+          ollama: defaultProviderState(),
         };
 
         for (const p of cfg.providers) {
@@ -93,6 +101,7 @@ export function ExternalModelsSection() {
           if (updated[id]) {
             updated[id].enabled = p.enabled;
             updated[id].defaultModel = p.defaultModel;
+            updated[id].baseUrl = p.baseUrl || "";
           }
         }
 
@@ -120,7 +129,7 @@ export function ExternalModelsSection() {
     setProviders(updated);
     clearTimeout(saveTimerRef.current);
 
-    for (const id of ["openrouter", "groq"] as Provider[]) {
+    for (const id of ["openrouter", "groq", "ollama"] as Provider[]) {
       const key = updated[id].apiKey;
       if (key && !key.startsWith("****")) {
         realKeysRef.current[id] = key;
@@ -132,6 +141,7 @@ export function ExternalModelsSection() {
         provider: id,
         enabled: updated[id].enabled,
         defaultModel: updated[id].defaultModel,
+        baseUrl: updated[id].baseUrl || null,
       }));
 
       const orKey = realKeysRef.current.openrouter;
@@ -324,7 +334,9 @@ function ProviderBlock({
           <span className="settings-toggle-desc">
             {id === "openrouter"
               ? "Access 200+ models via OpenRouter (GPT-4o, Gemini, Llama, etc.)"
-              : "Fast inference on Groq hardware (Llama, Mixtral, Gemma)"}
+              : id === "groq"
+                ? "Fast inference on Groq hardware (Llama, Mixtral, Gemma)"
+                : "Local models via Ollama — no API key required"}
           </span>
         </div>
         <label className="toggle-switch">
@@ -339,52 +351,90 @@ function ProviderBlock({
 
       {state.enabled && (
         <>
-          {/* API key */}
-          <div className="webserver-field">
-            <label className="webserver-field-label">API Key</label>
-            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-              <input
-                type={showKey ? "text" : "password"}
-                className="webserver-input"
-                value={state.apiKey}
-                onChange={(e) => onUpdate({ apiKey: e.target.value })}
-                placeholder={
-                  id === "openrouter" ? "sk-or-v1-..." : "gsk_..."
-                }
-                autoComplete="off"
-                style={{ flex: 1 }}
-              />
-              <button
-                className="settings-btn-icon"
-                onClick={onToggleShowKey}
-                title={showKey ? "Hide" : "Show"}
-              >
-                {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-              <button
-                className="settings-btn"
-                onClick={onTest}
-                disabled={state.testing || !state.apiKey}
-                style={{ whiteSpace: "nowrap" }}
-              >
-                {state.testing ? "Testing..." : "Test"}
-              </button>
+          {/* Ollama: server URL; Others: API key */}
+          {id === "ollama" ? (
+            <div className="webserver-field">
+              <label className="webserver-field-label">Server URL</label>
+              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                <input
+                  type="text"
+                  className="webserver-input"
+                  value={state.baseUrl}
+                  onChange={(e) => onUpdate({ baseUrl: e.target.value })}
+                  placeholder="http://localhost:11434"
+                  style={{ flex: 1 }}
+                />
+                <button
+                  className="settings-btn"
+                  onClick={onTest}
+                  disabled={state.testing}
+                  style={{ whiteSpace: "nowrap" }}
+                >
+                  {state.testing ? "Testing..." : "Test"}
+                </button>
+              </div>
+              {state.testResult && (
+                <span
+                  className="webserver-note"
+                  style={{
+                    color: state.testResult.ok
+                      ? "var(--accent)"
+                      : "var(--error)",
+                  }}
+                >
+                  {state.testResult.ok
+                    ? `Connected — "${state.testResult.message}"`
+                    : state.testResult.message}
+                </span>
+              )}
             </div>
-            {state.testResult && (
-              <span
-                className="webserver-note"
-                style={{
-                  color: state.testResult.ok
-                    ? "var(--accent)"
-                    : "var(--error)",
-                }}
-              >
-                {state.testResult.ok
-                  ? `Connected — "${state.testResult.message}"`
-                  : state.testResult.message}
-              </span>
-            )}
-          </div>
+          ) : (
+            <div className="webserver-field">
+              <label className="webserver-field-label">API Key</label>
+              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                <input
+                  type={showKey ? "text" : "password"}
+                  className="webserver-input"
+                  value={state.apiKey}
+                  onChange={(e) => onUpdate({ apiKey: e.target.value })}
+                  placeholder={
+                    id === "openrouter" ? "sk-or-v1-..." : "gsk_..."
+                  }
+                  autoComplete="off"
+                  style={{ flex: 1 }}
+                />
+                <button
+                  className="settings-btn-icon"
+                  onClick={onToggleShowKey}
+                  title={showKey ? "Hide" : "Show"}
+                >
+                  {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+                <button
+                  className="settings-btn"
+                  onClick={onTest}
+                  disabled={state.testing || !state.apiKey}
+                  style={{ whiteSpace: "nowrap" }}
+                >
+                  {state.testing ? "Testing..." : "Test"}
+                </button>
+              </div>
+              {state.testResult && (
+                <span
+                  className="webserver-note"
+                  style={{
+                    color: state.testResult.ok
+                      ? "var(--accent)"
+                      : "var(--error)",
+                  }}
+                >
+                  {state.testResult.ok
+                    ? `Connected — "${state.testResult.message}"`
+                    : state.testResult.message}
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Models */}
           <div className="webserver-field">
@@ -420,7 +470,7 @@ function ProviderBlock({
               <button
                 className="settings-btn"
                 onClick={onLoadModels}
-                disabled={state.modelsLoading || !state.apiKey}
+                disabled={state.modelsLoading || (id !== "ollama" && !state.apiKey)}
                 title="Load available models"
                 style={{
                   display: "flex",

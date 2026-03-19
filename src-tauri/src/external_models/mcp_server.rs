@@ -380,7 +380,7 @@ async fn tool_call_model(args: &Value) -> Result<String, String> {
         content: MessageContent::Text(prompt.to_string()),
     });
 
-    let response = client::call_model(&provider, &api_key, model, messages, max_tokens).await?;
+    let response = client::call_model(&provider, &api_key, model, messages, max_tokens, None).await?;
 
     let text = response
         .choices
@@ -475,7 +475,7 @@ async fn tool_call_vision(args: &Value) -> Result<String, String> {
         content: MessageContent::Parts(all_parts),
     }];
 
-    let response = client::call_model(&provider, &api_key, model, messages, max_tokens).await?;
+    let response = client::call_model(&provider, &api_key, model, messages, max_tokens, None).await?;
 
     let text = response
         .choices
@@ -512,7 +512,7 @@ async fn tool_analyze_directory(args: &Value) -> Result<String, String> {
 async fn tool_list_models(args: &Value) -> Result<String, String> {
     let provider = parse_provider(args)?;
     let api_key = get_api_key_blocking(&provider).await?;
-    let models = client::list_models(&provider, &api_key).await?;
+    let models = client::list_models(&provider, &api_key, None).await?;
     serde_json::to_string_pretty(&models).map_err(|e| format!("Serialize error: {e}"))
 }
 
@@ -527,8 +527,9 @@ fn parse_provider(args: &Value) -> Result<Provider, String> {
     match s {
         "openrouter" => Ok(Provider::OpenRouter),
         "groq" => Ok(Provider::Groq),
+        "ollama" => Ok(Provider::Ollama),
         _ => Err(format!(
-            "Unknown provider: {s}. Use 'openrouter' or 'groq'"
+            "Unknown provider: {s}. Use 'openrouter', 'groq', or 'ollama'"
         )),
     }
 }
@@ -688,7 +689,7 @@ fn tool_definitions() -> Value {
                 "properties": {
                     "provider": {
                         "type": "string",
-                        "enum": ["openrouter", "groq"],
+                        "enum": ["openrouter", "groq", "ollama"],
                         "description": "The model provider to use"
                     },
                     "model": {
@@ -719,7 +720,7 @@ fn tool_definitions() -> Value {
                 "properties": {
                     "provider": {
                         "type": "string",
-                        "enum": ["openrouter", "groq"],
+                        "enum": ["openrouter", "groq", "ollama"],
                         "description": "The model provider to use"
                     },
                     "model": {
@@ -764,7 +765,7 @@ fn tool_definitions() -> Value {
                 "properties": {
                     "provider": {
                         "type": "string",
-                        "enum": ["openrouter", "groq"],
+                        "enum": ["openrouter", "groq", "ollama"],
                         "description": "The model provider to use"
                     },
                     "model": {
@@ -808,7 +809,7 @@ fn tool_definitions() -> Value {
                 "properties": {
                     "provider": {
                         "type": "string",
-                        "enum": ["openrouter", "groq"],
+                        "enum": ["openrouter", "groq", "ollama"],
                         "description": "The provider to list models for"
                     }
                 },
