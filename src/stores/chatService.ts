@@ -199,11 +199,11 @@ export async function stopGeneration() {
     await invoke("stop_session", { agentId });
   } catch (e) {
     console.error("[stopGeneration] Failed:", e);
-    useChatStore.setState({ error: "Failed to stop session.", isThinking: false });
-  }
-  // Only reset state if the session hasn't changed during await
-  if (useChatStore.getState().agentId === agentId) {
-    useChatStore.setState({ isThinking: false, planMode: false, currentToolActivity: null });
+  } finally {
+    // Always reset state if the session hasn't changed during await
+    if (useChatStore.getState().agentId === agentId) {
+      useChatStore.setState({ isThinking: false, planMode: false, currentToolActivity: null });
+    }
   }
 }
 
