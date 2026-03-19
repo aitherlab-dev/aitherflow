@@ -18,6 +18,12 @@
   border: 1px solid var(--border) !important;
   overflow: hidden;
   margin: 0.75em 0;
+  position: relative;
+}
+
+[data-streamdown="code-block"] pre {
+  max-height: 400px;
+  overflow-y: auto;
 }
 
 [data-theme="light"] [data-streamdown="code-block"] {
@@ -25,18 +31,9 @@
   border-color: var(--code-border) !important;
 }
 
-/* ── Shiki theme toggle: our app uses data-theme, not .dark class ── */
-/* Dark mode = default (root), show dark tokens */
-:root .shiki,
-:root .shiki span {
-  color: var(--shiki-dark) !important;
-  background-color: transparent !important;
-}
-
-/* Light theme still uses dark code blocks, so keep dark tokens */
-[data-theme="light"] .shiki,
-[data-theme="light"] .shiki span {
-  color: var(--shiki-dark) !important;
+/* ── Shiki: transparent background, theme colors via inline styles ── */
+.shiki,
+.shiki span {
   background-color: transparent !important;
 }
 

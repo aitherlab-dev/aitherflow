@@ -1,6 +1,6 @@
 import { memo } from "react";
-import { Streamdown, type Components, type BundledTheme } from "streamdown";
-import { code } from "@streamdown/code";
+import { Streamdown, type Components } from "streamdown";
+import { createCodePlugin } from "@streamdown/code";
 import "streamdown/styles.css";
 import { openUrl } from "../../lib/transport";
 
@@ -9,13 +9,15 @@ interface StreamdownRendererProps {
   isStreaming?: boolean;
 }
 
-const plugins = { code };
+const codePlugin = createCodePlugin({
+  themes: ["gruvbox-dark-medium", "gruvbox-dark-medium"],
+});
 
-const shikiTheme: [BundledTheme, BundledTheme] = ["vitesse-dark", "vitesse-dark"];
+const plugins = { code: codePlugin };
 
 const controls = {
-  code: true,
-  table: true,
+  code: { copy: true, download: false },
+  table: { copy: true, download: false },
 };
 
 const components: Components = {
@@ -54,7 +56,7 @@ export const StreamdownRenderer = memo(function StreamdownRenderer({
         plugins={plugins}
         components={components}
         controls={controls}
-        shikiTheme={shikiTheme}
+
         animated={false}
       >
         {content}

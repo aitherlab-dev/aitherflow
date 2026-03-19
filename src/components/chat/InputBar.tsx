@@ -1,6 +1,6 @@
-import { memo, useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { memo, useState, useRef, useCallback, useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { Plus, Star, Mic, MicOff, ArrowUp, Square, MessageSquarePlus, Sparkles, Brain, Zap, Loader2, UserCog, Radio } from "lucide-react";
+import { Plus, Star, Mic, MicOff, ArrowUp, Square, MessageSquarePlus, Loader2, UserCog, Radio } from "lucide-react";
 import { openDialog, invoke } from "../../lib/transport";
 import { useChatStore, agentStates } from "../../stores/chatStore";
 import { sendMessage, stopGeneration, newChat, switchPermissionMode } from "../../stores/chatService";
@@ -9,7 +9,7 @@ import { useFileAttach } from "../../hooks/useFileAttach";
 import { usePasteHandler } from "../../hooks/usePasteHandler";
 import { ThinkingIndicator } from "./ThinkingIndicator";
 import { AttachmentList } from "./AttachmentList";
-import { ModelMenu } from "./ModelMenu";
+
 import { RoleMenu } from "./RoleMenu";
 import { SkillsMenu } from "./SkillsMenu";
 import { CommandsMenu } from "./CommandsMenu";
@@ -37,21 +37,19 @@ const TEXT_EXTENSIONS = [
 
 export const InputBar = memo(function InputBar() {
   const [text, setText] = useState("");
-  const [modelMenuRect, setModelMenuRect] = useState<DOMRect | null>(null);
+
   const [roleMenuRect, setRoleMenuRect] = useState<DOMRect | null>(null);
   const [skillsMenuRect, setSkillsMenuRect] = useState<DOMRect | null>(null);
   const [commandsMenuRect, setCommandsMenuRect] = useState<DOMRect | null>(null);
   const [modeSwitching, setModeSwitching] = useState(false);
-  const modelBtnRef = useRef<HTMLButtonElement>(null);
+
   const roleBtnRef = useRef<HTMLButtonElement>(null);
   const skillsBtnRef = useRef<HTMLButtonElement>(null);
   const { attachments, processFromPaths, addAttachment, removeAttachment, clearAttachments } = useFileAttach();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
   const isThinking = useChatStore((s) => s.isThinking);
-  const selectedModel = useConductorStore((s) => s.selectedModel);
-  const selectedEffort = useConductorStore((s) => s.selectedEffort);
-  const activeModel = useConductorStore((s) => s.model);
+
   const hasSession = useChatStore((s) => s.hasSession);
   const planMode = useChatStore((s) => s.planMode);
   const agentId = useChatStore((s) => s.agentId);
@@ -87,16 +85,6 @@ export const InputBar = memo(function InputBar() {
     return () => window.removeEventListener("hotkey:focusInput", handler);
   }, []);
 
-  // Show actual model from CLI during active session, user's choice otherwise
-  const displayModel = useMemo(() => {
-    if (hasSession && activeModel) {
-      const lower = activeModel.toLowerCase();
-      if (lower.includes("opus")) return "Opus";
-      if (lower.includes("haiku")) return "Haiku";
-      return "Sonnet";
-    }
-    return selectedModel.charAt(0).toUpperCase() + selectedModel.slice(1);
-  }, [hasSession, activeModel, selectedModel]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -394,24 +382,6 @@ export const InputBar = memo(function InputBar() {
               <span>New Chat</span>
             </button>
           </Tooltip>
-          <Tooltip text="Switch model (right-click for effort)">
-          <button
-            ref={modelBtnRef}
-            className="input-bar-label-btn"
-            aria-label="Switch model"
-            onClick={() => {
-              if (modelBtnRef.current) {
-                setModelMenuRect(modelBtnRef.current.getBoundingClientRect());
-              }
-            }}
-          >
-            {selectedEffort === "low" ? <Zap size={14} /> : selectedEffort === "medium" ? <Sparkles size={14} /> : <Brain size={14} />}
-            <span>{displayModel}</span>
-            {selectedEffort !== "high" && (
-              <span className="model-effort-badge">{selectedEffort}</span>
-            )}
-          </button>
-          </Tooltip>
           <Tooltip text="Select role">
           <button
             ref={roleBtnRef}
@@ -448,12 +418,6 @@ export const InputBar = memo(function InputBar() {
           </Tooltip>
         </div>
       </div>
-      {modelMenuRect && (
-        <ModelMenu
-          anchorRect={modelMenuRect}
-          onClose={() => setModelMenuRect(null)}
-        />
-      )}
       {roleMenuRect && (
         <RoleMenu
           anchorRect={roleMenuRect}
