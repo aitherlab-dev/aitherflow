@@ -420,7 +420,7 @@ async fn tool_call_vision(args: &Value) -> Result<String, String> {
     let mut all_parts = Vec::new();
     for path in &paths {
         if vision::is_video_file(path) {
-            let frames = vision::extract_frames(path, &profile).await?;
+            let frames = vision::extract_frames(path, &profile, None).await?;
             for frame in frames {
                 all_parts.push(ContentPart::ImageUrl {
                     image_url: ImageUrlData {

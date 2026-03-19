@@ -19,6 +19,7 @@ const VIDEO_EXTENSIONS: &[&str] = &[
 ];
 
 const MAX_FRAME_SIZE: usize = 10 * 1024 * 1024; // 10 MB per frame
+const MAX_FRAMES: usize = 100;
 
 /// JPEG stream markers
 const JPEG_SOI: [u8; 2] = [0xFF, 0xD8];
@@ -96,9 +97,11 @@ pub fn is_video_file(path: &str) -> bool {
 }
 
 /// Extract frames from a video file using ffmpeg (pipe, no disk writes).
+/// If `known_duration` is provided, skips ffprobe call for duration.
 pub async fn extract_frames(
     video_path: &str,
     profile: &VisionProfile,
+    known_duration: Option<f64>,
 ) -> Result<Vec<FrameData>, String> {
     check_ffmpeg().await?;
     let p = Path::new(video_path);
@@ -112,7 +115,9 @@ pub async fn extract_frames(
         return Err(format!("Not a file: {video_path}"));
     }
 
-    let vf_filter = build_video_filter(video_path, profile).await?;
+    let vf_filter = build_video_filter(video_path, profile, known_duration).await?;
+
+    let quality = clamp_jpeg_quality(profile.jpeg_quality);
 
     let mut cmd = Command::new("ffmpeg");
     cmd.args([
@@ -125,7 +130,7 @@ pub async fn extract_frames(
         "-vcodec",
         "mjpeg",
         "-q:v",
-        &profile.jpeg_quality.to_string(),
+        &quality.to_string(),
     ]);
 
     // scene detection needs variable frame rate
@@ -157,7 +162,8 @@ pub async fn extract_frames(
     if !status.success() && frames.is_empty() {
         let mut stderr_buf = Vec::new();
         if let Some(mut stderr) = child.stderr.take() {
-            let _ = stderr.read_to_end(&mut stderr_buf).await;
+            stderr.read_to_end(&mut stderr_buf).await
+                .map_err(|e| eprintln!("[ext-models-vision] Failed to read stderr: {e}")).ok();
         }
         let stderr_str = String::from_utf8_lossy(&stderr_buf);
         return Err(format!("ffmpeg failed ({}): {}", status, stderr_str));
@@ -283,27 +289,33 @@ async fn get_duration(video_path: &str) -> Result<f64, String> {
 async fn build_video_filter(
     video_path: &str,
     profile: &VisionProfile,
+    known_duration: Option<f64>,
 ) -> Result<String, String> {
-    let scale = format!("scale={}:-1", profile.resolution);
+    let resolution = clamp_resolution(profile.resolution);
+    let scale = format!("scale={resolution}:-1");
 
     if let Some(n) = profile.frames_per_clip {
-        let duration = get_duration(video_path).await?;
+        let duration = match known_duration {
+            Some(d) if d > 0.0 => d,
+            _ => get_duration(video_path).await?,
+        };
         if duration <= 0.0 {
             return Err("Video has zero duration".into());
         }
-        // Extract N frames evenly spaced
         let interval = duration / n as f64;
         Ok(format!("fps=1/{interval:.4},{scale}"))
     } else if profile.scene_detection {
-        Ok(format!(
-            "select='gt(scene,{threshold})',{scale}",
-            threshold = profile.scene_threshold,
-        ))
+        let threshold = clamp_scene_threshold(profile.scene_threshold);
+        Ok(format!("select='gt(scene,{threshold})',{scale}"))
     } else if let Some(fps) = profile.fps {
+        let fps = if fps.is_finite() && fps > 0.0 { fps } else { 0.5 };
         Ok(format!("fps={fps},{scale}"))
     } else {
         // Fallback: 5 frames
-        let duration = get_duration(video_path).await?;
+        let duration = match known_duration {
+            Some(d) if d > 0.0 => d,
+            _ => get_duration(video_path).await?,
+        };
         let interval = if duration > 0.0 {
             duration / 5.0
         } else {
@@ -311,6 +323,22 @@ async fn build_video_filter(
         };
         Ok(format!("fps=1/{interval:.4},{scale}"))
     }
+}
+
+// ---------------------------------------------------------------------------
+// Validation helpers
+// ---------------------------------------------------------------------------
+
+fn clamp_resolution(v: u32) -> u32 {
+    v.clamp(320, 3840)
+}
+
+fn clamp_jpeg_quality(v: u32) -> u32 {
+    v.clamp(2, 31)
+}
+
+fn clamp_scene_threshold(v: f32) -> f32 {
+    if v.is_finite() { v.clamp(0.0, 1.0) } else { 0.3 }
 }
 
 /// Parse MJPEG stream from ffmpeg pipe: find JPEG boundaries via SOI/EOI markers.
@@ -329,6 +357,12 @@ async fn parse_mjpeg_stream(
     // Parse JPEG frames from the MJPEG stream
     let mut pos = 0;
     while pos + 1 < buf.len() {
+        if frames.len() >= MAX_FRAMES {
+            eprintln!(
+                "[ext-models-vision] Frame limit reached ({MAX_FRAMES}), stopping extraction"
+            );
+            break;
+        }
         // Find SOI marker (0xFF 0xD8)
         let soi_pos = match find_marker(&buf[pos..], &JPEG_SOI) {
             Some(offset) => pos + offset,
@@ -381,9 +415,12 @@ fn scan_media_files(dir_path: &str) -> Result<Vec<String>, String> {
     let mut files: Vec<String> = std::fs::read_dir(p)
         .map_err(|e| format!("Failed to read directory {dir_path}: {e}"))?
         .filter_map(|entry| {
-            let entry = entry.ok()?;
-            // Use file_type() instead of path().is_file() to avoid blocking stat()
-            let ft = entry.file_type().ok()?;
+            let entry = entry
+                .map_err(|e| eprintln!("[ext-models-vision] Failed to read dir entry: {e}"))
+                .ok()?;
+            let ft = entry.file_type()
+                .map_err(|e| eprintln!("[ext-models-vision] Failed to get file type: {e}"))
+                .ok()?;
             if !ft.is_file() {
                 return None;
             }
@@ -422,7 +459,7 @@ async fn analyze_single_file(
 
     let (content_parts, duration, frame_count) = if is_video_file(file_path) {
         let duration = get_duration(file_path).await.unwrap_or(0.0);
-        let frames = extract_frames(file_path, profile).await?;
+        let frames = extract_frames(file_path, profile, Some(duration)).await?;
         let count = frames.len();
 
         let parts: Vec<ContentPart> = frames
