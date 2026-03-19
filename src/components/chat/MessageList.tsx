@@ -137,7 +137,14 @@ export const MessageList = memo(function MessageList() {
     [agentId],
   );
 
-  const VirtuosoFooter = useMemo(() => () => <StreamingBubble agentId={agentId} />, [agentId]);
+  const VirtuosoFooter = useMemo(
+    () => () => (
+      <div className="virtuoso-footer">
+        <StreamingBubble agentId={agentId} />
+      </div>
+    ),
+    [agentId],
+  );
 
   // ── Virtualized path ──
   if (useVirtualization) {
