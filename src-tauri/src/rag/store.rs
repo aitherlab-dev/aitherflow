@@ -85,7 +85,13 @@ pub fn list_bases() -> Result<Vec<BaseInfo>, String> {
         .map_err(|e| format!("Failed to read rag dir: {e}"))?;
 
     let mut bases = Vec::new();
-    for entry in entries.flatten() {
+    for entry in entries.filter_map(|e| match e {
+        Ok(entry) => Some(entry),
+        Err(e) => {
+            eprintln!("[rag] Failed to read directory entry: {e}");
+            None
+        }
+    }) {
         let ft = entry.file_type()
             .map_err(|e| format!("Failed to get file type: {e}"))?;
         if !ft.is_dir() {

@@ -68,6 +68,25 @@ pub fn load() -> RagSettings {
 
 /// Save RAG settings (blocking I/O).
 pub fn save(settings: &RagSettings) -> Result<(), String> {
+    if !(64..=4096).contains(&settings.chunk_size) {
+        return Err(format!(
+            "chunk_size must be between 64 and 4096, got {}",
+            settings.chunk_size
+        ));
+    }
+    if settings.chunk_overlap >= settings.chunk_size {
+        return Err(format!(
+            "chunk_overlap ({}) must be less than chunk_size ({})",
+            settings.chunk_overlap, settings.chunk_size
+        ));
+    }
+    if !(1..=100).contains(&settings.search_results_limit) {
+        return Err(format!(
+            "search_results_limit must be between 1 and 100, got {}",
+            settings.search_results_limit
+        ));
+    }
+
     std::fs::create_dir_all(rag_config::rag_dir())
         .map_err(|e| format!("Failed to create rag dir: {e}"))?;
     write_json(&settings_path(), settings)

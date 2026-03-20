@@ -19,6 +19,7 @@ pub fn fetch_youtube_transcript(url: &str) -> Result<String, String> {
             "vtt",
             "-o",
             output_template.to_str().ok_or("Invalid temp path")?,
+            "--",
             url,
         ])
         .output()
@@ -64,7 +65,13 @@ fn find_and_read_vtt(dir: &std::path::Path) -> Result<String, String> {
     let entries = std::fs::read_dir(dir)
         .map_err(|e| format!("Failed to read temp dir: {e}"))?;
 
-    for entry in entries.flatten() {
+    for entry in entries.filter_map(|e| match e {
+        Ok(entry) => Some(entry),
+        Err(e) => {
+            eprintln!("[rag] Failed to read temp dir entry: {e}");
+            None
+        }
+    }) {
         let path = entry.path();
         if path.extension().and_then(|e| e.to_str()) == Some("vtt") {
             return std::fs::read_to_string(&path)

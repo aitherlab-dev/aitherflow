@@ -34,19 +34,23 @@ pub async fn fetch_article(url: &str) -> Result<String, String> {
         }
     }
 
-    // Read with size limit
-    let bytes = response
-        .bytes()
+    // Read body in chunks with size limit
+    let mut body = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
         .await
-        .map_err(|e| format!("Failed to read response body: {e}"))?;
-
-    if bytes.len() as u64 > MAX_RESPONSE_SIZE {
-        return Err(format!(
-            "Response too large ({} MB, limit {} MB)",
-            bytes.len() / 1024 / 1024,
-            MAX_RESPONSE_SIZE / 1024 / 1024
-        ));
+        .map_err(|e| format!("Failed to read response body: {e}"))?
+    {
+        body.extend_from_slice(&chunk);
+        if body.len() as u64 > MAX_RESPONSE_SIZE {
+            return Err(format!(
+                "Response too large (>{} MB, limit {} MB)",
+                MAX_RESPONSE_SIZE / 1024 / 1024,
+                MAX_RESPONSE_SIZE / 1024 / 1024
+            ));
+        }
     }
+    let bytes = bytes::Bytes::from(body);
 
     let html = String::from_utf8_lossy(&bytes);
     let text = html2text::from_read(html.as_bytes(), 200)
