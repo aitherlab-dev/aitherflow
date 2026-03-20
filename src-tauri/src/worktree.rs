@@ -408,7 +408,7 @@ pub async fn worktree_reset(worktree_path: String, commit_hash: String) -> Resul
         crate::files::validate_path_safe(dir)?;
 
         // Validate commit hash: must be hex-only, 4-40 chars
-        if commit_hash.is_empty()
+        if commit_hash.len() < 4
             || commit_hash.len() > 40
             || !commit_hash.chars().all(|c| c.is_ascii_hexdigit())
         {
