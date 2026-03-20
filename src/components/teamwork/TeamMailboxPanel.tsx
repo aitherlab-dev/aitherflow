@@ -1,13 +1,16 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { MessagesSquare, X, ArrowDown, User, Trash2 } from "lucide-react";
+import { Mail, MessageSquare, X, ArrowDown, User, Trash2 } from "lucide-react";
 import { invoke } from "../../lib/transport";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useChatStore } from "../../stores/chatStore";
 import { useConductorStore } from "../../stores/conductorStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { Tooltip } from "../shared/Tooltip";
+import { ChatPanel } from "../layout/chat-panel";
 import type { TeamMessage } from "../../types/team";
+
+type PanelTab = "mailbox" | "chats";
 
 /* ── Types ── */
 
@@ -26,6 +29,7 @@ const COLLAPSE_THRESHOLD = 150;
 /* ── Main panel ── */
 
 export const TeamMailboxPanel = memo(function TeamMailboxPanel() {
+  const [activeTab, setActiveTab] = useState<PanelTab>("mailbox");
   const toggleTeamMailbox = useLayoutStore((s) => s.toggleTeamMailbox);
   const setTeamMailboxWidth = useLayoutStore((s) => s.setTeamMailboxWidth);
   const projectPath = useChatStore((s) => s.projectPath);
@@ -147,7 +151,7 @@ export const TeamMailboxPanel = memo(function TeamMailboxPanel() {
       .catch(console.error);
   }, [teamSlug]);
 
-  // Resize handle (drag from left edge)
+  // Resize handle (drag from right edge — panel is on the left)
   const dragging = useRef(false);
 
   const handleResizeMouseDown = useCallback(
@@ -159,10 +163,11 @@ export const TeamMailboxPanel = memo(function TeamMailboxPanel() {
 
       const wrapper = document.querySelector(".team-mailbox-wrapper") as HTMLElement | null;
       if (wrapper) wrapper.style.transition = "none";
+      const wrapperLeft = wrapper?.getBoundingClientRect().left ?? 0;
 
       const onMove = (ev: MouseEvent) => {
         if (!dragging.current) return;
-        const newWidth = window.innerWidth - ev.clientX;
+        const newWidth = ev.clientX - wrapperLeft;
         setTeamMailboxWidth(newWidth);
       };
 
@@ -198,13 +203,29 @@ export const TeamMailboxPanel = memo(function TeamMailboxPanel() {
       <div className="tm-resize-handle" onMouseDown={handleResizeMouseDown} />
 
       <div className="team-mailbox__header">
-        <MessagesSquare size={15} className="team-mailbox__header-icon" />
-        <span className="team-mailbox__title">Team Mailbox</span>
-        <Tooltip text="Clear messages">
-          <button className="team-mailbox__clear-btn" onClick={handleClearMessages}>
-            <Trash2 size={14} />
+        <div className="tm-tabs">
+          <button
+            className={`tm-tab ${activeTab === "mailbox" ? "tm-tab--active" : ""}`}
+            onClick={() => setActiveTab("mailbox")}
+          >
+            <Mail size={14} />
+            <span>Mailbox</span>
           </button>
-        </Tooltip>
+          <button
+            className={`tm-tab ${activeTab === "chats" ? "tm-tab--active" : ""}`}
+            onClick={() => setActiveTab("chats")}
+          >
+            <MessageSquare size={14} />
+            <span>Chats</span>
+          </button>
+        </div>
+        {activeTab === "mailbox" && (
+          <Tooltip text="Clear messages">
+            <button className="team-mailbox__clear-btn" onClick={handleClearMessages}>
+              <Trash2 size={14} />
+            </button>
+          </Tooltip>
+        )}
         <Tooltip text="Close (Esc)">
           <button className="settings-close" onClick={toggleTeamMailbox}>
             <X size={16} />
@@ -212,27 +233,31 @@ export const TeamMailboxPanel = memo(function TeamMailboxPanel() {
         </Tooltip>
       </div>
 
-      <div className="team-mailbox__feed" ref={scrollRef} onScroll={handleScroll}>
-        {feed.length === 0 ? (
-          <div className="team-mailbox__empty">
-            No messages yet
-          </div>
-        ) : (
-          feed.map((msg) => (
-            <FeedItem key={msg.id} msg={msg} />
-          ))
-        )}
-        {showScrollBtn && (
-          <Tooltip text="Scroll to bottom">
-            <button
-              className="scroll-to-bottom"
-              onClick={scrollToBottom}
-            >
-              <ArrowDown size={16} />
-            </button>
-          </Tooltip>
-        )}
-      </div>
+      {activeTab === "mailbox" ? (
+        <div className="team-mailbox__feed" ref={scrollRef} onScroll={handleScroll}>
+          {feed.length === 0 ? (
+            <div className="team-mailbox__empty">
+              No messages yet
+            </div>
+          ) : (
+            feed.map((msg) => (
+              <FeedItem key={msg.id} msg={msg} />
+            ))
+          )}
+          {showScrollBtn && (
+            <Tooltip text="Scroll to bottom">
+              <button
+                className="scroll-to-bottom"
+                onClick={scrollToBottom}
+              >
+                <ArrowDown size={16} />
+              </button>
+            </Tooltip>
+          )}
+        </div>
+      ) : (
+        <ChatPanel />
+      )}
     </div>
   );
 });

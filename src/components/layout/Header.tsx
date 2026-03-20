@@ -6,7 +6,6 @@ import {
   PanelRightClose,
   PanelBottom,
   PanelBottomClose,
-  MessageSquare,
   MessagesSquare,
   Sun,
   Moon,
@@ -25,15 +24,12 @@ function hk(action: HotkeyAction): string {
 export const Header = memo(function Header() {
   const {
     sidebarOpen, toggleSidebar,
-    chatPanelVisible, toggleChatPanel,
     fileViewerVisible, fileViewerPosition,
     toggleFileViewer, setFileViewerPosition,
     teamMailboxVisible, toggleTeamMailbox,
   } = useLayoutStore(useShallow((s) => ({
     sidebarOpen: s.sidebarOpen,
     toggleSidebar: s.toggleSidebar,
-    chatPanelVisible: s.chatPanelVisible,
-    toggleChatPanel: s.toggleChatPanel,
     fileViewerVisible: s.fileViewerVisible,
     fileViewerPosition: s.fileViewerPosition,
     toggleFileViewer: s.toggleFileViewer,
@@ -90,15 +86,6 @@ export const Header = memo(function Header() {
             aria-label="Toggle sidebar"
           >
             {sidebarOpen ? <PanelLeftClose size={16} /> : <PanelLeft size={16} />}
-          </button>
-        </Tooltip>
-        <Tooltip text={(chatPanelVisible ? "Hide chat list" : "Show chat list") + hk("toggleChatPanel")}>
-          <button
-            className={`header-btn ${chatPanelVisible ? "header-btn--active" : ""}`}
-            onClick={toggleChatPanel}
-            aria-label="Toggle chat panel"
-          >
-            <MessageSquare size={16} />
           </button>
         </Tooltip>
         <Tooltip text={(fileViewerVisible ? "Hide file viewer" : "Show file viewer") + hk("toggleFileViewer")}>

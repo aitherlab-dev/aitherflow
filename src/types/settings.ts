@@ -6,4 +6,5 @@ export interface AppSettings {
   voicePostProcess: boolean;
   voicePostModel: string;
   voiceProvider: string;
+  defaultRoleName: string;
 }

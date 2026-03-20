@@ -399,3 +399,35 @@ pub async fn remove_worktree(project_path: String, worktree_path: String) -> Res
     .await
     .map_err(|e| format!("Task join error: {e}"))?
 }
+
+/// Reset a worktree to a specific commit via `git reset --hard <hash>`.
+#[tauri::command]
+pub async fn worktree_reset(worktree_path: String, commit_hash: String) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let dir = Path::new(&worktree_path);
+        crate::files::validate_path_safe(dir)?;
+
+        // Validate commit hash: must be hex-only, 4-40 chars
+        if commit_hash.len() < 4
+            || commit_hash.len() > 40
+            || !commit_hash.chars().all(|c| c.is_ascii_hexdigit())
+        {
+            return Err(format!("Invalid commit hash: {commit_hash}"));
+        }
+
+        let output = Command::new("git")
+            .args(["reset", "--hard", &commit_hash])
+            .current_dir(dir)
+            .output()
+            .map_err(|e| format!("Failed to run git reset: {e}"))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("git reset --hard failed: {stderr}"));
+        }
+
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}

@@ -357,3 +357,150 @@
   color: var(--fg-dim);
   white-space: nowrap;
 }
+
+.wt-detail__reset-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border: none;
+  border-radius: 3px;
+  background: none;
+  color: var(--fg-dim);
+  cursor: pointer;
+  opacity: 0;
+  flex-shrink: 0;
+  transition: opacity 0.12s, color 0.12s;
+}
+
+.wt-detail__commit:hover .wt-detail__reset-btn {
+  opacity: 1;
+}
+
+.wt-detail__reset-btn:hover {
+  color: var(--accent);
+}
+
+/* ═══════════════════════════════════════════
+   Branches Card (dashboard)
+   ═══════════════════════════════════════════ */
+
+.branches-card__entry {
+  display: flex;
+  flex-direction: column;
+}
+
+.branches-card__row {
+  display: flex;
+  align-items: center;
+  border-radius: 6px;
+}
+
+.branches-card__expand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--fg-dim);
+  flex-shrink: 0;
+  border-radius: 3px;
+  transition: color 0.12s;
+}
+
+.branches-card__expand:hover {
+  color: var(--fg);
+}
+
+.branches-card__chevron {
+  transition: transform 0.15s;
+}
+
+.branches-card__chevron--open {
+  transform: rotate(90deg);
+}
+
+.branches-card__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  padding: 5px 10px;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--fg-muted);
+  font-size: 0.75rem;
+  text-align: left;
+  transition: background 0.12s, color 0.12s;
+}
+
+.branches-card__item:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.branches-card__item--active {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.branches-card__branch {
+  font-weight: 500;
+}
+
+.branches-card__path {
+  color: var(--fg-dim);
+  font-size: 0.68rem;
+  margin-left: auto;
+}
+
+.branches-card__launch,
+.branches-card__remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--fg-dim);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s, color 0.12s;
+}
+
+.branches-card__row:hover .branches-card__launch,
+.branches-card__row:hover .branches-card__remove {
+  opacity: 1;
+}
+
+.branches-card__launch:hover,
+.branches-card__remove:hover {
+  color: var(--accent-icon);
+}
+
+.branches-card__create {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  color: var(--fg-muted);
+}
+
+.branches-card__input {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 6px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--input-bg);
+  color: var(--fg);
+  font-size: 0.75rem;
+  outline: none;
+  font-family: inherit;
+}

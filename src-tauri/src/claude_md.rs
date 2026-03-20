@@ -30,6 +30,7 @@ pub async fn list_claude_md_files() -> Result<Vec<ClaudeMdEntry>, String> {
         });
 
         // Per-project: read projects.json and check each
+        let claude_home = crate::config::home_dir().join(".claude");
         let projects_path = config::config_dir().join("projects.json");
         match fs::read_to_string(&projects_path) {
             Ok(data) => match serde_json::from_str::<serde_json::Value>(&data) {
@@ -47,6 +48,37 @@ pub async fn list_claude_md_files() -> Result<Vec<ClaudeMdEntry>, String> {
                                 path: claude_md.to_string_lossy().into_owned(),
                                 exists: claude_md.exists(),
                             });
+
+                            // Memory files: ~/.claude/projects/{hash}/memory/
+                            let project_hash = path.replace('/', "-");
+                            let memory_dir = claude_home.join("projects").join(&project_hash).join("memory");
+                            if memory_dir.is_dir() {
+                                if let Ok(dir_entries) = fs::read_dir(&memory_dir) {
+                                    for entry in dir_entries.flatten() {
+                                        let ft = entry.file_type();
+                                        if ft.map(|t| !t.is_file()).unwrap_or(true) {
+                                            continue;
+                                        }
+                                        let file_name = entry.file_name();
+                                        let file_name_str = file_name.to_string_lossy();
+                                        if !file_name_str.ends_with(".md") {
+                                            continue;
+                                        }
+                                        let label = if file_name_str == "MEMORY.md" {
+                                            format!("{name}: Memory Index")
+                                        } else {
+                                            let stem = file_name_str.trim_end_matches(".md");
+                                            format!("{name}: Memory: {stem}")
+                                        };
+                                        let file_path = entry.path();
+                                        entries.push(ClaudeMdEntry {
+                                            label,
+                                            path: file_path.to_string_lossy().into_owned(),
+                                            exists: true,
+                                        });
+                                    }
+                                }
+                            }
                         }
                     }
                 }
