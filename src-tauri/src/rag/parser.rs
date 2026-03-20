@@ -9,8 +9,7 @@ pub struct ParsedDocument {
     pub is_markdown: bool,
 }
 
-/// Parse a file into text content. Supports plain text and Markdown.
-/// Returns the text and whether the file was detected as Markdown.
+/// Parse a file into text content. Supports plain text, Markdown, and PDF.
 pub fn parse_file(path: &Path) -> Result<ParsedDocument, String> {
     validate_path_safe(path)?;
 
@@ -20,10 +19,15 @@ pub fn parse_file(path: &Path) -> Result<ParsedDocument, String> {
         .map(|e| e.to_lowercase())
         .unwrap_or_default();
 
+    // PDF: extract text via pdf-extract (binary format, skip UTF-8/null checks)
+    if ext == "pdf" {
+        return parse_pdf(path);
+    }
+
     let raw = fs::read(path)
         .map_err(|e| format!("Failed to read file {}: {e}", path.display()))?;
 
-    // Reject binary content
+    // Reject binary content (null bytes in first 8KB)
     let check_len = raw.len().min(8192);
     if raw[..check_len].contains(&0) {
         return Err(format!("Binary file not supported: {}", path.display()));
@@ -47,8 +51,26 @@ pub fn parse_file(path: &Path) -> Result<ParsedDocument, String> {
     }
 }
 
+/// Extract text from a PDF file.
+fn parse_pdf(path: &Path) -> Result<ParsedDocument, String> {
+    let bytes = fs::read(path)
+        .map_err(|e| format!("Failed to read PDF {}: {e}", path.display()))?;
+
+    let text = pdf_extract::extract_text_from_mem(&bytes)
+        .map_err(|e| format!("Failed to extract text from PDF {}: {e}", path.display()))?;
+
+    let trimmed = text.trim().to_string();
+    if trimmed.is_empty() {
+        return Err(format!("PDF contains no extractable text: {}", path.display()));
+    }
+
+    Ok(ParsedDocument {
+        text: trimmed,
+        is_markdown: false,
+    })
+}
+
 /// Extract readable text from Markdown by stripping formatting via pulldown-cmark.
-/// Preserves structure (headings, paragraphs) as plain text for better chunking.
 fn extract_markdown_text(md: &str) -> String {
     use pulldown_cmark::{Event, Parser, Tag, TagEnd};
 
