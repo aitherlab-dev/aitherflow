@@ -2,7 +2,6 @@ import { memo, useCallback, useEffect, useState } from "react";
 import { Plus, Database } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useKnowledgeStore } from "../../stores/knowledgeStore";
-import { IndexProgress } from "./IndexProgress";
 import { CreateBaseModal } from "./CreateBaseModal";
 import { Tooltip } from "../shared/Tooltip";
 
@@ -56,10 +55,9 @@ export const BaseList = memo(function BaseList() {
               <div className="kb-list__item-info">
                 <span className="kb-list__item-name">{base.name}</span>
                 <span className="kb-list__item-meta">
-                  {base.document_count} docs · {base.total_chunks} chunks
+                  {base.documentCount} docs
                 </span>
               </div>
-              <IndexProgress status={base.status} compact />
             </button>
           ))
         )}

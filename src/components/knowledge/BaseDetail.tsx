@@ -2,7 +2,6 @@ import { memo, useCallback, useMemo, useState } from "react";
 import { Plus, Trash2, Database } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useKnowledgeStore } from "../../stores/knowledgeStore";
-import { IndexProgress } from "./IndexProgress";
 import { DocumentList } from "./DocumentList";
 import { SearchPanel } from "./SearchPanel";
 import { AddDocumentModal } from "./AddDocumentModal";
@@ -47,12 +46,10 @@ export const BaseDetail = memo(function BaseDetail() {
       <div className="kb-detail__header">
         <div className="kb-detail__title-row">
           <h2 className="kb-detail__title">{base.name}</h2>
-          <IndexProgress status={base.status} />
         </div>
         {base.description && <p className="kb-detail__desc">{base.description}</p>}
         <div className="kb-detail__stats">
-          <span>{base.document_count} documents</span>
-          <span>{base.total_chunks} chunks</span>
+          <span>{base.documentCount} documents</span>
         </div>
         <div className="kb-detail__actions">
           <Tooltip text="Add documents">

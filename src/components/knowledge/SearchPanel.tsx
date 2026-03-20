@@ -49,12 +49,12 @@ export const SearchPanel = memo(function SearchPanel({ baseId }: SearchPanelProp
       {searchResults.length > 0 && (
         <div className="kb-search__results">
           {searchResults.map((r, i) => (
-            <div key={`${r.document_id}-${i}`} className="kb-search__result">
+            <div key={`${r.documentId}-${i}`} className="kb-search__result">
               <div className="kb-search__result-header">
-                <span className="kb-search__result-doc">{r.document_name}</span>
+                <span className="kb-search__result-doc">{r.documentName}</span>
                 <span className="kb-search__result-score">{(r.score * 100).toFixed(0)}%</span>
               </div>
-              <div className="kb-search__result-text">{r.chunk_text}</div>
+              <div className="kb-search__result-text">{r.text}</div>
             </div>
           ))}
         </div>

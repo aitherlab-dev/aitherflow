@@ -16,7 +16,7 @@ interface KnowledgeState {
   selectBase: (baseId: string | null) => void;
   loadDocuments: (baseId: string) => Promise<void>;
   addDocuments: (baseId: string, paths: string[]) => Promise<void>;
-  removeDocument: (baseId: string, docId: string) => Promise<void>;
+  removeDocument: (baseId: string, documentId: string) => Promise<void>;
   search: (baseId: string, query: string) => Promise<void>;
 }
 
@@ -87,9 +87,9 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
     }
   },
 
-  removeDocument: async (baseId, docId) => {
+  removeDocument: async (baseId, documentId) => {
     try {
-      await invoke("rag_remove_document", { baseId, docId });
+      await invoke("rag_remove_document", { baseId, documentId });
       await get().loadDocuments(baseId);
       await get().loadBases();
     } catch (e) {

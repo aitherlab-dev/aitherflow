@@ -1,7 +1,6 @@
 import { memo, useCallback } from "react";
 import { FileText, Trash2 } from "lucide-react";
 import { useKnowledgeStore } from "../../stores/knowledgeStore";
-import { IndexProgress } from "./IndexProgress";
 import { Tooltip } from "../shared/Tooltip";
 
 interface DocumentListProps {
@@ -31,10 +30,9 @@ export const DocumentList = memo(function DocumentList({ baseId }: DocumentListP
           <div className="kb-doc-item__info">
             <span className="kb-doc-item__name">{doc.filename}</span>
             <span className="kb-doc-item__meta">
-              {doc.chunk_count} chunks · {new Date(doc.added_at).toLocaleDateString()}
+              {doc.chunkCount} chunks · {new Date(doc.addedAt).toLocaleDateString()}
             </span>
           </div>
-          <IndexProgress status={doc.status} compact />
           <Tooltip text="Remove document">
             <button className="kb-doc-item__remove" onClick={() => handleRemove(doc.id)}>
               <Trash2 size={14} />
