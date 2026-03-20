@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { Home, Settings, FolderOpen } from "lucide-react";
+import { Home, Settings, FolderOpen, BookOpen } from "lucide-react";
 import { useIsMobile } from "../../../hooks/useIsMobile";
 import { useLayoutStore } from "../../../stores/layoutStore";
 import { useChatStore } from "../../../stores/chatStore";
@@ -24,6 +24,8 @@ export const Sidebar = memo(function Sidebar() {
     closeSettings,
     openWelcome,
     closeWelcome,
+    openKnowledge,
+    closeKnowledge,
   } = useLayoutStore(useShallow((s) => ({
     sidebarOpen: s.sidebarOpen,
     sidebarWidth: s.sidebarWidth,
@@ -33,6 +35,8 @@ export const Sidebar = memo(function Sidebar() {
     closeSettings: s.closeSettings,
     openWelcome: s.openWelcome,
     closeWelcome: s.closeWelcome,
+    openKnowledge: s.openKnowledge,
+    closeKnowledge: s.closeKnowledge,
   })));
 
   /** Close sidebar on mobile after navigation actions */
@@ -114,6 +118,15 @@ export const Sidebar = memo(function Sidebar() {
   const handleFilesClick = useCallback(() => {
     setFilesOpen((prev) => !prev);
   }, []);
+
+  const handleKnowledgeClick = useCallback(() => {
+    if (activeView === "knowledge") {
+      closeKnowledge();
+    } else {
+      openKnowledge();
+    }
+    closeMobile();
+  }, [activeView, closeKnowledge, openKnowledge, closeMobile]);
 
 
   // ── Shift+drag reorder for agent tabs ──
@@ -273,6 +286,15 @@ export const Sidebar = memo(function Sidebar() {
           {/* Spacer — absorbs free space between agents and bottom items */}
           <div className="sidebar-spacer" />
           <DashboardPanel />
+          <div
+            className={`dash-card sidebar-nav-card${activeView === "knowledge" ? " dash-card--active" : ""}`}
+            onClick={handleKnowledgeClick}
+          >
+            <div className="dash-card__header">
+              <BookOpen size={14} className="dash-card__icon" />
+              <span className="dash-card__title">Knowledge</span>
+            </div>
+          </div>
           <div
             className="dash-card sidebar-nav-card"
             onClick={handleSettingsClick}
