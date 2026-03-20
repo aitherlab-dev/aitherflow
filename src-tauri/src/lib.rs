@@ -219,6 +219,17 @@ pub fn run() {
                     Err(e) => eprintln!("[aitherflow] External models MCP auto-start failed: {e}"),
                 }
 
+                // Auto-start knowledge MCP server (if enabled in settings)
+                let knowledge_enabled = tokio::task::spawn_blocking(settings::is_knowledge_mcp_enabled)
+                    .await
+                    .unwrap_or(true);
+                if knowledge_enabled {
+                    match rag::mcp_server::start_server().await {
+                        Ok(port) => eprintln!("[aitherflow] Knowledge MCP started on port {port}"),
+                        Err(e) => eprintln!("[aitherflow] Knowledge MCP auto-start failed: {e}"),
+                    }
+                }
+
                 if tg_enabled {
                     match telegram::commands::start_telegram_bot().await {
                         Ok(st) => eprintln!("[aitherflow] Telegram bot started: @{}", st.bot_username.unwrap_or_default()),
@@ -239,6 +250,7 @@ pub fn run() {
             if let tauri::RunEvent::Exit = event {
                 teamwork::mcp_server::shutdown_mcp_server();
                 external_models::mcp_server::stop_server_sync();
+                rag::mcp_server::stop_server_sync();
                 devtools::stop_all_dev_servers();
                 app.state::<SessionManager>().kill_all_sync();
             }

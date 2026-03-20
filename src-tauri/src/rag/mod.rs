@@ -3,6 +3,7 @@ pub mod commands;
 pub mod config;
 pub mod context;
 pub mod embedder;
+pub mod mcp_server;
 pub mod index;
 pub mod parser;
 pub mod store;

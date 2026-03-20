@@ -13,8 +13,18 @@ pub struct Chunk {
 /// Split text into overlapping chunks for embedding.
 /// Uses markdown-aware splitting for markdown content, plain text splitting otherwise.
 pub fn split_text(text: &str, is_markdown: bool) -> Result<Vec<Chunk>, String> {
-    let chunk_config = ChunkConfig::new(DEFAULT_CHUNK_SIZE)
-        .with_overlap(DEFAULT_OVERLAP)
+    split_text_with_params(text, is_markdown, DEFAULT_CHUNK_SIZE, DEFAULT_OVERLAP)
+}
+
+/// Split text with custom chunk size and overlap parameters.
+pub fn split_text_with_params(
+    text: &str,
+    is_markdown: bool,
+    chunk_size: usize,
+    overlap: usize,
+) -> Result<Vec<Chunk>, String> {
+    let chunk_config = ChunkConfig::new(chunk_size)
+        .with_overlap(overlap)
         .map_err(|e| format!("Invalid chunk config: {e}"))?;
 
     let pieces: Vec<&str> = if is_markdown {
