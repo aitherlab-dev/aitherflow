@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::config;
 use crate::file_ops::{read_json, write_json};
+use crate::settings;
 use std::path::PathBuf;
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -21,6 +22,12 @@ impl PartialEq for AgentRole {
 /// Predefined roles shipped with the app.
 pub fn default_roles() -> Vec<AgentRole> {
     vec![
+        AgentRole {
+            name: "Agent".into(),
+            system_prompt: "Не додумывай за пользователя. Не делай лишнего. Если не уверен — спроси. Если сломал — скажи сразу.".into(),
+            allowed_tools: vec!["Edit","Write","Bash","Glob","Grep","Read"].into_iter().map(String::from).collect(),
+            can_manage: false,
+        },
         AgentRole {
             name: "Coder".into(),
             system_prompt: "Ты работаешь в команде агентов. Общение с другими агентами — только через MCP.\nТы пишешь код и вносишь изменения. Когда задача выполнена — коммитишь и сообщаешь через MCP — потому что ревью делается по коммитам.\nЕсли что-то непонятно — спроси через MCP. Не додумывай требования сам — неверные допущения дороже вопроса.\nСледуй правилам проекта из CLAUDE.md — там конвенции и запреты, нарушения придётся переделывать.".into(),
@@ -174,6 +181,39 @@ pub async fn roles_delete(name: String) -> Result<(), String> {
             return Err(format!("Custom role '{name}' not found"));
         }
         write_custom_roles_sync(&custom)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+#[tauri::command]
+pub async fn roles_get_default() -> Result<String, String> {
+    tokio::task::spawn_blocking(|| {
+        let path = settings::settings_path();
+        if !path.exists() {
+            return Ok(String::new());
+        }
+        let s = read_json::<settings::AppSettings>(&path)?;
+        Ok(s.default_role_name)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+#[tauri::command]
+pub async fn roles_set_default(name: String) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let path = settings::settings_path();
+        let mut s = if path.exists() {
+            read_json::<settings::AppSettings>(&path)?
+        } else {
+            settings::AppSettings::default()
+        };
+        s.default_role_name = name;
+        // Clear API keys before writing (they live in keyring)
+        s.groq_api_key = String::new();
+        s.deepgram_api_key = String::new();
+        write_json(&path, &s)
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?

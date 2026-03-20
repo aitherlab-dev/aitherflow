@@ -62,6 +62,8 @@ interface ConductorState {
   slashCommands: string[];
   /** Per-agent role selection (persists across agent switches) */
   agentRoles: Record<string, AgentRole | null>;
+  /** Default role applied when no role explicitly selected */
+  defaultRole: AgentRole | null;
 
   // Actions
   setSelectedModel: (model: string) => void;
@@ -69,6 +71,7 @@ interface ConductorState {
   setSelectedPermissionMode: (mode: "default" | "plan") => void;
   setAgentRole: (agentId: string, role: AgentRole | null) => void;
   getAgentRole: (agentId: string) => AgentRole | null;
+  loadDefaultRole: () => Promise<void>;
   reset: () => void;
   saveUsageForAgent: (agentId: string) => void;
   restoreUsageForAgent: (agentId: string) => void;
@@ -92,13 +95,29 @@ export const useConductorStore = create<ConductorState>((set, get) => ({
   costUsd: 0,
   slashCommands: [],
   agentRoles: {},
+  defaultRole: null,
 
   setSelectedModel: (model: string) => set({ selectedModel: model }),
   setSelectedEffort: (effort: "high" | "medium" | "low") => set({ selectedEffort: effort }),
   setSelectedPermissionMode: (mode: "default" | "plan") => set({ selectedPermissionMode: mode }),
   setAgentRole: (agentId: string, role: AgentRole | null) =>
     set((s) => ({ agentRoles: { ...s.agentRoles, [agentId]: role } })),
-  getAgentRole: (agentId: string) => get().agentRoles[agentId] ?? null,
+  getAgentRole: (agentId: string) => {
+    const explicit = get().agentRoles[agentId];
+    if (explicit !== undefined) return explicit;
+    return get().defaultRole;
+  },
+  loadDefaultRole: async () => {
+    try {
+      const name = await invoke<string>("roles_get_default");
+      if (!name) { set({ defaultRole: null }); return; }
+      const roles = await invoke<Array<AgentRole & { is_default: boolean }>>("roles_list");
+      const found = roles.find((r) => r.name === name) ?? null;
+      set({ defaultRole: found ? { name: found.name, system_prompt: found.system_prompt, allowed_tools: found.allowed_tools, can_manage: found.can_manage } : null });
+    } catch (e) {
+      console.error("Failed to load default role:", e);
+    }
+  },
 
   reset: () =>
     set({
@@ -260,4 +279,7 @@ listen<CliEvent>("cli-event", (event) => {
       break;
   }
 }).catch(console.error);
+
+// Load default role on startup
+useConductorStore.getState().loadDefaultRole().catch(console.error);
 }

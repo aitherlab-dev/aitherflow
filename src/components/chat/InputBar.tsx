@@ -54,7 +54,9 @@ export const InputBar = memo(function InputBar() {
   const planMode = useChatStore((s) => s.planMode);
   const agentId = useChatStore((s) => s.agentId);
   const agentRoles = useConductorStore(useShallow((s) => s.agentRoles));
-  const currentRoleName = agentRoles[agentId]?.name ?? null;
+  const defaultRole = useConductorStore((s) => s.defaultRole);
+  const explicitRole = agentRoles[agentId];
+  const currentRoleName = explicitRole !== undefined ? (explicitRole?.name ?? null) : (defaultRole?.name ?? null);
   const projectPath = useChatStore((s) => s.projectPath);
   const agents = useAgentStore(useShallow((s) => s.agents));
   // Voice input — insert appends, replace overwrites (for streaming interim)

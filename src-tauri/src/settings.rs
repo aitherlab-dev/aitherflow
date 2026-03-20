@@ -52,6 +52,9 @@ pub struct AppSettings {
     /// Deepgram API key for streaming STT
     #[serde(default)]
     pub deepgram_api_key: String,
+    /// Name of the default role applied when no role is explicitly selected
+    #[serde(default)]
+    pub default_role_name: String,
 }
 
 fn default_voice_provider() -> String {
@@ -67,7 +70,7 @@ fn default_true() -> bool {
 }
 
 /// Path to settings.json
-fn settings_path() -> PathBuf {
+pub fn settings_path() -> PathBuf {
     config::config_dir().join("settings.json")
 }
 

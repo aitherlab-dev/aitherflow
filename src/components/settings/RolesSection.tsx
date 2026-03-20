@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Trash2, Shield, X, RotateCcw } from "lucide-react";
+import { Plus, Trash2, Shield, X, RotateCcw, Star } from "lucide-react";
 import { invoke } from "../../lib/transport";
 import type { AgentRole, RoleEntry } from "../../types/team";
 import { Tooltip } from "../shared/Tooltip";
+import { useConductorStore } from "../../stores/conductorStore";
 
 const ALL_TOOLS = ["Edit", "Write", "Bash", "Glob", "Grep", "Read"];
 
@@ -12,14 +13,20 @@ export function RolesSection() {
   const [editIsDefault, setEditIsDefault] = useState(false);
   const [isNew, setIsNew] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{ name: string; isDefault: boolean } | null>(null);
+  const [defaultRoleName, setDefaultRoleName] = useState("");
 
   const loadRoles = useCallback(() => {
     invoke<RoleEntry[]>("roles_list").then(setRoles).catch(console.error);
   }, []);
 
+  const loadDefaultName = useCallback(() => {
+    invoke<string>("roles_get_default").then(setDefaultRoleName).catch(console.error);
+  }, []);
+
   useEffect(() => {
     loadRoles();
-  }, [loadRoles]);
+    loadDefaultName();
+  }, [loadRoles, loadDefaultName]);
 
   const handleNew = useCallback(() => {
     setEditing({
@@ -59,6 +66,17 @@ export function RolesSection() {
     }
   }, [loadRoles]);
 
+  const handleSetDefault = useCallback(async (name: string) => {
+    const newDefault = name === defaultRoleName ? "" : name;
+    try {
+      await invoke("roles_set_default", { name: newDefault });
+      setDefaultRoleName(newDefault);
+      useConductorStore.getState().loadDefaultRole().catch(console.error);
+    } catch (e) {
+      console.error("[RolesSection] set default:", e);
+    }
+  }, [defaultRoleName]);
+
   return (
     <div className="roles-section">
       <div className="roles-header">
@@ -88,6 +106,14 @@ export function RolesSection() {
                   Manager
                 </span>
               )}
+              <Tooltip text={role.name === defaultRoleName ? "Remove default" : "Set as default"}>
+                <button
+                  className={`roles-card__default-btn ${role.name === defaultRoleName ? "roles-card__default-btn--active" : ""}`}
+                  onClick={(e) => { e.stopPropagation(); handleSetDefault(role.name); }}
+                >
+                  <Star size={12} fill={role.name === defaultRoleName ? "currentColor" : "none"} />
+                </button>
+              </Tooltip>
             </div>
             <div className="roles-card__prompt">
               {role.system_prompt.slice(0, 80)}

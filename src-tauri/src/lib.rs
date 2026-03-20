@@ -147,6 +147,8 @@ pub fn run() {
             teamwork::roles::roles_list,
             teamwork::roles::roles_save,
             teamwork::roles::roles_delete,
+            teamwork::roles::roles_get_default,
+            teamwork::roles::roles_set_default,
             teamwork::mailbox::team_read_all_messages,
             teamwork::mailbox::team_clear_messages,
             teamwork::mailbox::team_broadcast,
