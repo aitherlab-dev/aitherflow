@@ -3,7 +3,7 @@ use std::process::Command;
 /// Fetch YouTube video transcript using yt-dlp.
 /// NOTE: always called from spawn_blocking (see commands.rs).
 pub fn fetch_youtube_transcript(url: &str) -> Result<String, String> {
-    let temp_dir = std::env::temp_dir().join("aitherflow-yt");
+    let temp_dir = std::env::temp_dir().join(format!("aitherflow-yt-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&temp_dir)
         .map_err(|e| format!("Failed to create temp dir: {e}"))?;
 
