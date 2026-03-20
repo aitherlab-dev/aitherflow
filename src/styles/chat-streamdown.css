@@ -8,6 +8,7 @@
   --primary-foreground: var(--bg);
   --muted: var(--bg-hard);
   --muted-foreground: var(--fg-muted);
+  --sidebar: var(--bg-hard);
   --radius: 8px;
 }
 
@@ -21,6 +22,11 @@
   position: relative;
 }
 
+[data-streamdown="code-block-body"] {
+  border: 1px solid color-mix(in srgb, var(--accent-stroke) 40%, transparent) !important;
+  border-radius: 6px !important;
+}
+
 [data-streamdown="code-block"] pre {
   max-height: 400px;
   overflow-y: auto;
@@ -29,6 +35,26 @@
 [data-theme="light"] [data-streamdown="code-block"] {
   background: var(--code-bg) !important;
   border-color: var(--code-border) !important;
+}
+
+/* ── Code block copy button ── */
+[data-streamdown="code-block-actions"] {
+  border: none !important;
+  background: transparent !important;
+  backdrop-filter: none !important;
+  padding: 0 !important;
+  gap: 0 !important;
+}
+
+[data-streamdown="code-block-actions"] button {
+  color: var(--fg-muted) !important;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+
+[data-streamdown="code-block-actions"] button:hover {
+  color: var(--fg) !important;
+  opacity: 1;
 }
 
 /* ── Shiki: transparent background, theme colors via inline styles ── */
