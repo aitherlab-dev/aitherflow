@@ -52,6 +52,14 @@ export function AppLayout() {
       <main className="app-main">
         <div className="main-row">
           <Suspense fallback={null}>
+          {teamMailboxVisible && (
+            <div
+              className="team-mailbox-wrapper"
+              style={{ width: teamMailboxWidth, minWidth: 280 }}
+            >
+              <TeamMailboxPanel />
+            </div>
+          )}
           {activeView === "welcome" ? (
             <WelcomeScreen />
           ) : activeView === "settings" ? (
@@ -67,14 +75,6 @@ export function AppLayout() {
                   </div>
                 </>
               )}
-            </div>
-          )}
-          {teamMailboxVisible && (
-            <div
-              className="team-mailbox-wrapper"
-              style={{ width: teamMailboxWidth, minWidth: 280 }}
-            >
-              <TeamMailboxPanel />
             </div>
           )}
           </Suspense>
