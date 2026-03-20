@@ -8,16 +8,18 @@ import { McpCard } from "./cards/McpCard";
 import { SkillsCard } from "./cards/SkillsCard";
 import { TokensCard } from "./cards/TokensCard";
 import { BranchesCard } from "./cards/BranchesCard";
+import { KnowledgeCard } from "./cards/KnowledgeCard";
 
 const EXPANDED_KEY = "aitherflow:dashboard:expanded";
 const ORDER_KEY = "aitherflow:dashboard:order";
 
-const DEFAULT_ORDER = ["branches", "mcp", "skills", "tokens"];
+const DEFAULT_ORDER = ["branches", "mcp", "skills", "knowledge", "tokens"];
 
 const CARD_COMPONENTS: Record<string, React.ComponentType<{ expanded: boolean; onToggle: (id: string) => void }>> = {
   branches: BranchesCard,
   mcp: McpCard,
   skills: SkillsCard,
+  knowledge: KnowledgeCard,
   tokens: TokensCard,
 };
 

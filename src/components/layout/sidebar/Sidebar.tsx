@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { Home, Settings, FolderOpen, BookOpen } from "lucide-react";
+import { Home, Settings, FolderOpen } from "lucide-react";
 import { useIsMobile } from "../../../hooks/useIsMobile";
 import { useLayoutStore } from "../../../stores/layoutStore";
 import { useChatStore } from "../../../stores/chatStore";
@@ -113,12 +113,6 @@ export const Sidebar = memo(function Sidebar() {
   const handleFilesClick = useCallback(() => {
     setFilesOpen((prev) => !prev);
   }, []);
-
-  const handleKnowledgeClick = useCallback(() => {
-    openSettings("knowledge");
-    closeMobile();
-  }, [openSettings, closeMobile]);
-
 
   // ── Shift+drag reorder for agent tabs ──
 
@@ -235,17 +229,6 @@ export const Sidebar = memo(function Sidebar() {
               <FilesPanel />
             </div>
           )}
-
-          {/* Knowledge — opens Settings */}
-          <div
-            className="dash-card sidebar-files-toggle"
-            onClick={handleKnowledgeClick}
-          >
-            <div className="dash-card__header">
-              <BookOpen size={14} className="dash-card__icon" />
-              <span className="dash-card__title">Knowledge</span>
-            </div>
-          </div>
 
           {/* Agent block */}
           <div className="sidebar-content">
