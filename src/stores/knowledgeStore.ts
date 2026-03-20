@@ -100,7 +100,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   search: async (baseId, query) => {
     set({ searchQuery: query, isSearching: true });
     try {
-      const searchResults = await invoke<SearchResult[]>("rag_search", { baseId, query });
+      const searchResults = await invoke<SearchResult[]>("rag_search", { baseId, query, limit: 10 });
       set({ searchResults, isSearching: false });
     } catch (e) {
       console.error("Failed to search:", e);
