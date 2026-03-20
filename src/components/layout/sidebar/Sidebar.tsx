@@ -245,6 +245,17 @@ export const Sidebar = memo(function Sidebar() {
             </div>
           )}
 
+          {/* Knowledge */}
+          <div
+            className={`dash-card sidebar-files-toggle${activeView === "knowledge" ? " dash-card--expanded" : ""}`}
+            onClick={handleKnowledgeClick}
+          >
+            <div className="dash-card__header">
+              <BookOpen size={14} className="dash-card__icon" />
+              <span className="dash-card__title">Knowledge</span>
+            </div>
+          </div>
+
           {/* Agent block */}
           <div className="sidebar-content">
             {rootAgents.map((agent, index) => {
@@ -286,15 +297,6 @@ export const Sidebar = memo(function Sidebar() {
           {/* Spacer — absorbs free space between agents and bottom items */}
           <div className="sidebar-spacer" />
           <DashboardPanel />
-          <div
-            className={`dash-card sidebar-nav-card${activeView === "knowledge" ? " dash-card--active" : ""}`}
-            onClick={handleKnowledgeClick}
-          >
-            <div className="dash-card__header">
-              <BookOpen size={14} className="dash-card__icon" />
-              <span className="dash-card__title">Knowledge</span>
-            </div>
-          </div>
           <div
             className="dash-card sidebar-nav-card"
             onClick={handleSettingsClick}
