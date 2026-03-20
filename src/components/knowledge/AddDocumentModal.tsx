@@ -20,7 +20,7 @@ export const AddDocumentModal = memo(function AddDocumentModal({ open, baseId, o
         multiple: true,
         title: "Select documents",
         filters: [
-          { name: "Documents", extensions: ["txt", "md", "pdf", "json", "csv", "html"] },
+          { name: "Documents", extensions: ["txt", "md", "pdf", "epub", "json", "csv", "html"] },
           { name: "All files", extensions: ["*"] },
         ],
       });

@@ -44,5 +44,6 @@ lancedb = "0.27"
 text-splitter = { version = "0.29", features = ["markdown", "tokenizers"] }
 pulldown-cmark = "0.13"
 pdf-extract = "0.7"
+epub = "2"
 arrow-array = "57"
 arrow-schema = "57"
