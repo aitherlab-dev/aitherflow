@@ -101,6 +101,32 @@
   color: var(--fg-muted);
 }
 
+.kb-list__item--attached {
+  border-left: 2px solid var(--accent);
+}
+
+.kb-list__attach {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  color: var(--fg-dim);
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.kb-list__item:hover .kb-list__attach {
+  opacity: 1;
+}
+
+.kb-list__attach--active {
+  opacity: 1;
+  color: var(--accent-icon);
+}
+
 /* ── Right panel: detail ── */
 
 .kb-detail {

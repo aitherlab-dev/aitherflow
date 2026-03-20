@@ -141,11 +141,29 @@ export async function sendMessage(text: string, allAttachments?: Attachment[]) {
       return;
     }
 
+    // Enrich prompt with RAG context if knowledge bases are attached
+    let enrichedText = text;
+    try {
+      const { useKnowledgeStore } = await import("./knowledgeStore");
+      const { attachedBaseIds } = useKnowledgeStore.getState();
+      if (attachedBaseIds.length > 0) {
+        const context = await invoke<string>("rag_build_context", {
+          baseIds: attachedBaseIds,
+          query: text,
+        });
+        if (context) {
+          enrichedText = `${context}\n\n${text}`;
+        }
+      }
+    } catch (e) {
+      console.error("[sendMessage] RAG context failed:", e);
+    }
+
     if (freshState.hasSession) {
       await invoke("send_message", {
         options: {
           agentId: freshState.agentId,
-          prompt: text,
+          prompt: enrichedText,
           attachments: attachmentPayloads,
         } satisfies SendMessageOptions,
       });
@@ -174,7 +192,7 @@ export async function sendMessage(text: string, allAttachments?: Attachment[]) {
       await invoke("start_session", {
         options: {
           agentId: state.agentId,
-          prompt: text,
+          prompt: enrichedText,
           projectPath: state.projectPath,
           model: selectedModel,
           effort: selectedEffort !== "high" ? selectedEffort : undefined,

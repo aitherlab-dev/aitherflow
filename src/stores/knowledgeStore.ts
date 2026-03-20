@@ -11,6 +11,7 @@ interface KnowledgeState {
   isSearching: boolean;
   error: string | null;
   _errorTimer: ReturnType<typeof setTimeout> | null;
+  attachedBaseIds: string[];
 
   loadBases: () => Promise<void>;
   createBase: (name: string, description: string) => Promise<void>;
@@ -23,6 +24,7 @@ interface KnowledgeState {
   removeDocument: (baseId: string, documentId: string) => Promise<void>;
   search: (baseId: string, query: string) => Promise<void>;
   clearError: () => void;
+  toggleAttachBase: (baseId: string) => void;
 }
 
 function errorMessage(e: unknown): string {
@@ -50,6 +52,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   isSearching: false,
   error: null,
   _errorTimer: null,
+  attachedBaseIds: [],
 
   clearError: () => {
     const timer = get()._errorTimer;
@@ -163,6 +166,15 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
       console.error("Failed to search:", e);
       set({ searchResults: [], isSearching: false });
       setErrorWithAutoClear(set, get, `Search failed: ${errorMessage(e)}`);
+    }
+  },
+
+  toggleAttachBase: (baseId) => {
+    const { attachedBaseIds } = get();
+    if (attachedBaseIds.includes(baseId)) {
+      set({ attachedBaseIds: attachedBaseIds.filter((id) => id !== baseId) });
+    } else {
+      set({ attachedBaseIds: [...attachedBaseIds, baseId] });
     }
   },
 }));

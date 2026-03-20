@@ -2,7 +2,7 @@ use std::path::Path;
 
 use crate::files::validate_path_safe;
 
-use super::{chunker, embedder, index, parser, store, web, youtube};
+use super::{chunker, context, embedder, index, parser, store, web, youtube};
 
 const DEFAULT_SEARCH_LIMIT: usize = 10;
 
@@ -297,4 +297,16 @@ pub async fn rag_search(
 pub async fn rag_get_index_status(base_id: String) -> Result<index::IndexStatus, String> {
     validate_uuid(&base_id, "base_id")?;
     index::get_status(&base_id).await
+}
+
+#[tauri::command]
+pub async fn rag_build_context(
+    base_ids: Vec<String>,
+    query: String,
+    limit: Option<usize>,
+) -> Result<String, String> {
+    for id in &base_ids {
+        validate_uuid(id, "base_id")?;
+    }
+    context::build_context_command(base_ids, query, limit).await
 }
