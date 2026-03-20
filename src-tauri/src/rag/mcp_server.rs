@@ -22,6 +22,7 @@ use super::{chunker, commands, embedder, index, parser, store};
 // Global state
 // ---------------------------------------------------------------------------
 
+// NOTE: std::sync::Mutex intentional — lock held briefly, no .await inside
 static MCP_INFO: Mutex<Option<McpInfo>> = Mutex::new(None);
 
 #[allow(dead_code)]
@@ -293,6 +294,12 @@ async fn handle_tools_call(id: Option<Value>, msg: &Value) -> Value {
 // Tool execution
 // ---------------------------------------------------------------------------
 
+fn validate_uuid(s: &str, label: &str) -> Result<(), String> {
+    uuid::Uuid::parse_str(s)
+        .map_err(|_| format!("Invalid {label}: '{s}' is not a valid UUID"))?;
+    Ok(())
+}
+
 async fn execute_tool(name: &str, args: &Value) -> Result<String, String> {
     match name {
         "search_knowledge_base" => tool_search(args).await,
@@ -322,6 +329,7 @@ async fn tool_search(args: &Value) -> Result<String, String> {
 
     // Determine which bases to search
     let base_ids: Vec<String> = if let Some(id) = args["base_id"].as_str() {
+        validate_uuid(id, "base_id")?;
         vec![id.to_string()]
     } else {
         // Search all bases
@@ -384,8 +392,9 @@ async fn tool_list_bases() -> Result<String, String> {
 async fn tool_get_documents(args: &Value) -> Result<String, String> {
     let base_id = args["base_id"]
         .as_str()
-        .ok_or("Missing 'base_id' parameter")?
-        .to_string();
+        .ok_or("Missing 'base_id' parameter")?;
+    validate_uuid(base_id, "base_id")?;
+    let base_id = base_id.to_string();
 
     let docs = tokio::task::spawn_blocking(move || store::list_documents(&base_id))
         .await
@@ -410,9 +419,11 @@ async fn tool_reindex_document(args: &Value) -> Result<String, String> {
     let base_id = args["base_id"]
         .as_str()
         .ok_or("Missing 'base_id' parameter")?;
+    validate_uuid(base_id, "base_id")?;
     let document_id = args["document_id"]
         .as_str()
         .ok_or("Missing 'document_id' parameter")?;
+    validate_uuid(document_id, "document_id")?;
     let chunk_size = args["chunk_size"].as_u64().unwrap_or(512) as usize;
     let chunk_overlap = args["chunk_overlap"].as_u64().unwrap_or(64) as usize;
 
@@ -427,6 +438,14 @@ async fn tool_reindex_document(args: &Value) -> Result<String, String> {
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))??;
+
+    // Web/YouTube sources cannot be reindexed (no local file)
+    if doc.path.starts_with("http://") || doc.path.starts_with("https://") {
+        return Err(format!(
+            "Reindex not supported for web/YouTube sources: {}. Remove and re-add the document instead.",
+            doc.filename
+        ));
+    }
 
     // Remove old chunks from index
     index::remove_document_chunks(base_id, document_id).await?;
