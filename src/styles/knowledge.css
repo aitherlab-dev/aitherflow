@@ -455,6 +455,42 @@
   opacity: 0.3;
 }
 
+/* ── Tabs (modal source selector) ── */
+
+.kb-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 8px;
+  background: var(--bg-soft);
+}
+
+.kb-tabs__tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  justify-content: center;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.kb-tabs__tab:hover {
+  color: var(--fg);
+}
+
+.kb-tabs__tab--active {
+  background: var(--bg-card);
+  color: var(--fg);
+}
+
 /* ── Form elements (modals) ── */
 
 .kb-form {

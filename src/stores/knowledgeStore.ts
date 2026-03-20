@@ -18,6 +18,7 @@ interface KnowledgeState {
   selectBase: (baseId: string | null) => void;
   loadDocuments: (baseId: string) => Promise<void>;
   addDocuments: (baseId: string, paths: string[]) => Promise<void>;
+  addUrl: (baseId: string, url: string) => Promise<void>;
   removeDocument: (baseId: string, documentId: string) => Promise<void>;
   search: (baseId: string, query: string) => Promise<void>;
   clearError: () => void;
@@ -116,6 +117,17 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
     } catch (e) {
       console.error("Failed to add documents:", e);
       setErrorWithAutoClear(set, get, `Failed to add documents: ${errorMessage(e)}`);
+    }
+  },
+
+  addUrl: async (baseId, url) => {
+    try {
+      await invoke("rag_add_url", { baseId, url });
+      await get().loadDocuments(baseId);
+      await get().loadBases();
+    } catch (e) {
+      console.error("Failed to add URL:", e);
+      setErrorWithAutoClear(set, get, `Failed to add URL: ${errorMessage(e)}`);
     }
   },
 

@@ -2,7 +2,7 @@ use std::path::Path;
 
 use crate::files::validate_path_safe;
 
-use super::{chunker, embedder, index, parser, store};
+use super::{chunker, embedder, index, parser, store, web};
 
 const DEFAULT_SEARCH_LIMIT: usize = 10;
 
@@ -115,6 +115,70 @@ pub async fn rag_add_documents(base_id: String, paths: Vec<String>) -> Result<Ve
     }
 
     Ok(doc_ids)
+}
+
+/// Process raw text content: sanitize → chunk → embed → store → index.
+/// Used by URL and YouTube importers.
+async fn add_text_document(
+    base_id: &str,
+    filename: &str,
+    source: &str,
+    text: &str,
+) -> Result<String, String> {
+    let sanitized = parser::sanitize_text(text);
+    let is_markdown = false;
+    let size = sanitized.len() as u64;
+
+    let text_owned = sanitized.clone();
+    let chunks = tokio::task::spawn_blocking(move || chunker::split_text(&text_owned, is_markdown))
+        .await
+        .map_err(|e| format!("Task join error: {e}"))??;
+
+    let texts: Vec<String> = chunks.into_iter().map(|c| c.text).collect();
+    if texts.is_empty() {
+        return Err(format!("No content extracted from: {source}"));
+    }
+
+    let texts_for_embed = texts.clone();
+    let embeddings = tokio::task::spawn_blocking(move || embedder::embed_texts(&texts_for_embed))
+        .await
+        .map_err(|e| format!("Task join error: {e}"))??;
+
+    let bid = base_id.to_string();
+    let fname = filename.to_string();
+    let src = source.to_string();
+    let chunk_count = texts.len();
+    let doc_id = tokio::task::spawn_blocking(move || {
+        store::add_document_meta(&bid, &fname, &src, size, chunk_count)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))??;
+
+    index::add_chunks(base_id, &doc_id, &texts, &embeddings).await?;
+    Ok(doc_id)
+}
+
+#[tauri::command]
+pub async fn rag_add_url(base_id: String, url: String) -> Result<String, String> {
+    validate_uuid(&base_id, "base_id")?;
+
+    // Verify base exists
+    let bid = base_id.clone();
+    tokio::task::spawn_blocking(move || store::get_base(&bid))
+        .await
+        .map_err(|e| format!("Task join error: {e}"))??;
+
+    let text = web::fetch_article(&url).await?;
+
+    // Use domain + path as filename
+    let filename = url
+        .trim_start_matches("https://")
+        .trim_start_matches("http://")
+        .chars()
+        .take(80)
+        .collect::<String>();
+
+    add_text_document(&base_id, &filename, &url, &text).await
 }
 
 #[tauri::command]

@@ -165,6 +165,7 @@ pub fn run() {
             rag::commands::rag_list_documents,
             rag::commands::rag_search,
             rag::commands::rag_get_index_status,
+            rag::commands::rag_add_url,
         ])
         .setup(move |_app| {
             let sessions_for_mcp = sessions;
