@@ -314,7 +314,7 @@ async fn tool_search(args: &Value) -> Result<String, String> {
     let query = args["query"]
         .as_str()
         .ok_or("Missing 'query' parameter")?;
-    let limit = args["limit"].as_u64().unwrap_or(10) as usize;
+    let limit = (args["limit"].as_u64().unwrap_or(10) as usize).clamp(1, 100);
 
     // Embed the query
     let q = query.to_string();
@@ -424,8 +424,13 @@ async fn tool_reindex_document(args: &Value) -> Result<String, String> {
         .as_str()
         .ok_or("Missing 'document_id' parameter")?;
     validate_uuid(document_id, "document_id")?;
-    let chunk_size = args["chunk_size"].as_u64().unwrap_or(512) as usize;
+    let chunk_size = (args["chunk_size"].as_u64().unwrap_or(512) as usize).clamp(64, 4096);
     let chunk_overlap = args["chunk_overlap"].as_u64().unwrap_or(64) as usize;
+    if chunk_overlap >= chunk_size {
+        return Err(format!(
+            "chunk_overlap ({chunk_overlap}) must be less than chunk_size ({chunk_size})"
+        ));
+    }
 
     // Get document metadata to find its file path
     let bid = base_id.to_string();
