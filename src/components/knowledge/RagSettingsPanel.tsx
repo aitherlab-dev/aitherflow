@@ -1,5 +1,5 @@
-import { memo, useCallback, useEffect, useState } from "react";
-import { Save, AlertTriangle } from "lucide-react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { Save, AlertTriangle, RotateCcw } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useKnowledgeStore } from "../../stores/knowledgeStore";
 import type { RagSettings } from "../../types/knowledge";
@@ -12,7 +12,7 @@ const MODELS = [
 ];
 
 const CHUNK_SIZES = [256, 512, 1024, 2048];
-const OVERLAPS = [32, 64, 128, 256];
+const ALL_OVERLAPS = [32, 64, 128, 256];
 const SEARCH_LIMITS = [5, 10, 20, 50];
 
 export const RagSettingsPanel = memo(function RagSettingsPanel() {
@@ -26,6 +26,7 @@ export const RagSettingsPanel = memo(function RagSettingsPanel() {
 
   const [draft, setDraft] = useState<RagSettings | null>(null);
   const [modelChanged, setModelChanged] = useState(false);
+  const [restartNeeded, setRestartNeeded] = useState(false);
 
   useEffect(() => {
     loadRagSettings().catch(console.error);
@@ -37,24 +38,43 @@ export const RagSettingsPanel = memo(function RagSettingsPanel() {
     }
   }, [ragSettings, draft]);
 
+  // Filter overlaps to be strictly less than chunk size
+  const validOverlaps = useMemo(
+    () => ALL_OVERLAPS.filter((o) => o < (draft?.chunkSize ?? 512)),
+    [draft?.chunkSize],
+  );
+
   const handleChange = useCallback(
     (field: keyof RagSettings, value: string | number | boolean) => {
       setDraft((prev) => {
         if (!prev) return prev;
         const next = { ...prev, [field]: value };
+
         if (field === "embeddingModel" && ragSettings) {
           setModelChanged(value !== ragSettings.embeddingModel);
         }
+
+        // Auto-clamp overlap when chunk size decreases
+        if (field === "chunkSize") {
+          const newSize = value as number;
+          if (next.chunkOverlap >= newSize) {
+            const maxOverlap = ALL_OVERLAPS.filter((o) => o < newSize).pop();
+            next.chunkOverlap = maxOverlap ?? 32;
+          }
+        }
+
         return next;
       });
     },
     [ragSettings],
   );
 
-  const handleSave = useCallback(() => {
-    if (draft) {
-      saveRagSettings(draft).catch(console.error);
-      setModelChanged(false);
+  const handleSave = useCallback(async () => {
+    if (!draft) return;
+    const changed = await saveRagSettings(draft);
+    setModelChanged(false);
+    if (changed) {
+      setRestartNeeded(true);
     }
   }, [draft, saveRagSettings]);
 
@@ -106,7 +126,7 @@ export const RagSettingsPanel = memo(function RagSettingsPanel() {
             value={draft.chunkOverlap}
             onChange={(e) => handleChange("chunkOverlap", Number(e.target.value))}
           >
-            {OVERLAPS.map((o) => (
+            {validOverlaps.map((o) => (
               <option key={o} value={o}>{o} tokens</option>
             ))}
           </select>
@@ -144,6 +164,13 @@ export const RagSettingsPanel = memo(function RagSettingsPanel() {
         <Save size={14} />
         <span>Save Settings</span>
       </button>
+
+      {restartNeeded && (
+        <div className="kb-settings__warning">
+          <RotateCcw size={14} />
+          <span>Model changed. Restart the app and reindex all bases.</span>
+        </div>
+      )}
     </div>
   );
 });

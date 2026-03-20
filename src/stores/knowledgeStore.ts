@@ -25,7 +25,7 @@ interface KnowledgeState {
   search: (baseId: string, query: string) => Promise<void>;
   clearError: () => void;
   loadRagSettings: () => Promise<void>;
-  saveRagSettings: (settings: RagSettings) => Promise<void>;
+  saveRagSettings: (settings: RagSettings) => Promise<boolean>;
 }
 
 function errorMessage(e: unknown): string {
@@ -181,11 +181,13 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
 
   saveRagSettings: async (settings) => {
     try {
-      await invoke("rag_save_settings", { settings });
+      const modelChanged = await invoke<boolean>("rag_save_settings", { settings });
       set({ ragSettings: settings });
+      return modelChanged;
     } catch (e) {
       console.error("Failed to save RAG settings:", e);
       setErrorWithAutoClear(set, get, `Failed to save settings: ${errorMessage(e)}`);
+      return false;
     }
   },
 }));

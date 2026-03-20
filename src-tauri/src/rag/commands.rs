@@ -309,9 +309,15 @@ pub async fn rag_load_settings() -> Result<rag_settings::RagSettings, String> {
         .map_err(|e| format!("Task join error: {e}"))?
 }
 
+/// Returns true if the embedding model was changed (requires restart + reindex).
 #[tauri::command]
-pub async fn rag_save_settings(settings: rag_settings::RagSettings) -> Result<(), String> {
-    tokio::task::spawn_blocking(move || rag_settings::save(&settings))
-        .await
-        .map_err(|e| format!("Task join error: {e}"))?
+pub async fn rag_save_settings(settings: rag_settings::RagSettings) -> Result<bool, String> {
+    tokio::task::spawn_blocking(move || {
+        let old = rag_settings::load();
+        let model_changed = old.embedding_model != settings.embedding_model;
+        rag_settings::save(&settings)?;
+        Ok(model_changed)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
 }
