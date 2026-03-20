@@ -9,10 +9,10 @@ interface SearchPanelProps {
 
 export const SearchPanel = memo(function SearchPanel({ baseId }: SearchPanelProps) {
   const [query, setQuery] = useState("");
-  const [hasSearched, setHasSearched] = useState(false);
-  const { searchResults, isSearching, search } = useKnowledgeStore(
+  const { searchResults, searchQuery, isSearching, search } = useKnowledgeStore(
     useShallow((s) => ({
       searchResults: s.searchResults,
+      searchQuery: s.searchQuery,
       isSearching: s.isSearching,
       search: s.search,
     })),
@@ -20,7 +20,6 @@ export const SearchPanel = memo(function SearchPanel({ baseId }: SearchPanelProp
 
   const handleSearch = useCallback(() => {
     if (!query.trim()) return;
-    setHasSearched(true);
     search(baseId, query.trim()).catch(console.error);
   }, [query, baseId, search]);
 
@@ -61,7 +60,7 @@ export const SearchPanel = memo(function SearchPanel({ baseId }: SearchPanelProp
         </div>
       )}
 
-      {!isSearching && searchResults.length === 0 && hasSearched && (
+      {!isSearching && searchResults.length === 0 && searchQuery && (
         <div className="kb-empty">No results found</div>
       )}
     </div>

@@ -1,6 +1,5 @@
 import { memo, useCallback } from "react";
 import { FileText, Trash2 } from "lucide-react";
-import { useShallow } from "zustand/react/shallow";
 import { useKnowledgeStore } from "../../stores/knowledgeStore";
 import { IndexProgress } from "./IndexProgress";
 import { Tooltip } from "../shared/Tooltip";
@@ -10,7 +9,7 @@ interface DocumentListProps {
 }
 
 export const DocumentList = memo(function DocumentList({ baseId }: DocumentListProps) {
-  const documents = useKnowledgeStore(useShallow((s) => s.documents));
+  const documents = useKnowledgeStore((s) => s.documents);
   const removeDocument = useKnowledgeStore((s) => s.removeDocument);
 
   const handleRemove = useCallback(
