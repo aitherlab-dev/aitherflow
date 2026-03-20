@@ -147,7 +147,7 @@ export const TeamMailboxPanel = memo(function TeamMailboxPanel() {
       .catch(console.error);
   }, [teamSlug]);
 
-  // Resize handle (drag from left edge)
+  // Resize handle (drag from right edge — panel is on the left)
   const dragging = useRef(false);
 
   const handleResizeMouseDown = useCallback(
@@ -159,10 +159,11 @@ export const TeamMailboxPanel = memo(function TeamMailboxPanel() {
 
       const wrapper = document.querySelector(".team-mailbox-wrapper") as HTMLElement | null;
       if (wrapper) wrapper.style.transition = "none";
+      const wrapperLeft = wrapper?.getBoundingClientRect().left ?? 0;
 
       const onMove = (ev: MouseEvent) => {
         if (!dragging.current) return;
-        const newWidth = window.innerWidth - ev.clientX;
+        const newWidth = ev.clientX - wrapperLeft;
         setTeamMailboxWidth(newWidth);
       };
 
