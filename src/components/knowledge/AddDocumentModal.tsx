@@ -1,11 +1,11 @@
 import { memo, useCallback, useState } from "react";
-import { FileUp, Globe } from "lucide-react";
+import { FileUp, Globe, Video } from "lucide-react";
 import { Modal } from "../Modal";
 import { openDialog } from "../../lib/transport";
 import { useKnowledgeStore } from "../../stores/knowledgeStore";
 import { useShallow } from "zustand/react/shallow";
 
-type TabType = "files" | "url";
+type TabType = "files" | "url" | "youtube";
 
 interface AddDocumentModalProps {
   open: boolean;
@@ -17,8 +17,9 @@ export const AddDocumentModal = memo(function AddDocumentModal({ open, baseId, o
   const [tab, setTab] = useState<TabType>("files");
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
   const [url, setUrl] = useState("");
-  const { addDocuments, addUrl } = useKnowledgeStore(
-    useShallow((s) => ({ addDocuments: s.addDocuments, addUrl: s.addUrl })),
+  const [youtubeUrl, setYoutubeUrl] = useState("");
+  const { addDocuments, addUrl, addYoutube } = useKnowledgeStore(
+    useShallow((s) => ({ addDocuments: s.addDocuments, addUrl: s.addUrl, addYoutube: s.addYoutube })),
   );
 
   const handlePickFiles = useCallback(async () => {
@@ -45,21 +46,29 @@ export const AddDocumentModal = memo(function AddDocumentModal({ open, baseId, o
       if (selectedFiles.length === 0) return;
       await addDocuments(baseId, selectedFiles);
       setSelectedFiles([]);
-    } else {
+    } else if (tab === "url") {
       if (!url.trim()) return;
       await addUrl(baseId, url.trim());
       setUrl("");
+    } else {
+      if (!youtubeUrl.trim()) return;
+      await addYoutube(baseId, youtubeUrl.trim());
+      setYoutubeUrl("");
     }
     onClose();
-  }, [tab, selectedFiles, url, addDocuments, addUrl, baseId, onClose]);
+  }, [tab, selectedFiles, url, youtubeUrl, addDocuments, addUrl, addYoutube, baseId, onClose]);
 
   const handleClose = useCallback(() => {
     setSelectedFiles([]);
     setUrl("");
+    setYoutubeUrl("");
     onClose();
   }, [onClose]);
 
-  const isAddDisabled = tab === "files" ? selectedFiles.length === 0 : !url.trim();
+  const isAddDisabled =
+    tab === "files" ? selectedFiles.length === 0 :
+    tab === "url" ? !url.trim() :
+    !youtubeUrl.trim();
 
   const actions = [
     { label: "Cancel", onClick: handleClose },
@@ -83,6 +92,13 @@ export const AddDocumentModal = memo(function AddDocumentModal({ open, baseId, o
           >
             <Globe size={14} />
             <span>URL</span>
+          </button>
+          <button
+            className={`kb-tabs__tab${tab === "youtube" ? " kb-tabs__tab--active" : ""}`}
+            onClick={() => setTab("youtube")}
+          >
+            <Video size={14} />
+            <span>YouTube</span>
           </button>
         </div>
 
@@ -111,6 +127,17 @@ export const AddDocumentModal = memo(function AddDocumentModal({ open, baseId, o
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="https://example.com/article"
+            autoFocus
+          />
+        )}
+
+        {tab === "youtube" && (
+          <input
+            className="kb-form__input"
+            type="url"
+            value={youtubeUrl}
+            onChange={(e) => setYoutubeUrl(e.target.value)}
+            placeholder="https://youtube.com/watch?v=..."
             autoFocus
           />
         )}

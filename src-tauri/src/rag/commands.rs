@@ -2,7 +2,7 @@ use std::path::Path;
 
 use crate::files::validate_path_safe;
 
-use super::{chunker, embedder, index, parser, store, web};
+use super::{chunker, embedder, index, parser, store, web, youtube};
 
 const DEFAULT_SEARCH_LIMIT: usize = 10;
 
@@ -179,6 +179,44 @@ pub async fn rag_add_url(base_id: String, url: String) -> Result<String, String>
         .collect::<String>();
 
     add_text_document(&base_id, &filename, &url, &text).await
+}
+
+#[tauri::command]
+pub async fn rag_add_youtube(base_id: String, url: String) -> Result<String, String> {
+    validate_uuid(&base_id, "base_id")?;
+
+    // Verify base exists
+    let bid = base_id.clone();
+    tokio::task::spawn_blocking(move || store::get_base(&bid))
+        .await
+        .map_err(|e| format!("Task join error: {e}"))??;
+
+    // Fetch transcript via yt-dlp (blocking — Command::new)
+    let u = url.clone();
+    let text = tokio::task::spawn_blocking(move || youtube::fetch_youtube_transcript(&u))
+        .await
+        .map_err(|e| format!("Task join error: {e}"))??;
+
+    // Extract video ID or use truncated URL as filename
+    let filename = extract_youtube_id(&url)
+        .map(|id| format!("youtube-{id}"))
+        .unwrap_or_else(|| "youtube-video".into());
+
+    add_text_document(&base_id, &filename, &url, &text).await
+}
+
+fn extract_youtube_id(url: &str) -> Option<String> {
+    // Handle youtu.be/ID and youtube.com/watch?v=ID
+    if let Some(rest) = url.strip_prefix("https://youtu.be/").or_else(|| url.strip_prefix("http://youtu.be/")) {
+        return Some(rest.split(['?', '&', '/']).next()?.to_string());
+    }
+    if url.contains("youtube.com") {
+        if let Some(pos) = url.find("v=") {
+            let id = &url[pos + 2..];
+            return Some(id.split(['&', '#']).next()?.to_string());
+        }
+    }
+    None
 }
 
 #[tauri::command]

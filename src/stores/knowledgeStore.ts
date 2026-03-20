@@ -19,6 +19,7 @@ interface KnowledgeState {
   loadDocuments: (baseId: string) => Promise<void>;
   addDocuments: (baseId: string, paths: string[]) => Promise<void>;
   addUrl: (baseId: string, url: string) => Promise<void>;
+  addYoutube: (baseId: string, url: string) => Promise<void>;
   removeDocument: (baseId: string, documentId: string) => Promise<void>;
   search: (baseId: string, query: string) => Promise<void>;
   clearError: () => void;
@@ -128,6 +129,17 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
     } catch (e) {
       console.error("Failed to add URL:", e);
       setErrorWithAutoClear(set, get, `Failed to add URL: ${errorMessage(e)}`);
+    }
+  },
+
+  addYoutube: async (baseId, url) => {
+    try {
+      await invoke("rag_add_youtube", { baseId, url });
+      await get().loadDocuments(baseId);
+      await get().loadBases();
+    } catch (e) {
+      console.error("Failed to add YouTube video:", e);
+      setErrorWithAutoClear(set, get, `Failed to add YouTube video: ${errorMessage(e)}`);
     }
   },
 
