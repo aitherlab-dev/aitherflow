@@ -10,6 +10,7 @@ interface KnowledgeState {
   searchQuery: string;
   isSearching: boolean;
   error: string | null;
+  _errorTimer: ReturnType<typeof setTimeout> | null;
 
   loadBases: () => Promise<void>;
   createBase: (name: string, description: string) => Promise<void>;
@@ -22,12 +23,20 @@ interface KnowledgeState {
   clearError: () => void;
 }
 
-let errorTimer: ReturnType<typeof setTimeout> | null = null;
+function errorMessage(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  return String(e);
+}
 
-function setErrorWithAutoClear(set: (s: Partial<KnowledgeState>) => void, msg: string) {
-  if (errorTimer) clearTimeout(errorTimer);
-  set({ error: msg });
-  errorTimer = setTimeout(() => set({ error: null }), 5000);
+function setErrorWithAutoClear(
+  set: (s: Partial<KnowledgeState>) => void,
+  get: () => KnowledgeState,
+  msg: string,
+) {
+  const prev = get()._errorTimer;
+  if (prev) clearTimeout(prev);
+  const timer = setTimeout(() => set({ error: null, _errorTimer: null }), 5000);
+  set({ error: msg, _errorTimer: timer });
 }
 
 export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
@@ -38,10 +47,12 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   searchQuery: "",
   isSearching: false,
   error: null,
+  _errorTimer: null,
 
   clearError: () => {
-    if (errorTimer) clearTimeout(errorTimer);
-    set({ error: null });
+    const timer = get()._errorTimer;
+    if (timer) clearTimeout(timer);
+    set({ error: null, _errorTimer: null });
   },
 
   loadBases: async () => {
@@ -50,6 +61,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
       set({ bases });
     } catch (e) {
       console.error("Failed to load knowledge bases:", e);
+      setErrorWithAutoClear(set, get, `Failed to load knowledge bases: ${errorMessage(e)}`);
       set({ bases: [] });
     }
   },
@@ -60,7 +72,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
       await get().loadBases();
     } catch (e) {
       console.error("Failed to create knowledge base:", e);
-      setErrorWithAutoClear(set, `Failed to create knowledge base: ${e}`);
+      setErrorWithAutoClear(set, get, `Failed to create knowledge base: ${errorMessage(e)}`);
     }
   },
 
@@ -74,7 +86,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
       await state.loadBases();
     } catch (e) {
       console.error("Failed to delete knowledge base:", e);
-      setErrorWithAutoClear(set, `Failed to delete knowledge base: ${e}`);
+      setErrorWithAutoClear(set, get, `Failed to delete knowledge base: ${errorMessage(e)}`);
     }
   },
 
@@ -91,6 +103,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
       set({ documents });
     } catch (e) {
       console.error("Failed to load documents:", e);
+      setErrorWithAutoClear(set, get, `Failed to load documents: ${errorMessage(e)}`);
       set({ documents: [] });
     }
   },
@@ -102,7 +115,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
       await get().loadBases();
     } catch (e) {
       console.error("Failed to add documents:", e);
-      setErrorWithAutoClear(set, `Failed to add documents: ${e}`);
+      setErrorWithAutoClear(set, get, `Failed to add documents: ${errorMessage(e)}`);
     }
   },
 
@@ -113,7 +126,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
       await get().loadBases();
     } catch (e) {
       console.error("Failed to remove document:", e);
-      setErrorWithAutoClear(set, `Failed to remove document: ${e}`);
+      setErrorWithAutoClear(set, get, `Failed to remove document: ${errorMessage(e)}`);
     }
   },
 
@@ -125,7 +138,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
     } catch (e) {
       console.error("Failed to search:", e);
       set({ searchResults: [], isSearching: false });
-      setErrorWithAutoClear(set, `Search failed: ${e}`);
+      setErrorWithAutoClear(set, get, `Search failed: ${errorMessage(e)}`);
     }
   },
 }));
