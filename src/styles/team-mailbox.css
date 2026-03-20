@@ -47,16 +47,41 @@
   flex-shrink: 0;
 }
 
-.team-mailbox__header-icon {
-  color: var(--accent-icon);
-  flex-shrink: 0;
+/* ── Tabs ── */
+
+.tm-tabs {
+  display: flex;
+  gap: 2px;
+  flex: 1;
 }
 
-.team-mailbox__title {
-  font-size: 0.85rem;
-  font-weight: 600;
+.tm-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: none;
+  border-radius: 6px;
+  background: var(--tab-bg);
+  color: var(--fg-muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tm-tab:hover {
+  background: var(--tab-bg-hover);
   color: var(--fg);
-  flex: 1;
+}
+
+.tm-tab--active {
+  background: var(--tab-bg-active);
+  color: var(--accent);
+}
+
+.tm-tab--active:hover {
+  background: var(--tab-bg-active-hover);
 }
 
 /* ── Clear button ── */
@@ -198,6 +223,13 @@
   cursor: pointer;
   padding: 0;
   text-align: left;
+}
+
+/* ── Embedded ChatPanel in Chats tab ── */
+
+.team-mailbox > .chat-panel {
+  flex: 1;
+  min-height: 0;
 }
 
 /* ── Scroll to bottom ── */
