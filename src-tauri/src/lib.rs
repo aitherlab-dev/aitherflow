@@ -143,6 +143,7 @@ pub fn run() {
             worktree::get_worktree_details,
             worktree::create_worktree,
             worktree::remove_worktree,
+            worktree::worktree_reset,
             teamwork::roles::roles_list,
             teamwork::roles::roles_save,
             teamwork::roles::roles_delete,

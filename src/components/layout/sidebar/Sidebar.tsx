@@ -1,7 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { invoke } from "@tauri-apps/api/core";
-import { Home, Settings, FolderOpen, GitBranch, Plus } from "lucide-react";
+import { Home, Settings, FolderOpen } from "lucide-react";
 import { useIsMobile } from "../../../hooks/useIsMobile";
 import { useLayoutStore } from "../../../stores/layoutStore";
 import { useChatStore } from "../../../stores/chatStore";
@@ -11,10 +10,8 @@ import { ResizeHandle } from "../ResizeHandle";
 import { FilesPanel } from "../files-panel";
 
 import { DashboardPanel } from "../../dashboard/DashboardPanel";
-import { WorktreePanel } from "../../chat/WorktreePanel";
 import { AgentTab } from "./AgentTab";
 import { WorktreeTab } from "./WorktreeTab";
-import { Tooltip } from "../../shared/Tooltip";
 
 export const Sidebar = memo(function Sidebar() {
   const isMobile = useIsMobile();
@@ -77,26 +74,6 @@ export const Sidebar = memo(function Sidebar() {
   );
 
   const [filesOpen, setFilesOpen] = useState(false);
-  const [branchesOpen, setBranchesOpen] = useState(false);
-  const [branchCreateRequested, setBranchCreateRequested] = useState(false);
-
-  // Track extra worktrees (beyond root) for the orange indicator
-  const [extraWorktreeCount, setExtraWorktreeCount] = useState(0);
-  const activeAgent = agents.find((a) => a.id === activeAgentId);
-  const rootAgent = activeAgent?.parentAgentId
-    ? agents.find((a) => a.id === activeAgent.parentAgentId)
-    : activeAgent;
-  const rootProjectPath = rootAgent?.projectPath;
-
-  useEffect(() => {
-    if (!rootProjectPath) return;
-    invoke<{ path: string; branch: string; isBare: boolean }[]>("get_worktrees", { projectPath: rootProjectPath })
-      .then((entries) => {
-        const nonBare = entries.filter((e) => !e.isBare);
-        setExtraWorktreeCount(nonBare.length > 1 ? nonBare.length - 1 : 0);
-      })
-      .catch(console.error);
-  }, [rootProjectPath]);
 
   const handleActivateAgent = useCallback(
     (agentId: string) => {
@@ -138,15 +115,6 @@ export const Sidebar = memo(function Sidebar() {
     setFilesOpen((prev) => !prev);
   }, []);
 
-  const handleBranchesClick = useCallback(() => {
-    setBranchesOpen((prev) => !prev);
-  }, []);
-
-  const handleBranchCreate = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    setBranchesOpen(true);
-    setBranchCreateRequested(true);
-  }, []);
 
   // ── Shift+drag reorder for agent tabs ──
 
@@ -301,37 +269,6 @@ export const Sidebar = memo(function Sidebar() {
             })}
 
           </div>
-
-          {/* Branches — dash-card style, accordion expands below */}
-          <div
-            className={`dash-card sidebar-branches-toggle ${branchesOpen ? "dash-card--expanded" : ""}`}
-            onClick={handleBranchesClick}
-          >
-            <div className="dash-card__header">
-              <GitBranch size={14} className="dash-card__icon" />
-              <span className="dash-card__title">Branches</span>
-              {extraWorktreeCount > 0 && (
-                <span className="dash-card__dot dash-card__dot--orange" />
-              )}
-              <Tooltip text="Add worktree">
-                <button
-                  className="dash-card__action"
-                  onClick={handleBranchCreate}
-                >
-                  <Plus size={14} />
-                </button>
-              </Tooltip>
-            </div>
-          </div>
-          {branchesOpen && (
-            <div className="worktree-accordion">
-              <WorktreePanel
-                embedded
-                autoCreate={branchCreateRequested}
-                onAutoCreateConsumed={() => setBranchCreateRequested(false)}
-              />
-            </div>
-          )}
 
           {/* Spacer — absorbs free space between agents and bottom items */}
           <div className="sidebar-spacer" />
