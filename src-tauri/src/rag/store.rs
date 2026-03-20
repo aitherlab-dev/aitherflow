@@ -154,6 +154,12 @@ pub fn add_document_meta(
 ) -> Result<String, String> {
     validate_base_id(base_id)?;
     let mut meta = get_base(base_id)?;
+
+    // Check for duplicate: same filename + size
+    if let Some(existing) = meta.documents.iter().find(|d| d.filename == filename && d.size_bytes == size_bytes) {
+        return Err(format!("Document already exists: {} (id: {})", existing.filename, existing.id));
+    }
+
     let doc_id = uuid::Uuid::new_v4().to_string();
 
     meta.documents.push(DocumentMeta {
