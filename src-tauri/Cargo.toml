@@ -39,3 +39,9 @@ futures-util = "0.3"
 keyring = { version = "3", features = ["sync-secret-service", "apple-native"] }
 smallvec = "1"
 sha2 = "0.10"
+fastembed = "4"
+lancedb = "0.27"
+text-splitter = { version = "0.29", features = ["markdown", "tokenizers"] }
+pulldown-cmark = "0.13"
+arrow-array = "57"
+arrow-schema = "57"

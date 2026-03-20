@@ -13,6 +13,7 @@ mod hooks;
 mod mcp;
 mod plugins;
 mod projects;
+mod rag;
 mod secrets;
 mod settings;
 mod skills;
@@ -155,6 +156,15 @@ pub fn run() {
             teamwork::mailbox::team_broadcast,
             teamwork::mcp_server::team_list_agents,
             projects::get_teamwork_slug,
+            rag::commands::rag_list_bases,
+            rag::commands::rag_create_base,
+            rag::commands::rag_delete_base,
+            rag::commands::rag_get_base,
+            rag::commands::rag_add_documents,
+            rag::commands::rag_remove_document,
+            rag::commands::rag_list_documents,
+            rag::commands::rag_search,
+            rag::commands::rag_get_index_status,
         ])
         .setup(move |_app| {
             let sessions_for_mcp = sessions;
