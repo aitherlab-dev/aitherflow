@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { invoke } from "../lib/transport";
-import type { KnowledgeBase, KnowledgeDocument, SearchResult } from "../types/knowledge";
+import type { KnowledgeBase, KnowledgeDocument, RagSettings, SearchResult } from "../types/knowledge";
 
 interface KnowledgeState {
   bases: KnowledgeBase[];
@@ -11,6 +11,7 @@ interface KnowledgeState {
   isSearching: boolean;
   error: string | null;
   _errorTimer: ReturnType<typeof setTimeout> | null;
+  ragSettings: RagSettings | null;
 
   loadBases: () => Promise<void>;
   createBase: (name: string, description: string) => Promise<void>;
@@ -23,6 +24,8 @@ interface KnowledgeState {
   removeDocument: (baseId: string, documentId: string) => Promise<void>;
   search: (baseId: string, query: string) => Promise<void>;
   clearError: () => void;
+  loadRagSettings: () => Promise<void>;
+  saveRagSettings: (settings: RagSettings) => Promise<void>;
 }
 
 function errorMessage(e: unknown): string {
@@ -50,6 +53,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   isSearching: false,
   error: null,
   _errorTimer: null,
+  ragSettings: null,
 
   clearError: () => {
     const timer = get()._errorTimer;
@@ -166,4 +170,22 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
     }
   },
 
+  loadRagSettings: async () => {
+    try {
+      const ragSettings = await invoke<RagSettings>("rag_load_settings");
+      set({ ragSettings });
+    } catch (e) {
+      console.error("Failed to load RAG settings:", e);
+    }
+  },
+
+  saveRagSettings: async (settings) => {
+    try {
+      await invoke("rag_save_settings", { settings });
+      set({ ragSettings: settings });
+    } catch (e) {
+      console.error("Failed to save RAG settings:", e);
+      setErrorWithAutoClear(set, get, `Failed to save settings: ${errorMessage(e)}`);
+    }
+  },
 }));

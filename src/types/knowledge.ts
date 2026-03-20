@@ -15,6 +15,14 @@ export interface KnowledgeDocument {
   addedAt: number;
 }
 
+export interface RagSettings {
+  embeddingModel: string;
+  chunkSize: number;
+  chunkOverlap: number;
+  searchResultsLimit: number;
+  knowledgeMcpEnabled: boolean;
+}
+
 export interface SearchResult {
   chunkText: string;
   documentId: string;
