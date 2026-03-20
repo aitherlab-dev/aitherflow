@@ -7,7 +7,6 @@ import { Header } from "./Header";
 import { Sidebar } from "./sidebar";
 import { ChatView } from "../chat/ChatView";
 import { FileViewerResizeHandle } from "../fileviewer/FileViewerResizeHandle";
-import { ChatPanel } from "./chat-panel";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useShallow } from "zustand/react/shallow";
 import { BrandFooter } from "./BrandFooter";
@@ -24,7 +23,7 @@ export function AppLayout() {
   const {
     sidebarOpen, toggleSidebar, activeView,
     fileViewerVisible, fileViewerHasContent, fileViewerPosition, fileViewerSize,
-    chatPanelVisible, teamMailboxVisible, teamMailboxWidth,
+    teamMailboxVisible, teamMailboxWidth,
   } = useLayoutStore(useShallow((s) => ({
     sidebarOpen: s.sidebarOpen,
     toggleSidebar: s.toggleSidebar,
@@ -33,7 +32,6 @@ export function AppLayout() {
     fileViewerHasContent: s.fileViewerHasContent,
     fileViewerPosition: s.fileViewerPosition,
     fileViewerSize: s.fileViewerSize,
-    chatPanelVisible: s.chatPanelVisible,
     teamMailboxVisible: s.teamMailboxVisible,
     teamMailboxWidth: s.teamMailboxWidth,
   })));
@@ -80,11 +78,6 @@ export function AppLayout() {
           </Suspense>
         </div>
       </main>
-      {chatPanelVisible && (
-        <div className="chat-panel-column">
-          <ChatPanel />
-        </div>
-      )}
       <BrandFooter />
 
       {/* Mobile: backdrop when sidebar is open */}
