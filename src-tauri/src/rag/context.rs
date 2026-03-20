@@ -1,4 +1,4 @@
-use super::{embedder, index, store};
+use super::{commands, embedder, index};
 
 const DEFAULT_CONTEXT_LIMIT: usize = 5;
 
@@ -32,20 +32,9 @@ pub async fn build_rag_context(
             continue;
         }
 
-        // Resolve document names
-        let bid = base_id.clone();
-        let docs = tokio::task::spawn_blocking(move || store::list_documents(&bid))
-            .await
-            .map_err(|e| format!("Task join error: {e}"))??;
-
-        for r in &raw_results {
-            let doc_name = docs
-                .iter()
-                .find(|d| d.id == r.document_id)
-                .map(|d| d.filename.as_str())
-                .unwrap_or("unknown");
-
-            context_parts.push(format!("From {}:\n{}", doc_name, r.chunk_text));
+        let enriched = commands::enrich_results(base_id, raw_results).await?;
+        for r in &enriched {
+            context_parts.push(format!("From {}:\n{}", r.document_name, r.chunk_text));
         }
     }
 

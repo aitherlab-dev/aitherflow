@@ -243,36 +243,17 @@ pub async fn rag_list_documents(
         .map_err(|e| format!("Task join error: {e}"))?
 }
 
-#[tauri::command]
-pub async fn rag_search(
-    base_id: String,
-    query: String,
-    limit: Option<usize>,
+/// Enrich raw search results with document names from metadata.
+pub async fn enrich_results(
+    base_id: &str,
+    raw_results: Vec<index::RawSearchResult>,
 ) -> Result<Vec<index::SearchResult>, String> {
-    validate_uuid(&base_id, "base_id")?;
-    let limit = limit.unwrap_or(DEFAULT_SEARCH_LIMIT);
-
-    // Embed the query
-    let embeddings = tokio::task::spawn_blocking(move || {
-        embedder::embed_texts(&[query])
-    })
-    .await
-    .map_err(|e| format!("Task join error: {e}"))??;
-
-    let query_vec = embeddings
-        .into_iter()
-        .next()
-        .ok_or("Failed to embed query")?;
-
-    let raw_results = index::search(&base_id, &query_vec, limit).await?;
-
-    // Enrich with document names from metadata
-    let bid = base_id.clone();
+    let bid = base_id.to_string();
     let docs = tokio::task::spawn_blocking(move || store::list_documents(&bid))
         .await
         .map_err(|e| format!("Task join error: {e}"))??;
 
-    let results = raw_results
+    Ok(raw_results
         .into_iter()
         .map(|r| {
             let doc_name = docs
@@ -288,9 +269,31 @@ pub async fn rag_search(
                 score: r.score,
             }
         })
-        .collect();
+        .collect())
+}
 
-    Ok(results)
+#[tauri::command]
+pub async fn rag_search(
+    base_id: String,
+    query: String,
+    limit: Option<usize>,
+) -> Result<Vec<index::SearchResult>, String> {
+    validate_uuid(&base_id, "base_id")?;
+    let limit = limit.unwrap_or(DEFAULT_SEARCH_LIMIT);
+
+    let embeddings = tokio::task::spawn_blocking(move || {
+        embedder::embed_texts(&[query])
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))??;
+
+    let query_vec = embeddings
+        .into_iter()
+        .next()
+        .ok_or("Failed to embed query")?;
+
+    let raw_results = index::search(&base_id, &query_vec, limit).await?;
+    enrich_results(&base_id, raw_results).await
 }
 
 #[tauri::command]
