@@ -162,6 +162,11 @@ pub async fn add_chunks(
 
 /// Remove all chunks belonging to a document from the index.
 pub async fn remove_document_chunks(base_id: &str, document_id: &str) -> Result<(), String> {
+    // Defense in depth: validate document_id even if caller already checked,
+    // since this is a pub async fn that constructs a filter expression.
+    uuid::Uuid::parse_str(document_id)
+        .map_err(|_| format!("Invalid document_id: '{document_id}' is not a valid UUID"))?;
+
     let db = open_db(base_id).await?;
     let names = db
         .table_names()

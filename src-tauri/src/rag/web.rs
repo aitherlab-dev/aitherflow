@@ -9,6 +9,7 @@ pub async fn fetch_article(url: &str) -> Result<String, String> {
 
     let client = reqwest::Client::builder()
         .timeout(REQUEST_TIMEOUT)
+        .redirect(reqwest::redirect::Policy::none())
         .build()
         .map_err(|e| format!("Failed to create HTTP client: {e}"))?;
 
@@ -79,7 +80,7 @@ fn validate_url(url: &str) -> Result<(), String> {
     let host_lower = host.to_lowercase();
 
     // Block localhost
-    if host_lower == "localhost" || host_lower == "127.0.0.1" || host_lower == "[::1]" {
+    if host_lower == "localhost" || host_lower == "127.0.0.1" || host_lower == "0.0.0.0" || host_lower == "[::1]" {
         return Err("Localhost URLs are not allowed".into());
     }
 
@@ -97,6 +98,17 @@ fn validate_url(url: &str) -> Result<(), String> {
                 }
             }
         }
+    }
+
+    // Block IPv6 private ranges: fc00::/7 (ULA), fe80::/10 (link-local)
+    // and IPv4-mapped IPv6 addresses (::ffff:127.0.0.1, etc.)
+    let bare_host = host_lower.trim_start_matches('[').trim_end_matches(']');
+    if bare_host.starts_with("fc")
+        || bare_host.starts_with("fd")
+        || bare_host.starts_with("fe80")
+        || bare_host.starts_with("::ffff:")
+    {
+        return Err("Internal/private IPv6 addresses are not allowed".into());
     }
 
     Ok(())
