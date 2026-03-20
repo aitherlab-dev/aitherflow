@@ -167,7 +167,6 @@ pub fn run() {
             rag::commands::rag_get_index_status,
             rag::commands::rag_add_url,
             rag::commands::rag_add_youtube,
-            rag::commands::rag_build_context,
         ])
         .setup(move |_app| {
             let sessions_for_mcp = sessions;
