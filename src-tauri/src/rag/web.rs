@@ -13,7 +13,7 @@ pub async fn fetch_article(url: &str) -> Result<String, String> {
         .build()
         .map_err(|e| format!("Failed to create HTTP client: {e}"))?;
 
-    let response = client
+    let mut response = client
         .get(url)
         .send()
         .await
@@ -50,9 +50,7 @@ pub async fn fetch_article(url: &str) -> Result<String, String> {
             ));
         }
     }
-    let bytes = bytes::Bytes::from(body);
-
-    let html = String::from_utf8_lossy(&bytes);
+    let html = String::from_utf8_lossy(&body);
     let text = html2text::from_read(html.as_bytes(), 200)
         .map_err(|e| format!("Failed to convert HTML to text: {e}"))?;
 
