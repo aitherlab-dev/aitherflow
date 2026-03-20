@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 const SIDEBAR_MIN = 250;
-const SIDEBAR_MAX = 350;
+const SIDEBAR_MAX = 400;
 const SIDEBAR_DEFAULT = 350;
 
 const FV_RIGHT_MIN = 250;
@@ -9,9 +9,9 @@ const FV_RIGHT_DEFAULT = 480;
 const FV_BOTTOM_MIN = 150;
 const FV_BOTTOM_DEFAULT = 300;
 
-const TM_MIN = 280;
-const TM_DEFAULT = 380;
-const TM_MAX = 700;
+const TM_MIN = 300;
+const TM_DEFAULT = 350;
+const TM_MAX = 400;
 
 export type ActiveView = "welcome" | "chat" | "settings";
 export type SidebarPanel = "agents" | "files";
