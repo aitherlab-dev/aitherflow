@@ -15,6 +15,7 @@ import {
   BarChart3,
   Keyboard,
   Blocks,
+  BookOpen,
 } from "lucide-react";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { ProjectsSection } from "./ProjectsSection";
@@ -30,6 +31,7 @@ import { HotkeysSection } from "./HotkeysSection";
 import { ClaudeMdSection } from "./ClaudeMdSection";
 import { RolesSection } from "./RolesSection";
 import { ExternalModelsSection } from "./ExternalModelsSection";
+import { KnowledgeSection } from "./KnowledgeSection";
 
 const NAV_ITEMS = [
   { id: "general", label: "General", icon: User },
@@ -38,6 +40,7 @@ const NAV_ITEMS = [
   { id: "hooks", label: "Hooks", icon: Webhook },
   { id: "mcp", label: "MCP Servers", icon: Cable },
   { id: "skills", label: "Skills", icon: Sparkles },
+  { id: "knowledge", label: "Knowledge", icon: BookOpen },
   { id: "projects", label: "Projects", icon: FolderOpen },
   { id: "language", label: "Language", icon: Languages },
   { id: "voice", label: "Voice", icon: Mic },
@@ -113,6 +116,9 @@ function SectionContent({ section }: { section: string }) {
   }
   if (section === "skills") {
     return <SkillsSection />;
+  }
+  if (section === "knowledge") {
+    return <KnowledgeSection />;
   }
   if (section === "projects") {
     return <ProjectsSection />;

@@ -92,6 +92,17 @@
   color: var(--fg-dim);
 }
 
+/* ── Knowledge in Settings wrapper ── */
+
+.kb-settings-wrapper {
+  height: 100%;
+  margin: -20px -24px;
+}
+
+.kb-settings-wrapper .kb-page {
+  height: 100%;
+}
+
 /* ── Knowledge Base (RAG) ── */
 
 .kb-page {
