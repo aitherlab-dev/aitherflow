@@ -15,6 +15,7 @@ const SettingsView = lazy(() => import("../settings/SettingsView").then((m) => (
 const WelcomeScreen = lazy(() => import("./WelcomeScreen").then((m) => ({ default: m.WelcomeScreen })));
 const FileViewerPanel = lazy(() => import("../fileviewer/FileViewerPanel").then((m) => ({ default: m.FileViewerPanel })));
 const TeamMailboxPanel = lazy(() => import("../teamwork/TeamMailboxPanel").then((m) => ({ default: m.TeamMailboxPanel })));
+const KnowledgePage = lazy(() => import("../knowledge/KnowledgePage").then((m) => ({ default: m.KnowledgePage })));
 
 export function AppLayout() {
   useTelegramBridge();
@@ -62,6 +63,8 @@ export function AppLayout() {
             <WelcomeScreen />
           ) : activeView === "settings" ? (
             <SettingsView />
+          ) : activeView === "knowledge" ? (
+            <KnowledgePage />
           ) : (
             <div className={`main-split main-split--${fileViewerPosition}`}>
               <ChatView />

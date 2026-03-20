@@ -13,7 +13,7 @@ const TM_MIN = 300;
 const TM_DEFAULT = 350;
 const TM_MAX = 400;
 
-export type ActiveView = "welcome" | "chat" | "settings";
+export type ActiveView = "welcome" | "chat" | "settings" | "knowledge";
 export type SidebarPanel = "agents" | "files";
 export type FileViewerPosition = "right" | "bottom";
 
@@ -64,6 +64,10 @@ interface LayoutState {
   // Team mailbox actions
   toggleTeamMailbox: () => void;
   setTeamMailboxWidth: (width: number) => void;
+
+  // Knowledge actions
+  openKnowledge: () => void;
+  closeKnowledge: () => void;
 }
 
 /** Restore persisted file viewer settings from localStorage */
@@ -185,4 +189,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
 
   setTeamMailboxWidth: (width: number) =>
     set({ teamMailboxWidth: Math.max(TM_MIN, Math.min(TM_MAX, width)) }),
+
+  openKnowledge: () => set({ activeView: "knowledge" }),
+  closeKnowledge: () => set({ activeView: "chat" }),
 }));
