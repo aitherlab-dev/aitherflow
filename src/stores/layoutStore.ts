@@ -65,9 +65,6 @@ interface LayoutState {
   toggleTeamMailbox: () => void;
   setTeamMailboxWidth: (width: number) => void;
 
-  // Knowledge actions
-  openKnowledge: () => void;
-  closeKnowledge: () => void;
 }
 
 /** Restore persisted file viewer settings from localStorage */
@@ -190,6 +187,4 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   setTeamMailboxWidth: (width: number) =>
     set({ teamMailboxWidth: Math.max(TM_MIN, Math.min(TM_MAX, width)) }),
 
-  openKnowledge: () => set({ activeView: "knowledge" }),
-  closeKnowledge: () => set({ activeView: "chat" }),
 }));

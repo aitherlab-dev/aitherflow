@@ -176,6 +176,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
       set({ ragSettings });
     } catch (e) {
       console.error("Failed to load RAG settings:", e);
+      setErrorWithAutoClear(set, get, `Failed to load RAG settings: ${errorMessage(e)}`);
     }
   },
 

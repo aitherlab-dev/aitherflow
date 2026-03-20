@@ -12,21 +12,30 @@ export const CreateBaseModal = memo(function CreateBaseModal({ open, onClose }: 
   const [description, setDescription] = useState("");
   const createBase = useKnowledgeStore((s) => s.createBase);
 
+  const resetForm = useCallback(() => {
+    setName("");
+    setDescription("");
+  }, []);
+
   const handleCreate = useCallback(async () => {
     if (!name.trim()) return;
     await createBase(name.trim(), description.trim());
-    setName("");
-    setDescription("");
+    resetForm();
     onClose();
-  }, [name, description, createBase, onClose]);
+  }, [name, description, createBase, resetForm, onClose]);
+
+  const handleClose = useCallback(() => {
+    resetForm();
+    onClose();
+  }, [resetForm, onClose]);
 
   const actions = [
-    { label: "Cancel", onClick: onClose },
+    { label: "Cancel", onClick: handleClose },
     { label: "Create", variant: "accent" as const, onClick: handleCreate, disabled: !name.trim() },
   ];
 
   return (
-    <Modal open={open} title="Create Knowledge Base" onClose={onClose} actions={actions}>
+    <Modal open={open} title="Create Knowledge Base" onClose={handleClose} actions={actions}>
       <div className="kb-form">
         <label className="kb-form__label">
           Name
