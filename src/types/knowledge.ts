@@ -20,8 +20,9 @@ export interface KnowledgeDocument {
 }
 
 export interface SearchResult {
-  text: string;
+  chunk_text: string;
   document_id: string;
-  chunk_index: number;
+  document_name: string;
   score: number;
+  metadata?: Record<string, string>;
 }
