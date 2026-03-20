@@ -1,3 +1,97 @@
+/* ── Knowledge Sidebar Panel (compact) ── */
+
+.kb-sidebar-list {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 8px 8px;
+  gap: 2px;
+}
+
+.kb-sidebar-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.kb-sidebar-item:hover {
+  background: var(--bg-hover);
+}
+
+.kb-sidebar-item--attached {
+  border-left: 2px solid var(--accent);
+}
+
+.kb-sidebar-item__name {
+  font-size: 12px;
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.kb-sidebar-item__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--fg-dim);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.kb-sidebar-item:hover .kb-sidebar-item__toggle {
+  opacity: 1;
+}
+
+.kb-sidebar-item__toggle--active {
+  opacity: 1;
+  color: var(--accent-icon);
+}
+
+.dash-card__action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: auto;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--fg-dim);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.dash-card:hover .dash-card__action {
+  opacity: 1;
+}
+
+.dash-card__action:hover {
+  color: var(--fg);
+}
+
+.kb-sidebar-empty {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 11px;
+  color: var(--fg-dim);
+}
+
 /* ── Knowledge Base (RAG) ── */
 
 .kb-page {

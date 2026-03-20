@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { Home, Settings, FolderOpen, BookOpen } from "lucide-react";
+import { Home, Settings, FolderOpen, BookOpen, Cog } from "lucide-react";
 import { useIsMobile } from "../../../hooks/useIsMobile";
 import { useLayoutStore } from "../../../stores/layoutStore";
 import { useChatStore } from "../../../stores/chatStore";
@@ -8,6 +8,7 @@ import { useAgentStore } from "../../../stores/agentStore";
 import { useConductorStore } from "../../../stores/conductorStore";
 import { ResizeHandle } from "../ResizeHandle";
 import { FilesPanel } from "../files-panel";
+import { KnowledgePanel } from "../../knowledge/KnowledgePanel";
 
 import { DashboardPanel } from "../../dashboard/DashboardPanel";
 import { AgentTab } from "./AgentTab";
@@ -24,8 +25,6 @@ export const Sidebar = memo(function Sidebar() {
     closeSettings,
     openWelcome,
     closeWelcome,
-    openKnowledge,
-    closeKnowledge,
   } = useLayoutStore(useShallow((s) => ({
     sidebarOpen: s.sidebarOpen,
     sidebarWidth: s.sidebarWidth,
@@ -35,8 +34,6 @@ export const Sidebar = memo(function Sidebar() {
     closeSettings: s.closeSettings,
     openWelcome: s.openWelcome,
     closeWelcome: s.closeWelcome,
-    openKnowledge: s.openKnowledge,
-    closeKnowledge: s.closeKnowledge,
   })));
 
   /** Close sidebar on mobile after navigation actions */
@@ -78,6 +75,7 @@ export const Sidebar = memo(function Sidebar() {
   );
 
   const [filesOpen, setFilesOpen] = useState(false);
+  const [knowledgeOpen, setKnowledgeOpen] = useState(false);
 
   const handleActivateAgent = useCallback(
     (agentId: string) => {
@@ -120,13 +118,14 @@ export const Sidebar = memo(function Sidebar() {
   }, []);
 
   const handleKnowledgeClick = useCallback(() => {
-    if (activeView === "knowledge") {
-      closeKnowledge();
-    } else {
-      openKnowledge();
-    }
+    setKnowledgeOpen((prev) => !prev);
+  }, []);
+
+  const handleKnowledgeSettings = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    openSettings("knowledge");
     closeMobile();
-  }, [activeView, closeKnowledge, openKnowledge, closeMobile]);
+  }, [openSettings, closeMobile]);
 
 
   // ── Shift+drag reorder for agent tabs ──
@@ -245,16 +244,24 @@ export const Sidebar = memo(function Sidebar() {
             </div>
           )}
 
-          {/* Knowledge */}
+          {/* Knowledge — accordion like Files */}
           <div
-            className={`dash-card sidebar-files-toggle${activeView === "knowledge" ? " dash-card--expanded" : ""}`}
+            className={`dash-card sidebar-files-toggle${knowledgeOpen ? " dash-card--expanded" : ""}`}
             onClick={handleKnowledgeClick}
           >
             <div className="dash-card__header">
               <BookOpen size={14} className="dash-card__icon" />
               <span className="dash-card__title">Knowledge</span>
+              <button className="dash-card__action" onClick={handleKnowledgeSettings}>
+                <Cog size={12} />
+              </button>
             </div>
           </div>
+          {knowledgeOpen && (
+            <div className="files-accordion">
+              <KnowledgePanel />
+            </div>
+          )}
 
           {/* Agent block */}
           <div className="sidebar-content">
