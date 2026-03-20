@@ -395,6 +395,44 @@
   white-space: pre-wrap;
 }
 
+/* ── Error banner ── */
+
+.kb-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--test-fail-bg);
+  color: var(--red);
+  font-size: 12px;
+}
+
+.kb-error__text {
+  flex: 1;
+  line-height: 1.4;
+}
+
+.kb-error__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--red);
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+
+.kb-error__close:hover {
+  opacity: 1;
+}
+
 /* ── Empty states ── */
 
 .kb-empty {

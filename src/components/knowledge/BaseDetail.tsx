@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo, useState } from "react";
-import { Plus, Trash2, Database } from "lucide-react";
+import { Plus, Trash2, Database, X } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useKnowledgeStore } from "../../stores/knowledgeStore";
 import { DocumentList } from "./DocumentList";
@@ -9,11 +9,13 @@ import { Modal } from "../Modal";
 import { Tooltip } from "../shared/Tooltip";
 
 export const BaseDetail = memo(function BaseDetail() {
-  const { bases, selectedBaseId, deleteBase } = useKnowledgeStore(
+  const { bases, selectedBaseId, deleteBase, error, clearError } = useKnowledgeStore(
     useShallow((s) => ({
       bases: s.bases,
       selectedBaseId: s.selectedBaseId,
       deleteBase: s.deleteBase,
+      error: s.error,
+      clearError: s.clearError,
     })),
   );
 
@@ -43,6 +45,14 @@ export const BaseDetail = memo(function BaseDetail() {
 
   return (
     <div className="kb-detail">
+      {error && (
+        <div className="kb-error">
+          <span className="kb-error__text">{error}</span>
+          <button className="kb-error__close" onClick={clearError}>
+            <X size={14} />
+          </button>
+        </div>
+      )}
       <div className="kb-detail__header">
         <div className="kb-detail__title-row">
           <h2 className="kb-detail__title">{base.name}</h2>

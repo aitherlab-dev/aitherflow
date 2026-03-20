@@ -9,6 +9,7 @@ interface KnowledgeState {
   searchResults: SearchResult[];
   searchQuery: string;
   isSearching: boolean;
+  error: string | null;
 
   loadBases: () => Promise<void>;
   createBase: (name: string, description: string) => Promise<void>;
@@ -18,6 +19,15 @@ interface KnowledgeState {
   addDocuments: (baseId: string, paths: string[]) => Promise<void>;
   removeDocument: (baseId: string, documentId: string) => Promise<void>;
   search: (baseId: string, query: string) => Promise<void>;
+  clearError: () => void;
+}
+
+let errorTimer: ReturnType<typeof setTimeout> | null = null;
+
+function setErrorWithAutoClear(set: (s: Partial<KnowledgeState>) => void, msg: string) {
+  if (errorTimer) clearTimeout(errorTimer);
+  set({ error: msg });
+  errorTimer = setTimeout(() => set({ error: null }), 5000);
 }
 
 export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
@@ -27,6 +37,12 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   searchResults: [],
   searchQuery: "",
   isSearching: false,
+  error: null,
+
+  clearError: () => {
+    if (errorTimer) clearTimeout(errorTimer);
+    set({ error: null });
+  },
 
   loadBases: async () => {
     try {
@@ -44,6 +60,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
       await get().loadBases();
     } catch (e) {
       console.error("Failed to create knowledge base:", e);
+      setErrorWithAutoClear(set, `Failed to create knowledge base: ${e}`);
     }
   },
 
@@ -57,11 +74,12 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
       await state.loadBases();
     } catch (e) {
       console.error("Failed to delete knowledge base:", e);
+      setErrorWithAutoClear(set, `Failed to delete knowledge base: ${e}`);
     }
   },
 
   selectBase: (baseId) => {
-    set({ selectedBaseId: baseId, documents: [], searchResults: [], searchQuery: "" });
+    set({ selectedBaseId: baseId, documents: [], searchResults: [], searchQuery: "", error: null });
     if (baseId) {
       get().loadDocuments(baseId).catch(console.error);
     }
@@ -84,6 +102,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
       await get().loadBases();
     } catch (e) {
       console.error("Failed to add documents:", e);
+      setErrorWithAutoClear(set, `Failed to add documents: ${e}`);
     }
   },
 
@@ -94,6 +113,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
       await get().loadBases();
     } catch (e) {
       console.error("Failed to remove document:", e);
+      setErrorWithAutoClear(set, `Failed to remove document: ${e}`);
     }
   },
 
@@ -105,6 +125,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
     } catch (e) {
       console.error("Failed to search:", e);
       set({ searchResults: [], isSearching: false });
+      setErrorWithAutoClear(set, `Search failed: ${e}`);
     }
   },
 }));
