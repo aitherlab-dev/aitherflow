@@ -39,6 +39,8 @@ fn get_or_init() -> Result<&'static EmbedderInfo, String> {
     .map_err(|e| format!("Failed to initialize embedding model: {e}"))?;
 
     let info = EmbedderInfo { model, dimension };
+    // OnceLock::set returns Err if already initialized by a concurrent caller —
+    // that's fine, we just use whichever value won the race.
     let _ = EMBEDDER.set(info);
     Ok(EMBEDDER.get().expect("just initialized"))
 }

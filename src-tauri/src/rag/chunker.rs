@@ -2,11 +2,9 @@ use text_splitter::{ChunkConfig, MarkdownSplitter, TextSplitter};
 
 use super::rag_settings;
 
-/// A single text chunk with its position in the original document.
+/// A single text chunk from the original document.
 pub struct Chunk {
     pub text: String,
-    #[allow(dead_code)]
-    pub index: usize,
 }
 
 /// Split text into overlapping chunks for embedding.
@@ -38,11 +36,9 @@ pub fn split_text_with_params(
 
     Ok(pieces
         .into_iter()
-        .enumerate()
-        .filter(|(_, t)| !t.trim().is_empty())
-        .map(|(i, t)| Chunk {
+        .filter(|t| !t.trim().is_empty())
+        .map(|t| Chunk {
             text: t.to_string(),
-            index: i,
         })
         .collect())
 }

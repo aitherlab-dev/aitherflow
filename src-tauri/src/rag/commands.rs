@@ -2,16 +2,9 @@ use std::path::Path;
 
 use crate::files::validate_path_safe;
 
-use super::{chunker, embedder, index, parser, rag_settings, store, web, youtube};
+use super::{chunker, embedder, index, parser, rag_settings, store, validate_uuid, web, youtube};
 
 const DEFAULT_SEARCH_LIMIT: usize = 10;
-
-/// Validate that a string is a valid UUID v4 format.
-fn validate_uuid(s: &str, label: &str) -> Result<(), String> {
-    uuid::Uuid::parse_str(s)
-        .map_err(|_| format!("Invalid {label}: '{s}' is not a valid UUID"))?;
-    Ok(())
-}
 
 #[tauri::command]
 pub async fn rag_list_bases() -> Result<Vec<store::BaseInfo>, String> {

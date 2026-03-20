@@ -16,7 +16,7 @@ use tokio::sync::{mpsc, RwLock};
 
 use std::sync::Arc;
 
-use super::{chunker, commands, embedder, index, parser, rag_settings, store};
+use super::{chunker, commands, embedder, index, parser, rag_settings, store, validate_uuid};
 
 // ---------------------------------------------------------------------------
 // Global state
@@ -293,12 +293,6 @@ async fn handle_tools_call(id: Option<Value>, msg: &Value) -> Value {
 // ---------------------------------------------------------------------------
 // Tool execution
 // ---------------------------------------------------------------------------
-
-fn validate_uuid(s: &str, label: &str) -> Result<(), String> {
-    uuid::Uuid::parse_str(s)
-        .map_err(|_| format!("Invalid {label}: '{s}' is not a valid UUID"))?;
-    Ok(())
-}
 
 async fn execute_tool(name: &str, args: &Value) -> Result<String, String> {
     match name {
