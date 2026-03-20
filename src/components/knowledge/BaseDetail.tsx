@@ -6,6 +6,7 @@ import { IndexProgress } from "./IndexProgress";
 import { DocumentList } from "./DocumentList";
 import { SearchPanel } from "./SearchPanel";
 import { AddDocumentModal } from "./AddDocumentModal";
+import { Modal } from "../Modal";
 import { Tooltip } from "../shared/Tooltip";
 
 export const BaseDetail = memo(function BaseDetail() {
@@ -18,14 +19,18 @@ export const BaseDetail = memo(function BaseDetail() {
   );
 
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const base = useMemo(
     () => bases.find((b) => b.id === selectedBaseId) ?? null,
     [bases, selectedBaseId],
   );
 
-  const handleDelete = useCallback(() => {
-    if (base) deleteBase(base.id).catch(console.error);
+  const handleDeleteConfirm = useCallback(() => {
+    if (base) {
+      deleteBase(base.id).catch(console.error);
+      setDeleteConfirmOpen(false);
+    }
   }, [base, deleteBase]);
 
   if (!base) {
@@ -57,7 +62,7 @@ export const BaseDetail = memo(function BaseDetail() {
             </button>
           </Tooltip>
           <Tooltip text="Delete knowledge base">
-            <button className="kb-btn kb-btn--danger" onClick={handleDelete}>
+            <button className="kb-btn kb-btn--danger" onClick={() => setDeleteConfirmOpen(true)}>
               <Trash2 size={14} />
               <span>Delete</span>
             </button>
@@ -69,6 +74,18 @@ export const BaseDetail = memo(function BaseDetail() {
       <DocumentList baseId={base.id} />
 
       <AddDocumentModal open={addModalOpen} baseId={base.id} onClose={() => setAddModalOpen(false)} />
+
+      <Modal
+        open={deleteConfirmOpen}
+        title="Delete Knowledge Base"
+        onClose={() => setDeleteConfirmOpen(false)}
+        actions={[
+          { label: "Cancel", onClick: () => setDeleteConfirmOpen(false) },
+          { label: "Delete", variant: "danger", onClick: handleDeleteConfirm },
+        ]}
+      >
+        <p>Are you sure you want to delete &ldquo;{base.name}&rdquo;? This will remove all documents and indexed data. This action cannot be undone.</p>
+      </Modal>
     </div>
   );
 });

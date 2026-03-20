@@ -41,7 +41,7 @@
   border: none;
   border-radius: 6px;
   background: var(--accent);
-  color: #fff;
+  color: var(--fg-on-accent);
   cursor: pointer;
   transition: background 0.15s;
 }
@@ -181,7 +181,7 @@
 
 .kb-btn--accent {
   background: var(--accent);
-  color: #fff;
+  color: var(--fg-on-accent);
 }
 
 .kb-btn--accent:hover {
@@ -344,7 +344,7 @@
   border: none;
   border-radius: 6px;
   background: var(--accent);
-  color: #fff;
+  color: var(--fg-on-accent);
   cursor: pointer;
   transition: background 0.15s;
 }
