@@ -98,11 +98,8 @@ pub fn list_bases() -> Result<Vec<BaseInfo>, String> {
             continue;
         }
         let meta_path = rag_config::base_meta_path(&dir_name);
-        if meta_path.exists() {
-            match read_json::<BaseMeta>(&meta_path) {
-                Ok(meta) => bases.push(meta.to_info()),
-                Err(e) => eprintln!("[rag] Failed to read meta for {dir_name}: {e}"),
-            }
+        if let Ok(meta) = read_json::<BaseMeta>(&meta_path) {
+            bases.push(meta.to_info());
         }
     }
 
@@ -136,21 +133,15 @@ pub fn create_base(name: &str, description: &str) -> Result<BaseMeta, String> {
 pub fn get_base(base_id: &str) -> Result<BaseMeta, String> {
     validate_base_id(base_id)?;
     let meta_path = rag_config::base_meta_path(base_id);
-    if !meta_path.exists() {
-        return Err(format!("Knowledge base '{base_id}' not found"));
-    }
-    read_json(&meta_path)
+    read_json(&meta_path).map_err(|_| format!("Knowledge base '{base_id}' not found"))
 }
 
 /// Delete a knowledge base and all its data.
 pub fn delete_base(base_id: &str) -> Result<(), String> {
     validate_base_id(base_id)?;
     let dir = rag_config::base_dir(base_id);
-    if !dir.exists() {
-        return Err(format!("Knowledge base '{base_id}' not found"));
-    }
     fs::remove_dir_all(&dir)
-        .map_err(|e| format!("Failed to delete base: {e}"))
+        .map_err(|e| format!("Knowledge base '{base_id}' not found or cannot delete: {e}"))
 }
 
 /// Add a document record to the base metadata. Returns the document ID.

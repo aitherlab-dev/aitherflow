@@ -5,6 +5,8 @@ use fastembed::{EmbeddingModel, InitOptions, TextEmbedding};
 use super::config as rag_config;
 
 /// Global embedding model instance (lazy-initialized).
+/// NOTE: std::sync::Mutex is safe here because embed_texts is always called
+/// from tokio::task::spawn_blocking (see commands.rs). Do NOT call from async context.
 static EMBEDDER: LazyLock<Mutex<Option<TextEmbedding>>> =
     LazyLock::new(|| Mutex::new(None));
 

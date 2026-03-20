@@ -11,12 +11,22 @@ use super::embedder;
 
 const TABLE_NAME: &str = "chunks";
 
-/// A single search result.
+/// A single search result from the vector index.
+#[derive(Clone)]
+pub struct RawSearchResult {
+    pub text: String,
+    pub document_id: String,
+    pub chunk_index: u32,
+    pub score: f32,
+}
+
+/// Search result enriched with document metadata, sent to the frontend.
 #[derive(serde::Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchResult {
     pub text: String,
     pub document_id: String,
+    pub document_name: String,
     pub chunk_index: u32,
     pub score: f32,
 }
@@ -177,7 +187,7 @@ pub async fn search(
     base_id: &str,
     query_embedding: &[f32],
     limit: usize,
-) -> Result<Vec<SearchResult>, String> {
+) -> Result<Vec<RawSearchResult>, String> {
     let db = open_db(base_id).await?;
     let names = db
         .table_names()
@@ -229,7 +239,7 @@ pub async fn search(
             .as_primitive::<arrow_array::types::Float32Type>();
 
         for i in 0..batch.num_rows() {
-            out.push(SearchResult {
+            out.push(RawSearchResult {
                 text: texts.value(i).to_string(),
                 document_id: doc_ids.value(i).to_string(),
                 chunk_index: chunk_indices.value(i),

@@ -76,18 +76,14 @@ fn extract_markdown_text(md: &str) -> String {
             Event::End(TagEnd::Paragraph) => {
                 output.push_str("\n\n");
             }
-            Event::Text(text) => {
+            Event::Text(text) if !in_code_block => {
                 output.push_str(&text);
             }
             Event::Code(code) => {
                 output.push_str(&code);
             }
-            Event::SoftBreak | Event::HardBreak => {
-                if in_code_block {
-                    output.push('\n');
-                } else {
-                    output.push(' ');
-                }
+            Event::SoftBreak | Event::HardBreak if !in_code_block => {
+                output.push(' ');
             }
             _ => {}
         }
