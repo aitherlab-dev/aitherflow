@@ -459,6 +459,7 @@
   margin-left: auto;
 }
 
+.branches-card__launch,
 .branches-card__remove {
   display: flex;
   align-items: center;
@@ -473,10 +474,12 @@
   transition: opacity 0.12s, color 0.12s;
 }
 
+.branches-card__row:hover .branches-card__launch,
 .branches-card__row:hover .branches-card__remove {
   opacity: 1;
 }
 
+.branches-card__launch:hover,
 .branches-card__remove:hover {
   color: var(--accent-icon);
 }

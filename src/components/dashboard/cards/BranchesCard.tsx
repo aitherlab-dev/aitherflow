@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import {
-  GitBranch, GitCommit, FolderGit2, Plus, Trash2,
+  GitBranch, GitCommit, FolderGit2, Plus, Trash2, Play,
   ChevronRight, FileEdit, FilePlus, FileX, FileQuestion, RotateCcw,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
@@ -298,12 +298,17 @@ export const BranchesCard = memo(function BranchesCard({
               </button>
               <button
                 className={`branches-card__item ${wt.path === projectPath ? "branches-card__item--active" : ""}`}
-                onClick={() => handleSwitch(wt)}
+                onClick={() => handleToggleDetails(wt.path)}
               >
                 <FolderGit2 size={13} />
                 <span className="branches-card__branch">{wt.branch || "(detached)"}</span>
                 <span className="branches-card__path">{wt.path.split("/").pop()}</span>
               </button>
+              <Tooltip text="Launch agent in worktree">
+                <button className="branches-card__launch" onClick={() => handleSwitch(wt)}>
+                  <Play size={12} />
+                </button>
+              </Tooltip>
               {wt.path !== rootProjectPath && (
                 <Tooltip text="Remove worktree">
                   <button className="branches-card__remove" onClick={() => handleRemove(wt)}>
