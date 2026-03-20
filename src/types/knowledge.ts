@@ -2,27 +2,23 @@ export interface KnowledgeBase {
   id: string;
   name: string;
   description: string;
-  created_at: string;
-  document_count: number;
-  total_chunks: number;
-  status: "ready" | "indexing" | "error";
+  createdAt: number;
+  documentCount: number;
 }
 
 export interface KnowledgeDocument {
   id: string;
-  base_id: string;
   filename: string;
-  source_type: "file" | "url" | "youtube";
-  source_path: string;
-  chunk_count: number;
-  added_at: string;
-  status: "indexed" | "indexing" | "error";
+  path: string;
+  sizeBytes: number;
+  chunkCount: number;
+  addedAt: number;
 }
 
 export interface SearchResult {
-  chunk_text: string;
-  document_id: string;
-  document_name: string;
+  text: string;
+  documentId: string;
+  documentName: string;
+  chunkIndex: number;
   score: number;
-  metadata?: Record<string, string>;
 }
