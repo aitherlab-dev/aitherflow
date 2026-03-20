@@ -64,8 +64,13 @@ fn make_reader(
 
 async fn open_db(base_id: &str) -> Result<lancedb::Connection, String> {
     let lance_dir = rag_config::base_lance_dir(base_id);
-    std::fs::create_dir_all(&lance_dir)
-        .map_err(|e| format!("Failed to create lance dir: {e}"))?;
+    let dir = lance_dir.clone();
+    tokio::task::spawn_blocking(move || {
+        std::fs::create_dir_all(&dir)
+            .map_err(|e| format!("Failed to create lance dir: {e}"))
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))??;
 
     lancedb::connect(lance_dir.to_string_lossy().as_ref())
         .execute()
