@@ -11,6 +11,7 @@ pub struct ParsedDocument {
 }
 
 /// Parse a file into text content. Supports plain text, Markdown, PDF, and EPUB.
+/// Applies sanitize_text() to all output.
 pub fn parse_file(path: &Path) -> Result<ParsedDocument, String> {
     validate_path_safe(path)?;
 
@@ -20,11 +21,100 @@ pub fn parse_file(path: &Path) -> Result<ParsedDocument, String> {
         .map(|e| e.to_lowercase())
         .unwrap_or_default();
 
-    match ext.as_str() {
-        "pdf" => parse_pdf(path),
-        "epub" => parse_epub(path),
-        _ => parse_text(path, &ext),
+    let mut doc = match ext.as_str() {
+        "pdf" => parse_pdf(path)?,
+        "epub" => parse_epub(path)?,
+        _ => parse_text(path, &ext)?,
+    };
+
+    doc.text = sanitize_text(&doc.text);
+    Ok(doc)
+}
+
+/// Also exposed for web/youtube content that bypasses parse_file.
+pub fn sanitize_text(text: &str) -> String {
+    let mut output = String::with_capacity(text.len());
+
+    for line in text.lines() {
+        // Remove lines that consist only of special/decorative characters
+        let stripped = line.trim();
+        if !stripped.is_empty() && stripped.chars().all(|c| is_decorative(c) || c.is_whitespace()) {
+            continue;
+        }
+
+        // Remove non-printable characters (keep \t, spaces are already fine)
+        let clean: String = line
+            .chars()
+            .filter(|&c| !c.is_control() || c == '\t')
+            .collect();
+
+        // Collapse repeated decorative sequences (3+ of same → removed)
+        let clean = collapse_repeated_decorative(&clean);
+
+        output.push_str(&clean);
+        output.push('\n');
     }
+
+    // Normalize multiple blank lines: 3+ consecutive → 2
+    normalize_blank_lines(&output)
+}
+
+fn is_decorative(c: char) -> bool {
+    matches!(c,
+        '◆' | '●' | '▶' | '◀' | '▸' | '◂' | '■' | '□' | '▪' | '▫'
+        | '★' | '☆' | '♦' | '♠' | '♣' | '♥' | '►' | '◄' | '▼' | '▲'
+        | '○' | '◇' | '△' | '▽' | '⬤' | '⬥' | '⬦' | '─' | '━'
+        | '═' | '│' | '┃' | '┌' | '┐' | '└' | '┘' | '├' | '┤'
+        | '┬' | '┴' | '┼' | '╔' | '╗' | '╚' | '╝' | '╠' | '╣'
+        | '╦' | '╩' | '╬' | '•'
+    )
+}
+
+fn collapse_repeated_decorative(s: &str) -> String {
+    if s.len() < 3 {
+        return s.to_string();
+    }
+    let chars: Vec<char> = s.chars().collect();
+    let mut result = String::with_capacity(s.len());
+    let mut i = 0;
+    while i < chars.len() {
+        if is_decorative(chars[i]) {
+            let c = chars[i];
+            let mut count = 0;
+            while i < chars.len() && chars[i] == c {
+                count += 1;
+                i += 1;
+            }
+            if count < 3 {
+                for _ in 0..count {
+                    result.push(c);
+                }
+            }
+            // 3+ repeated decorative chars → skip entirely
+        } else {
+            result.push(chars[i]);
+            i += 1;
+        }
+    }
+    result
+}
+
+fn normalize_blank_lines(text: &str) -> String {
+    let mut result = String::with_capacity(text.len());
+    let mut blank_count = 0;
+    for line in text.lines() {
+        if line.trim().is_empty() {
+            blank_count += 1;
+            if blank_count <= 2 {
+                result.push('\n');
+            }
+        } else {
+            blank_count = 0;
+            result.push_str(line);
+            result.push('\n');
+        }
+    }
+    result.trim().to_string()
 }
 
 /// Parse a plain text or markdown file.
