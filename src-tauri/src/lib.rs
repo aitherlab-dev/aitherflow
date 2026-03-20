@@ -167,6 +167,8 @@ pub fn run() {
             rag::commands::rag_get_index_status,
             rag::commands::rag_add_url,
             rag::commands::rag_add_youtube,
+            rag::commands::rag_load_settings,
+            rag::commands::rag_save_settings,
         ])
         .setup(move |_app| {
             let sessions_for_mcp = sessions;
@@ -219,7 +221,9 @@ pub fn run() {
                 }
 
                 // Auto-start knowledge MCP server (if enabled in settings)
-                let knowledge_enabled = tokio::task::spawn_blocking(settings::is_knowledge_mcp_enabled)
+                let knowledge_enabled = tokio::task::spawn_blocking(|| {
+                    rag::rag_settings::load().knowledge_mcp_enabled
+                })
                     .await
                     .unwrap_or(true);
                 if knowledge_enabled {

@@ -55,9 +55,6 @@ pub struct AppSettings {
     /// Name of the default role applied when no role is explicitly selected
     #[serde(default)]
     pub default_role_name: String,
-    /// Enable Knowledge MCP server for RAG tools
-    #[serde(default = "default_true")]
-    pub knowledge_mcp_enabled: bool,
 }
 
 fn default_voice_provider() -> String {
@@ -75,14 +72,6 @@ fn default_true() -> bool {
 /// Path to settings.json
 pub fn settings_path() -> PathBuf {
     config::config_dir().join("settings.json")
-}
-
-/// Check if Knowledge MCP server is enabled (blocking I/O). Default: true.
-pub fn is_knowledge_mcp_enabled() -> bool {
-    let path = settings_path();
-    read_json::<AppSettings>(&path)
-        .map(|s| s.knowledge_mcp_enabled)
-        .unwrap_or(true)
 }
 
 /// Read voice_language from settings (blocking I/O). Returns empty string if not set.

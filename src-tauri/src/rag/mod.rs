@@ -5,6 +5,7 @@ pub mod embedder;
 pub mod mcp_server;
 pub mod index;
 pub mod parser;
+pub mod rag_settings;
 pub mod store;
 pub mod web;
 pub mod youtube;

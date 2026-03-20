@@ -16,7 +16,7 @@ use tokio::sync::{mpsc, RwLock};
 
 use std::sync::Arc;
 
-use super::{chunker, commands, embedder, index, parser, store};
+use super::{chunker, commands, embedder, index, parser, rag_settings, store};
 
 // ---------------------------------------------------------------------------
 // Global state
@@ -314,7 +314,8 @@ async fn tool_search(args: &Value) -> Result<String, String> {
     let query = args["query"]
         .as_str()
         .ok_or("Missing 'query' parameter")?;
-    let limit = (args["limit"].as_u64().unwrap_or(10) as usize).clamp(1, 100);
+    let default_limit = rag_settings::load().search_results_limit as u64;
+    let limit = (args["limit"].as_u64().unwrap_or(default_limit) as usize).clamp(1, 100);
 
     // Embed the query
     let q = query.to_string();

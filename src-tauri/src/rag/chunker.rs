@@ -1,7 +1,6 @@
 use text_splitter::{ChunkConfig, MarkdownSplitter, TextSplitter};
 
-const DEFAULT_CHUNK_SIZE: usize = 512;
-const DEFAULT_OVERLAP: usize = 64;
+use super::rag_settings;
 
 /// A single text chunk with its position in the original document.
 pub struct Chunk {
@@ -12,8 +11,10 @@ pub struct Chunk {
 
 /// Split text into overlapping chunks for embedding.
 /// Uses markdown-aware splitting for markdown content, plain text splitting otherwise.
+/// Split text using defaults from RAG settings.
 pub fn split_text(text: &str, is_markdown: bool) -> Result<Vec<Chunk>, String> {
-    split_text_with_params(text, is_markdown, DEFAULT_CHUNK_SIZE, DEFAULT_OVERLAP)
+    let settings = rag_settings::load();
+    split_text_with_params(text, is_markdown, settings.chunk_size, settings.chunk_overlap)
 }
 
 /// Split text with custom chunk size and overlap parameters.

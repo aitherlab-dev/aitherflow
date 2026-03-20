@@ -2,7 +2,7 @@ use std::path::Path;
 
 use crate::files::validate_path_safe;
 
-use super::{chunker, embedder, index, parser, store, web, youtube};
+use super::{chunker, embedder, index, parser, rag_settings, store, web, youtube};
 
 const DEFAULT_SEARCH_LIMIT: usize = 10;
 
@@ -300,4 +300,18 @@ pub async fn rag_search(
 pub async fn rag_get_index_status(base_id: String) -> Result<index::IndexStatus, String> {
     validate_uuid(&base_id, "base_id")?;
     index::get_status(&base_id).await
+}
+
+#[tauri::command]
+pub async fn rag_load_settings() -> Result<rag_settings::RagSettings, String> {
+    tokio::task::spawn_blocking(|| Ok(rag_settings::load()))
+        .await
+        .map_err(|e| format!("Task join error: {e}"))?
+}
+
+#[tauri::command]
+pub async fn rag_save_settings(settings: rag_settings::RagSettings) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || rag_settings::save(&settings))
+        .await
+        .map_err(|e| format!("Task join error: {e}"))?
 }
