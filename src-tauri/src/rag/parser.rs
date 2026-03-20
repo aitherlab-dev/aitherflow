@@ -72,15 +72,12 @@ fn parse_pdf(path: &Path) -> Result<ParsedDocument, String> {
 }
 
 /// Extract text using pdftotext CLI from poppler-utils.
+/// NOTE: parse_file is always called from spawn_blocking (see commands.rs),
+/// so Command::new here does not block the async runtime.
 fn parse_pdf_pdftotext(path: &Path) -> Result<ParsedDocument, String> {
+    let path_str = path.to_str().ok_or("Invalid path encoding")?;
     let output = Command::new("pdftotext")
-        .args([
-            path.to_str().ok_or("Invalid path encoding")?,
-            "-",
-            "-enc",
-            "UTF-8",
-            "-layout",
-        ])
+        .args(["-enc", "UTF-8", "-layout", path_str, "-"])
         .output()
         .map_err(|e| format!("pdftotext not available: {e}"))?;
 
@@ -132,7 +129,7 @@ fn parse_epub(path: &Path) -> Result<ParsedDocument, String> {
 
     for id in &spine_ids {
         if let Some((content, _mime)) = doc.get_resource_str(id) {
-            let chapter_text = strip_html_tags(&content);
+            let chapter_text = html_to_text(&content);
             let trimmed = chapter_text.trim();
             if !trimmed.is_empty() {
                 if !all_text.is_empty() {
@@ -153,71 +150,11 @@ fn parse_epub(path: &Path) -> Result<ParsedDocument, String> {
     })
 }
 
-/// Strip HTML tags from a string, preserving text content.
-/// Handles block-level elements by inserting newlines.
-fn strip_html_tags(html: &str) -> String {
-    let mut output = String::with_capacity(html.len());
-    let mut in_tag = false;
-    let mut tag_name = String::new();
-    let mut collecting_tag_name = false;
-
-    for ch in html.chars() {
-        match ch {
-            '<' => {
-                in_tag = true;
-                tag_name.clear();
-                collecting_tag_name = true;
-            }
-            '>' if in_tag => {
-                in_tag = false;
-                collecting_tag_name = false;
-                // Insert newlines for block-level tags
-                let name = tag_name.to_lowercase();
-                let name = name.trim_start_matches('/');
-                if matches!(
-                    name,
-                    "p" | "div" | "br" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6"
-                        | "li" | "tr" | "blockquote" | "section" | "article"
-                ) && !output.ends_with('\n')
-                {
-                    output.push('\n');
-                }
-            }
-            _ if in_tag => {
-                if collecting_tag_name {
-                    if ch.is_whitespace() {
-                        collecting_tag_name = false;
-                    } else {
-                        tag_name.push(ch);
-                    }
-                }
-            }
-            '&' => {
-                // Simple HTML entity handling
-                output.push('&'); // Will be part of entity, but good enough for text extraction
-            }
-            _ => {
-                output.push(ch);
-            }
-        }
-    }
-
-    // Clean up: collapse multiple newlines, trim
-    let mut result = String::with_capacity(output.len());
-    let mut prev_newline = false;
-    for ch in output.chars() {
-        if ch == '\n' {
-            if !prev_newline {
-                result.push('\n');
-            }
-            prev_newline = true;
-        } else {
-            prev_newline = false;
-            result.push(ch);
-        }
-    }
-
-    result.trim().to_string()
+/// Convert HTML to plain text using html2text crate.
+/// Handles entities, comments, CDATA, self-closing tags correctly.
+fn html_to_text(html: &str) -> String {
+    html2text::from_read(html.as_bytes(), 200)
+        .unwrap_or_default()
 }
 
 /// Extract readable text from Markdown by stripping formatting via pulldown-cmark.
