@@ -30,13 +30,21 @@ pub fn fetch_youtube_transcript(url: &str) -> Result<String, String> {
             }
         })?;
 
-    if !output.status.success() {
+    // yt-dlp may return non-zero exit code even when some subtitles were downloaded
+    // (e.g. en OK but ru got 429). Check for .vtt files regardless of exit code.
+    let vtt_result = find_and_read_vtt(&temp_dir);
+
+    if !output.status.success() && vtt_result.is_err() {
         let stderr = String::from_utf8_lossy(&output.stderr);
+        // Cleanup before returning error
+        let _ = std::fs::remove_dir_all(&temp_dir);
         return Err(format!("yt-dlp failed: {stderr}"));
     }
 
-    // Find the .vtt file(s) yt-dlp created
-    let vtt_content = find_and_read_vtt(&temp_dir)?;
+    let vtt_content = vtt_result.map_err(|e| {
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        e
+    })?;
 
     // Cleanup temp files
     if let Err(e) = std::fs::remove_dir_all(&temp_dir) {
