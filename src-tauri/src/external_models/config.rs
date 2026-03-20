@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use crate::config;
-use crate::file_ops::{read_json, write_json};
+use crate::file_ops::write_json;
 use crate::secrets;
 
 use super::types::{ExternalModelsConfig, Provider, ProviderConfig};
@@ -16,11 +16,15 @@ fn config_path() -> PathBuf {
 /// Blocking I/O — must be called from spawn_blocking.
 pub fn load_config() -> Result<ExternalModelsConfig, String> {
     let path = config_path();
-    // Blocking: path.exists() calls stat()
     if !path.exists() {
         return Ok(default_config());
     }
-    read_json::<ExternalModelsConfig>(&path)
+    // Migrate legacy "groq" provider → "google" before parsing
+    let data = std::fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read config: {e}"))?;
+    let raw: String = data.replace("\"groq\"", "\"google\"");
+    serde_json::from_str::<ExternalModelsConfig>(&raw)
+        .map_err(|e| format!("Failed to parse config: {e}"))
 }
 
 /// Save external models configuration to disk.
@@ -62,7 +66,7 @@ fn default_config() -> ExternalModelsConfig {
                 base_url: None,
             },
             ProviderConfig {
-                provider: Provider::Groq,
+                provider: Provider::Google,
                 enabled: false,
                 default_model: String::new(),
                 base_url: None,

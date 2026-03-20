@@ -526,10 +526,10 @@ fn parse_provider(args: &Value) -> Result<Provider, String> {
         .ok_or("Missing 'provider' parameter")?;
     match s {
         "openrouter" => Ok(Provider::OpenRouter),
-        "groq" => Ok(Provider::Groq),
+        "google" => Ok(Provider::Google),
         "ollama" => Ok(Provider::Ollama),
         _ => Err(format!(
-            "Unknown provider: {s}. Use 'openrouter', 'groq', or 'ollama'"
+            "Unknown provider: {s}. Use 'openrouter', 'google', or 'ollama'"
         )),
     }
 }
@@ -705,13 +705,13 @@ fn tool_definitions() -> Value {
     json!([
         {
             "name": "call_model",
-            "description": "Call an external AI model (OpenRouter/Groq) with a prompt. Use this to get responses from models like GPT-4o, Llama, Gemini, Mixtral, etc.",
+            "description": "Call an external AI model (OpenRouter/Google Gemini) with a prompt. Use this to get responses from models like GPT-4o, Gemini, Llama, etc.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "provider": {
                         "type": "string",
-                        "enum": ["openrouter", "groq", "ollama"],
+                        "enum": ["openrouter", "google", "ollama"],
                         "description": "The model provider to use"
                     },
                     "model": {
@@ -742,7 +742,7 @@ fn tool_definitions() -> Value {
                 "properties": {
                     "provider": {
                         "type": "string",
-                        "enum": ["openrouter", "groq", "ollama"],
+                        "enum": ["openrouter", "google", "ollama"],
                         "description": "The model provider to use"
                     },
                     "model": {
@@ -787,7 +787,7 @@ fn tool_definitions() -> Value {
                 "properties": {
                     "provider": {
                         "type": "string",
-                        "enum": ["openrouter", "groq", "ollama"],
+                        "enum": ["openrouter", "google", "ollama"],
                         "description": "The model provider to use"
                     },
                     "model": {
@@ -831,7 +831,7 @@ fn tool_definitions() -> Value {
                 "properties": {
                     "provider": {
                         "type": "string",
-                        "enum": ["openrouter", "groq", "ollama"],
+                        "enum": ["openrouter", "google", "ollama"],
                         "description": "The provider to list models for"
                     }
                 },

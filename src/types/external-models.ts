@@ -1,4 +1,4 @@
-export type Provider = "openrouter" | "groq" | "ollama";
+export type Provider = "openrouter" | "google" | "ollama";
 
 export type VisionStrategy = "auto" | "native_video" | "extract_frames";
 
@@ -23,7 +23,8 @@ export interface ExternalModelsConfigWithKeys {
   providers: ProviderConfig[];
   visionProfile: VisionProfile | null;
   openrouterApiKey: string;
-  groqApiKey: string;
+  openrouterMgmtKey: string;
+  googleApiKey: string;
 }
 
 export interface McpStatus {

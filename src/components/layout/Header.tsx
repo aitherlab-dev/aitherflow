@@ -7,6 +7,7 @@ import {
   PanelBottom,
   PanelBottomClose,
   MessagesSquare,
+  RotateCcw,
   Sun,
   Moon,
 } from "lucide-react";
@@ -15,6 +16,7 @@ import { useHotkeyStore, bindingToString, type HotkeyAction } from "../../stores
 import { useShallow } from "zustand/react/shallow";
 import { Tooltip } from "../shared/Tooltip";
 import { BuildButton, DevButton } from "./DevToolsBar";
+import { restartSession } from "../../stores/chatService";
 
 function hk(action: HotkeyAction): string {
   const b = useHotkeyStore.getState().bindings[action];
@@ -79,6 +81,15 @@ export const Header = memo(function Header() {
       <div className="header-separator" />
 
       <div className="header-controls">
+        <Tooltip text={"Restart session" + hk("restartSession")}>
+          <button
+            className="header-btn"
+            onClick={() => restartSession().catch(console.error)}
+            aria-label="Restart session"
+          >
+            <RotateCcw size={16} />
+          </button>
+        </Tooltip>
         <Tooltip text={(sidebarOpen ? "Hide sidebar" : "Show sidebar") + hk("toggleSidebar")}>
           <button
             className="header-btn"
@@ -106,7 +117,7 @@ export const Header = memo(function Header() {
             <PanelOrientationIcon size={16} />
           </button>
         </Tooltip>
-        <Tooltip text={teamMailboxVisible ? "Hide team mailbox" : "Show team mailbox"}>
+        <Tooltip text={(teamMailboxVisible ? "Hide team mailbox" : "Show team mailbox") + hk("toggleTeamMailbox")}>
           <button
             className={`header-btn ${teamMailboxVisible ? "header-btn--active" : ""}`}
             onClick={toggleTeamMailbox}

@@ -146,10 +146,19 @@ pub async fn list_models(
         return Err(parse_api_error(provider, status.as_u16(), &body));
     }
 
-    let models_resp = response
+    let mut models_resp = response
         .json::<ModelsResponse>()
         .await
         .map_err(|e| format!("{}: failed to parse models list: {e}", provider.display_name()))?;
+
+    // Google Gemini returns model IDs with "models/" prefix — strip it
+    if *provider == Provider::Google {
+        for model in &mut models_resp.data {
+            if let Some(stripped) = model.id.strip_prefix("models/") {
+                model.id = stripped.to_string();
+            }
+        }
+    }
 
     Ok(models_resp.data)
 }

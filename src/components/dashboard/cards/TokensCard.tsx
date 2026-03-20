@@ -1,12 +1,19 @@
-import { memo } from "react";
+import { memo, useState, useEffect } from "react";
 import { Coins } from "lucide-react";
 import { useConductorStore } from "../../../stores/conductorStore";
+import { invoke } from "../../../lib/transport";
 import { DashboardCard } from "../DashboardCard";
 
 function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${Math.round(n / 1_000)}K`;
   return String(n);
+}
+
+interface OpenRouterBalance {
+  totalCredits: number | null;
+  totalUsage: number;
+  remaining: number | null;
 }
 
 const COLOR_INACTIVE = "var(--fg-dim)";
@@ -24,6 +31,19 @@ export const TokensCard = memo(function TokensCard({
   const cacheRead = useConductorStore((s) => s.cacheReadTokens);
   const cacheCreation = useConductorStore((s) => s.cacheCreationTokens);
   const costUsd = useConductorStore((s) => s.costUsd);
+
+  const [orBalance, setOrBalance] = useState<OpenRouterBalance | null>(null);
+
+  useEffect(() => {
+    const fetchBalance = () => {
+      invoke<OpenRouterBalance>("external_models_openrouter_balance")
+        .then(setOrBalance)
+        .catch(() => {});
+    };
+    fetchBalance();
+    const timer = setInterval(fetchBalance, 30_000);
+    return () => clearInterval(timer);
+  }, []);
 
   const pct = contextMax > 0 ? (contextUsed / contextMax) * 100 : 0;
   const cacheTotal = cacheRead + cacheCreation;
@@ -83,6 +103,20 @@ export const TokensCard = memo(function TokensCard({
             <span className="dash-card__label">Cost</span>
             <span>${costUsd.toFixed(2)}</span>
           </div>
+        )}
+        {orBalance && (
+          <>
+            <div className="dash-card__row" style={{ marginTop: "4px", borderTop: "1px solid var(--border)", paddingTop: "4px" }}>
+              <span className="dash-card__label">OpenRouter</span>
+              <span>${orBalance.totalUsage.toFixed(2)} spent</span>
+            </div>
+            {orBalance.remaining != null && (
+              <div className="dash-card__row">
+                <span className="dash-card__label">Balance</span>
+                <span>${orBalance.remaining.toFixed(2)}</span>
+              </div>
+            )}
+          </>
         )}
       </div>
     </DashboardCard>

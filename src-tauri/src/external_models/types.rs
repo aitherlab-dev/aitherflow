@@ -6,7 +6,7 @@ use std::fmt;
 #[serde(rename_all = "lowercase")]
 pub enum Provider {
     OpenRouter,
-    Groq,
+    Google,
     Ollama,
 }
 
@@ -14,7 +14,7 @@ impl Provider {
     pub fn display_name(&self) -> &'static str {
         match self {
             Provider::OpenRouter => "OpenRouter",
-            Provider::Groq => "Groq",
+            Provider::Google => "Google Gemini",
             Provider::Ollama => "Ollama",
         }
     }
@@ -22,7 +22,7 @@ impl Provider {
     pub fn base_url(&self) -> &'static str {
         match self {
             Provider::OpenRouter => "https://openrouter.ai/api/v1",
-            Provider::Groq => "https://api.groq.com/openai/v1",
+            Provider::Google => "https://generativelanguage.googleapis.com/v1beta/openai",
             Provider::Ollama => "http://localhost:11434/v1",
         }
     }
@@ -31,7 +31,7 @@ impl Provider {
     pub fn secret_key(&self) -> &'static str {
         match self {
             Provider::OpenRouter => "external-openrouter-api-key",
-            Provider::Groq => "external-groq-api-key",
+            Provider::Google => "external-google-api-key",
             Provider::Ollama => "ollama-api-key",
         }
     }

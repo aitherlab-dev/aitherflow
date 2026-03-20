@@ -138,6 +138,7 @@ pub fn run() {
             external_models::external_models_mcp_status,
             external_models::external_models_analyze_directory,
             external_models::external_models_get_default_profile,
+            external_models::external_models_openrouter_balance,
             worktree::get_worktrees,
             worktree::get_git_status,
             worktree::get_worktree_details,
@@ -198,6 +199,12 @@ pub fn run() {
                     eprintln!("[aitherflow] Setup task panicked: {e}");
                     false
                 });
+
+                // Auto-start external models MCP server
+                match external_models::mcp_server::start_server().await {
+                    Ok(port) => eprintln!("[aitherflow] External models MCP started on port {port}"),
+                    Err(e) => eprintln!("[aitherflow] External models MCP auto-start failed: {e}"),
+                }
 
                 if tg_enabled {
                     match telegram::commands::start_telegram_bot().await {

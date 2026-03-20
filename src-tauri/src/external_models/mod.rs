@@ -60,7 +60,8 @@ pub async fn external_models_list_models(
 pub async fn external_models_save_config(
     providers_config: ExternalModelsConfig,
     openrouter_api_key: Option<String>,
-    groq_api_key: Option<String>,
+    openrouter_mgmt_key: Option<String>,
+    google_api_key: Option<String>,
 ) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
         // Store API keys in keyring (only if provided and not masked)
@@ -70,10 +71,16 @@ pub async fn external_models_save_config(
                     .map_err(|e| format!("Failed to store OpenRouter API key: {e}"))?;
             }
         }
-        if let Some(key) = groq_api_key {
+        if let Some(key) = openrouter_mgmt_key {
             if !key.is_empty() && !key.starts_with("****") {
-                config::set_api_key(&Provider::Groq, &key)
-                    .map_err(|e| format!("Failed to store Groq API key: {e}"))?;
+                crate::secrets::set_secret(OR_MGMT_KEY, &key)
+                    .map_err(|e| format!("Failed to store OpenRouter management key: {e}"))?;
+            }
+        }
+        if let Some(key) = google_api_key {
+            if !key.is_empty() && !key.starts_with("****") {
+                config::set_api_key(&Provider::Google, &key)
+                    .map_err(|e| format!("Failed to store Google API key: {e}"))?;
             }
         }
 
@@ -94,14 +101,19 @@ pub async fn external_models_load_config() -> Result<ExternalModelsConfigWithKey
         let openrouter_key = config::get_api_key(&Provider::OpenRouter)
             .map(|k| mask_key(&k))
             .unwrap_or_default();
-        let groq_key = config::get_api_key(&Provider::Groq)
+        let google_key = config::get_api_key(&Provider::Google)
+            .map(|k| mask_key(&k))
+            .unwrap_or_default();
+
+        let mgmt_key = crate::secrets::get_secret(OR_MGMT_KEY)
             .map(|k| mask_key(&k))
             .unwrap_or_default();
 
         Ok(ExternalModelsConfigWithKeys {
             config: cfg,
             openrouter_api_key: openrouter_key,
-            groq_api_key: groq_key,
+            openrouter_mgmt_key: mgmt_key,
+            google_api_key: google_key,
         })
     })
     .await
@@ -115,7 +127,8 @@ pub struct ExternalModelsConfigWithKeys {
     #[serde(flatten)]
     pub config: ExternalModelsConfig,
     pub openrouter_api_key: String,
-    pub groq_api_key: String,
+    pub openrouter_mgmt_key: String,
+    pub google_api_key: String,
 }
 
 // ---------------------------------------------------------------------------
@@ -178,7 +191,7 @@ async fn get_test_model(
 ) -> Result<String, String> {
     match provider {
         Provider::OpenRouter => Ok("openrouter/auto".to_string()),
-        Provider::Groq => Ok("llama-3.1-8b-instant".to_string()),
+        Provider::Google => Ok("gemini-2.5-flash".to_string()),
         Provider::Ollama => {
             let models = client::list_models(provider, "", base_url).await?;
             models
@@ -187,6 +200,91 @@ async fn get_test_model(
                 .ok_or_else(|| "No models installed in Ollama. Run: ollama pull <model>".into())
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// OpenRouter balance
+// ---------------------------------------------------------------------------
+
+const OR_MGMT_KEY: &str = "external-openrouter-mgmt-key";
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenRouterBalance {
+    pub total_credits: Option<f64>,
+    pub total_usage: f64,
+    pub remaining: Option<f64>,
+}
+
+/// Fetch OpenRouter account balance.
+/// Uses management key (/api/v1/credits) if available, otherwise API key (/api/v1/key).
+#[tauri::command]
+pub async fn external_models_openrouter_balance() -> Result<OpenRouterBalance, String> {
+    let (api_key, mgmt_key) = tokio::task::spawn_blocking(|| {
+        let api = config::get_api_key(&Provider::OpenRouter);
+        let mgmt = crate::secrets::get_secret(OR_MGMT_KEY);
+        (api, mgmt)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?;
+
+    let client = reqwest::Client::new();
+
+    // Try management key first for full balance
+    if let Some(mgmt) = mgmt_key {
+        #[derive(serde::Deserialize)]
+        struct CreditsResponse { data: CreditsData }
+        #[derive(serde::Deserialize)]
+        struct CreditsData { total_credits: Option<f64>, total_usage: Option<f64> }
+
+        let resp = client
+            .get("https://openrouter.ai/api/v1/credits")
+            .header("Authorization", format!("Bearer {mgmt}"))
+            .send()
+            .await
+            .map_err(|e| format!("OpenRouter credits request failed: {e}"))?;
+
+        if resp.status().is_success() {
+            let cr: CreditsResponse = resp.json().await
+                .map_err(|e| format!("Failed to parse credits response: {e}"))?;
+            let total = cr.data.total_credits.unwrap_or(0.0);
+            let usage = cr.data.total_usage.unwrap_or(0.0);
+            return Ok(OpenRouterBalance {
+                total_credits: Some(total),
+                total_usage: usage,
+                remaining: Some(total - usage),
+            });
+        }
+    }
+
+    // Fallback: use API key for usage only
+    let api_key = api_key.ok_or("OpenRouter API key not configured")?;
+
+    #[derive(serde::Deserialize)]
+    struct KeyResponse { data: KeyData }
+    #[derive(serde::Deserialize)]
+    struct KeyData { usage: Option<f64> }
+
+    let resp = client
+        .get("https://openrouter.ai/api/v1/key")
+        .header("Authorization", format!("Bearer {api_key}"))
+        .send()
+        .await
+        .map_err(|e| format!("OpenRouter key request failed: {e}"))?;
+
+    if !resp.status().is_success() {
+        let body = resp.text().await.unwrap_or_default();
+        return Err(format!("OpenRouter API error: {body}"));
+    }
+
+    let kr: KeyResponse = resp.json().await
+        .map_err(|e| format!("Failed to parse key response: {e}"))?;
+
+    Ok(OpenRouterBalance {
+        total_credits: None,
+        total_usage: kr.data.usage.unwrap_or(0.0),
+        remaining: None,
+    })
 }
 
 // ---------------------------------------------------------------------------

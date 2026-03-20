@@ -12,7 +12,7 @@ import type {
 
 const PROVIDERS: { id: Provider; label: string }[] = [
   { id: "openrouter", label: "OpenRouter" },
-  { id: "groq", label: "Groq" },
+  { id: "google", label: "Google Gemini" },
   { id: "ollama", label: "Ollama" },
 ];
 
@@ -53,7 +53,7 @@ function defaultProviderState(): ProviderState {
 export function ExternalModelsSection() {
   const [providers, setProviders] = useState<Record<Provider, ProviderState>>({
     openrouter: defaultProviderState(),
-    groq: defaultProviderState(),
+    google: defaultProviderState(),
     ollama: defaultProviderState(),
   });
   const [visionProfile, setVisionProfile] = useState<VisionProfile>(
@@ -65,15 +65,18 @@ export function ExternalModelsSection() {
   });
   const [mcpLoading, setMcpLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [mgmtKey, setMgmtKey] = useState("");
+  const [showMgmtKey, setShowMgmtKey] = useState(false);
+  const realMgmtKeyRef = useRef("");
   const [showKeys, setShowKeys] = useState<Record<Provider, boolean>>({
     openrouter: false,
-    groq: false,
+    google: false,
     ollama: false,
   });
 
   const realKeysRef = useRef<Record<Provider, string>>({
     openrouter: "",
-    groq: "",
+    google: "",
     ollama: "",
   });
 
@@ -86,13 +89,15 @@ export function ExternalModelsSection() {
       .then(([cfg, status]) => {
         realKeysRef.current = {
           openrouter: cfg.openrouterApiKey,
-          groq: cfg.groqApiKey,
+          google: cfg.googleApiKey,
           ollama: "",
         };
+        realMgmtKeyRef.current = cfg.openrouterMgmtKey;
+        setMgmtKey(cfg.openrouterMgmtKey);
 
         const updated: Record<Provider, ProviderState> = {
           openrouter: defaultProviderState(),
-          groq: defaultProviderState(),
+          google: defaultProviderState(),
           ollama: defaultProviderState(),
         };
 
@@ -106,7 +111,7 @@ export function ExternalModelsSection() {
         }
 
         updated.openrouter.apiKey = cfg.openrouterApiKey;
-        updated.groq.apiKey = cfg.groqApiKey;
+        updated.google.apiKey = cfg.googleApiKey;
 
         setProviders(updated);
         if (cfg.visionProfile) {
@@ -132,7 +137,7 @@ export function ExternalModelsSection() {
     setProviders(updated);
     clearTimeout(saveTimerRef.current);
 
-    for (const id of ["openrouter", "groq", "ollama"] as Provider[]) {
+    for (const id of ["openrouter", "google", "ollama"] as Provider[]) {
       const key = updated[id].apiKey;
       if (key && !key.startsWith("****")) {
         realKeysRef.current[id] = key;
@@ -148,7 +153,8 @@ export function ExternalModelsSection() {
       }));
 
       const orKey = realKeysRef.current.openrouter;
-      const grKey = realKeysRef.current.groq;
+      const mgmt = realMgmtKeyRef.current;
+      const gKey = realKeysRef.current.google;
 
       invoke("external_models_save_config", {
         providersConfig: {
@@ -156,7 +162,8 @@ export function ExternalModelsSection() {
           visionProfile: visionProfileRef.current,
         },
         openrouterApiKey: orKey.startsWith("****") ? null : orKey || null,
-        groqApiKey: grKey.startsWith("****") ? null : grKey || null,
+        openrouterMgmtKey: mgmt.startsWith("****") ? null : mgmt || null,
+        googleApiKey: gKey.startsWith("****") ? null : gKey || null,
       }).catch(console.error);
     }, 400);
   }, []);
@@ -266,6 +273,17 @@ export function ExternalModelsSection() {
           onUpdate={(patch) => updateProvider(id, patch)}
           onTest={() => testConnection(id)}
           onLoadModels={() => loadModels(id)}
+          mgmtKey={id === "openrouter" ? mgmtKey : undefined}
+          showMgmtKey={id === "openrouter" ? showMgmtKey : undefined}
+          onToggleShowMgmtKey={id === "openrouter" ? () => setShowMgmtKey((v) => !v) : undefined}
+          onMgmtKeyChange={id === "openrouter" ? (val: string) => {
+            setMgmtKey(val);
+            if (val && !val.startsWith("****")) {
+              realMgmtKeyRef.current = val;
+            }
+            // Trigger save
+            save({ ...providers });
+          } : undefined}
         />
       ))}
 
@@ -318,6 +336,10 @@ function ProviderBlock({
   onUpdate,
   onTest,
   onLoadModels,
+  mgmtKey,
+  showMgmtKey,
+  onToggleShowMgmtKey,
+  onMgmtKeyChange,
 }: {
   id: Provider;
   label: string;
@@ -327,6 +349,10 @@ function ProviderBlock({
   onUpdate: (patch: Partial<ProviderState>) => void;
   onTest: () => void;
   onLoadModels: () => void;
+  mgmtKey?: string;
+  showMgmtKey?: boolean;
+  onToggleShowMgmtKey?: () => void;
+  onMgmtKeyChange?: (val: string) => void;
 }) {
   return (
     <div style={{ marginBottom: "16px" }}>
@@ -337,8 +363,8 @@ function ProviderBlock({
           <span className="settings-toggle-desc">
             {id === "openrouter"
               ? "Access 200+ models via OpenRouter (GPT-4o, Gemini, Llama, etc.)"
-              : id === "groq"
-                ? "Fast inference on Groq hardware (Llama, Mixtral, Gemma)"
+              : id === "google"
+                ? "Google Gemini models — native vision, video up to 100MB"
                 : "Local models via Ollama — no API key required"}
           </span>
         </div>
@@ -401,7 +427,7 @@ function ProviderBlock({
                   value={state.apiKey}
                   onChange={(e) => onUpdate({ apiKey: e.target.value })}
                   placeholder={
-                    id === "openrouter" ? "sk-or-v1-..." : "gsk_..."
+                    id === "openrouter" ? "sk-or-v1-..." : "AIza..."
                   }
                   autoComplete="off"
                   style={{ flex: 1 }}
@@ -436,6 +462,36 @@ function ProviderBlock({
                     : state.testResult.message}
                 </span>
               )}
+            </div>
+          )}
+
+          {/* Management Key (OpenRouter only) */}
+          {mgmtKey !== undefined && onMgmtKeyChange && (
+            <div className="webserver-field">
+              <label className="webserver-field-label">Management Key (for balance)</label>
+              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                <input
+                  type={showMgmtKey ? "text" : "password"}
+                  className="webserver-input"
+                  value={mgmtKey}
+                  onChange={(e) => onMgmtKeyChange(e.target.value)}
+                  placeholder="sk-or-v1-..."
+                  autoComplete="off"
+                  style={{ flex: 1 }}
+                />
+                {onToggleShowMgmtKey && (
+                  <button
+                    className="settings-btn-icon"
+                    onClick={onToggleShowMgmtKey}
+                    title={showMgmtKey ? "Hide" : "Show"}
+                  >
+                    {showMgmtKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                )}
+              </div>
+              <span className="webserver-note">
+                Optional. Create at openrouter.ai/settings/keys to show account balance.
+              </span>
             </div>
           )}
 

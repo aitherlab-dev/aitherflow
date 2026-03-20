@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { invoke } from "../../lib/transport";
+import { invoke, openUrl } from "../../lib/transport";
 
 interface TelegramConfig {
   bot_token: string | null;
   chat_id: number | null;
   enabled: boolean;
   notify_on_complete: boolean;
+  groq_api_key?: string | null;
 }
 
 interface TelegramStatus {
@@ -21,6 +22,7 @@ export function TelegramSection() {
     chat_id: null,
     enabled: false,
     notify_on_complete: false,
+    groq_api_key: null,
   });
   const [status, setStatus] = useState<TelegramStatus>({
     running: false,
@@ -32,19 +34,23 @@ export function TelegramSection() {
   const [startError, setStartError] = useState<string | null>(null);
   /** Real bot token kept out of React state (not visible in DevTools) */
   const realTokenRef = useRef<string | null>(null);
+  const realGroqKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     Promise.all([
-      invoke<TelegramConfig & { groq_api_key?: string | null }>("load_telegram_config"),
+      invoke<TelegramConfig>("load_telegram_config"),
       invoke<TelegramStatus>("get_telegram_status"),
     ])
       .then(([cfg, st]) => {
         realTokenRef.current = cfg.bot_token;
-        const masked = cfg.bot_token
+        realGroqKeyRef.current = cfg.groq_api_key ?? null;
+        const maskedToken = cfg.bot_token
           ? `****${cfg.bot_token.slice(-4)}`
           : null;
-        const { groq_api_key: _, ...rest } = cfg;
-        setConfig({ ...rest, bot_token: masked });
+        const maskedGroq = cfg.groq_api_key
+          ? `****${cfg.groq_api_key.slice(-4)}`
+          : null;
+        setConfig({ ...cfg, bot_token: maskedToken, groq_api_key: maskedGroq });
         setStatus(st);
         setLoaded(true);
       })
@@ -60,7 +66,13 @@ export function TelegramSection() {
     if (token && !token.startsWith("****")) {
       realTokenRef.current = token;
     }
-    const toSave = { ...updated, bot_token: realTokenRef.current };
+    const groqKey = updated.groq_api_key;
+    if (groqKey && !groqKey.startsWith("****")) {
+      realGroqKeyRef.current = groqKey;
+    } else if (!groqKey) {
+      realGroqKeyRef.current = null;
+    }
+    const toSave = { ...updated, bot_token: realTokenRef.current, groq_api_key: realGroqKeyRef.current };
     clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       invoke("save_telegram_config", { config: toSave }).catch(console.error);
@@ -156,6 +168,35 @@ export function TelegramSection() {
         />
         <span className="webserver-note">
           Send /start to @userinfobot in Telegram to get your ID.
+        </span>
+      </div>
+
+      {/* Groq API key for voice transcription */}
+      <div className="webserver-field">
+        <label className="webserver-field-label">Groq API key (voice transcription)</label>
+        <input
+          type="password"
+          className="webserver-input"
+          value={config.groq_api_key ?? ""}
+          onChange={(e) =>
+            handleFieldChange("groq_api_key", e.target.value || null)
+          }
+          placeholder="gsk_..."
+          autoComplete="off"
+        />
+        <span className="webserver-note">
+          Get your key at{" "}
+          <a
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              openUrl("https://console.groq.com/keys").catch(console.error);
+            }}
+            style={{ color: "var(--accent)" }}
+          >
+            console.groq.com
+          </a>
+          . Used to transcribe voice messages via Whisper.
         </span>
       </div>
 
