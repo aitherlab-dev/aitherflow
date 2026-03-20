@@ -54,7 +54,9 @@ export const SearchPanel = memo(function SearchPanel({ baseId }: SearchPanelProp
                 <span className="kb-search__result-doc">{r.documentName}</span>
                 <span className="kb-search__result-score">{(r.score * 100).toFixed(0)}%</span>
               </div>
-              <div className="kb-search__result-text">{r.text}</div>
+              <div className="kb-search__result-text">
+                {r.chunkText.length > 300 ? `${r.chunkText.slice(0, 300)}…` : r.chunkText}
+              </div>
             </div>
           ))}
         </div>

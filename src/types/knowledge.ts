@@ -16,7 +16,7 @@ export interface KnowledgeDocument {
 }
 
 export interface SearchResult {
-  text: string;
+  chunkText: string;
   documentId: string;
   documentName: string;
   chunkIndex: number;
