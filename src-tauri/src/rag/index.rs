@@ -14,7 +14,7 @@ const TABLE_NAME: &str = "chunks";
 /// A single search result from the vector index.
 #[derive(Clone)]
 pub struct RawSearchResult {
-    pub text: String,
+    pub chunk_text: String,
     pub document_id: String,
     pub chunk_index: u32,
     pub score: f32,
@@ -24,7 +24,7 @@ pub struct RawSearchResult {
 #[derive(serde::Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchResult {
-    pub text: String,
+    pub chunk_text: String,
     pub document_id: String,
     pub document_name: String,
     pub chunk_index: u32,
@@ -240,7 +240,7 @@ pub async fn search(
 
         for i in 0..batch.num_rows() {
             out.push(RawSearchResult {
-                text: texts.value(i).to_string(),
+                chunk_text: texts.value(i).to_string(),
                 document_id: doc_ids.value(i).to_string(),
                 chunk_index: chunk_indices.value(i),
                 score: 1.0 - distances.value(i),

@@ -55,7 +55,7 @@ async fn add_single_document(
         let path = Path::new(&p);
         validate_path_safe(path)?;
         let parsed = parser::parse_file(path)?;
-        let chunks = chunker::split_text(&parsed.text, parsed.is_markdown);
+        let chunks = chunker::split_text(&parsed.text, parsed.is_markdown)?;
         let texts: Vec<String> = chunks.into_iter().map(|c| c.text).collect();
 
         let filename = path
@@ -179,7 +179,7 @@ pub async fn rag_search(
                 .map(|d| d.filename.clone())
                 .unwrap_or_else(|| "unknown".into());
             index::SearchResult {
-                text: r.text,
+                chunk_text: r.chunk_text,
                 document_id: r.document_id,
                 document_name: doc_name,
                 chunk_index: r.chunk_index,
