@@ -14,10 +14,10 @@ aitherflow — десктопная GUI-обёртка для Claude Code CLI. C
 
 ## Структура
 
-- `src/components/` — React: `chat/`, `layout/`, `settings/`, `fileviewer/`, `dashboard/`, `teamwork/`
+- `src/components/` — React: `chat/`, `layout/`, `settings/`, `fileviewer/`, `dashboard/`, `teamwork/`, `knowledge/`
 - `src/hooks/` — React-хуки, `src/stores/` — Zustand-сторы, `src/types/` — TypeScript-типы
 - `src/lib/` — транспорт, `src/services/` — Telegram-сервис, `src/data/` — описания команд
-- `src-tauri/src/` — Tauri-команды + модули: `conductor/` (ядро), `plugins/`, `telegram/`, `teamwork/`, `voice/`, `worktree.rs`
+- `src-tauri/src/` — Tauri-команды + модули: `conductor/` (ядро), `plugins/`, `telegram/`, `teamwork/`, `voice/`, `rag/`, `worktree.rs`
   Отдельные модули: `agents.rs`, `chats.rs`, `claude_md.rs`, `config.rs`, `devtools.rs`, `file_ops.rs`, `files.rs`, `file_watcher.rs`, `hooks.rs`, `mcp.rs`, `projects.rs`, `secrets.rs`, `settings.rs`, `skills.rs`, `attachments.rs`, `translations.rs`
 
 ## Команды
@@ -42,7 +42,9 @@ Release: Linux (deb, rpm, AppImage) + macOS (dmg) — собирается на 
 
 **Мультиагенты:** каждый агент — отдельный CLI-процесс. `SessionManager` хранит `HashMap<agent_id, AgentSession>`. На фронте `agentStates: Map<agentId, AgentChatState>`.
 
-**Пути (XDG):** конфиги `~/.config/aither-flow/`, данные `~/.local/share/aither-flow/`, чаты `~/.config/aither-flow/chats/`. Использовать `dirs` crate.
+**Пути (XDG):** конфиги `~/.config/aither-flow/`, данные `~/.local/share/aither-flow/`, чаты `~/.config/aither-flow/chats/`, RAG-базы `~/.local/share/aither-flow/rag/`. Использовать `dirs` crate.
+
+**RAG (базы знаний):** модуль `src-tauri/src/rag/` — векторный поиск по документам. Эмбеддинги через fastembed (ONNX, локально), хранение в LanceDB. Парсеры: PDF (pdftotext), EPUB, TXT/MD, веб (reqwest+html2text), YouTube (yt-dlp). MCP-сервер `aitherflow-knowledge` даёт агенту 4 инструмента: search, list_bases, get_docs, reindex. Настройки в `rag/settings.json`. Фронт: карточка в дашборде + секция в Settings.
 
 ## Подводные камни
 
@@ -96,3 +98,4 @@ Rust: `cargo test` из `src-tauri/`. Один тест: `cargo test test_name`.
 ## Свои MCP-серверы
 
 - **mcp-telegram-files** — отправка файлов в Telegram. Rust, stdio. Репо: github.com/aitherlab-dev/mcp-telegram-files
+- **aitherflow-knowledge** — RAG-поиск по базам знаний. Встроен в приложение (SSE, автозапуск). Регистрируется в `~/.claude.json`
