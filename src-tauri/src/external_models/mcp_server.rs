@@ -675,6 +675,23 @@ pub fn encode_image_file(path: &str) -> Result<ContentPart, String> {
 
 const MCP_SERVER_NAME: &str = "aitherflow-models";
 
+/// Acquire an exclusive lock on ~/.claude.json.lock for safe read-modify-write.
+/// The lock is released when the returned File is dropped.
+fn lock_claude_config(config_path: &std::path::Path) -> Result<std::fs::File, String> {
+    use fs2::FileExt;
+
+    let lock_path = config_path.with_extension("json.lock");
+    let file = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(false)
+        .open(&lock_path)
+        .map_err(|e| format!("Failed to open lock file {}: {e}", lock_path.display()))?;
+    file.lock_exclusive()
+        .map_err(|e| format!("Failed to acquire lock on {}: {e}", lock_path.display()))?;
+    Ok(file)
+}
+
 async fn register_in_claude_config(port: u16, auth_token: &str) -> Result<(), String> {
     let token = auth_token.to_string();
     tokio::task::spawn_blocking(move || register_in_claude_config_sync(port, &token))
@@ -682,10 +699,10 @@ async fn register_in_claude_config(port: u16, auth_token: &str) -> Result<(), St
         .map_err(|e| format!("Task join error: {e}"))?
 }
 
-// NOTE: read-modify-write without file lock — known limitation.
-// Low risk in practice: MCP start/stop are rare, single-instance operations.
 fn register_in_claude_config_sync(port: u16, auth_token: &str) -> Result<(), String> {
     let path = crate::config::home_dir().join(".claude.json");
+    let _lock = lock_claude_config(&path)?;
+
     let mut root = if path.exists() {
         crate::file_ops::read_json::<Value>(&path).map_err(|e| {
             format!("Failed to parse {}: {e} — not overwriting", path.display())
@@ -711,6 +728,7 @@ fn register_in_claude_config_sync(port: u16, auth_token: &str) -> Result<(), Str
     let data = serde_json::to_string_pretty(&root)
         .map_err(|e| format!("Failed to serialize: {e}"))?;
     crate::file_ops::atomic_write(&path, data.as_bytes())
+    // _lock dropped here → file unlocked
 }
 
 async fn unregister_from_claude_config() -> Result<(), String> {
@@ -725,6 +743,8 @@ fn unregister_from_claude_config_sync() -> Result<(), String> {
         return Ok(());
     }
 
+    let _lock = lock_claude_config(&path)?;
+
     let mut root = crate::file_ops::read_json::<Value>(&path).map_err(|e| {
         format!("Failed to parse {}: {e} — not overwriting", path.display())
     })?;
@@ -736,6 +756,7 @@ fn unregister_from_claude_config_sync() -> Result<(), String> {
     let data = serde_json::to_string_pretty(&root)
         .map_err(|e| format!("Failed to serialize: {e}"))?;
     crate::file_ops::atomic_write(&path, data.as_bytes())
+    // _lock dropped here → file unlocked
 }
 
 // ---------------------------------------------------------------------------

@@ -27,11 +27,12 @@ fn read_oauth_token() -> Result<(String, u64), String> {
         .map_err(|_| "Not logged in to Claude CLI (no credentials file)")?;
     let mode = meta.mode();
     if mode & 0o077 != 0 {
-        eprintln!(
-            "[voice] Credentials file {:?} has loose permissions ({:o}), expected 600",
+        return Err(format!(
+            "Credentials file {:?} has unsafe permissions ({:o}). Run: chmod 600 {:?}",
             cred_path,
-            mode & 0o777
-        );
+            mode & 0o777,
+            cred_path
+        ));
     }
 
     let data = std::fs::read_to_string(&cred_path)
