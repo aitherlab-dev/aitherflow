@@ -40,10 +40,19 @@ export function VoiceSection() {
   const [settings, setSettings] = useState<VoiceSettings | null>(null);
   const [showKey, setShowKey] = useState(false);
   const [authStatus, setAuthStatus] = useState<AnthropicAuthStatus | null>(null);
+  /** Real API keys kept out of React state (not visible in DevTools) */
+  const realGroqKeyRef = useRef<string>("");
+  const realDeepgramKeyRef = useRef<string>("");
 
   useEffect(() => {
     invoke<VoiceSettings>("load_settings")
-      .then(setSettings)
+      .then((s) => {
+        realGroqKeyRef.current = s.groqApiKey || "";
+        realDeepgramKeyRef.current = s.deepgramApiKey || "";
+        const maskedGroq = s.groqApiKey ? `****${s.groqApiKey.slice(-4)}` : "";
+        const maskedDeepgram = s.deepgramApiKey ? `****${s.deepgramApiKey.slice(-4)}` : "";
+        setSettings({ ...s, groqApiKey: maskedGroq, deepgramApiKey: maskedDeepgram });
+      })
       .catch(console.error);
     invoke<AnthropicAuthStatus>("voice_check_anthropic_auth")
       .then(setAuthStatus)
@@ -55,9 +64,23 @@ export function VoiceSection() {
   const save = useCallback((updated: VoiceSettings) => {
     setSettings(updated);
     invalidateSettingsCache();
+    // Resolve real keys: if user entered a new value (not masked), use it; otherwise keep existing
+    const groqKey = updated.groqApiKey;
+    if (groqKey && !groqKey.startsWith("****")) {
+      realGroqKeyRef.current = groqKey;
+    } else if (!groqKey) {
+      realGroqKeyRef.current = "";
+    }
+    const dgKey = updated.deepgramApiKey;
+    if (dgKey && !dgKey.startsWith("****")) {
+      realDeepgramKeyRef.current = dgKey;
+    } else if (!dgKey) {
+      realDeepgramKeyRef.current = "";
+    }
+    const toSave = { ...updated, groqApiKey: realGroqKeyRef.current, deepgramApiKey: realDeepgramKeyRef.current };
     clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      invoke("save_settings", { settings: updated }).catch(console.error);
+      invoke("save_settings", { settings: toSave }).catch(console.error);
     }, 400);
   }, []);
 

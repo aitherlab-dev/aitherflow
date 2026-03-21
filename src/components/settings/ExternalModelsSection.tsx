@@ -93,7 +93,7 @@ export function ExternalModelsSection() {
           ollama: "",
         };
         realMgmtKeyRef.current = cfg.openrouterMgmtKey;
-        setMgmtKey(cfg.openrouterMgmtKey);
+        setMgmtKey(cfg.openrouterMgmtKey ? `****${cfg.openrouterMgmtKey.slice(-4)}` : "");
 
         const updated: Record<Provider, ProviderState> = {
           openrouter: defaultProviderState(),
@@ -110,8 +110,8 @@ export function ExternalModelsSection() {
           }
         }
 
-        updated.openrouter.apiKey = cfg.openrouterApiKey;
-        updated.google.apiKey = cfg.googleApiKey;
+        updated.openrouter.apiKey = cfg.openrouterApiKey ? `****${cfg.openrouterApiKey.slice(-4)}` : "";
+        updated.google.apiKey = cfg.googleApiKey ? `****${cfg.googleApiKey.slice(-4)}` : "";
 
         setProviders(updated);
         if (cfg.visionProfile) {
@@ -141,6 +141,8 @@ export function ExternalModelsSection() {
       const key = updated[id].apiKey;
       if (key && !key.startsWith("****")) {
         realKeysRef.current[id] = key;
+      } else if (!key) {
+        realKeysRef.current[id] = "";
       }
     }
 
@@ -161,9 +163,9 @@ export function ExternalModelsSection() {
           providers: providersConfig,
           visionProfile: visionProfileRef.current,
         },
-        openrouterApiKey: orKey.startsWith("****") ? null : orKey || null,
-        openrouterMgmtKey: mgmt.startsWith("****") ? null : mgmt || null,
-        googleApiKey: gKey.startsWith("****") ? null : gKey || null,
+        openrouterApiKey: orKey || null,
+        openrouterMgmtKey: mgmt || null,
+        googleApiKey: gKey || null,
       }).catch(console.error);
     }, 400);
   }, []);
@@ -280,6 +282,8 @@ export function ExternalModelsSection() {
             setMgmtKey(val);
             if (val && !val.startsWith("****")) {
               realMgmtKeyRef.current = val;
+            } else if (!val) {
+              realMgmtKeyRef.current = "";
             }
             // Trigger save
             save({ ...providers });
