@@ -33,7 +33,7 @@ pub struct FrameData {
 }
 
 /// Strategy for processing video files
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum VisionStrategy {
     /// Send video file as-is (base64 inline) — works with Gemini via OpenRouter
@@ -41,13 +41,8 @@ pub enum VisionStrategy {
     /// Extract frames via ffmpeg and send as images
     ExtractFrames,
     /// Auto-detect: Gemini models → NativeVideo, others → ExtractFrames
+    #[default]
     Auto,
-}
-
-impl Default for VisionStrategy {
-    fn default() -> Self {
-        VisionStrategy::Auto
-    }
 }
 
 /// Vision processing profile
@@ -548,6 +543,7 @@ fn frames_to_parts(frames: Vec<FrameData>) -> Vec<ContentPart> {
 }
 
 /// Analyze a single file (video or image).
+#[allow(clippy::too_many_arguments)]
 async fn analyze_single_file(
     file_path: &str,
     profile: &VisionProfile,

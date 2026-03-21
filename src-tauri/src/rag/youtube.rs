@@ -42,9 +42,8 @@ pub fn fetch_youtube_transcript(url: &str) -> Result<String, String> {
         return Err(format!("yt-dlp failed: {stderr}"));
     }
 
-    let vtt_content = vtt_result.map_err(|e| {
+    let vtt_content = vtt_result.inspect_err(|_| {
         let _ = std::fs::remove_dir_all(&temp_dir);
-        e
     })?;
 
     // Cleanup temp files

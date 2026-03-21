@@ -90,7 +90,7 @@ pub async fn call_model(
             format!("{}: request timed out after {TIMEOUT_SECS}s", provider.display_name())
         } else if e.is_connect() {
             if *provider == Provider::Ollama {
-                format!("Ollama not running — connection refused. Start Ollama first.")
+                "Ollama not running — connection refused. Start Ollama first.".to_string()
             } else {
                 format!("{}: connection failed — check your network", provider.display_name())
             }
