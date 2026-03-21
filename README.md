@@ -32,7 +32,7 @@ A full system prompt editor built into the interface — not markdown files with
 Connect additional AI providers alongside Claude Code. Models are available to agents through a built-in MCP server.
 
 - **OpenRouter** — access to 200+ models (GPT-4o, Gemini, Llama, Mistral, etc.)
-- **Groq** — ultra-fast inference for Llama and Mixtral
+- **Google Gemini** — Gemini models with native vision support
 - **Ollama** — local models, no API key needed
 
 **Vision.** Analyze images and videos with external models. Video frame extraction via ffmpeg, configurable frame limits, native video support for Gemini. Vision profiles let you tune strategy per provider.
@@ -40,6 +40,17 @@ Connect additional AI providers alongside Claude Code. Models are available to a
 **MCP tools:** `call_model`, `list_models`, `analyze_directory` — agents can call external models mid-conversation for second opinions, translations, or specialized tasks.
 
 API keys are stored in the system keyring, never in config files.
+
+## Knowledge Base
+
+Built-in RAG (Retrieval-Augmented Generation) system. Create knowledge bases from documents — agents search them automatically during conversations.
+
+- **Document sources:** PDF, EPUB, TXT/Markdown, web pages, YouTube transcripts
+- **Local embeddings:** fastembed (ONNX) — no external API calls for indexing
+- **Vector search:** LanceDB with semantic similarity
+- **MCP server** `aitherflow-knowledge` — agents get 4 tools: `search`, `list_bases`, `get_docs`, `reindex`
+- Configurable chunk size, overlap, search limits
+- Dashboard card for managing knowledge bases
 
 ## Features
 
@@ -50,10 +61,11 @@ API keys are stored in the system keyring, never in config files.
 - Interactive permission prompts and plan/edit mode toggle
 - System prompt editor with per-project management
 - Skill browser with favorites, plugin management
-- External model providers (OpenRouter, Groq, Ollama) with MCP server
+- External model providers (OpenRouter, Google Gemini, Ollama) with MCP server
+- Knowledge base with RAG — PDF, EPUB, web, YouTube, local embeddings
 - Vision analysis — images and video via external models
 - Telegram bot integration
-- Voice input (Groq)
+- Voice input (Deepgram)
 - Dark and light themes (warm palette)
 
 ## Install
@@ -103,6 +115,8 @@ pnpm tauri dev
 | State | Zustand |
 | Icons | Lucide React |
 | Data | JSON |
+| Embeddings | fastembed (ONNX) |
+| Vector DB | LanceDB |
 
 ## Platforms
 
