@@ -93,7 +93,7 @@ export function ExternalModelsSection() {
           ollama: "",
         };
         realMgmtKeyRef.current = cfg.openrouterMgmtKey;
-        setMgmtKey(cfg.openrouterMgmtKey);
+        setMgmtKey(cfg.openrouterMgmtKey ? `****${cfg.openrouterMgmtKey.slice(-4)}` : "");
 
         const updated: Record<Provider, ProviderState> = {
           openrouter: defaultProviderState(),
@@ -110,8 +110,8 @@ export function ExternalModelsSection() {
           }
         }
 
-        updated.openrouter.apiKey = cfg.openrouterApiKey;
-        updated.google.apiKey = cfg.googleApiKey;
+        updated.openrouter.apiKey = cfg.openrouterApiKey ? `****${cfg.openrouterApiKey.slice(-4)}` : "";
+        updated.google.apiKey = cfg.googleApiKey ? `****${cfg.googleApiKey.slice(-4)}` : "";
 
         setProviders(updated);
         if (cfg.visionProfile) {
