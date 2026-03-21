@@ -1,4 +1,5 @@
 use axum::extract::{Query, State};
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
@@ -28,10 +29,12 @@ static MCP_INFO: Mutex<Option<McpInfo>> = Mutex::new(None);
 #[allow(dead_code)]
 struct McpInfo {
     port: u16,
+    auth_token: String,
     shutdown_tx: tokio::sync::watch::Sender<bool>,
 }
 
 struct KnowledgeMcpState {
+    auth_token: String,
     sessions: RwLock<HashMap<String, mpsc::Sender<String>>>,
 }
 
@@ -103,15 +106,23 @@ pub async fn start_server() -> Result<u16, String> {
         .port();
 
     let (shutdown_tx, mut shutdown_rx) = tokio::sync::watch::channel(false);
+    let auth_token = uuid::Uuid::new_v4().to_string();
 
     {
         let mut info = MCP_INFO.lock().map_err(|e| format!("Lock error: {e}"))?;
-        *info = Some(McpInfo { port, shutdown_tx });
+        *info = Some(McpInfo {
+            port,
+            auth_token: auth_token.clone(),
+            shutdown_tx,
+        });
     }
 
     let state = Arc::new(KnowledgeMcpState {
+        auth_token,
         sessions: RwLock::new(HashMap::new()),
     });
+
+    let token_for_register = state.auth_token.clone();
 
     let app = Router::new()
         .route("/sse", get(handle_sse))
@@ -134,7 +145,7 @@ pub async fn start_server() -> Result<u16, String> {
         }
     });
 
-    if let Err(e) = register_in_claude_config(port).await {
+    if let Err(e) = register_in_claude_config(port, &token_for_register).await {
         eprintln!("[knowledge-mcp] Failed to register in Claude config: {e}");
     }
 
@@ -156,16 +167,38 @@ pub fn stop_server_sync() {
 }
 
 // ---------------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------------
+
+fn check_auth(headers: &HeaderMap, expected: &str) -> Option<Response> {
+    let auth = headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    let token = auth.strip_prefix("Bearer ").unwrap_or("");
+    if token != expected {
+        return Some(StatusCode::UNAUTHORIZED.into_response());
+    }
+    None
+}
+
+// ---------------------------------------------------------------------------
 // SSE handler
 // ---------------------------------------------------------------------------
 
 const MAX_SSE_SESSIONS: usize = 50;
 
-async fn handle_sse(State(state): State<Arc<KnowledgeMcpState>>) -> Response {
+async fn handle_sse(
+    State(state): State<Arc<KnowledgeMcpState>>,
+    headers: HeaderMap,
+) -> Response {
+    if let Some(resp) = check_auth(&headers, &state.auth_token) {
+        return resp;
+    }
     {
         let sessions = state.sessions.read().await;
         if sessions.len() >= MAX_SSE_SESSIONS {
-            return axum::http::StatusCode::SERVICE_UNAVAILABLE.into_response();
+            return StatusCode::SERVICE_UNAVAILABLE.into_response();
         }
     }
 
@@ -198,9 +231,14 @@ struct MessageQuery {
 
 async fn handle_message(
     State(state): State<Arc<KnowledgeMcpState>>,
+    headers: HeaderMap,
     Query(query): Query<MessageQuery>,
     Json(msg): Json<Value>,
 ) -> Response {
+    if let Some(resp) = check_auth(&headers, &state.auth_token) {
+        return resp;
+    }
+
     let session_id = query.session_id;
     let method = msg
         .get("method")
@@ -210,7 +248,7 @@ async fn handle_message(
     let id = msg.get("id").cloned();
 
     if id.is_none() || method == "notifications/initialized" {
-        return axum::http::StatusCode::ACCEPTED.into_response();
+        return StatusCode::ACCEPTED.into_response();
     }
 
     tokio::spawn(async move {
@@ -230,7 +268,7 @@ async fn handle_message(
         }
     });
 
-    axum::http::StatusCode::ACCEPTED.into_response()
+    StatusCode::ACCEPTED.into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -588,14 +626,17 @@ fn tool_definitions() -> Value {
 
 const MCP_SERVER_NAME: &str = "aitherflow-knowledge";
 
-async fn register_in_claude_config(port: u16) -> Result<(), String> {
-    tokio::task::spawn_blocking(move || register_in_claude_config_sync(port))
+async fn register_in_claude_config(port: u16, auth_token: &str) -> Result<(), String> {
+    let token = auth_token.to_string();
+    tokio::task::spawn_blocking(move || register_in_claude_config_sync(port, &token))
         .await
         .map_err(|e| format!("Task join error: {e}"))?
 }
 
-fn register_in_claude_config_sync(port: u16) -> Result<(), String> {
+fn register_in_claude_config_sync(port: u16, auth_token: &str) -> Result<(), String> {
     let path = crate::config::home_dir().join(".claude.json");
+    let _lock = crate::file_ops::lock_file(&path)?;
+
     let mut root = if path.exists() {
         crate::file_ops::read_json::<Value>(&path).map_err(|e| {
             format!("Failed to parse {}: {e} — not overwriting", path.display())
@@ -612,12 +653,16 @@ fn register_in_claude_config_sync(port: u16) -> Result<(), String> {
 
     servers[MCP_SERVER_NAME] = json!({
         "type": "sse",
-        "url": format!("http://127.0.0.1:{port}/sse")
+        "url": format!("http://127.0.0.1:{port}/sse"),
+        "headers": {
+            "Authorization": format!("Bearer {auth_token}")
+        }
     });
 
     let data = serde_json::to_string_pretty(&root)
         .map_err(|e| format!("Failed to serialize: {e}"))?;
     crate::file_ops::atomic_write(&path, data.as_bytes())
+    // _lock dropped here → file unlocked
 }
 
 fn unregister_from_claude_config_sync() -> Result<(), String> {
@@ -625,6 +670,8 @@ fn unregister_from_claude_config_sync() -> Result<(), String> {
     if !path.exists() {
         return Ok(());
     }
+
+    let _lock = crate::file_ops::lock_file(&path)?;
 
     let mut root = crate::file_ops::read_json::<Value>(&path).map_err(|e| {
         format!("Failed to parse {}: {e} — not overwriting", path.display())
@@ -637,6 +684,7 @@ fn unregister_from_claude_config_sync() -> Result<(), String> {
     let data = serde_json::to_string_pretty(&root)
         .map_err(|e| format!("Failed to serialize: {e}"))?;
     crate::file_ops::atomic_write(&path, data.as_bytes())
+    // _lock dropped here → file unlocked
 }
 
 // ---------------------------------------------------------------------------

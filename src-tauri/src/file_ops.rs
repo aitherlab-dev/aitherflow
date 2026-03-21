@@ -96,6 +96,23 @@ pub fn read_json<T: DeserializeOwned>(path: &Path) -> Result<T, String> {
         .map_err(|e| format!("Failed to parse {}: {e}", path.display()))
 }
 
+/// Acquire an exclusive lock on a `.lock` sidecar file for safe read-modify-write.
+/// The lock is released when the returned `File` is dropped.
+pub fn lock_file(target: &Path) -> Result<std::fs::File, String> {
+    use fs2::FileExt;
+
+    let lock_path = target.with_extension("json.lock");
+    let file = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(false)
+        .open(&lock_path)
+        .map_err(|e| format!("Failed to open lock file {}: {e}", lock_path.display()))?;
+    file.lock_exclusive()
+        .map_err(|e| format!("Failed to acquire lock on {}: {e}", lock_path.display()))?;
+    Ok(file)
+}
+
 /// Serialize T as pretty JSON and write atomically.
 pub fn write_json<T: Serialize + ?Sized>(path: &Path, value: &T) -> Result<(), String> {
     let data = serde_json::to_string_pretty(value)
