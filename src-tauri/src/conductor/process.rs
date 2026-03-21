@@ -239,9 +239,10 @@ pub async fn run_cli_session(
 
     // Teamwork MCP (only if agent belongs to a project team)
     if project_teamwork_slug.is_some() {
-        if let Some(port) = crate::teamwork::mcp_server::get_mcp_port() {
-            let token = crate::teamwork::mcp_server::get_mcp_token()
-                .unwrap_or_default();
+        if let (Some(port), Some(token)) = (
+            crate::teamwork::mcp_server::get_mcp_port(),
+            crate::teamwork::mcp_server::get_mcp_token(),
+        ) {
             mcp_servers.insert("teamwork".into(), serde_json::json!({
                 "type": "http",
                 "url": format!("http://127.0.0.1:{port}/mcp/{safe_agent_id}"),
@@ -250,7 +251,7 @@ pub async fn run_cli_session(
                 }
             }));
         } else {
-            eprintln!("[{tag}] Teamwork MCP server not running, skipping");
+            eprintln!("[{tag}] Teamwork MCP server not running or token unavailable, skipping");
         }
     }
 
