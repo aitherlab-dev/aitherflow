@@ -141,6 +141,8 @@ export function ExternalModelsSection() {
       const key = updated[id].apiKey;
       if (key && !key.startsWith("****")) {
         realKeysRef.current[id] = key;
+      } else if (!key) {
+        realKeysRef.current[id] = "";
       }
     }
 
