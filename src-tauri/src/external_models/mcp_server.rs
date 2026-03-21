@@ -1,4 +1,5 @@
 use axum::extract::{Query, State};
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
@@ -32,10 +33,14 @@ static MCP_INFO: Mutex<Option<McpInfo>> = Mutex::new(None);
 
 struct McpInfo {
     port: u16,
+    /// Kept for potential re-registration on reconnect.
+    #[allow(dead_code)]
+    auth_token: String,
     shutdown_tx: tokio::sync::watch::Sender<bool>,
 }
 
 struct ModelsMcpState {
+    auth_token: String,
     sessions: RwLock<HashMap<String, mpsc::Sender<String>>>,
 }
 
@@ -113,18 +118,23 @@ pub async fn start_server() -> Result<u16, String> {
         .port();
 
     let (shutdown_tx, mut shutdown_rx) = tokio::sync::watch::channel(false);
+    let auth_token = uuid::Uuid::new_v4().to_string();
 
     {
         let mut info = MCP_INFO.lock().map_err(|e| format!("Lock error: {e}"))?;
         *info = Some(McpInfo {
             port,
+            auth_token: auth_token.clone(),
             shutdown_tx,
         });
     }
 
     let state = Arc::new(ModelsMcpState {
+        auth_token,
         sessions: RwLock::new(HashMap::new()),
     });
+
+    let token_for_register = state.auth_token.clone();
 
     let app = Router::new()
         .route("/sse", get(handle_sse))
@@ -148,8 +158,8 @@ pub async fn start_server() -> Result<u16, String> {
         }
     });
 
-    // Register in Claude CLI config
-    if let Err(e) = register_in_claude_config(port).await {
+    // Register in Claude CLI config (with auth token for secure access)
+    if let Err(e) = register_in_claude_config(port, &token_for_register).await {
         eprintln!("[ext-models-mcp] Failed to register in Claude config: {e}");
     }
 
@@ -195,6 +205,24 @@ pub fn stop_server_sync() {
 }
 
 // ---------------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------------
+
+/// Check Authorization: Bearer <token> header against the server's shared secret.
+/// Returns Some(response) if auth fails, None if ok.
+fn check_auth(headers: &HeaderMap, expected: &str) -> Option<Response> {
+    let auth = headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    let token = auth.strip_prefix("Bearer ").unwrap_or("");
+    if token != expected {
+        return Some(StatusCode::UNAUTHORIZED.into_response());
+    }
+    None
+}
+
+// ---------------------------------------------------------------------------
 // SSE handler
 // ---------------------------------------------------------------------------
 
@@ -202,11 +230,15 @@ const MAX_SSE_SESSIONS: usize = 100;
 
 async fn handle_sse(
     State(state): State<Arc<ModelsMcpState>>,
+    headers: HeaderMap,
 ) -> Response {
+    if let Some(resp) = check_auth(&headers, &state.auth_token) {
+        return resp;
+    }
     {
         let sessions = state.sessions.read().await;
         if sessions.len() >= MAX_SSE_SESSIONS {
-            return axum::http::StatusCode::SERVICE_UNAVAILABLE.into_response();
+            return StatusCode::SERVICE_UNAVAILABLE.into_response();
         }
     }
 
@@ -243,9 +275,14 @@ struct MessageQuery {
 
 async fn handle_message(
     State(state): State<Arc<ModelsMcpState>>,
+    headers: HeaderMap,
     Query(query): Query<MessageQuery>,
     Json(msg): Json<Value>,
 ) -> Response {
+    if let Some(resp) = check_auth(&headers, &state.auth_token) {
+        return resp;
+    }
+
     let session_id = query.session_id;
     let method = msg
         .get("method")
@@ -256,7 +293,7 @@ async fn handle_message(
 
     // Notifications — no response needed
     if id.is_none() || method == "notifications/initialized" {
-        return axum::http::StatusCode::ACCEPTED.into_response();
+        return StatusCode::ACCEPTED.into_response();
     }
 
     // Spawn processing and return 202 immediately (SSE transport)
@@ -277,7 +314,7 @@ async fn handle_message(
         }
     });
 
-    axum::http::StatusCode::ACCEPTED.into_response()
+    StatusCode::ACCEPTED.into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -638,15 +675,16 @@ pub fn encode_image_file(path: &str) -> Result<ContentPart, String> {
 
 const MCP_SERVER_NAME: &str = "aitherflow-models";
 
-async fn register_in_claude_config(port: u16) -> Result<(), String> {
-    tokio::task::spawn_blocking(move || register_in_claude_config_sync(port))
+async fn register_in_claude_config(port: u16, auth_token: &str) -> Result<(), String> {
+    let token = auth_token.to_string();
+    tokio::task::spawn_blocking(move || register_in_claude_config_sync(port, &token))
         .await
         .map_err(|e| format!("Task join error: {e}"))?
 }
 
 // NOTE: read-modify-write without file lock — known limitation.
 // Low risk in practice: MCP start/stop are rare, single-instance operations.
-fn register_in_claude_config_sync(port: u16) -> Result<(), String> {
+fn register_in_claude_config_sync(port: u16, auth_token: &str) -> Result<(), String> {
     let path = crate::config::home_dir().join(".claude.json");
     let mut root = if path.exists() {
         crate::file_ops::read_json::<Value>(&path).map_err(|e| {
@@ -664,7 +702,10 @@ fn register_in_claude_config_sync(port: u16) -> Result<(), String> {
 
     servers[MCP_SERVER_NAME] = json!({
         "type": "sse",
-        "url": format!("http://127.0.0.1:{port}/sse")
+        "url": format!("http://127.0.0.1:{port}/sse"),
+        "headers": {
+            "Authorization": format!("Bearer {auth_token}")
+        }
     });
 
     let data = serde_json::to_string_pretty(&root)
