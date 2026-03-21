@@ -33,7 +33,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libgtk-3-dev libasound2-dev
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libgtk-3-dev libasound2-dev protobuf-compiler
 
       - run: pnpm install --frozen-lockfile
 
@@ -73,6 +73,9 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+
+      - name: Install system dependencies
+        run: brew install protobuf
 
       - run: pnpm install --frozen-lockfile
 
