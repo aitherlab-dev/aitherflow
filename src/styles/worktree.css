@@ -400,27 +400,24 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   border: none;
   background: none;
   cursor: pointer;
   color: var(--fg-dim);
   flex-shrink: 0;
-  border-radius: 3px;
-  transition: color 0.12s;
+  border-radius: 4px;
+  transition: color 0.12s, background 0.12s;
 }
 
 .branches-card__expand:hover {
-  color: var(--fg);
+  color: var(--accent-icon);
+  background: var(--bg-hover);
 }
 
-.branches-card__chevron {
-  transition: transform 0.15s;
-}
-
-.branches-card__chevron--open {
-  transform: rotate(90deg);
+.branches-card__expand--open {
+  color: var(--accent-icon);
 }
 
 .branches-card__item {
@@ -459,7 +456,6 @@
   margin-left: auto;
 }
 
-.branches-card__launch,
 .branches-card__remove {
   display: flex;
   align-items: center;
@@ -474,14 +470,12 @@
   transition: opacity 0.12s, color 0.12s;
 }
 
-.branches-card__row:hover .branches-card__launch,
 .branches-card__row:hover .branches-card__remove {
   opacity: 1;
 }
 
-.branches-card__launch:hover,
 .branches-card__remove:hover {
-  color: var(--accent-icon);
+  color: var(--danger, #e53935);
 }
 
 .branches-card__create {

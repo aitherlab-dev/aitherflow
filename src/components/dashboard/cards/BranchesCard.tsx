@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import {
-  GitBranch, GitCommit, FolderGit2, Plus, Trash2, Play,
-  ChevronRight, FileEdit, FilePlus, FileX, FileQuestion, RotateCcw,
+  GitBranch, GitCommit, FolderGit2, Plus, Trash2,
+  FileEdit, FilePlus, FileX, FileQuestion, RotateCcw,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { useShallow } from "zustand/react/shallow";
@@ -9,6 +9,7 @@ import { useChatStore } from "../../../stores/chatStore";
 import { useAgentStore } from "../../../stores/agentStore";
 import { DashboardCard } from "../DashboardCard";
 import { Tooltip } from "../../shared/Tooltip";
+import { Modal } from "../../Modal";
 
 /* ── Types (mirror Rust structs) ── */
 
@@ -185,6 +186,7 @@ export const BranchesCard = memo(function BranchesCard({
   const [newBranch, setNewBranch] = useState("");
   const newBranchRef = useRef("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const [removeTarget, setRemoveTarget] = useState<WorktreeEntry | null>(null);
 
   const loadWorktrees = useCallback(() => {
     if (!rootProjectPath) return;
@@ -213,8 +215,10 @@ export const BranchesCard = memo(function BranchesCard({
       .catch(console.error);
   }, [activeAgentId, parentAgent]);
 
-  const handleRemove = useCallback(async (wt: WorktreeEntry) => {
-    if (!rootProjectPath || !parentAgent) return;
+  const handleRemoveConfirm = useCallback(async () => {
+    const wt = removeTarget;
+    if (!wt || !rootProjectPath || !parentAgent) return;
+    setRemoveTarget(null);
     const childAgent = agents.find(
       (a) => a.parentAgentId === parentAgent.id && a.projectPath === wt.path,
     );
@@ -227,7 +231,7 @@ export const BranchesCard = memo(function BranchesCard({
     } catch (e) {
       console.error("Failed to remove worktree:", e);
     }
-  }, [rootProjectPath, parentAgent, agents, loadWorktrees]);
+  }, [removeTarget, rootProjectPath, parentAgent, agents, loadWorktrees]);
 
   const handleCreateStart = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -287,31 +291,24 @@ export const BranchesCard = memo(function BranchesCard({
         {nonBare.map((wt) => (
           <div key={wt.path} className="branches-card__entry">
             <div className="branches-card__row">
-              <button
-                className="branches-card__expand"
-                onClick={() => handleToggleDetails(wt.path)}
-              >
-                <ChevronRight
-                  size={11}
-                  className={`branches-card__chevron ${expandedWt === wt.path ? "branches-card__chevron--open" : ""}`}
-                />
-              </button>
+              <Tooltip text="Show commits">
+                <button
+                  className={`branches-card__expand ${expandedWt === wt.path ? "branches-card__expand--open" : ""}`}
+                  onClick={(e) => { e.stopPropagation(); handleToggleDetails(wt.path); }}
+                >
+                  <FolderGit2 size={13} />
+                </button>
+              </Tooltip>
               <button
                 className={`branches-card__item ${wt.path === projectPath ? "branches-card__item--active" : ""}`}
-                onClick={() => handleToggleDetails(wt.path)}
+                onClick={() => handleSwitch(wt)}
               >
-                <FolderGit2 size={13} />
                 <span className="branches-card__branch">{wt.branch || "(detached)"}</span>
                 <span className="branches-card__path">{wt.path.split("/").pop()}</span>
               </button>
-              <Tooltip text="Launch agent in worktree">
-                <button className="branches-card__launch" onClick={() => handleSwitch(wt)}>
-                  <Play size={12} />
-                </button>
-              </Tooltip>
               {wt.path !== rootProjectPath && (
                 <Tooltip text="Remove worktree">
-                  <button className="branches-card__remove" onClick={() => handleRemove(wt)}>
+                  <button className="branches-card__remove" onClick={() => setRemoveTarget(wt)}>
                     <Trash2 size={12} />
                   </button>
                 </Tooltip>
@@ -342,6 +339,22 @@ export const BranchesCard = memo(function BranchesCard({
           </div>
         )}
       </div>
+
+      <Modal
+        open={!!removeTarget}
+        title="Remove worktree"
+        onClose={() => setRemoveTarget(null)}
+        actions={[
+          { label: "Cancel", onClick: () => setRemoveTarget(null) },
+          { label: "Remove", variant: "danger", onClick: handleRemoveConfirm },
+        ]}
+      >
+        Remove worktree <strong>&quot;{removeTarget?.branch || removeTarget?.path.split("/").pop()}&quot;</strong>?
+        <br />
+        <span style={{ color: "var(--fg-muted)", fontSize: "0.8rem" }}>
+          This will delete the worktree directory and its local changes.
+        </span>
+      </Modal>
     </DashboardCard>
   );
 });
