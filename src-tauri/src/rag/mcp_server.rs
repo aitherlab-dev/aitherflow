@@ -83,9 +83,12 @@ impl Drop for McpSseStream {
 // Public API
 // ---------------------------------------------------------------------------
 
-#[allow(dead_code)]
 pub fn get_port() -> Option<u16> {
     MCP_INFO.lock().ok().and_then(|info| info.as_ref().map(|i| i.port))
+}
+
+pub fn get_token() -> Option<String> {
+    MCP_INFO.lock().ok().and_then(|info| info.as_ref().map(|i| i.auth_token.clone()))
 }
 
 pub async fn start_server() -> Result<u16, String> {
@@ -122,8 +125,6 @@ pub async fn start_server() -> Result<u16, String> {
         sessions: RwLock::new(HashMap::new()),
     });
 
-    let token_for_register = state.auth_token.clone();
-
     let app = Router::new()
         .route("/sse", get(handle_sse))
         .route("/message", post(handle_message))
@@ -145,10 +146,6 @@ pub async fn start_server() -> Result<u16, String> {
         }
     });
 
-    if let Err(e) = register_in_claude_config(port, &token_for_register).await {
-        eprintln!("[knowledge-mcp] Failed to register in Claude config: {e}");
-    }
-
     eprintln!("[knowledge-mcp] Listening on 127.0.0.1:{port}");
     Ok(port)
 }
@@ -160,9 +157,6 @@ pub fn stop_server_sync() {
                 eprintln!("[knowledge-mcp] Failed to send shutdown: {e}");
             }
         }
-    }
-    if let Err(e) = unregister_from_claude_config_sync() {
-        eprintln!("[knowledge-mcp] Failed to unregister from Claude config: {e}");
     }
 }
 
@@ -618,73 +612,6 @@ fn tool_definitions() -> Value {
             }
         }
     ])
-}
-
-// ---------------------------------------------------------------------------
-// Claude CLI config registration
-// ---------------------------------------------------------------------------
-
-const MCP_SERVER_NAME: &str = "aitherflow-knowledge";
-
-async fn register_in_claude_config(port: u16, auth_token: &str) -> Result<(), String> {
-    let token = auth_token.to_string();
-    tokio::task::spawn_blocking(move || register_in_claude_config_sync(port, &token))
-        .await
-        .map_err(|e| format!("Task join error: {e}"))?
-}
-
-fn register_in_claude_config_sync(port: u16, auth_token: &str) -> Result<(), String> {
-    let path = crate::config::home_dir().join(".claude.json");
-    let _lock = crate::file_ops::lock_file(&path)?;
-
-    let mut root = if path.exists() {
-        crate::file_ops::read_json::<Value>(&path).map_err(|e| {
-            format!("Failed to parse {}: {e} — not overwriting", path.display())
-        })?
-    } else {
-        json!({})
-    };
-
-    let servers = root
-        .as_object_mut()
-        .ok_or("Invalid .claude.json format")?
-        .entry("mcpServers")
-        .or_insert(json!({}));
-
-    servers[MCP_SERVER_NAME] = json!({
-        "type": "sse",
-        "url": format!("http://127.0.0.1:{port}/sse"),
-        "headers": {
-            "Authorization": format!("Bearer {auth_token}")
-        }
-    });
-
-    let data = serde_json::to_string_pretty(&root)
-        .map_err(|e| format!("Failed to serialize: {e}"))?;
-    crate::file_ops::atomic_write(&path, data.as_bytes())
-    // _lock dropped here → file unlocked
-}
-
-fn unregister_from_claude_config_sync() -> Result<(), String> {
-    let path = crate::config::home_dir().join(".claude.json");
-    if !path.exists() {
-        return Ok(());
-    }
-
-    let _lock = crate::file_ops::lock_file(&path)?;
-
-    let mut root = crate::file_ops::read_json::<Value>(&path).map_err(|e| {
-        format!("Failed to parse {}: {e} — not overwriting", path.display())
-    })?;
-
-    if let Some(servers) = root.get_mut("mcpServers").and_then(|v| v.as_object_mut()) {
-        servers.remove(MCP_SERVER_NAME);
-    }
-
-    let data = serde_json::to_string_pretty(&root)
-        .map_err(|e| format!("Failed to serialize: {e}"))?;
-    crate::file_ops::atomic_write(&path, data.as_bytes())
-    // _lock dropped here → file unlocked
 }
 
 // ---------------------------------------------------------------------------

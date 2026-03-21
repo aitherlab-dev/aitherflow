@@ -26,6 +26,39 @@ mod worktree;
 use conductor::session::SessionManager;
 use tauri::Manager;
 
+/// Remove stale aitherflow-knowledge and aitherflow-models entries from ~/.claude.json.
+/// Previous versions registered MCP servers there directly; now they use --mcp-config.
+fn cleanup_claude_json_mcp_entries() {
+    let path = config::home_dir().join(".claude.json");
+    if !path.exists() {
+        return;
+    }
+    let Ok(_lock) = file_ops::lock_file(&path) else {
+        return;
+    };
+    let Ok(mut root) = file_ops::read_json::<serde_json::Value>(&path) else {
+        return;
+    };
+    let Some(servers) = root.get_mut("mcpServers").and_then(|v| v.as_object_mut()) else {
+        return;
+    };
+    let had_knowledge = servers.remove("aitherflow-knowledge").is_some();
+    let had_models = servers.remove("aitherflow-models").is_some();
+    if !had_knowledge && !had_models {
+        return;
+    }
+    match serde_json::to_string_pretty(&root) {
+        Ok(data) => {
+            if let Err(e) = file_ops::atomic_write(&path, data.as_bytes()) {
+                eprintln!("[aitherflow] Failed to clean up ~/.claude.json: {e}");
+            } else {
+                eprintln!("[aitherflow] Cleaned up stale MCP entries from ~/.claude.json");
+            }
+        }
+        Err(e) => eprintln!("[aitherflow] Failed to serialize ~/.claude.json: {e}"),
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let sessions = SessionManager::new();
@@ -207,6 +240,10 @@ pub fn run() {
                     if let Err(e) = agents::ensure_agents_file() {
                         eprintln!("[aitherflow] ensure_agents_file failed: {e}");
                     }
+
+                    // One-time cleanup: remove stale aitherflow MCP entries from ~/.claude.json
+                    // (left over from previous versions that registered there directly)
+                    cleanup_claude_json_mcp_entries();
 
                     telegram::is_enabled()
                 }).await.unwrap_or_else(|e| {
