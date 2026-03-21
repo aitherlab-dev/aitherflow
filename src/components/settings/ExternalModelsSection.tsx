@@ -163,9 +163,9 @@ export function ExternalModelsSection() {
           providers: providersConfig,
           visionProfile: visionProfileRef.current,
         },
-        openrouterApiKey: orKey.startsWith("****") ? null : orKey || null,
-        openrouterMgmtKey: mgmt.startsWith("****") ? null : mgmt || null,
-        googleApiKey: gKey.startsWith("****") ? null : gKey || null,
+        openrouterApiKey: orKey || null,
+        openrouterMgmtKey: mgmt || null,
+        googleApiKey: gKey || null,
       }).catch(console.error);
     }, 400);
   }, []);
@@ -282,6 +282,8 @@ export function ExternalModelsSection() {
             setMgmtKey(val);
             if (val && !val.startsWith("****")) {
               realMgmtKeyRef.current = val;
+            } else if (!val) {
+              realMgmtKeyRef.current = "";
             }
             // Trigger save
             save({ ...providers });
