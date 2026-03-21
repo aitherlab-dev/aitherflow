@@ -230,45 +230,45 @@ export const Sidebar = memo(function Sidebar() {
             </div>
           )}
 
-          {/* Scrollable middle zone: agents + dashboard cards */}
-          <div className="sidebar-scroll-zone">
-            <div className="sidebar-content">
-              {rootAgents.map((agent, index) => {
-                const children = childrenByParent.get(agent.id) ?? [];
-                return (
-                  <div key={agent.id}>
-                    <div
-                      ref={(el) => { agentRefs.current[index] = el; }}
-                      className={`sidebar-agent-slot ${agentDragIndex === index ? "sidebar-agent-slot--dragging" : ""} ${agentDropIndex === index && agentDragIndex !== null && agentDragIndex !== index ? "sidebar-agent-slot--drop-target" : ""}`}
-                      onMouseDown={(e) => handleAgentMouseDown(e, index)}
-                    >
-                      <AgentTab
-                        agentId={agent.id}
-                        projectName={agentRoles[agent.id]?.name ? `${agent.projectName} | ${agentRoles[agent.id]!.name}` : `${agent.projectName} | Agent`}
-                        isActive={agent.id === activeAgentId}
-                        isThinking={agent.id === activeAgentId && isThinking}
-                        isBackgroundThinking={thinkingAgentIds.includes(agent.id)}
-                        onActivate={handleActivateAgent}
-                        onClose={handleCloseAgent}
-                      />
-                    </div>
-                    {children.map((child) => (
-                      <WorktreeTab
-                        key={child.id}
-                        agentId={child.id}
-                        branchName={child.projectName}
-                        isActive={child.id === activeAgentId}
-                        isBackgroundThinking={thinkingAgentIds.includes(child.id)}
-                        onActivate={handleActivateAgent}
-                        onClose={handleCloseAgent}
-                      />
-                    ))}
+          {/* Agent tabs — fixed */}
+          <div className="sidebar-content">
+            {rootAgents.map((agent, index) => {
+              const children = childrenByParent.get(agent.id) ?? [];
+              return (
+                <div key={agent.id}>
+                  <div
+                    ref={(el) => { agentRefs.current[index] = el; }}
+                    className={`sidebar-agent-slot ${agentDragIndex === index ? "sidebar-agent-slot--dragging" : ""} ${agentDropIndex === index && agentDragIndex !== null && agentDragIndex !== index ? "sidebar-agent-slot--drop-target" : ""}`}
+                    onMouseDown={(e) => handleAgentMouseDown(e, index)}
+                  >
+                    <AgentTab
+                      agentId={agent.id}
+                      projectName={agentRoles[agent.id]?.name ? `${agent.projectName} | ${agentRoles[agent.id]!.name}` : `${agent.projectName} | Agent`}
+                      isActive={agent.id === activeAgentId}
+                      isThinking={agent.id === activeAgentId && isThinking}
+                      isBackgroundThinking={thinkingAgentIds.includes(agent.id)}
+                      onActivate={handleActivateAgent}
+                      onClose={handleCloseAgent}
+                    />
                   </div>
-                );
-              })}
-            </div>
+                  {children.map((child) => (
+                    <WorktreeTab
+                      key={child.id}
+                      agentId={child.id}
+                      branchName={child.projectName}
+                      isActive={child.id === activeAgentId}
+                      isBackgroundThinking={thinkingAgentIds.includes(child.id)}
+                      onActivate={handleActivateAgent}
+                      onClose={handleCloseAgent}
+                    />
+                  ))}
+                </div>
+              );
+            })}
+          </div>
 
-            {/* Spacer — pushes dashboard to bottom of scroll zone */}
+          {/* Scrollable zone: dashboard cards only */}
+          <div className="sidebar-scroll-zone">
             <div className="sidebar-spacer" />
             <DashboardPanel />
           </div>
