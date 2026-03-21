@@ -225,49 +225,78 @@ pub async fn run_cli_session(
         }
     }
 
-    // Create MCP config file for project-teamwork agents (points to the built-in MCP server).
+    // Create MCP config file with all built-in MCP servers.
     // Wrapped in TempFileGuard so the file is cleaned up on early return.
-    let needs_mcp_config = project_teamwork_slug.is_some();
-    let mcp_config_guard = if needs_mcp_config {
-        if let Some(port) = crate::teamwork::mcp_server::get_mcp_port() {
-            let safe_agent_id: String = agent_id
-                .chars()
-                .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
-                .collect();
-            if safe_agent_id.is_empty() {
-                return Err("invalid agent_id: empty after sanitization".into());
-            }
-            let path =
-                std::env::temp_dir().join(format!("aitherflow-mcp-{safe_agent_id}.json"));
-            let token = crate::teamwork::mcp_server::get_mcp_token()
-                .unwrap_or_default();
-            let config_json = serde_json::json!({
-                "mcpServers": {
-                    "teamwork": {
-                        "type": "http",
-                        "url": format!("http://127.0.0.1:{port}/mcp/{safe_agent_id}"),
-                        "headers": {
-                            "Authorization": format!("Bearer {token}")
-                        }
-                    }
-                }
-            });
-            let path_clone = path.clone();
-            tokio::task::spawn_blocking(move || {
-                let json_str = serde_json::to_string_pretty(&config_json)
-                    .map_err(|e| format!("Failed to serialize MCP config: {e}"))?;
-                crate::file_ops::atomic_write(&path_clone, json_str.as_bytes())
-            })
-            .await
-            .map_err(|e| format!("MCP config task panic: {e}"))??;
+    let safe_agent_id: String = agent_id
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
+        .collect();
+    if safe_agent_id.is_empty() {
+        return Err("invalid agent_id: empty after sanitization".into());
+    }
 
-            args.push("--mcp-config".into());
-            args.push(path.to_string_lossy().into_owned());
-            TempFileGuard::new(path)
+    let mut mcp_servers = serde_json::Map::new();
+
+    // Teamwork MCP (only if agent belongs to a project team)
+    if project_teamwork_slug.is_some() {
+        if let (Some(port), Some(token)) = (
+            crate::teamwork::mcp_server::get_mcp_port(),
+            crate::teamwork::mcp_server::get_mcp_token(),
+        ) {
+            mcp_servers.insert("teamwork".into(), serde_json::json!({
+                "type": "http",
+                "url": format!("http://127.0.0.1:{port}/mcp/{safe_agent_id}"),
+                "headers": {
+                    "Authorization": format!("Bearer {token}")
+                }
+            }));
         } else {
-            eprintln!("[{tag}] MCP server not running, skipping --mcp-config for teamwork agent");
-            TempFileGuard(None)
+            eprintln!("[{tag}] Teamwork MCP server not running or token unavailable, skipping");
         }
+    }
+
+    // External models MCP (always, if running)
+    if let Some(port) = crate::external_models::mcp_server::get_port() {
+        if let Some(token) = crate::external_models::mcp_server::get_token() {
+            mcp_servers.insert("aitherflow-models".into(), serde_json::json!({
+                "type": "sse",
+                "url": format!("http://127.0.0.1:{port}/sse"),
+                "headers": {
+                    "Authorization": format!("Bearer {token}")
+                }
+            }));
+        }
+    }
+
+    // Knowledge MCP (only if running — controlled by knowledge_mcp_enabled setting)
+    if let Some(port) = crate::rag::mcp_server::get_port() {
+        if let Some(token) = crate::rag::mcp_server::get_token() {
+            mcp_servers.insert("aitherflow-knowledge".into(), serde_json::json!({
+                "type": "sse",
+                "url": format!("http://127.0.0.1:{port}/sse"),
+                "headers": {
+                    "Authorization": format!("Bearer {token}")
+                }
+            }));
+        }
+    }
+
+    let mcp_config_guard = if !mcp_servers.is_empty() {
+        let path =
+            std::env::temp_dir().join(format!("aitherflow-mcp-{safe_agent_id}.json"));
+        let config_json = serde_json::json!({ "mcpServers": mcp_servers });
+        let path_clone = path.clone();
+        tokio::task::spawn_blocking(move || {
+            let json_str = serde_json::to_string_pretty(&config_json)
+                .map_err(|e| format!("Failed to serialize MCP config: {e}"))?;
+            crate::file_ops::atomic_write(&path_clone, json_str.as_bytes())
+        })
+        .await
+        .map_err(|e| format!("MCP config task panic: {e}"))??;
+
+        args.push("--mcp-config".into());
+        args.push(path.to_string_lossy().into_owned());
+        TempFileGuard::new(path)
     } else {
         TempFileGuard(None)
     };
