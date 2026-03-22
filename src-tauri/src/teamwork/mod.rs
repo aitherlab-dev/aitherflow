@@ -1,5 +1,6 @@
 pub mod mailbox;
 pub mod mcp_server;
+pub mod presets;
 pub mod roles;
 pub mod tasks;
 
