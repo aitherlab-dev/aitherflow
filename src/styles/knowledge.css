@@ -247,6 +247,21 @@
   background: color-mix(in srgb, var(--red) 10%, transparent);
 }
 
+.kb-btn--secondary {
+  background: var(--bg-card);
+  color: var(--fg);
+  border: 1px solid var(--border);
+}
+
+.kb-btn--secondary:hover:not(:disabled) {
+  border-color: var(--accent-stroke);
+}
+
+.kb-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /* ── Status badges ── */
 
 .kb-status {
@@ -705,4 +720,51 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ── Reindex banner ── */
+
+.kb-reindex-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--accent-stroke);
+  font-size: 12px;
+  color: var(--fg);
+}
+
+.kb-reindex-banner--progress {
+  border-color: var(--accent);
+}
+
+.kb-reindex-banner__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+
+.kb-reindex-banner__close:hover {
+  opacity: 1;
+}
+
+.kb-spin {
+  animation: kb-spin-anim 1s linear infinite;
+}
+
+@keyframes kb-spin-anim {
+  to { transform: rotate(360deg); }
 }

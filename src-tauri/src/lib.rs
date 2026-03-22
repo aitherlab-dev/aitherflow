@@ -206,6 +206,7 @@ pub fn run() {
             rag::commands::rag_get_index_status,
             rag::commands::rag_add_url,
             rag::commands::rag_add_youtube,
+            rag::commands::rag_reindex_base,
             rag::commands::rag_load_settings,
             rag::commands::rag_save_settings,
         ])

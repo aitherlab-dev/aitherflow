@@ -30,6 +30,24 @@ pub struct PlaylistSummary {
 const DEFAULT_SEARCH_LIMIT: usize = 10;
 const MAX_PLAYLIST_VIDEOS: usize = 300;
 
+/// Reindex progress event emitted after each document.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ReindexProgress {
+    processed: usize,
+    total: usize,
+    current_filename: String,
+}
+
+/// Reindex completion summary.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReindexSummary {
+    pub reindexed: usize,
+    pub skipped: usize,
+    pub total: usize,
+}
+
 #[tauri::command]
 pub async fn rag_list_bases() -> Result<Vec<store::BaseInfo>, String> {
     tokio::task::spawn_blocking(store::list_bases)
@@ -459,4 +477,142 @@ pub async fn rag_save_settings(settings: rag_settings::RagSettings) -> Result<bo
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
+}
+
+// --- Reindex ---
+
+/// Reindex a single document: remove old chunks → parse → chunk → embed → re-add.
+/// Returns new chunk count on success. Used by both rag_reindex_base and mcp tool.
+pub async fn reindex_single_document(
+    base_id: &str,
+    doc: &store::DocumentMeta,
+) -> Result<usize, String> {
+    let bid = base_id.to_string();
+    let did = doc.id.clone();
+
+    // Remove old chunks
+    index::remove_document_chunks(&bid, &did).await?;
+
+    // Re-parse
+    let file_path = doc.path.clone();
+    let (texts, new_chunk_count) = tokio::task::spawn_blocking(move || {
+        let path = std::path::Path::new(&file_path);
+        let parsed = parser::parse_file(path)?;
+        let chunks = chunker::split_text(&parsed.text, parsed.is_markdown)?;
+        let texts: Vec<String> = chunks.into_iter().map(|c| c.text).collect();
+        let count = texts.len();
+        Ok::<_, String>((texts, count))
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))??;
+
+    if texts.is_empty() {
+        return Err("No content after re-parsing".into());
+    }
+
+    // Re-embed
+    let texts_for_embed = texts.clone();
+    let embeddings = tokio::task::spawn_blocking(move || embedder::embed_texts(&texts_for_embed))
+        .await
+        .map_err(|e| format!("Task join error: {e}"))??;
+
+    // Re-add to index
+    index::add_chunks(&bid, &did, &texts, &embeddings).await?;
+
+    // Update chunk count in metadata
+    let bid2 = base_id.to_string();
+    let did2 = doc.id.clone();
+    let count = new_chunk_count;
+    tokio::task::spawn_blocking(move || {
+        let mut meta = store::get_base(&bid2)?;
+        if let Some(d) = meta.documents.iter_mut().find(|d| d.id == did2) {
+            d.chunk_count = count;
+        }
+        crate::file_ops::write_json(&super::config::base_meta_path(&bid2), &meta)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))??;
+
+    Ok(new_chunk_count)
+}
+
+#[tauri::command]
+pub async fn rag_reindex_base(
+    app: AppHandle,
+    base_id: String,
+) -> Result<ReindexSummary, String> {
+    validate_uuid(&base_id, "base_id")?;
+
+    let bid = base_id.clone();
+    let documents = tokio::task::spawn_blocking(move || store::list_documents(&bid))
+        .await
+        .map_err(|e| format!("Task join error: {e}"))??;
+
+    let total = documents.len();
+    let mut reindexed: usize = 0;
+    let mut skipped: usize = 0;
+
+    for (i, doc) in documents.iter().enumerate() {
+        // Emit progress
+        if let Err(e) = app.emit(
+            "rag-reindex-progress",
+            ReindexProgress {
+                processed: i,
+                total,
+                current_filename: doc.filename.clone(),
+            },
+        ) {
+            eprintln!("[rag] Failed to emit reindex progress: {e}");
+        }
+
+        // Skip web/YouTube sources (no local file to re-parse)
+        if doc.path.starts_with("http://") || doc.path.starts_with("https://") {
+            eprintln!(
+                "[rag] Skipping web/YouTube source: {} ({})",
+                doc.filename, doc.path
+            );
+            skipped += 1;
+            continue;
+        }
+
+        match reindex_single_document(&base_id, doc).await {
+            Ok(chunks) => {
+                eprintln!(
+                    "[rag] Reindexed {}/{}: {} ({} chunks)",
+                    i + 1,
+                    total,
+                    doc.filename,
+                    chunks
+                );
+                reindexed += 1;
+            }
+            Err(e) => {
+                eprintln!(
+                    "[rag] Failed to reindex {}/{}: {} — {e}",
+                    i + 1,
+                    total,
+                    doc.filename
+                );
+                skipped += 1;
+            }
+        }
+    }
+
+    // Emit final progress
+    if let Err(e) = app.emit(
+        "rag-reindex-progress",
+        ReindexProgress {
+            processed: total,
+            total,
+            current_filename: String::new(),
+        },
+    ) {
+        eprintln!("[rag] Failed to emit final reindex progress: {e}");
+    }
+
+    Ok(ReindexSummary {
+        reindexed,
+        skipped,
+        total,
+    })
 }

@@ -16,6 +16,18 @@ export interface PlaylistSummary {
   isPlaylist: boolean;
 }
 
+export interface ReindexProgress {
+  processed: number;
+  total: number;
+  currentFilename: string;
+}
+
+export interface ReindexSummary {
+  reindexed: number;
+  skipped: number;
+  total: number;
+}
+
 interface KnowledgeState {
   bases: KnowledgeBase[];
   selectedBaseId: string | null;
@@ -27,6 +39,7 @@ interface KnowledgeState {
   _errorTimer: ReturnType<typeof setTimeout> | null;
   ragSettings: RagSettings | null;
   playlistProgress: PlaylistProgress | null;
+  reindexProgress: ReindexProgress | null;
 
   loadBases: () => Promise<void>;
   createBase: (name: string, description: string) => Promise<void>;
@@ -37,6 +50,7 @@ interface KnowledgeState {
   addUrl: (baseId: string, url: string) => Promise<void>;
   addYoutube: (baseId: string, url: string) => Promise<PlaylistSummary | null>;
   removeDocument: (baseId: string, documentId: string) => Promise<void>;
+  reindexBase: (baseId: string) => Promise<ReindexSummary | null>;
   search: (baseId: string, query: string) => Promise<void>;
   clearError: () => void;
   loadRagSettings: () => Promise<void>;
@@ -70,6 +84,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   _errorTimer: null,
   ragSettings: null,
   playlistProgress: null,
+  reindexProgress: null,
 
   clearError: () => {
     const timer = get()._errorTimer;
@@ -186,6 +201,31 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
     } catch (e) {
       console.error("Failed to remove document:", e);
       setErrorWithAutoClear(set, get, `Failed to remove document: ${errorMessage(e)}`);
+    }
+  },
+
+  reindexBase: async (baseId) => {
+    let unlisten: (() => void) | null = null;
+    try {
+      unlisten = await listen<ReindexProgress>("rag-reindex-progress", (event) => {
+        set({ reindexProgress: event.payload });
+      });
+    } catch (e) {
+      console.error("Failed to listen for reindex progress:", e);
+    }
+
+    try {
+      const summary = await invoke<ReindexSummary>("rag_reindex_base", { baseId });
+      await get().loadDocuments(baseId);
+      await get().loadBases();
+      return summary;
+    } catch (e) {
+      console.error("Failed to reindex base:", e);
+      setErrorWithAutoClear(set, get, `Failed to reindex: ${errorMessage(e)}`);
+      return null;
+    } finally {
+      set({ reindexProgress: null });
+      if (unlisten) unlisten();
     }
   },
 
