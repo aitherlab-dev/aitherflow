@@ -89,16 +89,18 @@ export const BaseDetail = memo(function BaseDetail() {
         <div className="kb-progress-banner">
           <div className="kb-progress-banner__info">
             <span className="kb-progress-banner__label">{bgOperation.label}</span>
-            {bgOperation.total > 1 && (
+            {bgOperation.total > 1 ? (
               <span className="kb-progress-banner__count">
-                {bgOperation.processed}/{bgOperation.total}
+                {bgOperation.processed}/{bgOperation.total} ({progressPct}%)
               </span>
-            )}
+            ) : bgOperation.total <= 1 ? (
+              <span className="kb-progress-banner__count">Processing…</span>
+            ) : null}
           </div>
           <div className="kb-progress-bar">
             <div
-              className={`kb-progress-bar__fill${bgOperation.total === 0 ? " kb-progress-bar__fill--indeterminate" : ""}`}
-              style={bgOperation.total > 0 ? { width: `${progressPct}%` } : undefined}
+              className={`kb-progress-bar__fill${bgOperation.total <= 1 ? " kb-progress-bar__fill--indeterminate" : ""}`}
+              style={bgOperation.total > 1 ? { width: `${progressPct}%` } : undefined}
             />
           </div>
         </div>
