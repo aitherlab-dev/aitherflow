@@ -196,13 +196,10 @@ export const BranchesCard = memo(function BranchesCard({
   }, [rootProjectPath]);
 
   useEffect(() => {
+    if (!expanded) return;
     loadWorktrees();
     const timer = setInterval(loadWorktrees, 10_000);
     return () => clearInterval(timer);
-  }, [loadWorktrees]);
-
-  useEffect(() => {
-    if (expanded) loadWorktrees();
   }, [expanded, loadWorktrees]);
 
   const nonBare = worktrees.filter((w) => !w.isBare);
