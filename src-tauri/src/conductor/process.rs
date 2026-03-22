@@ -170,6 +170,7 @@ pub async fn run_cli_session(
             system_prompt: String::new(),
             allowed_tools: Vec::new(),
             can_manage: false,
+            start_message: None,
         };
         if let Some(mcp) = crate::teamwork::mcp_server::get_state() {
             mcp.register_project_agent(&agent_id, pp, slug, default_role)

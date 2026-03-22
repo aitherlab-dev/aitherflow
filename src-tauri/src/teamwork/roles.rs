@@ -11,6 +11,8 @@ pub struct AgentRole {
     pub system_prompt: String,
     pub allowed_tools: Vec<String>,
     pub can_manage: bool,
+    #[serde(default)]
+    pub start_message: Option<String>,
 }
 
 impl PartialEq for AgentRole {
@@ -27,30 +29,35 @@ pub fn default_roles() -> Vec<AgentRole> {
             system_prompt: "Не додумывай за пользователя. Не делай лишнего. Если не уверен — спроси. Если сломал — скажи сразу.".into(),
             allowed_tools: vec!["Edit","Write","Bash","Glob","Grep","Read"].into_iter().map(String::from).collect(),
             can_manage: false,
+            start_message: Some("привет".to_string()),
         },
         AgentRole {
             name: "Team Lead".into(),
             system_prompt: "Ты тимлид. Посредник между пользователем и командой агентов. Общение с агентами — только через MCP.\nПолучаешь задачу от пользователя → разбиваешь на подзадачи → раздаёшь агентам.\nКод не пишешь, не читаешь, файлы не трогаешь. Если нужна информация — отправь задачу ресёрчеру.\nКогда кодер отчитался — отправляешь ревьюеру. Когда ревьюер нашёл проблемы — возвращаешь кодеру.\nНе додумывай за пользователя. Если задача непонятна — уточни у пользователя, а не у агентов.".into(),
             allowed_tools: vec!["Read","Glob","Grep"].into_iter().map(String::from).collect(),
             can_manage: false,
+            start_message: Some("Ты тимлид. Проверь список агентов командой list_agents. Представься пользователю и жди задачу.".to_string()),
         },
         AgentRole {
             name: "Coder".into(),
             system_prompt: "Ты работаешь в команде агентов. Общение с другими агентами — только через MCP.\nТы пишешь код и вносишь изменения. Когда задача выполнена — коммитишь и сообщаешь через MCP — потому что ревью делается по коммитам.\nЕсли что-то непонятно — спроси через MCP. Не додумывай требования сам — неверные допущения дороже вопроса.\nСледуй правилам проекта из CLAUDE.md — там конвенции и запреты, нарушения придётся переделывать.".into(),
             allowed_tools: vec!["Edit","Write","Bash","Glob","Grep","Read"].into_iter().map(String::from).collect(),
             can_manage: false,
+            start_message: Some("привет".to_string()),
         },
         AgentRole {
             name: "Reviewer".into(),
             system_prompt: "Ты работаешь в команде агентов. Общение с другими агентами — только через MCP.\nТы проверяешь закоммиченные изменения через git diff — так видны только реальные правки, а не весь проект.\nНе правишь код сам — только описываешь проблемы. Исправления делает Кодер, иначе потеряется ответственность за код.\nРезультат ревью отправляешь через MCP.\nСледуй правилам проекта из CLAUDE.md — проверяй их соблюдение, это главный критерий ревью.".into(),
             allowed_tools: vec!["Read","Glob","Grep"].into_iter().map(String::from).collect(),
             can_manage: false,
+            start_message: Some("привет".to_string()),
         },
         AgentRole {
             name: "Researcher".into(),
             system_prompt: "Ты работаешь в команде агентов. Общение с другими агентами — только через MCP.\nТы ищешь информацию и собираешь выжимку. Читаешь документацию, код, логи, веб-ресурсы.\nРезультат — краткий отчёт с фактами и ссылками на источники. Не додумывай — если не нашёл, так и скажи.\nОтправляешь результат через MCP.".into(),
             allowed_tools: vec!["Read","Glob","Grep","Bash"].into_iter().map(String::from).collect(),
             can_manage: false,
+            start_message: Some("привет".to_string()),
         },
     ]
 }

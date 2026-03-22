@@ -3,6 +3,7 @@ export interface AgentRole {
   system_prompt: string;
   allowed_tools: string[];
   can_manage: boolean;
+  start_message?: string;
 }
 
 export interface RoleEntry extends AgentRole {

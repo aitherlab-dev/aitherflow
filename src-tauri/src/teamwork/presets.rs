@@ -151,9 +151,10 @@ pub async fn launch_team(
     let mut launched_ids: Vec<String> = Vec::new();
 
     for (agent_id, role) in roles_to_launch {
+        let prompt = role.start_message.clone().unwrap_or_else(|| "привет".to_string());
         let options = StartSessionOptions {
             agent_id: Some(agent_id.clone()),
-            prompt: String::new(),
+            prompt,
             project_path: Some(project_path.clone()),
             model: model.clone(),
             effort: effort.clone(),
@@ -215,9 +216,10 @@ pub async fn presets_launch(
     let mut launched_ids: Vec<String> = Vec::new();
 
     for (agent_id, role) in roles_to_launch {
+        let prompt = role.start_message.clone().unwrap_or_else(|| "привет".to_string());
         let options = StartSessionOptions {
             agent_id: Some(agent_id.clone()),
-            prompt: String::new(),
+            prompt,
             project_path: Some(project_path.clone()),
             model: model.clone(),
             effort: effort.clone(),

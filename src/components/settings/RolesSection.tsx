@@ -34,6 +34,7 @@ export function RolesSection() {
       system_prompt: "",
       allowed_tools: ["Read"],
       can_manage: false,
+      start_message: undefined,
     });
     setEditIsDefault(false);
     setIsNew(true);
@@ -179,6 +180,7 @@ function RoleEditor({
 }) {
   const [name, setName] = useState(role.name);
   const [prompt, setPrompt] = useState(role.system_prompt);
+  const [startMessage, setStartMessage] = useState(role.start_message ?? "");
   const [tools, setTools] = useState<string[]>(role.allowed_tools);
   const toggleTool = useCallback((tool: string) => {
     if (tool === "Read") return;
@@ -195,8 +197,9 @@ function RoleEditor({
       system_prompt: prompt,
       allowed_tools: finalTools,
       can_manage: role.can_manage,
+      start_message: startMessage.trim() || undefined,
     });
-  }, [name, prompt, tools, role.can_manage, onSave]);
+  }, [name, prompt, startMessage, tools, role.can_manage, onSave]);
 
   return (
     <div className="roles-editor-overlay" onClick={onCancel}>
@@ -231,6 +234,17 @@ function RoleEditor({
               onChange={(e) => setPrompt(e.target.value)}
               placeholder="Instructions for this role..."
               rows={5}
+            />
+          </div>
+
+          <div className="roles-field">
+            <label className="roles-field__label">Start Message</label>
+            <textarea
+              className="roles-textarea"
+              value={startMessage}
+              onChange={(e) => setStartMessage(e.target.value)}
+              placeholder="First message sent to the agent on team launch..."
+              rows={3}
             />
           </div>
 
