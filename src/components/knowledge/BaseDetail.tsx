@@ -93,9 +93,9 @@ export const BaseDetail = memo(function BaseDetail() {
               <span className="kb-progress-banner__count">
                 {bgOperation.processed}/{bgOperation.total} ({progressPct}%)
               </span>
-            ) : bgOperation.total <= 1 ? (
+            ) : (
               <span className="kb-progress-banner__count">Processing…</span>
-            ) : null}
+            )}
           </div>
           <div className="kb-progress-bar">
             <div
