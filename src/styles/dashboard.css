@@ -273,6 +273,8 @@
 }
 
 .dash-card__row--sub {
+  justify-content: flex-start;
+  gap: 6px;
   padding-left: 10px;
   font-size: 0.8rem;
 }
@@ -284,6 +286,7 @@
 .dash-card__dim {
   color: var(--fg-dim);
   font-size: 0.8em;
+  margin-left: auto;
 }
 
 /* Toggle switch */
