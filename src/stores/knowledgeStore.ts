@@ -2,11 +2,38 @@ import { create } from "zustand";
 import { invoke, listen } from "../lib/transport";
 import type { KnowledgeBase, KnowledgeDocument, RagSettings, SearchResult } from "../types/knowledge";
 
-export interface PlaylistProgress {
+// --- Progress types ---
+
+export interface BgOperation {
+  type: "add" | "playlist" | "reindex" | "url" | "youtube";
+  processed: number;
+  total: number;
+  label: string;
+  baseId: string;
+}
+
+export interface BgResult {
+  type: "add" | "playlist" | "reindex" | "url" | "youtube";
+  message: string;
+}
+
+interface PlaylistProgressEvent {
   processed: number;
   total: number;
   currentTitle: string;
   skipped: number;
+}
+
+interface ReindexProgressEvent {
+  processed: number;
+  total: number;
+  currentFilename: string;
+}
+
+interface AddProgressEvent {
+  processed: number;
+  total: number;
+  currentFilename: string;
 }
 
 export interface PlaylistSummary {
@@ -16,17 +43,13 @@ export interface PlaylistSummary {
   isPlaylist: boolean;
 }
 
-export interface ReindexProgress {
-  processed: number;
-  total: number;
-  currentFilename: string;
-}
-
 export interface ReindexSummary {
   reindexed: number;
   skipped: number;
   total: number;
 }
+
+// --- Store ---
 
 interface KnowledgeState {
   bases: KnowledgeBase[];
@@ -38,21 +61,30 @@ interface KnowledgeState {
   error: string | null;
   _errorTimer: ReturnType<typeof setTimeout> | null;
   ragSettings: RagSettings | null;
-  playlistProgress: PlaylistProgress | null;
-  reindexProgress: ReindexProgress | null;
+
+  /** Current background operation progress (non-blocking). */
+  bgOperation: BgOperation | null;
+  /** Result of last completed background operation (auto-clears after 5s). */
+  bgResult: BgResult | null;
+  _bgResultTimer: ReturnType<typeof setTimeout> | null;
 
   loadBases: () => Promise<void>;
   createBase: (name: string, description: string) => Promise<void>;
   deleteBase: (baseId: string) => Promise<void>;
   selectBase: (baseId: string | null) => void;
   loadDocuments: (baseId: string) => Promise<void>;
-  addDocuments: (baseId: string, paths: string[]) => Promise<void>;
-  addUrl: (baseId: string, url: string) => Promise<void>;
-  addYoutube: (baseId: string, url: string) => Promise<PlaylistSummary | null>;
+  /** Fire-and-forget: starts operation, does NOT await completion. */
+  addDocuments: (baseId: string, paths: string[]) => void;
+  /** Fire-and-forget. */
+  addUrl: (baseId: string, url: string) => void;
+  /** Fire-and-forget. */
+  addYoutube: (baseId: string, url: string) => void;
   removeDocument: (baseId: string, documentId: string) => Promise<void>;
-  reindexBase: (baseId: string) => Promise<ReindexSummary | null>;
+  /** Fire-and-forget. */
+  reindexBase: (baseId: string) => void;
   search: (baseId: string, query: string) => Promise<void>;
   clearError: () => void;
+  clearBgResult: () => void;
   loadRagSettings: () => Promise<void>;
   saveRagSettings: (settings: RagSettings) => Promise<boolean>;
 }
@@ -73,6 +105,17 @@ function setErrorWithAutoClear(
   set({ error: msg, _errorTimer: timer });
 }
 
+function setBgResult(
+  set: (s: Partial<KnowledgeState>) => void,
+  get: () => KnowledgeState,
+  result: BgResult,
+) {
+  const prev = get()._bgResultTimer;
+  if (prev) clearTimeout(prev);
+  const timer = setTimeout(() => set({ bgResult: null, _bgResultTimer: null }), 5000);
+  set({ bgOperation: null, bgResult: result, _bgResultTimer: timer });
+}
+
 export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   bases: [],
   selectedBaseId: null,
@@ -83,13 +126,20 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   error: null,
   _errorTimer: null,
   ragSettings: null,
-  playlistProgress: null,
-  reindexProgress: null,
+  bgOperation: null,
+  bgResult: null,
+  _bgResultTimer: null,
 
   clearError: () => {
     const timer = get()._errorTimer;
     if (timer) clearTimeout(timer);
     set({ error: null, _errorTimer: null });
+  },
+
+  clearBgResult: () => {
+    const timer = get()._bgResultTimer;
+    if (timer) clearTimeout(timer);
+    set({ bgResult: null, _bgResultTimer: null });
   },
 
   loadBases: async () => {
@@ -145,52 +195,100 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
     }
   },
 
-  addDocuments: async (baseId, paths) => {
-    try {
-      await invoke("rag_add_documents", { baseId, paths });
-      await get().loadDocuments(baseId);
-      await get().loadBases();
-    } catch (e) {
-      console.error("Failed to add documents:", e);
-      setErrorWithAutoClear(set, get, `Failed to add documents: ${errorMessage(e)}`);
-    }
+  addDocuments: (baseId, paths) => {
+    set({
+      bgOperation: { type: "add", processed: 0, total: paths.length, label: "Adding documents…", baseId },
+    });
+
+    // Fire-and-forget
+    (async () => {
+      let unlisten: (() => void) | null = null;
+      try {
+        unlisten = await listen<AddProgressEvent>("rag-add-progress", (event) => {
+          const p = event.payload;
+          set({
+            bgOperation: {
+              type: "add",
+              processed: p.processed,
+              total: p.total,
+              label: p.currentFilename || "Adding documents…",
+              baseId,
+            },
+          });
+        });
+
+        await invoke("rag_add_documents", { baseId, paths });
+        await get().loadDocuments(baseId);
+        await get().loadBases();
+        setBgResult(set, get, { type: "add", message: `Added ${paths.length} document${paths.length > 1 ? "s" : ""}` });
+      } catch (e) {
+        console.error("Failed to add documents:", e);
+        set({ bgOperation: null });
+        setErrorWithAutoClear(set, get, `Failed to add documents: ${errorMessage(e)}`);
+      } finally {
+        if (unlisten) unlisten();
+      }
+    })();
   },
 
-  addUrl: async (baseId, url) => {
-    try {
-      await invoke("rag_add_url", { baseId, url });
-      await get().loadDocuments(baseId);
-      await get().loadBases();
-    } catch (e) {
-      console.error("Failed to add URL:", e);
-      setErrorWithAutoClear(set, get, `Failed to add URL: ${errorMessage(e)}`);
-    }
+  addUrl: (baseId, url) => {
+    set({
+      bgOperation: { type: "url", processed: 0, total: 1, label: "Fetching URL…", baseId },
+    });
+
+    (async () => {
+      try {
+        await invoke("rag_add_url", { baseId, url });
+        await get().loadDocuments(baseId);
+        await get().loadBases();
+        setBgResult(set, get, { type: "url", message: "URL added" });
+      } catch (e) {
+        console.error("Failed to add URL:", e);
+        set({ bgOperation: null });
+        setErrorWithAutoClear(set, get, `Failed to add URL: ${errorMessage(e)}`);
+      }
+    })();
   },
 
-  addYoutube: async (baseId, url) => {
-    // Listen for playlist progress events
-    let unlisten: (() => void) | null = null;
-    try {
-      unlisten = await listen<PlaylistProgress>("rag-playlist-progress", (event) => {
-        set({ playlistProgress: event.payload });
-      });
-    } catch (e) {
-      console.error("Failed to listen for playlist progress:", e);
-    }
+  addYoutube: (baseId, url) => {
+    set({
+      bgOperation: { type: "youtube", processed: 0, total: 1, label: "Fetching YouTube…", baseId },
+    });
 
-    try {
-      const summary = await invoke<PlaylistSummary>("rag_add_youtube", { baseId, url });
-      await get().loadDocuments(baseId);
-      await get().loadBases();
-      return summary;
-    } catch (e) {
-      console.error("Failed to add YouTube:", e);
-      setErrorWithAutoClear(set, get, `Failed to add YouTube: ${errorMessage(e)}`);
-      return null;
-    } finally {
-      set({ playlistProgress: null });
-      if (unlisten) unlisten();
-    }
+    (async () => {
+      let unlisten: (() => void) | null = null;
+      try {
+        unlisten = await listen<PlaylistProgressEvent>("rag-playlist-progress", (event) => {
+          const p = event.payload;
+          set({
+            bgOperation: {
+              type: "playlist",
+              processed: p.processed,
+              total: p.total,
+              label: p.currentTitle || "Adding videos…",
+              baseId,
+            },
+          });
+        });
+
+        const summary = await invoke<PlaylistSummary>("rag_add_youtube", { baseId, url });
+        await get().loadDocuments(baseId);
+        await get().loadBases();
+
+        if (summary.isPlaylist) {
+          const msg = `Added ${summary.added}/${summary.total} videos${summary.skipped > 0 ? `, ${summary.skipped} skipped` : ""}`;
+          setBgResult(set, get, { type: "playlist", message: msg });
+        } else {
+          setBgResult(set, get, { type: "youtube", message: "YouTube video added" });
+        }
+      } catch (e) {
+        console.error("Failed to add YouTube:", e);
+        set({ bgOperation: null });
+        setErrorWithAutoClear(set, get, `Failed to add YouTube: ${errorMessage(e)}`);
+      } finally {
+        if (unlisten) unlisten();
+      }
+    })();
   },
 
   removeDocument: async (baseId, documentId) => {
@@ -204,29 +302,41 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
     }
   },
 
-  reindexBase: async (baseId) => {
-    let unlisten: (() => void) | null = null;
-    try {
-      unlisten = await listen<ReindexProgress>("rag-reindex-progress", (event) => {
-        set({ reindexProgress: event.payload });
-      });
-    } catch (e) {
-      console.error("Failed to listen for reindex progress:", e);
-    }
+  reindexBase: (baseId) => {
+    set({
+      bgOperation: { type: "reindex", processed: 0, total: 0, label: "Starting reindex…", baseId },
+    });
 
-    try {
-      const summary = await invoke<ReindexSummary>("rag_reindex_base", { baseId });
-      await get().loadDocuments(baseId);
-      await get().loadBases();
-      return summary;
-    } catch (e) {
-      console.error("Failed to reindex base:", e);
-      setErrorWithAutoClear(set, get, `Failed to reindex: ${errorMessage(e)}`);
-      return null;
-    } finally {
-      set({ reindexProgress: null });
-      if (unlisten) unlisten();
-    }
+    (async () => {
+      let unlisten: (() => void) | null = null;
+      try {
+        unlisten = await listen<ReindexProgressEvent>("rag-reindex-progress", (event) => {
+          const p = event.payload;
+          set({
+            bgOperation: {
+              type: "reindex",
+              processed: p.processed,
+              total: p.total,
+              label: p.currentFilename || "Reindexing…",
+              baseId,
+            },
+          });
+        });
+
+        const summary = await invoke<ReindexSummary>("rag_reindex_base", { baseId });
+        await get().loadDocuments(baseId);
+        await get().loadBases();
+
+        const msg = `Reindexed ${summary.reindexed}/${summary.total}${summary.skipped > 0 ? `, ${summary.skipped} skipped` : ""}`;
+        setBgResult(set, get, { type: "reindex", message: msg });
+      } catch (e) {
+        console.error("Failed to reindex base:", e);
+        set({ bgOperation: null });
+        setErrorWithAutoClear(set, get, `Failed to reindex: ${errorMessage(e)}`);
+      } finally {
+        if (unlisten) unlisten();
+      }
+    })();
   },
 
   search: async (baseId, query) => {

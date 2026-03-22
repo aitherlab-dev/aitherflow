@@ -133,8 +133,21 @@ async fn add_single_document(
     Ok(doc_id)
 }
 
+/// Progress event for document add operations.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AddProgress {
+    processed: usize,
+    total: usize,
+    current_filename: String,
+}
+
 #[tauri::command]
-pub async fn rag_add_documents(base_id: String, paths: Vec<String>) -> Result<Vec<String>, String> {
+pub async fn rag_add_documents(
+    app: AppHandle,
+    base_id: String,
+    paths: Vec<String>,
+) -> Result<Vec<String>, String> {
     validate_uuid(&base_id, "base_id")?;
 
     // Verify base exists
@@ -143,10 +156,39 @@ pub async fn rag_add_documents(base_id: String, paths: Vec<String>) -> Result<Ve
         .await
         .map_err(|e| format!("Task join error: {e}"))??;
 
+    let total = paths.len();
     let mut doc_ids = Vec::new();
-    for file_path in &paths {
+    for (i, file_path) in paths.iter().enumerate() {
+        let filename = std::path::Path::new(file_path)
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| file_path.clone());
+
+        if let Err(e) = app.emit(
+            "rag-add-progress",
+            AddProgress {
+                processed: i,
+                total,
+                current_filename: filename,
+            },
+        ) {
+            eprintln!("[rag] Failed to emit add progress: {e}");
+        }
+
         let doc_id = add_single_document(&base_id, file_path).await?;
         doc_ids.push(doc_id);
+    }
+
+    // Emit completion
+    if let Err(e) = app.emit(
+        "rag-add-progress",
+        AddProgress {
+            processed: total,
+            total,
+            current_filename: String::new(),
+        },
+    ) {
+        eprintln!("[rag] Failed to emit final add progress: {e}");
     }
 
     Ok(doc_ids)

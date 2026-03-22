@@ -2,7 +2,6 @@ import { memo, useCallback, useMemo, useState } from "react";
 import { Plus, Trash2, Database, X, RefreshCw } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useKnowledgeStore } from "../../stores/knowledgeStore";
-import type { ReindexSummary } from "../../stores/knowledgeStore";
 import { DocumentList } from "./DocumentList";
 import { SearchPanel } from "./SearchPanel";
 import { AddDocumentModal } from "./AddDocumentModal";
@@ -10,13 +9,15 @@ import { Modal } from "../Modal";
 import { Tooltip } from "../shared/Tooltip";
 
 export const BaseDetail = memo(function BaseDetail() {
-  const { bases, selectedBaseId, deleteBase, reindexBase, reindexProgress, error, clearError } = useKnowledgeStore(
+  const { bases, selectedBaseId, deleteBase, reindexBase, bgOperation, bgResult, clearBgResult, error, clearError } = useKnowledgeStore(
     useShallow((s) => ({
       bases: s.bases,
       selectedBaseId: s.selectedBaseId,
       deleteBase: s.deleteBase,
       reindexBase: s.reindexBase,
-      reindexProgress: s.reindexProgress,
+      bgOperation: s.bgOperation,
+      bgResult: s.bgResult,
+      clearBgResult: s.clearBgResult,
       error: s.error,
       clearError: s.clearError,
     })),
@@ -25,8 +26,6 @@ export const BaseDetail = memo(function BaseDetail() {
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [reindexConfirmOpen, setReindexConfirmOpen] = useState(false);
-  const [isReindexing, setIsReindexing] = useState(false);
-  const [reindexSummary, setReindexSummary] = useState<ReindexSummary | null>(null);
 
   const base = useMemo(
     () => bases.find((b) => b.id === selectedBaseId) ?? null,
@@ -40,20 +39,22 @@ export const BaseDetail = memo(function BaseDetail() {
     }
   }, [base, deleteBase]);
 
-  const handleReindexConfirm = useCallback(async () => {
+  const handleReindexConfirm = useCallback(() => {
     if (!base) return;
     setReindexConfirmOpen(false);
-    setIsReindexing(true);
-    setReindexSummary(null);
-    try {
-      const summary = await reindexBase(base.id);
-      if (summary) {
-        setReindexSummary(summary);
-      }
-    } finally {
-      setIsReindexing(false);
-    }
+    reindexBase(base.id);
   }, [base, reindexBase]);
+
+  // Is any bg operation running for this base?
+  const isBusy = bgOperation !== null && bgOperation.baseId === base?.id;
+  const isReindexing = isBusy && bgOperation?.type === "reindex";
+  // Show result only for current base
+  const visibleResult = bgResult && base && bgResult.type !== undefined ? bgResult : null;
+
+  // Progress bar percentage
+  const progressPct = bgOperation && bgOperation.total > 0
+    ? Math.round((bgOperation.processed / bgOperation.total) * 100)
+    : 0;
 
   if (!base) {
     return (
@@ -75,24 +76,31 @@ export const BaseDetail = memo(function BaseDetail() {
         </div>
       )}
 
-      {reindexSummary && (
-        <div className="kb-reindex-banner">
-          <span>
-            Reindexed {reindexSummary.reindexed}/{reindexSummary.total}
-            {reindexSummary.skipped > 0 && `, ${reindexSummary.skipped} skipped (web/youtube)`}
-          </span>
-          <button className="kb-reindex-banner__close" onClick={() => setReindexSummary(null)}>
+      {visibleResult && (
+        <div className="kb-progress-banner kb-progress-banner--done">
+          <span>{visibleResult.message}</span>
+          <button className="kb-progress-banner__close" onClick={clearBgResult}>
             <X size={14} />
           </button>
         </div>
       )}
 
-      {isReindexing && reindexProgress && (
-        <div className="kb-reindex-banner kb-reindex-banner--progress">
-          <span>
-            Reindexing: {reindexProgress.processed}/{reindexProgress.total}
-            {reindexProgress.currentFilename && ` — ${reindexProgress.currentFilename}`}
-          </span>
+      {isBusy && (
+        <div className="kb-progress-banner">
+          <div className="kb-progress-banner__info">
+            <span className="kb-progress-banner__label">{bgOperation.label}</span>
+            {bgOperation.total > 1 && (
+              <span className="kb-progress-banner__count">
+                {bgOperation.processed}/{bgOperation.total}
+              </span>
+            )}
+          </div>
+          <div className="kb-progress-bar">
+            <div
+              className="kb-progress-bar__fill"
+              style={{ width: `${bgOperation.total > 0 ? progressPct : 100}%` }}
+            />
+          </div>
         </div>
       )}
 
@@ -115,7 +123,7 @@ export const BaseDetail = memo(function BaseDetail() {
             <button
               className="kb-btn kb-btn--secondary"
               onClick={() => setReindexConfirmOpen(true)}
-              disabled={isReindexing || base.documentCount === 0}
+              disabled={isBusy || base.documentCount === 0}
             >
               <RefreshCw size={14} className={isReindexing ? "kb-spin" : ""} />
               <span>{isReindexing ? "Reindexing…" : "Reindex All"}</span>

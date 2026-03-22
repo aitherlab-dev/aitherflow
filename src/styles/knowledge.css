@@ -722,13 +722,12 @@
   white-space: nowrap;
 }
 
-/* ── Reindex banner ── */
+/* ── Progress banner (unified for add/reindex/playlist) ── */
 
-.kb-reindex-banner {
+.kb-progress-banner {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  flex-direction: column;
+  gap: 6px;
   padding: 8px 12px;
   border-radius: 6px;
   background: var(--bg-card);
@@ -737,11 +736,34 @@
   color: var(--fg);
 }
 
-.kb-reindex-banner--progress {
-  border-color: var(--accent);
+.kb-progress-banner--done {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  border-color: var(--border);
 }
 
-.kb-reindex-banner__close {
+.kb-progress-banner__info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.kb-progress-banner__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.kb-progress-banner__count {
+  flex-shrink: 0;
+  color: var(--fg-muted);
+  margin-left: 8px;
+}
+
+.kb-progress-banner__close {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -757,8 +779,24 @@
   transition: opacity 0.15s;
 }
 
-.kb-reindex-banner__close:hover {
+.kb-progress-banner__close:hover {
   opacity: 1;
+}
+
+/* ── Progress bar ── */
+
+.kb-progress-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--bg-soft);
+  overflow: hidden;
+}
+
+.kb-progress-bar__fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+  transition: width 0.3s ease;
 }
 
 .kb-spin {
