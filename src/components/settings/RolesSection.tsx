@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Trash2, Shield, X, RotateCcw, Star } from "lucide-react";
+import { Plus, Trash2, X, RotateCcw, Star } from "lucide-react";
 import { invoke } from "../../lib/transport";
 import type { AgentRole, RoleEntry } from "../../types/team";
 import { Tooltip } from "../shared/Tooltip";
@@ -100,12 +100,6 @@ export function RolesSection() {
           >
             <div className="roles-card__header">
               <span className="roles-card__name">{role.name}</span>
-              {role.can_manage && (
-                <span className="roles-badge roles-badge--manager">
-                  <Shield size={10} />
-                  Manager
-                </span>
-              )}
               <Tooltip text={role.name === defaultRoleName ? "Remove default" : "Set as default"}>
                 <button
                   className={`roles-card__default-btn ${role.name === defaultRoleName ? "roles-card__default-btn--active" : ""}`}
@@ -186,8 +180,6 @@ function RoleEditor({
   const [name, setName] = useState(role.name);
   const [prompt, setPrompt] = useState(role.system_prompt);
   const [tools, setTools] = useState<string[]>(role.allowed_tools);
-  const [canManage, setCanManage] = useState(role.can_manage);
-
   const toggleTool = useCallback((tool: string) => {
     if (tool === "Read") return;
     setTools((prev) =>
@@ -202,9 +194,9 @@ function RoleEditor({
       name: name.trim(),
       system_prompt: prompt,
       allowed_tools: finalTools,
-      can_manage: canManage,
+      can_manage: role.can_manage,
     });
-  }, [name, prompt, tools, canManage, onSave]);
+  }, [name, prompt, tools, role.can_manage, onSave]);
 
   return (
     <div className="roles-editor-overlay" onClick={onCancel}>
@@ -259,14 +251,6 @@ function RoleEditor({
             </div>
           </div>
 
-          <label className="roles-tool-check roles-manage-check">
-            <input
-              type="checkbox"
-              checked={canManage}
-              onChange={(e) => setCanManage(e.target.checked)}
-            />
-            <span>Can manage team agents (start/stop/restart)</span>
-          </label>
         </div>
 
         <div className="roles-editor__actions">
