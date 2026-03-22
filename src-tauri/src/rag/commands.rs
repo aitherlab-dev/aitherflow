@@ -28,6 +28,7 @@ pub struct PlaylistSummary {
 }
 
 const DEFAULT_SEARCH_LIMIT: usize = 10;
+const MAX_PLAYLIST_VIDEOS: usize = 300;
 
 #[tauri::command]
 pub async fn rag_list_bases() -> Result<Vec<store::BaseInfo>, String> {
@@ -211,13 +212,8 @@ pub async fn rag_add_youtube(
         .await
         .map_err(|e| format!("Task join error: {e}"))??;
 
-    // Check if URL is a playlist
-    let u = url.clone();
-    let is_playlist = tokio::task::spawn_blocking(move || youtube::is_playlist_url(&u))
-        .await
-        .map_err(|e| format!("Task join error: {e}"))?;
-
-    if is_playlist {
+    // Check if URL is a playlist (pure string check, no I/O)
+    if youtube::is_playlist_url(&url) {
         add_youtube_playlist(&app, &base_id, &url).await
     } else {
         add_single_youtube(&base_id, &url).await
@@ -253,9 +249,17 @@ async fn add_youtube_playlist(
     url: &str,
 ) -> Result<PlaylistSummary, String> {
     let u = url.to_string();
-    let entries = tokio::task::spawn_blocking(move || youtube::fetch_playlist_urls(&u))
+    let mut entries = tokio::task::spawn_blocking(move || youtube::fetch_playlist_urls(&u))
         .await
         .map_err(|e| format!("Task join error: {e}"))??;
+
+    if entries.len() > MAX_PLAYLIST_VIDEOS {
+        eprintln!(
+            "[rag] Playlist has {} videos, limiting to first {MAX_PLAYLIST_VIDEOS}",
+            entries.len()
+        );
+        entries.truncate(MAX_PLAYLIST_VIDEOS);
+    }
 
     let total = entries.len();
     let mut added: usize = 0;

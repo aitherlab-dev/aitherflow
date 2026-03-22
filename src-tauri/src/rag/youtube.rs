@@ -7,16 +7,17 @@ pub struct PlaylistEntry {
 }
 
 /// Check if a URL looks like a YouTube playlist (not a single video).
+/// Note: watch?v=...&list=... is treated as a single video, not a playlist —
+/// the user likely wants that specific video, not the entire playlist.
 pub fn is_playlist_url(url: &str) -> bool {
-    // Playlist-specific URL patterns
-    if url.contains("/playlist?") || url.contains("/playlist?list=") {
+    // Dedicated playlist page: youtube.com/playlist?list=...
+    if url.contains("/playlist?") {
         return true;
     }
-    // URL with list= but NO v= → playlist page
+    // URL with list= but NO v= → playlist page (e.g. shortened links)
     if url.contains("list=") && !url.contains("v=") {
         return true;
     }
-    // URL like youtube.com/@channel/playlists is NOT a single playlist
     false
 }
 
