@@ -37,6 +37,19 @@ export function WelcomeScreen() {
   // Workspace is always the first project
   const workspace = projects[0];
 
+  const loadPresets = useCallback(() => {
+    invoke<TeamPreset[]>("presets_list")
+      .then((result) => {
+        setPresets(result);
+        setPresetsLoaded(true);
+      })
+      .catch((e) => {
+        console.error("[WelcomeScreen] Failed to load presets:", e);
+        setPresets([]);
+        setPresetsLoaded(true);
+      });
+  }, []);
+
   // Initialize selected project
   useEffect(() => {
     if (selectedProject) return;
@@ -47,30 +60,10 @@ export function WelcomeScreen() {
     }
   }, [selectedProject, lastOpenedProject, projects, workspace]);
 
-  // Load presets when project is selected
+  // Load presets once on mount
   useEffect(() => {
-    if (!selectedProject) {
-      setPresets([]);
-      setPresetsLoaded(false);
-      return;
-    }
-    let cancelled = false;
-    invoke<TeamPreset[]>("presets_list")
-      .then((result) => {
-        if (!cancelled) {
-          setPresets(result);
-          setPresetsLoaded(true);
-        }
-      })
-      .catch((e) => {
-        console.error("[WelcomeScreen] Failed to load presets:", e);
-        if (!cancelled) {
-          setPresets([]);
-          setPresetsLoaded(true);
-        }
-      });
-    return () => { cancelled = true; };
-  }, [selectedProject]);
+    loadPresets();
+  }, [loadPresets]);
 
   const openProject = useCallback(
     async (projectPath: string, projectName: string, chatId?: string | null) => {
@@ -79,8 +72,8 @@ export function WelcomeScreen() {
       if (chatId) {
         try {
           await switchChat(chatId);
-        } catch {
-          // Chat may not exist anymore
+        } catch (e) {
+          console.error("[WelcomeScreen] Chat restore failed:", e);
         }
       }
 
@@ -338,10 +331,7 @@ export function WelcomeScreen() {
         <PresetManagerModal
           onClose={() => {
             setShowPresetManager(false);
-            // Reload presets after modal close
-            invoke<TeamPreset[]>("presets_list")
-              .then(setPresets)
-              .catch(console.error);
+            loadPresets();
           }}
         />
       )}

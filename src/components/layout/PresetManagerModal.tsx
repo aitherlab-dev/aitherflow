@@ -31,14 +31,6 @@ export function PresetManagerModal({ onClose }: PresetManagerModalProps) {
     loadData().catch(console.error);
   }, [loadData]);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
-
   const handleDelete = useCallback(async (id: string) => {
     try {
       await invoke("presets_delete", { id });

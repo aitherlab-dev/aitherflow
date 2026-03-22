@@ -345,7 +345,7 @@
 
 .preset-modal-item-delete:hover {
   background: var(--bg-hover);
-  color: var(--error, #e55);
+  color: var(--error);
 }
 
 /* Create preset form */
