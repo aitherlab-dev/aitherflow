@@ -3,7 +3,11 @@ import { X, Minus, Plus } from "lucide-react";
 import { invoke } from "../../lib/transport";
 import type { TeamPreset } from "../../types/projects";
 import type { RoleEntry } from "../../types/team";
+import type { AgentEntry } from "../../types/agents";
 import { useLayoutStore } from "../../stores/layoutStore";
+import { useAgentStore } from "../../stores/agentStore";
+import { useProjectStore } from "../../stores/projectStore";
+import { useConductorStore } from "../../stores/conductorStore";
 
 interface PresetManagerModalProps {
   projectPath: string;
@@ -78,13 +82,38 @@ export function PresetManagerModal({ projectPath, editPreset, onClose }: PresetM
     if (!canLaunch) return;
     const rolesArray = expandRoles(roleCounts);
     try {
-      await invoke("launch_team", { projectPath, roles: rolesArray });
+      const agentIds = await invoke<string[]>("launch_team", { projectPath, roles: rolesArray });
+
+      // Resolve project name
+      const projectName = useProjectStore.getState().projects.find((p) => p.path === projectPath)?.name
+        ?? projectPath.split("/").pop() ?? projectPath;
+
+      // Register agents in store (CLI sessions already started by backend)
+      const currentAgents = useAgentStore.getState().agents;
+      const newAgents: AgentEntry[] = agentIds.map((id, i) => ({
+        id,
+        projectPath,
+        projectName,
+        createdAt: Date.now(),
+        order: currentAgents.length + i,
+      }));
+      await useAgentStore.getState().registerAgents(newAgents);
+
+      // Set role for each agent in conductorStore
+      const { setAgentRole } = useConductorStore.getState();
+      for (let i = 0; i < agentIds.length; i++) {
+        const matchingRole = roles.find((r) => r.name === rolesArray[i]);
+        if (matchingRole) {
+          setAgentRole(agentIds[i], matchingRole);
+        }
+      }
+
       onClose();
       useLayoutStore.getState().closeWelcome();
     } catch (e) {
       console.error("[PresetManagerModal] Failed to launch team:", e);
     }
-  }, [canLaunch, roleCounts, projectPath, onClose]);
+  }, [canLaunch, roleCounts, roles, projectPath, onClose]);
 
   const handleSave = useCallback(async () => {
     if (!canSave) return;

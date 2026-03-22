@@ -43,6 +43,9 @@ interface AgentState {
   /** Update projectName for all agents bound to a given project path */
   renameProjectInAgents: (projectPath: string, newName: string) => Promise<void>;
 
+  /** Register agents launched externally (e.g. launch_team) — no CLI start */
+  registerAgents: (entries: AgentEntry[]) => Promise<void>;
+
   /** Remove agent from store without stopping CLI (session already killed externally) */
   unregisterAgent: (agentId: string) => Promise<void>;
 }
@@ -256,6 +259,25 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     );
     set({ agents: updated });
     await persist(updated, activeAgentId);
+  },
+
+  registerAgents: async (entries) => {
+    if (entries.length === 0) return;
+    const { agents } = get();
+
+    saveChatLock(get, set);
+
+    const updated = [...agents, ...entries];
+    const activeId = entries[0].id;
+    set({ agents: updated, activeAgentId: activeId });
+    await persist(updated, activeId);
+
+    // Switch chat context to the first new agent
+    const first = entries[0];
+    await switchAgent(first.id, first.projectPath, first.projectName, null);
+
+    // Track last opened project
+    useProjectStore.getState().setLastOpened(first.projectPath, null).catch(console.error);
   },
 
   unregisterAgent: async (agentId) => {

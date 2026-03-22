@@ -176,16 +176,30 @@ export function WelcomeScreen() {
       if (!selectedProject) return;
 
       try {
-        await invoke("launch_team", {
+        const agentIds = await invoke<string[]>("launch_team", {
           projectPath: selectedProject,
           roles: preset.roles,
         });
+
+        const projectName = projects.find((p) => p.path === selectedProject)?.name
+          ?? selectedProject.split("/").pop() ?? selectedProject;
+
+        const currentAgents = useAgentStore.getState().agents;
+        const newAgents = agentIds.map((id, i) => ({
+          id,
+          projectPath: selectedProject,
+          projectName,
+          createdAt: Date.now(),
+          order: currentAgents.length + i,
+        }));
+        await useAgentStore.getState().registerAgents(newAgents);
+
         useLayoutStore.getState().closeWelcome();
       } catch (e) {
         console.error("[WelcomeScreen] Failed to launch preset:", e);
       }
     },
-    [teamRow, selectedProject],
+    [teamRow, selectedProject, projects],
   );
 
   const handleDeletePreset = useCallback(
