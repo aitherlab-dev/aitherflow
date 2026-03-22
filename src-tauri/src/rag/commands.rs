@@ -509,6 +509,25 @@ pub async fn rag_get_index_status(base_id: String) -> Result<index::IndexStatus,
     index::get_status(&base_id).await
 }
 
+#[derive(Clone, Serialize)]
+pub struct ModelInfo {
+    pub id: String,
+    pub label: String,
+    pub dimension: usize,
+}
+
+#[tauri::command]
+pub fn rag_get_available_models() -> Vec<ModelInfo> {
+    rag_settings::AVAILABLE_MODELS
+        .iter()
+        .map(|(id, label, dim)| ModelInfo {
+            id: id.to_string(),
+            label: label.to_string(),
+            dimension: *dim,
+        })
+        .collect()
+}
+
 #[tauri::command]
 pub async fn rag_load_settings() -> Result<rag_settings::RagSettings, String> {
     tokio::task::spawn_blocking(|| Ok(rag_settings::load()))

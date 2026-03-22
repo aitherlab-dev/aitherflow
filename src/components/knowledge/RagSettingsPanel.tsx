@@ -2,15 +2,14 @@ import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Save, AlertTriangle, RotateCcw } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useKnowledgeStore } from "../../stores/knowledgeStore";
+import { invoke } from "../../lib/transport";
 import type { RagSettings } from "../../types/knowledge";
 
-const MODELS = [
-  { value: "all-MiniLM-L6-v2", label: "all-MiniLM-L6-v2 — Fast, English, 23MB" },
-  { value: "multilingual-e5-small", label: "multilingual-e5-small — Multilingual, 118MB" },
-  { value: "multilingual-e5-large", label: "multilingual-e5-large — Multilingual, best quality, 560MB" },
-  { value: "nomic-embed-text-v1.5", label: "nomic-embed-text-v1.5 — English, 137MB" },
-  { value: "bge-m3", label: "bge-m3 — Multilingual M3, 100+ languages, 560MB" },
-];
+interface ModelInfo {
+  id: string;
+  label: string;
+  dimension: number;
+}
 
 const CHUNK_SIZES = [256, 512, 1024, 2048];
 const ALL_OVERLAPS = [32, 64, 128, 256];
@@ -26,11 +25,15 @@ export const RagSettingsPanel = memo(function RagSettingsPanel() {
   );
 
   const [draft, setDraft] = useState<RagSettings | null>(null);
+  const [models, setModels] = useState<ModelInfo[]>([]);
   const [modelChanged, setModelChanged] = useState(false);
   const [restartNeeded, setRestartNeeded] = useState(false);
 
   useEffect(() => {
     loadRagSettings().catch(console.error);
+    invoke<ModelInfo[]>("rag_get_available_models")
+      .then(setModels)
+      .catch(console.error);
   }, [loadRagSettings]);
 
   useEffect(() => {
@@ -91,8 +94,8 @@ export const RagSettingsPanel = memo(function RagSettingsPanel() {
             value={draft.embeddingModel}
             onChange={(e) => handleChange("embeddingModel", e.target.value)}
           >
-            {MODELS.map((m) => (
-              <option key={m.value} value={m.value}>{m.label}</option>
+            {models.map((m) => (
+              <option key={m.id} value={m.id}>{m.id} — {m.label}</option>
             ))}
           </select>
         </label>
