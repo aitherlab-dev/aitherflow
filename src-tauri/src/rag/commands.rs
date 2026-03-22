@@ -175,8 +175,12 @@ pub async fn rag_add_documents(
             eprintln!("[rag] Failed to emit add progress: {e}");
         }
 
-        let doc_id = add_single_document(&base_id, file_path).await?;
-        doc_ids.push(doc_id);
+        match add_single_document(&base_id, file_path).await {
+            Ok(doc_id) => doc_ids.push(doc_id),
+            Err(e) => {
+                eprintln!("[rag] Failed to add document {}/{}: {} — {e}", i + 1, total, file_path);
+            }
+        }
     }
 
     // Emit completion
@@ -189,6 +193,10 @@ pub async fn rag_add_documents(
         },
     ) {
         eprintln!("[rag] Failed to emit final add progress: {e}");
+    }
+
+    if doc_ids.is_empty() && !paths.is_empty() {
+        return Err("All documents failed to add".into());
     }
 
     Ok(doc_ids)

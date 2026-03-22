@@ -799,6 +799,16 @@
   transition: width 0.3s ease;
 }
 
+.kb-progress-bar__fill--indeterminate {
+  width: 40%;
+  animation: kb-indeterminate 1.5s ease-in-out infinite;
+}
+
+@keyframes kb-indeterminate {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(250%); }
+}
+
 .kb-spin {
   animation: kb-spin-anim 1s linear infinite;
 }

@@ -15,6 +15,7 @@ export interface BgOperation {
 export interface BgResult {
   type: "add" | "playlist" | "reindex" | "url" | "youtube";
   message: string;
+  baseId: string;
 }
 
 interface PlaylistProgressEvent {
@@ -108,12 +109,14 @@ function setErrorWithAutoClear(
 function setBgResult(
   set: (s: Partial<KnowledgeState>) => void,
   get: () => KnowledgeState,
-  result: BgResult,
+  type: BgResult["type"],
+  message: string,
+  baseId: string,
 ) {
   const prev = get()._bgResultTimer;
   if (prev) clearTimeout(prev);
   const timer = setTimeout(() => set({ bgResult: null, _bgResultTimer: null }), 5000);
-  set({ bgOperation: null, bgResult: result, _bgResultTimer: timer });
+  set({ bgOperation: null, bgResult: { type, message, baseId }, _bgResultTimer: timer });
 }
 
 export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
@@ -220,9 +223,12 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
         await invoke("rag_add_documents", { baseId, paths });
         await get().loadDocuments(baseId);
         await get().loadBases();
-        setBgResult(set, get, { type: "add", message: `Added ${paths.length} document${paths.length > 1 ? "s" : ""}` });
+        setBgResult(set, get, "add", `Added ${paths.length} document${paths.length > 1 ? "s" : ""}`, baseId);
       } catch (e) {
         console.error("Failed to add documents:", e);
+        // Load partial results even on error
+        await get().loadDocuments(baseId).catch(() => {});
+        await get().loadBases().catch(() => {});
         set({ bgOperation: null });
         setErrorWithAutoClear(set, get, `Failed to add documents: ${errorMessage(e)}`);
       } finally {
@@ -233,7 +239,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
 
   addUrl: (baseId, url) => {
     set({
-      bgOperation: { type: "url", processed: 0, total: 1, label: "Fetching URL…", baseId },
+      bgOperation: { type: "url", processed: 0, total: 0, label: "Fetching URL…", baseId },
     });
 
     (async () => {
@@ -241,7 +247,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
         await invoke("rag_add_url", { baseId, url });
         await get().loadDocuments(baseId);
         await get().loadBases();
-        setBgResult(set, get, { type: "url", message: "URL added" });
+        setBgResult(set, get, "url", "URL added", baseId);
       } catch (e) {
         console.error("Failed to add URL:", e);
         set({ bgOperation: null });
@@ -252,7 +258,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
 
   addYoutube: (baseId, url) => {
     set({
-      bgOperation: { type: "youtube", processed: 0, total: 1, label: "Fetching YouTube…", baseId },
+      bgOperation: { type: "youtube", processed: 0, total: 0, label: "Fetching YouTube…", baseId },
     });
 
     (async () => {
@@ -277,9 +283,9 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
 
         if (summary.isPlaylist) {
           const msg = `Added ${summary.added}/${summary.total} videos${summary.skipped > 0 ? `, ${summary.skipped} skipped` : ""}`;
-          setBgResult(set, get, { type: "playlist", message: msg });
+          setBgResult(set, get, "playlist", msg, baseId);
         } else {
-          setBgResult(set, get, { type: "youtube", message: "YouTube video added" });
+          setBgResult(set, get, "youtube", "YouTube video added", baseId);
         }
       } catch (e) {
         console.error("Failed to add YouTube:", e);
@@ -328,7 +334,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
         await get().loadBases();
 
         const msg = `Reindexed ${summary.reindexed}/${summary.total}${summary.skipped > 0 ? `, ${summary.skipped} skipped` : ""}`;
-        setBgResult(set, get, { type: "reindex", message: msg });
+        setBgResult(set, get, "reindex", msg, baseId);
       } catch (e) {
         console.error("Failed to reindex base:", e);
         set({ bgOperation: null });

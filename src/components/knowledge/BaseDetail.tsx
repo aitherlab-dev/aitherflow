@@ -49,7 +49,7 @@ export const BaseDetail = memo(function BaseDetail() {
   const isBusy = bgOperation !== null && bgOperation.baseId === base?.id;
   const isReindexing = isBusy && bgOperation?.type === "reindex";
   // Show result only for current base
-  const visibleResult = bgResult && base && bgResult.type !== undefined ? bgResult : null;
+  const visibleResult = bgResult && base && bgResult.baseId === base.id ? bgResult : null;
 
   // Progress bar percentage
   const progressPct = bgOperation && bgOperation.total > 0
@@ -97,8 +97,8 @@ export const BaseDetail = memo(function BaseDetail() {
           </div>
           <div className="kb-progress-bar">
             <div
-              className="kb-progress-bar__fill"
-              style={{ width: `${bgOperation.total > 0 ? progressPct : 100}%` }}
+              className={`kb-progress-bar__fill${bgOperation.total === 0 ? " kb-progress-bar__fill--indeterminate" : ""}`}
+              style={bgOperation.total > 0 ? { width: `${progressPct}%` } : undefined}
             />
           </div>
         </div>
@@ -114,7 +114,7 @@ export const BaseDetail = memo(function BaseDetail() {
         </div>
         <div className="kb-detail__actions">
           <Tooltip text="Add documents">
-            <button className="kb-btn kb-btn--accent" onClick={() => setAddModalOpen(true)}>
+            <button className="kb-btn kb-btn--accent" onClick={() => setAddModalOpen(true)} disabled={isBusy}>
               <Plus size={14} />
               <span>Add Documents</span>
             </button>
