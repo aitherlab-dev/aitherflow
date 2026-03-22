@@ -195,7 +195,15 @@ export const BranchesCard = memo(function BranchesCard({
       .catch(console.error);
   }, [rootProjectPath]);
 
-  useEffect(() => { loadWorktrees(); }, [loadWorktrees]);
+  useEffect(() => {
+    loadWorktrees();
+    const timer = setInterval(loadWorktrees, 10_000);
+    return () => clearInterval(timer);
+  }, [loadWorktrees]);
+
+  useEffect(() => {
+    if (expanded) loadWorktrees();
+  }, [expanded, loadWorktrees]);
 
   const nonBare = worktrees.filter((w) => !w.isBare);
   const extraCount = nonBare.length > 1 ? nonBare.length - 1 : 0;
