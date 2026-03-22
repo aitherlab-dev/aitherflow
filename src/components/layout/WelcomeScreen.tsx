@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
 import {
   FolderOpen,
@@ -8,7 +8,7 @@ import {
   Sparkles,
   User,
   Users,
-  Settings,
+  UserPlus,
 } from "lucide-react";
 import { useProjectStore } from "../../stores/projectStore";
 import { useAgentStore } from "../../stores/agentStore";
@@ -18,6 +18,40 @@ import { useSkillStore } from "../../stores/skillStore";
 import { invoke, openDialog } from "../../lib/transport";
 import type { TeamPreset } from "../../types/projects";
 import { PresetManagerModal } from "./PresetManagerModal";
+
+/** Drag-scroll for a horizontal row: pointerdown → pointermove → pointerup */
+function useDragScroll() {
+  const ref = useRef<HTMLDivElement>(null);
+  const dragState = useRef({ active: false, startX: 0, scrollLeft: 0, moved: false });
+
+  const onPointerDown = useCallback((e: React.PointerEvent) => {
+    const el = ref.current;
+    if (!el) return;
+    dragState.current = { active: true, startX: e.clientX, scrollLeft: el.scrollLeft, moved: false };
+    el.setPointerCapture(e.pointerId);
+    el.classList.add("welcome-row--dragging");
+  }, []);
+
+  const onPointerMove = useCallback((e: React.PointerEvent) => {
+    const ds = dragState.current;
+    if (!ds.active) return;
+    const dx = e.clientX - ds.startX;
+    if (Math.abs(dx) > 3) ds.moved = true;
+    if (ref.current) ref.current.scrollLeft = ds.scrollLeft - dx;
+  }, []);
+
+  const onPointerUp = useCallback((e: React.PointerEvent) => {
+    const ds = dragState.current;
+    ds.active = false;
+    ref.current?.releasePointerCapture(e.pointerId);
+    ref.current?.classList.remove("welcome-row--dragging");
+  }, []);
+
+  /** True if the last pointer sequence included a drag (suppress click) */
+  const wasDragged = useCallback(() => dragState.current.moved, []);
+
+  return { ref, onPointerDown, onPointerMove, onPointerUp, wasDragged };
+}
 
 export function WelcomeScreen() {
   const projects = useProjectStore(useShallow((s) => s.projects));
@@ -33,6 +67,9 @@ export function WelcomeScreen() {
   const [presetsLoaded, setPresetsLoaded] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const [showPresetManager, setShowPresetManager] = useState(false);
+
+  const projectsRow = useDragScroll();
+  const teamRow = useDragScroll();
 
   // Workspace is always the first project
   const workspace = projects[0];
@@ -89,10 +126,12 @@ export function WelcomeScreen() {
   );
 
   const handleSelectProject = useCallback((path: string) => {
+    if (projectsRow.wasDragged()) return;
     setSelectedProject(path);
-  }, []);
+  }, [projectsRow]);
 
   const handleSoloLaunch = useCallback(async () => {
+    if (teamRow.wasDragged()) return;
     if (!selectedProject) return;
     const project = projects.find((p) => p.path === selectedProject);
     if (!project) return;
@@ -100,10 +139,11 @@ export function WelcomeScreen() {
     const chatId =
       selectedProject === lastOpenedProject ? lastOpenedChatId : null;
     await openProject(project.path, project.name, chatId);
-  }, [selectedProject, projects, lastOpenedProject, lastOpenedChatId, openProject]);
+  }, [teamRow, selectedProject, projects, lastOpenedProject, lastOpenedChatId, openProject]);
 
   const handlePresetLaunch = useCallback(
     async (preset: TeamPreset) => {
+      if (teamRow.wasDragged()) return;
       if (!selectedProject) return;
 
       try {
@@ -116,7 +156,19 @@ export function WelcomeScreen() {
         console.error("[WelcomeScreen] Failed to launch preset:", e);
       }
     },
-    [selectedProject],
+    [teamRow, selectedProject],
+  );
+
+  const handleDeletePreset = useCallback(
+    async (presetId: string) => {
+      try {
+        await invoke("presets_delete", { id: presetId });
+        setPresets((prev) => prev.filter((p) => p.id !== presetId));
+      } catch (e) {
+        console.error("[WelcomeScreen] Failed to delete preset:", e);
+      }
+    },
+    [],
   );
 
   const handleNewProject = useCallback(async () => {
@@ -192,7 +244,13 @@ export function WelcomeScreen() {
         style={{ "--i": 2 } as React.CSSProperties}
       >
         <div className="welcome-section-title">Projects</div>
-        <div className="welcome-row">
+        <div
+          className="welcome-row"
+          ref={projectsRow.ref}
+          onPointerDown={projectsRow.onPointerDown}
+          onPointerMove={projectsRow.onPointerMove}
+          onPointerUp={projectsRow.onPointerUp}
+        >
           {/* Workspace — always first */}
           {workspace && (
             <button
@@ -241,7 +299,7 @@ export function WelcomeScreen() {
           {availableProjects.length > 0 && (
             <button
               className="welcome-card welcome-card--action"
-              onClick={() => setShowPicker(true)}
+              onClick={() => { if (!projectsRow.wasDragged()) setShowPicker(true); }}
             >
               <Plus size={20} />
             </button>
@@ -258,7 +316,13 @@ export function WelcomeScreen() {
           <div className="welcome-section-title">
             Team{selectedProjectName ? ` — ${selectedProjectName}` : ""}
           </div>
-          <div className="welcome-row">
+          <div
+            className="welcome-row"
+            ref={teamRow.ref}
+            onPointerDown={teamRow.onPointerDown}
+            onPointerMove={teamRow.onPointerMove}
+            onPointerUp={teamRow.onPointerUp}
+          >
             {/* Solo card */}
             <button
               className="welcome-card welcome-card--solo"
@@ -277,6 +341,25 @@ export function WelcomeScreen() {
                 className="welcome-card"
                 onClick={() => handlePresetLaunch(preset)}
               >
+                {!preset.is_builtin && (
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    className="welcome-card-remove"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeletePreset(preset.id);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.code === "Enter" || e.code === "Space") {
+                        e.stopPropagation();
+                        handleDeletePreset(preset.id);
+                      }
+                    }}
+                  >
+                    <X size={12} />
+                  </div>
+                )}
                 <span className="welcome-card-badge">
                   {preset.roles.length}
                 </span>
@@ -290,12 +373,13 @@ export function WelcomeScreen() {
               </button>
             ))}
 
-            {/* Settings [⚙] */}
+            {/* New team */}
             <button
               className="welcome-card welcome-card--action"
-              onClick={() => setShowPresetManager(true)}
+              onClick={() => { if (!teamRow.wasDragged()) setShowPresetManager(true); }}
             >
-              <Settings size={20} />
+              <UserPlus size={20} />
+              <div className="welcome-card-name">New team</div>
             </button>
           </div>
         </div>

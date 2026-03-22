@@ -21,26 +21,7 @@ pub struct TeamPreset {
 }
 
 pub fn default_presets() -> Vec<TeamPreset> {
-    vec![
-        TeamPreset {
-            id: "builtin-feature".into(),
-            name: "Feature".into(),
-            roles: vec!["Architect".into(), "Coder".into(), "Reviewer".into()],
-            is_builtin: true,
-        },
-        TeamPreset {
-            id: "builtin-bugfix".into(),
-            name: "Bug fix".into(),
-            roles: vec!["Coder".into(), "Reviewer".into()],
-            is_builtin: true,
-        },
-        TeamPreset {
-            id: "builtin-research".into(),
-            name: "Research".into(),
-            roles: vec!["Architect".into(), "Researcher".into()],
-            is_builtin: true,
-        },
-    ]
+    vec![]
 }
 
 fn custom_presets_path() -> PathBuf {
