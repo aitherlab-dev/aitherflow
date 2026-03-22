@@ -1,5 +1,77 @@
 use std::process::Command;
 
+/// A single video entry from a playlist.
+pub struct PlaylistEntry {
+    pub url: String,
+    pub title: String,
+}
+
+/// Check if a URL looks like a YouTube playlist (not a single video).
+pub fn is_playlist_url(url: &str) -> bool {
+    // Playlist-specific URL patterns
+    if url.contains("/playlist?") || url.contains("/playlist?list=") {
+        return true;
+    }
+    // URL with list= but NO v= → playlist page
+    if url.contains("list=") && !url.contains("v=") {
+        return true;
+    }
+    // URL like youtube.com/@channel/playlists is NOT a single playlist
+    false
+}
+
+/// Fetch the list of video URLs and titles from a YouTube playlist using yt-dlp.
+/// NOTE: always called from spawn_blocking.
+pub fn fetch_playlist_urls(url: &str) -> Result<Vec<PlaylistEntry>, String> {
+    let output = Command::new("yt-dlp")
+        .args([
+            "--flat-playlist",
+            "--print",
+            "url",
+            "--print",
+            "title",
+            "--",
+            url,
+        ])
+        .output()
+        .map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                "yt-dlp not found, install it: pip install yt-dlp".to_string()
+            } else {
+                format!("Failed to run yt-dlp: {e}")
+            }
+        })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("yt-dlp playlist fetch failed: {stderr}"));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let lines: Vec<&str> = stdout.lines().collect();
+
+    // --print url + --print title outputs pairs of lines: url\ntitle\nurl\ntitle\n...
+    let mut entries = Vec::new();
+    for chunk in lines.chunks(2) {
+        if chunk.len() == 2 {
+            let video_url = chunk[0].trim().to_string();
+            let title = chunk[1].trim().to_string();
+            if !video_url.is_empty() {
+                entries.push(PlaylistEntry {
+                    url: video_url,
+                    title,
+                });
+            }
+        }
+    }
+
+    if entries.is_empty() {
+        return Err("Playlist is empty or could not be parsed".into());
+    }
+
+    Ok(entries)
+}
+
 /// Fetch YouTube video transcript using yt-dlp.
 /// NOTE: always called from spawn_blocking (see commands.rs).
 pub fn fetch_youtube_transcript(url: &str) -> Result<String, String> {

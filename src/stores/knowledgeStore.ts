@@ -1,6 +1,20 @@
 import { create } from "zustand";
-import { invoke } from "../lib/transport";
+import { invoke, listen } from "../lib/transport";
 import type { KnowledgeBase, KnowledgeDocument, RagSettings, SearchResult } from "../types/knowledge";
+
+export interface PlaylistProgress {
+  processed: number;
+  total: number;
+  currentTitle: string;
+  skipped: number;
+}
+
+export interface PlaylistSummary {
+  added: number;
+  skipped: number;
+  total: number;
+  isPlaylist: boolean;
+}
 
 interface KnowledgeState {
   bases: KnowledgeBase[];
@@ -12,6 +26,7 @@ interface KnowledgeState {
   error: string | null;
   _errorTimer: ReturnType<typeof setTimeout> | null;
   ragSettings: RagSettings | null;
+  playlistProgress: PlaylistProgress | null;
 
   loadBases: () => Promise<void>;
   createBase: (name: string, description: string) => Promise<void>;
@@ -20,7 +35,7 @@ interface KnowledgeState {
   loadDocuments: (baseId: string) => Promise<void>;
   addDocuments: (baseId: string, paths: string[]) => Promise<void>;
   addUrl: (baseId: string, url: string) => Promise<void>;
-  addYoutube: (baseId: string, url: string) => Promise<void>;
+  addYoutube: (baseId: string, url: string) => Promise<PlaylistSummary | null>;
   removeDocument: (baseId: string, documentId: string) => Promise<void>;
   search: (baseId: string, query: string) => Promise<void>;
   clearError: () => void;
@@ -54,6 +69,7 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   error: null,
   _errorTimer: null,
   ragSettings: null,
+  playlistProgress: null,
 
   clearError: () => {
     const timer = get()._errorTimer;
@@ -137,13 +153,28 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
   },
 
   addYoutube: async (baseId, url) => {
+    // Listen for playlist progress events
+    let unlisten: (() => void) | null = null;
     try {
-      await invoke("rag_add_youtube", { baseId, url });
+      unlisten = await listen<PlaylistProgress>("rag-playlist-progress", (event) => {
+        set({ playlistProgress: event.payload });
+      });
+    } catch (e) {
+      console.error("Failed to listen for playlist progress:", e);
+    }
+
+    try {
+      const summary = await invoke<PlaylistSummary>("rag_add_youtube", { baseId, url });
       await get().loadDocuments(baseId);
       await get().loadBases();
+      return summary;
     } catch (e) {
-      console.error("Failed to add YouTube video:", e);
-      setErrorWithAutoClear(set, get, `Failed to add YouTube video: ${errorMessage(e)}`);
+      console.error("Failed to add YouTube:", e);
+      setErrorWithAutoClear(set, get, `Failed to add YouTube: ${errorMessage(e)}`);
+      return null;
+    } finally {
+      set({ playlistProgress: null });
+      if (unlisten) unlisten();
     }
   },
 

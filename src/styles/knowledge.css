@@ -688,3 +688,21 @@
   color: var(--red);
   font-size: 11px;
 }
+
+/* ── Playlist progress / summary ── */
+
+.kb-playlist-progress,
+.kb-playlist-summary {
+  padding: 12px 0;
+  font-size: 13px;
+  color: var(--fg);
+}
+
+.kb-playlist-progress__title {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

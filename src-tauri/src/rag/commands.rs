@@ -1,8 +1,31 @@
 use std::path::Path;
 
+use serde::Serialize;
+use tauri::{AppHandle, Emitter};
+
 use crate::files::validate_path_safe;
 
 use super::{chunker, embedder, index, parser, rag_settings, store, validate_uuid, web, youtube};
+
+/// Playlist progress event emitted after each video is processed.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlaylistProgress {
+    processed: usize,
+    total: usize,
+    current_title: String,
+    skipped: usize,
+}
+
+/// Playlist completion summary.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaylistSummary {
+    pub added: usize,
+    pub skipped: usize,
+    pub total: usize,
+    pub is_playlist: bool,
+}
 
 const DEFAULT_SEARCH_LIMIT: usize = 10;
 
@@ -175,7 +198,11 @@ pub async fn rag_add_url(base_id: String, url: String) -> Result<String, String>
 }
 
 #[tauri::command]
-pub async fn rag_add_youtube(base_id: String, url: String) -> Result<String, String> {
+pub async fn rag_add_youtube(
+    app: AppHandle,
+    base_id: String,
+    url: String,
+) -> Result<PlaylistSummary, String> {
     validate_uuid(&base_id, "base_id")?;
 
     // Verify base exists
@@ -184,18 +211,133 @@ pub async fn rag_add_youtube(base_id: String, url: String) -> Result<String, Str
         .await
         .map_err(|e| format!("Task join error: {e}"))??;
 
-    // Fetch transcript via yt-dlp (blocking — Command::new)
+    // Check if URL is a playlist
     let u = url.clone();
+    let is_playlist = tokio::task::spawn_blocking(move || youtube::is_playlist_url(&u))
+        .await
+        .map_err(|e| format!("Task join error: {e}"))?;
+
+    if is_playlist {
+        add_youtube_playlist(&app, &base_id, &url).await
+    } else {
+        add_single_youtube(&base_id, &url).await
+    }
+}
+
+/// Add a single YouTube video to the knowledge base.
+async fn add_single_youtube(base_id: &str, url: &str) -> Result<PlaylistSummary, String> {
+    let u = url.to_string();
     let text = tokio::task::spawn_blocking(move || youtube::fetch_youtube_transcript(&u))
         .await
         .map_err(|e| format!("Task join error: {e}"))??;
 
-    // Extract video ID or use truncated URL as filename
-    let filename = extract_youtube_id(&url)
+    let filename = extract_youtube_id(url)
         .map(|id| format!("youtube-{id}"))
         .unwrap_or_else(|| "youtube-video".into());
 
-    add_text_document(&base_id, &filename, &url, &text).await
+    add_text_document(base_id, &filename, url, &text).await?;
+
+    Ok(PlaylistSummary {
+        added: 1,
+        skipped: 0,
+        total: 1,
+        is_playlist: false,
+    })
+}
+
+/// Add all videos from a YouTube playlist to the knowledge base.
+/// Emits "rag-playlist-progress" events after each video.
+async fn add_youtube_playlist(
+    app: &AppHandle,
+    base_id: &str,
+    url: &str,
+) -> Result<PlaylistSummary, String> {
+    let u = url.to_string();
+    let entries = tokio::task::spawn_blocking(move || youtube::fetch_playlist_urls(&u))
+        .await
+        .map_err(|e| format!("Task join error: {e}"))??;
+
+    let total = entries.len();
+    let mut added: usize = 0;
+    let mut skipped: usize = 0;
+
+    for (i, entry) in entries.iter().enumerate() {
+        // Emit progress event
+        if let Err(e) = app.emit(
+            "rag-playlist-progress",
+            PlaylistProgress {
+                processed: i,
+                total,
+                current_title: entry.title.clone(),
+                skipped,
+            },
+        ) {
+            eprintln!("[rag] Failed to emit playlist progress: {e}");
+        }
+
+        let video_url = entry.url.clone();
+        let result = tokio::task::spawn_blocking(move || {
+            youtube::fetch_youtube_transcript(&video_url)
+        })
+        .await
+        .map_err(|e| format!("Task join error: {e}"))?;
+
+        match result {
+            Ok(text) => {
+                let filename = extract_youtube_id(&entry.url)
+                    .map(|id| format!("youtube-{id}"))
+                    .unwrap_or_else(|| format!("youtube-playlist-{}", i + 1));
+
+                match add_text_document(base_id, &filename, &entry.url, &text).await {
+                    Ok(_) => added += 1,
+                    Err(e) => {
+                        eprintln!(
+                            "[rag] Failed to index playlist video {}/{}: {} — {e}",
+                            i + 1,
+                            total,
+                            entry.title
+                        );
+                        skipped += 1;
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!(
+                    "[rag] No transcript for playlist video {}/{}: {} — {e}",
+                    i + 1,
+                    total,
+                    entry.title
+                );
+                skipped += 1;
+            }
+        }
+    }
+
+    // Emit final progress
+    if let Err(e) = app.emit(
+        "rag-playlist-progress",
+        PlaylistProgress {
+            processed: total,
+            total,
+            current_title: String::new(),
+            skipped,
+        },
+    ) {
+        eprintln!("[rag] Failed to emit final playlist progress: {e}");
+    }
+
+    if added == 0 {
+        return Err(format!(
+            "No videos could be added from playlist ({skipped} skipped, no subtitles)"
+        ));
+    }
+
+    Ok(PlaylistSummary {
+        added,
+        skipped,
+        total,
+        is_playlist: true,
+    })
 }
 
 fn extract_youtube_id(url: &str) -> Option<String> {
