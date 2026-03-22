@@ -1,13 +1,23 @@
 import { useState, useCallback, useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { FolderOpen, FolderPlus, Plus, X, Sparkles, CornerDownLeft } from "lucide-react";
+import {
+  FolderOpen,
+  FolderPlus,
+  Plus,
+  X,
+  Sparkles,
+  User,
+  Users,
+  Settings,
+} from "lucide-react";
 import { useProjectStore } from "../../stores/projectStore";
 import { useAgentStore } from "../../stores/agentStore";
 import { switchChat } from "../../stores/chatService";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useSkillStore } from "../../stores/skillStore";
-import { openDialog } from "../../lib/transport";
-import { useDragReorder } from "../../hooks/useDragReorder";
+import { invoke, openDialog } from "../../lib/transport";
+import type { TeamPreset } from "../../types/projects";
+import { PresetManagerModal } from "./PresetManagerModal";
 
 export function WelcomeScreen() {
   const projects = useProjectStore(useShallow((s) => s.projects));
@@ -17,82 +27,103 @@ export function WelcomeScreen() {
   const welcomeCards = useProjectStore(useShallow((s) => s.welcomeCards));
   const addWelcomeCard = useProjectStore((s) => s.addWelcomeCard);
   const removeWelcomeCard = useProjectStore((s) => s.removeWelcomeCard);
-  const reorderWelcomeCards = useProjectStore((s) => s.reorderWelcomeCards);
 
+  const [selectedProject, setSelectedProject] = useState<string | null>(null);
+  const [presets, setPresets] = useState<TeamPreset[]>([]);
+  const [presetsLoaded, setPresetsLoaded] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
-
-  const handleReorder = useCallback(
-    (from: number, to: number) => { reorderWelcomeCards(from, to).catch(console.error); },
-    [reorderWelcomeCards],
-  );
-  const {
-    dragId: dragIdx, dragPos, dragOffset, dropTargetId: dropTargetIdx, dragging,
-    gridRef, dragElRef, handlePointerDown, handlePointerMove, handlePointerUp,
-  } = useDragReorder<number>("card-idx", handleReorder);
+  const [showPresetManager, setShowPresetManager] = useState(false);
 
   // Workspace is always the first project
   const workspace = projects[0];
 
-  // Find last opened project info
-  const lastProject = lastOpenedProject
-    ? projects.find((p) => p.path === lastOpenedProject)
-    : null;
+  // Initialize selected project
+  useEffect(() => {
+    if (selectedProject) return;
+    if (lastOpenedProject && projects.some((p) => p.path === lastOpenedProject)) {
+      setSelectedProject(lastOpenedProject);
+    } else if (workspace) {
+      setSelectedProject(workspace.path);
+    }
+  }, [selectedProject, lastOpenedProject, projects, workspace]);
+
+  // Load presets when project is selected
+  useEffect(() => {
+    if (!selectedProject) {
+      setPresets([]);
+      setPresetsLoaded(false);
+      return;
+    }
+    let cancelled = false;
+    invoke<TeamPreset[]>("presets_list")
+      .then((result) => {
+        if (!cancelled) {
+          setPresets(result);
+          setPresetsLoaded(true);
+        }
+      })
+      .catch((e) => {
+        console.error("[WelcomeScreen] Failed to load presets:", e);
+        if (!cancelled) {
+          setPresets([]);
+          setPresetsLoaded(true);
+        }
+      });
+    return () => { cancelled = true; };
+  }, [selectedProject]);
 
   const openProject = useCallback(
     async (projectPath: string, projectName: string, chatId?: string | null) => {
-      // Create agent for this project
       await useAgentStore.getState().createAgent(projectPath, projectName);
 
-      // If we have a specific chat to restore, switch to it
       if (chatId) {
         try {
           await switchChat(chatId);
         } catch {
-          // Chat may not exist anymore, that's fine — new chat will be shown
+          // Chat may not exist anymore
         }
       }
 
-      // Reload skills for all projects
       const allProjects = useProjectStore.getState().projects;
-      useSkillStore.getState().load(allProjects.map((p) => ({ path: p.path, name: p.name }))).catch(console.error);
+      useSkillStore
+        .getState()
+        .load(allProjects.map((p) => ({ path: p.path, name: p.name })))
+        .catch(console.error);
 
-      // Switch to chat view
       useLayoutStore.getState().closeWelcome();
     },
     [],
   );
 
-  const openWorkspace = useCallback(async () => {
-    if (!workspace) return;
-    await openProject(workspace.path, workspace.name);
-  }, [workspace, openProject]);
+  const handleSelectProject = useCallback((path: string) => {
+    setSelectedProject(path);
+  }, []);
 
-  // Escape: close picker or close welcome screen
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === "Escape") {
-        if (showPicker) {
-          setShowPicker(false);
-        } else {
-          useLayoutStore.getState().closeWelcome();
-        }
+  const handleSoloLaunch = useCallback(async () => {
+    if (!selectedProject) return;
+    const project = projects.find((p) => p.path === selectedProject);
+    if (!project) return;
+
+    const chatId =
+      selectedProject === lastOpenedProject ? lastOpenedChatId : null;
+    await openProject(project.path, project.name, chatId);
+  }, [selectedProject, projects, lastOpenedProject, lastOpenedChatId, openProject]);
+
+  const handlePresetLaunch = useCallback(
+    async (preset: TeamPreset) => {
+      if (!selectedProject) return;
+
+      try {
+        await invoke("presets_launch", {
+          projectPath: selectedProject,
+          presetId: preset.id,
+        });
+        useLayoutStore.getState().closeWelcome();
+      } catch (e) {
+        console.error("[WelcomeScreen] Failed to launch preset:", e);
       }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [showPicker]);
-
-  const openLastProject = useCallback(async () => {
-    if (!lastProject) return;
-    await openProject(lastProject.path, lastProject.name, lastOpenedChatId);
-  }, [lastProject, lastOpenedChatId, openProject]);
-
-  const handleAddCard = useCallback(
-    async (project: { path: string; name: string }) => {
-      await addWelcomeCard(project.path, project.name);
-      setShowPicker(false);
     },
-    [addWelcomeCard],
+    [selectedProject],
   );
 
   const handleNewProject = useCallback(async () => {
@@ -104,6 +135,31 @@ export function WelcomeScreen() {
     }
   }, [addProject]);
 
+  const handleAddCard = useCallback(
+    async (project: { path: string; name: string }) => {
+      await addWelcomeCard(project.path, project.name);
+      setShowPicker(false);
+    },
+    [addWelcomeCard],
+  );
+
+  // Escape handler
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === "Escape") {
+        if (showPresetManager) {
+          setShowPresetManager(false);
+        } else if (showPicker) {
+          setShowPicker(false);
+        } else {
+          useLayoutStore.getState().closeWelcome();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showPicker, showPresetManager]);
+
   // Projects available for adding (not already pinned, not workspace)
   const availableProjects = projects.filter(
     (p) =>
@@ -111,134 +167,157 @@ export function WelcomeScreen() {
       !welcomeCards.some((c) => c.projectPath === p.path),
   );
 
+  const selectedProjectName =
+    projects.find((p) => p.path === selectedProject)?.name ?? "";
+
   return (
     <div className="welcome-screen">
-      <div className="welcome-header welcome-stagger" style={{ "--i": 0 } as React.CSSProperties}>
+      {/* Header */}
+      <div
+        className="welcome-header welcome-stagger"
+        style={{ "--i": 0 } as React.CSSProperties}
+      >
         <h1 className="welcome-title">
           <span className="welcome-title-aither">aither</span>
           <span className="welcome-title-flow">flow</span>
         </h1>
       </div>
 
+      {/* New Project — subtle */}
       <button
         className="welcome-new-project welcome-stagger"
         style={{ "--i": 1 } as React.CSSProperties}
         onClick={handleNewProject}
       >
-        <FolderPlus size={16} />
+        <FolderPlus size={14} />
         <span>New Project</span>
       </button>
 
-      <div className="welcome-grid" ref={gridRef}>
-        {/* Card 1: Workspace — new chat */}
-        <button
-          className="welcome-card welcome-card--fixed welcome-stagger"
-          style={{ "--i": 2 } as React.CSSProperties}
-          onClick={openWorkspace}
-        >
-          <div className="welcome-card-icon">
-            <Sparkles size={20} />
-          </div>
-          <div className="welcome-card-name">Workspace</div>
-          <div className="welcome-card-desc">New chat</div>
-        </button>
+      {/* ── Projects section ── */}
+      <div
+        className="welcome-section welcome-stagger"
+        style={{ "--i": 2 } as React.CSSProperties}
+      >
+        <div className="welcome-section-title">Projects</div>
+        <div className="welcome-row">
+          {/* Workspace — always first */}
+          {workspace && (
+            <button
+              className={`welcome-card${selectedProject === workspace.path ? " welcome-card--selected" : ""}`}
+              onClick={() => handleSelectProject(workspace.path)}
+            >
+              <div className="welcome-card-icon">
+                <Sparkles size={18} />
+              </div>
+              <div className="welcome-card-name">Workspace</div>
+            </button>
+          )}
 
-        {/* Card 2: Last project + last chat */}
-        {lastProject ? (
-          <button
-            className="welcome-card welcome-card--fixed welcome-stagger"
-            style={{ "--i": 3 } as React.CSSProperties}
-            onClick={openLastProject}
-          >
-            <div className="welcome-card-icon">
-              <CornerDownLeft size={20} />
-            </div>
-            <div className="welcome-card-name">Return</div>
-            <div className="welcome-card-desc">{lastProject.name}</div>
-          </button>
-        ) : (
-          <div
-            className="welcome-card welcome-card--empty welcome-card--disabled welcome-stagger"
-            style={{ "--i": 3 } as React.CSSProperties}
-          >
-            <div className="welcome-card-icon">
-              <FolderOpen size={20} />
-            </div>
-            <div className="welcome-card-name">No recent project</div>
-          </div>
-        )}
-
-        {/* User-pinned cards */}
-        {welcomeCards.map((card, idx) => (
-          <button
-            key={card.projectPath}
-            data-card-idx={idx}
-            className={`welcome-card welcome-stagger${dragIdx === idx && dragging ? " welcome-card--dragging" : ""}${dropTargetIdx === idx ? " welcome-card--drag-over" : ""}`}
-            style={{ "--i": 4 + idx } as React.CSSProperties}
-            onPointerDown={(e) => handlePointerDown(e, idx)}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-            onClick={() => { if (!dragging) openProject(card.projectPath, card.projectName); }}
-          >
-            <div
-              role="button"
-              tabIndex={0}
-              className="welcome-card-remove"
-              onClick={(e) => {
-                e.stopPropagation();
-                removeWelcomeCard(card.projectPath);
-              }}
-              onKeyDown={(e) => {
-                if (e.code === "Enter" || e.code === "Space") {
+          {/* Pinned project cards */}
+          {welcomeCards.map((card) => (
+            <button
+              key={card.projectPath}
+              className={`welcome-card${selectedProject === card.projectPath ? " welcome-card--selected" : ""}`}
+              onClick={() => handleSelectProject(card.projectPath)}
+            >
+              <div
+                role="button"
+                tabIndex={0}
+                className="welcome-card-remove"
+                onClick={(e) => {
                   e.stopPropagation();
                   removeWelcomeCard(card.projectPath);
-                }
-              }}
-            >
-              <X size={14} />
-            </div>
-            <div className="welcome-card-icon">
-              <FolderOpen size={20} />
-            </div>
-            <div className="welcome-card-name">{card.projectName}</div>
-          </button>
-        ))}
+                }}
+                onKeyDown={(e) => {
+                  if (e.code === "Enter" || e.code === "Space") {
+                    e.stopPropagation();
+                    removeWelcomeCard(card.projectPath);
+                  }
+                }}
+              >
+                <X size={12} />
+              </div>
+              <div className="welcome-card-icon">
+                <FolderOpen size={18} />
+              </div>
+              <div className="welcome-card-name">{card.projectName}</div>
+            </button>
+          ))}
 
-        {/* Add project button */}
-        {availableProjects.length > 0 && (
-          <button
-            className="welcome-card welcome-card--add welcome-stagger"
-            style={{ "--i": 4 + welcomeCards.length } as React.CSSProperties}
-            onClick={() => setShowPicker(true)}
-          >
-            <Plus size={24} />
-            <div className="welcome-card-desc">Add project</div>
-          </button>
-        )}
+          {/* Add project [+] */}
+          {availableProjects.length > 0 && (
+            <button
+              className="welcome-card welcome-card--action"
+              onClick={() => setShowPicker(true)}
+            >
+              <Plus size={20} />
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Drag ghost */}
-      {dragIdx !== null && dragging && dragElRef.current && (
+      {/* ── Team section ── */}
+      {selectedProject && presetsLoaded && (
         <div
-          className="welcome-card-ghost"
-          style={{
-            left: dragPos.x - dragOffset.x,
-            top: dragPos.y - dragOffset.y,
-            width: dragElRef.current.offsetWidth,
-            height: dragElRef.current.offsetHeight,
-          }}
+          className="welcome-section welcome-stagger"
+          style={{ "--i": 3 } as React.CSSProperties}
         >
-          <div className="welcome-card-icon">
-            <FolderOpen size={20} />
+          <div className="welcome-section-title">
+            Team{selectedProjectName ? ` — ${selectedProjectName}` : ""}
           </div>
-          <div className="welcome-card-name">{welcomeCards[dragIdx]?.projectName}</div>
+          <div className="welcome-row">
+            {/* Solo card */}
+            <button
+              className="welcome-card welcome-card--solo"
+              onClick={handleSoloLaunch}
+            >
+              <div className="welcome-card-icon">
+                <User size={18} />
+              </div>
+              <div className="welcome-card-name">Solo</div>
+            </button>
+
+            {/* Preset cards */}
+            {presets.map((preset) => (
+              <button
+                key={preset.id}
+                className="welcome-card"
+                onClick={() => handlePresetLaunch(preset)}
+              >
+                <span className="welcome-card-badge">
+                  {preset.roles.length}
+                </span>
+                <div className="welcome-card-icon">
+                  <Users size={18} />
+                </div>
+                <div className="welcome-card-name">{preset.name}</div>
+                <div className="welcome-card-desc">
+                  {preset.roles.join(", ")}
+                </div>
+              </button>
+            ))}
+
+            {/* Settings [⚙] */}
+            <button
+              className="welcome-card welcome-card--action"
+              onClick={() => setShowPresetManager(true)}
+            >
+              <Settings size={20} />
+            </button>
+          </div>
         </div>
       )}
 
       {/* Project picker popup */}
       {showPicker && (
-        <div className="welcome-picker-overlay" onClick={() => setShowPicker(false)}>
-          <div className="welcome-picker" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="welcome-picker-overlay"
+          onClick={() => setShowPicker(false)}
+        >
+          <div
+            className="welcome-picker"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="welcome-picker-title">Choose project</div>
             {availableProjects.map((p) => (
               <button
@@ -252,6 +331,19 @@ export function WelcomeScreen() {
             ))}
           </div>
         </div>
+      )}
+
+      {/* Preset manager modal */}
+      {showPresetManager && (
+        <PresetManagerModal
+          onClose={() => {
+            setShowPresetManager(false);
+            // Reload presets after modal close
+            invoke<TeamPreset[]>("presets_list")
+              .then(setPresets)
+              .catch(console.error);
+          }}
+        />
       )}
     </div>
   );

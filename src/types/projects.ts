@@ -15,3 +15,10 @@ export interface ProjectsConfig {
   lastOpenedChatId: string | null;
   welcomeCards: WelcomeCard[];
 }
+
+export interface TeamPreset {
+  id: string;
+  name: string;
+  roles: string[];
+  is_builtin: boolean;
+}
