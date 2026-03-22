@@ -298,7 +298,7 @@ export function WelcomeScreen() {
           {/* Add project [+] */}
           {availableProjects.length > 0 && (
             <button
-              className="welcome-card welcome-card--action"
+              className="welcome-card welcome-card--action-sm"
               onClick={() => { if (!projectsRow.wasDragged()) setShowPicker(true); }}
             >
               <Plus size={20} />

@@ -155,12 +155,22 @@
   box-shadow: 0 0 0 1px var(--accent-icon);
 }
 
-/* Add / settings button card */
-.welcome-card--action {
+/* Small action button (just an icon, e.g. [+]) */
+.welcome-card--action-sm {
   border-style: dashed;
   color: var(--fg-muted);
   min-width: 56px;
   max-width: 56px;
+}
+
+.welcome-card--action-sm:hover {
+  color: var(--fg);
+}
+
+/* Normal-sized action card (icon + text, e.g. "New team") */
+.welcome-card--action {
+  border-style: dashed;
+  color: var(--fg-muted);
 }
 
 .welcome-card--action:hover {
