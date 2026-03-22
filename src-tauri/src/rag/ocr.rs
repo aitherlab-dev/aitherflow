@@ -2,7 +2,8 @@ use std::collections::VecDeque;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::{Mutex, OnceLock};
+use std::sync::Mutex;
+use std::time::Duration;
 
 use image::{DynamicImage, GenericImageView, RgbImage};
 use ndarray::Array4;
@@ -47,28 +48,47 @@ const DET_MIN_BOX_SIZE: u32 = 5;
 const REC_IMG_HEIGHT: u32 = 48;
 const REC_MAX_WIDTH: u32 = 320;
 
-// --- OCR Engine (lazy singleton) ---
-// Sessions wrapped in Mutex because ort v2 session.run() requires &mut self.
+// Safety limit: max pages to OCR per document
+const MAX_OCR_PAGES: usize = 100;
+
+// HTTP timeout for model downloads (5 min for large models)
+const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(300);
+
+// --- OCR Engine ---
+// Mutex<Option> instead of OnceLock so that initialization errors are retried
+// on the next call rather than cached forever (e.g. if network was temporarily down).
+// The outer Mutex serializes all OCR access, so inner sessions don't need their own Mutex.
 
 struct RecModel {
-    session: Mutex<Session>,
+    session: Session,
     dictionary: Vec<String>,
     name: &'static str,
+    output_name: String,
 }
 
 struct OcrEngine {
-    det_session: Mutex<Session>,
+    det_session: Session,
+    det_output_name: String,
     rec_models: Vec<RecModel>,
 }
 
-static OCR_ENGINE: OnceLock<Result<OcrEngine, String>> = OnceLock::new();
+static OCR_ENGINE: Mutex<Option<OcrEngine>> = Mutex::new(None);
 
-fn get_or_init_engine() -> Result<&'static OcrEngine, String> {
-    let result = OCR_ENGINE.get_or_init(init_engine);
-    match result {
-        Ok(engine) => Ok(engine),
-        Err(e) => Err(e.clone()),
+/// Run a closure with the initialized OCR engine. Retries initialization on each call
+/// if the previous attempt failed (e.g. network error during model download).
+fn with_engine<F, T>(f: F) -> Result<T, String>
+where
+    F: FnOnce(&mut OcrEngine) -> Result<T, String>,
+{
+    let mut guard = OCR_ENGINE
+        .lock()
+        .map_err(|e| format!("OCR engine lock poisoned: {e}"))?;
+
+    if guard.is_none() {
+        *guard = Some(init_engine()?);
     }
+
+    f(guard.as_mut().expect("just initialized"))
 }
 
 fn load_session(path: PathBuf, label: &str) -> Result<Session, String> {
@@ -92,10 +112,23 @@ fn load_dictionary(path: PathBuf) -> Result<Vec<String>, String> {
     Ok(dictionary)
 }
 
+fn first_output_name(session: &Session, label: &str) -> Result<String, String> {
+    session
+        .outputs()
+        .first()
+        .map(|o| o.name().to_string())
+        .ok_or_else(|| format!("{label} model has no outputs"))
+}
+
 fn init_engine() -> Result<OcrEngine, String> {
     let models_dir = ocr_models_dir();
     fs::create_dir_all(&models_dir)
         .map_err(|e| format!("Failed to create OCR models dir: {e}"))?;
+
+    let client = reqwest::blocking::Client::builder()
+        .timeout(DOWNLOAD_TIMEOUT)
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {e}"))?;
 
     // Download all models if missing
     let downloads = [
@@ -106,18 +139,22 @@ fn init_engine() -> Result<OcrEngine, String> {
         (REC_CYR_DICT_FILE, REC_CYR_DICT_URL),
     ];
     for (file, url) in downloads {
-        download_if_missing(&models_dir.join(file), url)?;
+        download_if_missing(&client, &models_dir.join(file), url)?;
     }
 
     eprintln!("[rag/ocr] Loading detection model...");
     let det_session = load_session(models_dir.join(DET_MODEL_FILE), "det")?;
+    let det_output_name = first_output_name(&det_session, "det")?;
+    eprintln!("[rag/ocr] Det output name: {det_output_name}");
 
     eprintln!("[rag/ocr] Loading English/Latin recognition model...");
     let en_session = load_session(models_dir.join(REC_EN_MODEL_FILE), "rec-en")?;
+    let en_output_name = first_output_name(&en_session, "rec-en")?;
     let en_dict = load_dictionary(models_dir.join(REC_EN_DICT_FILE))?;
 
     eprintln!("[rag/ocr] Loading Cyrillic recognition model...");
     let cyr_session = load_session(models_dir.join(REC_CYR_MODEL_FILE), "rec-cyr")?;
+    let cyr_output_name = first_output_name(&cyr_session, "rec-cyr")?;
     let cyr_dict = load_dictionary(models_dir.join(REC_CYR_DICT_FILE))?;
 
     eprintln!(
@@ -127,17 +164,20 @@ fn init_engine() -> Result<OcrEngine, String> {
     );
 
     Ok(OcrEngine {
-        det_session: Mutex::new(det_session),
+        det_session,
+        det_output_name,
         rec_models: vec![
             RecModel {
-                session: Mutex::new(en_session),
+                session: en_session,
                 dictionary: en_dict,
                 name: "en",
+                output_name: en_output_name,
             },
             RecModel {
-                session: Mutex::new(cyr_session),
+                session: cyr_session,
                 dictionary: cyr_dict,
                 name: "cyr",
+                output_name: cyr_output_name,
             },
         ],
     })
@@ -149,7 +189,11 @@ fn ocr_models_dir() -> PathBuf {
 
 // --- Model download ---
 
-fn download_if_missing(path: &Path, url: &str) -> Result<(), String> {
+fn download_if_missing(
+    client: &reqwest::blocking::Client,
+    path: &Path,
+    url: &str,
+) -> Result<(), String> {
     if path.exists() {
         return Ok(());
     }
@@ -160,8 +204,9 @@ fn download_if_missing(path: &Path, url: &str) -> Result<(), String> {
         .unwrap_or("unknown");
     eprintln!("[rag/ocr] Downloading {file_name}...");
 
-    // Use blocking reqwest (we're already in spawn_blocking context)
-    let response = reqwest::blocking::get(url)
+    let response = client
+        .get(url)
+        .send()
         .map_err(|e| format!("Failed to download {file_name}: {e}"))?;
 
     if !response.status().is_success() {
@@ -195,18 +240,35 @@ fn download_if_missing(path: &Path, url: &str) -> Result<(), String> {
 /// Uses dual recognition models (Latin + Cyrillic), picks best by confidence.
 /// Called from parser.rs as a third fallback when pdftotext and pdf-extract
 /// both return empty text. Runs in spawn_blocking context.
+///
+/// Pages are processed one at a time to avoid OOM on large PDFs.
 pub fn ocr_pdf(path: &Path) -> Result<String, String> {
-    let engine = get_or_init_engine()?;
-    let images = pdf_to_images(path)?;
+    let page_count = get_page_count(path)?;
+    if page_count == 0 {
+        return Err("PDF has 0 pages".into());
+    }
 
-    if images.is_empty() {
-        return Err("PDF produced no page images".into());
+    let pages_to_process = page_count.min(MAX_OCR_PAGES);
+    if page_count > MAX_OCR_PAGES {
+        eprintln!(
+            "[rag/ocr] PDF has {page_count} pages, limiting OCR to first {MAX_OCR_PAGES}"
+        );
     }
 
     let mut all_text = String::new();
 
-    for (page_idx, img) in images.iter().enumerate() {
-        match ocr_image(engine, img) {
+    // Process one page at a time to keep memory bounded
+    for page_num in 1..=pages_to_process {
+        let img = match render_single_page(path, page_num) {
+            Ok(img) => img,
+            Err(e) => {
+                eprintln!("[rag/ocr] Page {page_num} render failed: {e}");
+                continue;
+            }
+        };
+
+        let result = with_engine(|engine| ocr_image(engine, &img));
+        match result {
             Ok(text) => {
                 let trimmed = text.trim();
                 if !trimmed.is_empty() {
@@ -217,9 +279,10 @@ pub fn ocr_pdf(path: &Path) -> Result<String, String> {
                 }
             }
             Err(e) => {
-                eprintln!("[rag/ocr] Page {} OCR failed: {e}", page_idx + 1);
+                eprintln!("[rag/ocr] Page {page_num} OCR failed: {e}");
             }
         }
+        // img is dropped here — memory for this page is freed before next page
     }
 
     if all_text.trim().is_empty() {
@@ -229,55 +292,76 @@ pub fn ocr_pdf(path: &Path) -> Result<String, String> {
     Ok(all_text)
 }
 
-// --- PDF to images (via pdftoppm) ---
+// --- PDF page handling ---
 
-fn pdf_to_images(path: &Path) -> Result<Vec<DynamicImage>, String> {
+/// Get page count using pdfinfo (poppler-utils).
+fn get_page_count(path: &Path) -> Result<usize, String> {
     let path_str = path.to_str().ok_or("Invalid path encoding")?;
-    let tmp_dir = tempfile::tempdir()
-        .map_err(|e| format!("Failed to create temp dir: {e}"))?;
+    let output = Command::new("pdfinfo")
+        .arg(path_str)
+        .output()
+        .map_err(|e| format!("pdfinfo not available: {e}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("pdfinfo failed: {stderr}"));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    for line in stdout.lines() {
+        if let Some(rest) = line.strip_prefix("Pages:") {
+            let count = rest
+                .trim()
+                .parse::<usize>()
+                .map_err(|e| format!("Failed to parse page count: {e}"))?;
+            return Ok(count);
+        }
+    }
+
+    Err("pdfinfo did not report page count".into())
+}
+
+/// Render a single PDF page to an image using pdftoppm.
+/// Uses -f/-l to select page and -singlefile to produce exactly one output.
+fn render_single_page(path: &Path, page_num: usize) -> Result<DynamicImage, String> {
+    let path_str = path.to_str().ok_or("Invalid path encoding")?;
+    let tmp_dir =
+        tempfile::tempdir().map_err(|e| format!("Failed to create temp dir: {e}"))?;
     let prefix = tmp_dir.path().join("page");
     let prefix_str = prefix.to_str().ok_or("Invalid temp path")?;
 
+    let page_str = page_num.to_string();
     let output = Command::new("pdftoppm")
-        .args(["-r", "300", "-png", path_str, prefix_str])
+        .args([
+            "-f",
+            &page_str,
+            "-l",
+            &page_str,
+            "-singlefile",
+            "-r",
+            "300",
+            "-png",
+            path_str,
+            prefix_str,
+        ])
         .output()
         .map_err(|e| format!("pdftoppm not available: {e}"))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("pdftoppm failed: {stderr}"));
+        return Err(format!("pdftoppm failed for page {page_num}: {stderr}"));
     }
 
-    // Collect generated PNG files sorted by name
-    let mut png_files: Vec<PathBuf> = fs::read_dir(tmp_dir.path())
-        .map_err(|e| format!("Failed to read temp dir: {e}"))?
-        .filter_map(|entry| {
-            let entry = entry.ok()?;
-            let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) == Some("png") {
-                Some(path)
-            } else {
-                None
-            }
-        })
-        .collect();
-    png_files.sort();
-
-    let mut images = Vec::with_capacity(png_files.len());
-    for png in &png_files {
-        let img = image::open(png)
-            .map_err(|e| format!("Failed to open page image: {e}"))?;
-        images.push(img);
-    }
-
-    Ok(images)
+    // -singlefile produces exactly one file: {prefix}.png
+    let png_path = prefix.with_extension("png");
+    image::open(&png_path).map_err(|e| format!("Failed to open page {page_num} image: {e}"))
 }
 
 // --- OCR pipeline for a single image ---
 
-fn ocr_image(engine: &OcrEngine, image: &DynamicImage) -> Result<String, String> {
+fn ocr_image(engine: &mut OcrEngine, image: &DynamicImage) -> Result<String, String> {
     // 1. Detect text regions
-    let boxes = detect_text(&engine.det_session, image)
+    let boxes = detect_text(&mut engine.det_session, &engine.det_output_name, image)
         .map_err(|e| format!("Detection failed: {e}"))?;
 
     if boxes.is_empty() {
@@ -299,9 +383,9 @@ fn ocr_image(engine: &OcrEngine, image: &DynamicImage) -> Result<String, String>
     let mut lines = Vec::new();
     for bbox in &sorted_boxes {
         let cropped = image.crop_imm(bbox.x, bbox.y, bbox.w, bbox.h);
-        let best = recognize_best(&engine.rec_models, &cropped);
-        if let Some((ref text, _confidence, _model_name)) = best {
-            let trimmed: String = text.trim().to_string();
+        let best = recognize_best(&mut engine.rec_models, &cropped);
+        if let Some((text, _confidence, _model_name)) = best {
+            let trimmed = text.trim().to_string();
             if !trimmed.is_empty() {
                 lines.push(trimmed);
             }
@@ -313,11 +397,14 @@ fn ocr_image(engine: &OcrEngine, image: &DynamicImage) -> Result<String, String>
 
 /// Run all recognition models on a cropped image, return (text, confidence, model_name)
 /// for the model with highest confidence. Returns None if all models fail or produce empty text.
-fn recognize_best<'a>(models: &'a [RecModel], image: &DynamicImage) -> Option<(String, f32, &'a str)> {
-    let mut best: Option<(String, f32, &str)> = None;
+fn recognize_best(
+    models: &mut [RecModel],
+    image: &DynamicImage,
+) -> Option<(String, f32, &'static str)> {
+    let mut best: Option<(String, f32, &'static str)> = None;
 
-    for model in models {
-        match recognize_text(&model.session, image, &model.dictionary) {
+    for model in models.iter_mut() {
+        match recognize_text(&mut model.session, &model.output_name, image, &model.dictionary) {
             Ok((text, confidence)) => {
                 if text.trim().is_empty() {
                     continue;
@@ -349,7 +436,11 @@ struct TextBox {
     h: u32,
 }
 
-fn detect_text(session: &Mutex<Session>, image: &DynamicImage) -> Result<Vec<TextBox>, String> {
+fn detect_text(
+    session: &mut Session,
+    output_name: &str,
+    image: &DynamicImage,
+) -> Result<Vec<TextBox>, String> {
     let (orig_w, orig_h) = image.dimensions();
 
     // Resize maintaining aspect ratio, max side = DET_MAX_SIDE, dimensions must be multiples of 32
@@ -368,18 +459,12 @@ fn detect_text(session: &Mutex<Session>, image: &DynamicImage) -> Result<Vec<Tex
     let input_value = Value::from_array(tensor)
         .map_err(|e| format!("Failed to create det input tensor: {e}"))?;
 
-    let mut session_guard = session
-        .lock()
-        .map_err(|e| format!("Det session lock poisoned: {e}"))?;
-    let outputs = session_guard
+    let outputs = session
         .run(ort::inputs!["x" => input_value])
         .map_err(|e| format!("Detection inference failed: {e}"))?;
 
-    // Output is probability map [1, 1, H, W]
-    let output_value = outputs
-        .values()
-        .next()
-        .ok_or("No detection output")?;
+    // Access output by name (not .values().next() which has undefined order)
+    let output_value = &outputs[output_name];
 
     let (_, prob_data) = output_value
         .try_extract_tensor::<f32>()
@@ -495,7 +580,8 @@ fn find_text_boxes(
 /// Confidence is the average softmax probability of the best class at each CTC timestep
 /// (excluding blank predictions). Range: 0.0 to 1.0.
 fn recognize_text(
-    session: &Mutex<Session>,
+    session: &mut Session,
+    output_name: &str,
     image: &DynamicImage,
     dictionary: &[String],
 ) -> Result<(String, f32), String> {
@@ -516,17 +602,12 @@ fn recognize_text(
     let input_value = Value::from_array(tensor)
         .map_err(|e| format!("Failed to create rec input tensor: {e}"))?;
 
-    let mut session_guard = session
-        .lock()
-        .map_err(|e| format!("Rec session lock poisoned: {e}"))?;
-    let outputs = session_guard
+    let outputs = session
         .run(ort::inputs!["x" => input_value])
         .map_err(|e| format!("Recognition inference failed: {e}"))?;
 
-    let output_value = outputs
-        .values()
-        .next()
-        .ok_or("No recognition output")?;
+    // Access output by name (not .values().next() which has undefined order)
+    let output_value = &outputs[output_name];
 
     let (shape, logits) = output_value
         .try_extract_tensor::<f32>()

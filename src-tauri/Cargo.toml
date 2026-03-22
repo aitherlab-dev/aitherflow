@@ -49,6 +49,6 @@ epub = "2"
 html2text = "0.14"
 arrow-array = "57"
 arrow-schema = "57"
-ort = { version = "=2.0.0-rc.11", default-features = false }
+ort = { version = "=2.0.0-rc.11", default-features = false, features = ["ndarray"] }
 ndarray = "0.17"
 tempfile = "3"

@@ -65,7 +65,11 @@ pub fn embed_texts(texts: &[String]) -> Result<Vec<Vec<f32>>, String> {
 pub fn embedding_dimension() -> usize {
     EMBEDDER
         .get()
-        .and_then(|m| m.lock().ok())
+        .and_then(|m| {
+            m.lock()
+                .map_err(|e| eprintln!("[rag] Embedder mutex poisoned in embedding_dimension: {e}"))
+                .ok()
+        })
         .map(|info| info.dimension)
         .unwrap_or_else(|| rag_settings::model_dimension(&rag_settings::load().embedding_model))
 }
