@@ -8,7 +8,7 @@ use crate::config;
 use crate::file_ops::{read_json, write_json};
 use std::path::PathBuf;
 
-use super::roles::{default_roles, AgentRole};
+use super::roles::{default_roles, AgentRole, DEFAULT_START_MESSAGE};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct TeamPreset {
@@ -151,7 +151,7 @@ pub async fn launch_team(
     let mut launched_ids: Vec<String> = Vec::new();
 
     for (agent_id, role) in roles_to_launch {
-        let prompt = role.start_message.clone().unwrap_or_else(|| "привет".to_string());
+        let prompt = role.start_message.clone().unwrap_or_else(|| DEFAULT_START_MESSAGE.to_string());
         let options = StartSessionOptions {
             agent_id: Some(agent_id.clone()),
             prompt,
@@ -216,7 +216,7 @@ pub async fn presets_launch(
     let mut launched_ids: Vec<String> = Vec::new();
 
     for (agent_id, role) in roles_to_launch {
-        let prompt = role.start_message.clone().unwrap_or_else(|| "привет".to_string());
+        let prompt = role.start_message.clone().unwrap_or_else(|| DEFAULT_START_MESSAGE.to_string());
         let options = StartSessionOptions {
             agent_id: Some(agent_id.clone()),
             prompt,

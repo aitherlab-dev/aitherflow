@@ -5,6 +5,8 @@ use crate::file_ops::{read_json, write_json};
 use crate::settings;
 use std::path::PathBuf;
 
+pub const DEFAULT_START_MESSAGE: &str = "привет";
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct AgentRole {
     pub name: String,
