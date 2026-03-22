@@ -52,12 +52,22 @@ function useDragScroll() {
       el.classList.remove("welcome-row--dragging");
     };
 
+    // Convert vertical wheel scroll to horizontal
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY !== 0) {
+        el.scrollLeft += e.deltaY;
+        e.preventDefault();
+      }
+    };
+
     el.addEventListener("mousedown", onMouseDown);
+    el.addEventListener("wheel", onWheel, { passive: false });
     document.addEventListener("mousemove", onMouseMove);
     document.addEventListener("mouseup", onMouseUp);
 
     cleanupRef.current = () => {
       el.removeEventListener("mousedown", onMouseDown);
+      el.removeEventListener("wheel", onWheel);
       document.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseup", onMouseUp);
     };
