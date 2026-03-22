@@ -273,12 +273,7 @@ export function WelcomeScreen() {
         style={{ "--i": 2 } as React.CSSProperties}
       >
         <div className="welcome-section-title">Projects</div>
-        <div className="welcome-row" ref={projectsRow.ref} onWheel={(e) => {
-          if (e.deltaY !== 0) {
-            e.currentTarget.scrollLeft += e.deltaY;
-            e.preventDefault();
-          }
-        }}>
+        <div className="welcome-row" ref={projectsRow.ref}>
           {/* Workspace — always first */}
           {workspace && (
             <button
@@ -344,12 +339,7 @@ export function WelcomeScreen() {
           <div className="welcome-section-title">
             Team{selectedProjectName ? ` — ${selectedProjectName}` : ""}
           </div>
-          <div className="welcome-row" ref={teamRow.ref} onWheel={(e) => {
-            if (e.deltaY !== 0) {
-              e.currentTarget.scrollLeft += e.deltaY;
-              e.preventDefault();
-            }
-          }}>
+          <div className="welcome-row" ref={teamRow.ref}>
             {/* Solo card */}
             <button
               className="welcome-card welcome-card--solo"
