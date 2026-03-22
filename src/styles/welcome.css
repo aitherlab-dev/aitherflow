@@ -93,8 +93,14 @@
   display: flex;
   gap: 10px;
   overflow-x: auto;
-  padding: 4px 0;
+  padding: 4px 12px;
   scrollbar-width: none;
+  cursor: grab;
+  user-select: none;
+}
+
+.welcome-row--dragging {
+  cursor: grabbing;
 }
 
 .welcome-row::-webkit-scrollbar {
