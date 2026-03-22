@@ -31,7 +31,7 @@ pub fn default_roles() -> Vec<AgentRole> {
             system_prompt: "Не додумывай за пользователя. Не делай лишнего. Если не уверен — спроси. Если сломал — скажи сразу.".into(),
             allowed_tools: vec!["Edit","Write","Bash","Glob","Grep","Read"].into_iter().map(String::from).collect(),
             can_manage: false,
-            start_message: Some("привет".to_string()),
+            start_message: Some(DEFAULT_START_MESSAGE.to_string()),
         },
         AgentRole {
             name: "Team Lead".into(),
