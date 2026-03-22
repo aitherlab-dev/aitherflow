@@ -15,16 +15,24 @@ use super::config as rag_config;
 // --- Model configuration ---
 
 const DET_MODEL_FILE: &str = "pp-ocrv4-det.onnx";
-const REC_MODEL_FILE: &str = "pp-ocrv4-rec.onnx";
-const DICT_FILE: &str = "ppocr_keys.txt";
+
+// Two recognition models: Latin/English (PP-OCRv4) and Cyrillic (PP-OCRv3)
+const REC_EN_MODEL_FILE: &str = "en-pp-ocrv4-rec.onnx";
+const REC_EN_DICT_FILE: &str = "en_dict.txt";
+const REC_CYR_MODEL_FILE: &str = "cyrillic-pp-ocrv3-rec.onnx";
+const REC_CYR_DICT_FILE: &str = "cyrillic_dict.txt";
 
 // HuggingFace-hosted PP-OCR ONNX models (RapidOCR community exports)
 const DET_MODEL_URL: &str =
     "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv4/ch_PP-OCRv4_det_infer.onnx";
-const REC_MODEL_URL: &str =
-    "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv4/ch_PP-OCRv4_rec_infer.onnx";
-const DICT_URL: &str =
-    "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv4/ppocr_keys_v1.txt";
+const REC_EN_MODEL_URL: &str =
+    "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv4/en_PP-OCRv4_rec_infer.onnx";
+const REC_EN_DICT_URL: &str =
+    "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv4/en_dict.txt";
+const REC_CYR_MODEL_URL: &str =
+    "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv3/cyrillic_PP-OCRv3_rec_infer.onnx";
+const REC_CYR_DICT_URL: &str =
+    "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv3/cyrillic_dict.txt";
 
 // ImageNet normalization constants
 const MEAN: [f32; 3] = [0.485, 0.456, 0.406];
@@ -42,10 +50,15 @@ const REC_MAX_WIDTH: u32 = 320;
 // --- OCR Engine (lazy singleton) ---
 // Sessions wrapped in Mutex because ort v2 session.run() requires &mut self.
 
+struct RecModel {
+    session: Mutex<Session>,
+    dictionary: Vec<String>,
+    name: &'static str,
+}
+
 struct OcrEngine {
     det_session: Mutex<Session>,
-    rec_session: Mutex<Session>,
-    dictionary: Vec<String>,
+    rec_models: Vec<RecModel>,
 }
 
 static OCR_ENGINE: OnceLock<Result<OcrEngine, String>> = OnceLock::new();
@@ -58,53 +71,75 @@ fn get_or_init_engine() -> Result<&'static OcrEngine, String> {
     }
 }
 
+fn load_session(path: PathBuf, label: &str) -> Result<Session, String> {
+    Session::builder()
+        .map_err(|e| format!("Failed to create {label} session builder: {e}"))?
+        .with_optimization_level(GraphOptimizationLevel::Level3)
+        .map_err(|e| format!("Failed to set {label} optimization level: {e}"))?
+        .with_intra_threads(2)
+        .map_err(|e| format!("Failed to set {label} threads: {e}"))?
+        .commit_from_file(path)
+        .map_err(|e| format!("Failed to load {label} model: {e}"))
+}
+
+fn load_dictionary(path: PathBuf) -> Result<Vec<String>, String> {
+    let dict_text = fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read dictionary {}: {e}", path.display()))?;
+    let mut dictionary: Vec<String> = dict_text.lines().map(|l| l.to_string()).collect();
+    // PP-OCR dictionary: index 0 = blank (CTC), last = space
+    dictionary.insert(0, String::new()); // blank token at index 0
+    dictionary.push(" ".to_string()); // space at end
+    Ok(dictionary)
+}
+
 fn init_engine() -> Result<OcrEngine, String> {
     let models_dir = ocr_models_dir();
     fs::create_dir_all(&models_dir)
         .map_err(|e| format!("Failed to create OCR models dir: {e}"))?;
 
-    // Download models if missing
-    download_if_missing(&models_dir.join(DET_MODEL_FILE), DET_MODEL_URL)?;
-    download_if_missing(&models_dir.join(REC_MODEL_FILE), REC_MODEL_URL)?;
-    download_if_missing(&models_dir.join(DICT_FILE), DICT_URL)?;
+    // Download all models if missing
+    let downloads = [
+        (DET_MODEL_FILE, DET_MODEL_URL),
+        (REC_EN_MODEL_FILE, REC_EN_MODEL_URL),
+        (REC_EN_DICT_FILE, REC_EN_DICT_URL),
+        (REC_CYR_MODEL_FILE, REC_CYR_MODEL_URL),
+        (REC_CYR_DICT_FILE, REC_CYR_DICT_URL),
+    ];
+    for (file, url) in downloads {
+        download_if_missing(&models_dir.join(file), url)?;
+    }
 
     eprintln!("[rag/ocr] Loading detection model...");
-    let det_session = Session::builder()
-        .map_err(|e| format!("Failed to create det session builder: {e}"))?
-        .with_optimization_level(GraphOptimizationLevel::Level3)
-        .map_err(|e| format!("Failed to set det optimization level: {e}"))?
-        .with_intra_threads(2)
-        .map_err(|e| format!("Failed to set det threads: {e}"))?
-        .commit_from_file(models_dir.join(DET_MODEL_FILE))
-        .map_err(|e| format!("Failed to load det model: {e}"))?;
+    let det_session = load_session(models_dir.join(DET_MODEL_FILE), "det")?;
 
-    eprintln!("[rag/ocr] Loading recognition model...");
-    let rec_session = Session::builder()
-        .map_err(|e| format!("Failed to create rec session builder: {e}"))?
-        .with_optimization_level(GraphOptimizationLevel::Level3)
-        .map_err(|e| format!("Failed to set rec optimization level: {e}"))?
-        .with_intra_threads(2)
-        .map_err(|e| format!("Failed to set rec threads: {e}"))?
-        .commit_from_file(models_dir.join(REC_MODEL_FILE))
-        .map_err(|e| format!("Failed to load rec model: {e}"))?;
+    eprintln!("[rag/ocr] Loading English/Latin recognition model...");
+    let en_session = load_session(models_dir.join(REC_EN_MODEL_FILE), "rec-en")?;
+    let en_dict = load_dictionary(models_dir.join(REC_EN_DICT_FILE))?;
 
-    eprintln!("[rag/ocr] Loading dictionary...");
-    let dict_text = fs::read_to_string(models_dir.join(DICT_FILE))
-        .map_err(|e| format!("Failed to read dictionary: {e}"))?;
-    let mut dictionary: Vec<String> = dict_text.lines().map(|l| l.to_string()).collect();
-    // PP-OCR dictionary: index 0 = blank (CTC), last = space
-    dictionary.insert(0, String::new()); // blank token at index 0
-    dictionary.push(" ".to_string()); // space at end
+    eprintln!("[rag/ocr] Loading Cyrillic recognition model...");
+    let cyr_session = load_session(models_dir.join(REC_CYR_MODEL_FILE), "rec-cyr")?;
+    let cyr_dict = load_dictionary(models_dir.join(REC_CYR_DICT_FILE))?;
 
     eprintln!(
-        "[rag/ocr] OCR engine initialized (dict size: {})",
-        dictionary.len()
+        "[rag/ocr] OCR engine initialized (en dict: {}, cyr dict: {})",
+        en_dict.len(),
+        cyr_dict.len()
     );
 
     Ok(OcrEngine {
         det_session: Mutex::new(det_session),
-        rec_session: Mutex::new(rec_session),
-        dictionary,
+        rec_models: vec![
+            RecModel {
+                session: Mutex::new(en_session),
+                dictionary: en_dict,
+                name: "en",
+            },
+            RecModel {
+                session: Mutex::new(cyr_session),
+                dictionary: cyr_dict,
+                name: "cyr",
+            },
+        ],
     })
 }
 
@@ -156,7 +191,8 @@ fn download_if_missing(path: &Path, url: &str) -> Result<(), String> {
 
 // --- Public API ---
 
-/// Extract text from a scanned PDF using OCR (PP-OCRv4 via ONNX Runtime).
+/// Extract text from a scanned PDF using OCR (PP-OCR via ONNX Runtime).
+/// Uses dual recognition models (Latin + Cyrillic), picks best by confidence.
 /// Called from parser.rs as a third fallback when pdftotext and pdf-extract
 /// both return empty text. Runs in spawn_blocking context.
 pub fn ocr_pdf(path: &Path) -> Result<String, String> {
@@ -259,18 +295,48 @@ fn ocr_image(engine: &OcrEngine, image: &DynamicImage) -> Result<String, String>
         }
     });
 
-    // 3. Recognize text in each box
+    // 3. Recognize text in each box using all models, pick best by confidence
     let mut lines = Vec::new();
     for bbox in &sorted_boxes {
         let cropped = image.crop_imm(bbox.x, bbox.y, bbox.w, bbox.h);
-        match recognize_text(&engine.rec_session, &cropped, &engine.dictionary) {
-            Ok(text) if !text.trim().is_empty() => lines.push(text),
-            Ok(_) => {}
-            Err(e) => eprintln!("[rag/ocr] Recognition failed for a box: {e}"),
+        let best = recognize_best(&engine.rec_models, &cropped);
+        if let Some((ref text, _confidence, _model_name)) = best {
+            let trimmed: String = text.trim().to_string();
+            if !trimmed.is_empty() {
+                lines.push(trimmed);
+            }
         }
     }
 
     Ok(lines.join("\n"))
+}
+
+/// Run all recognition models on a cropped image, return (text, confidence, model_name)
+/// for the model with highest confidence. Returns None if all models fail or produce empty text.
+fn recognize_best<'a>(models: &'a [RecModel], image: &DynamicImage) -> Option<(String, f32, &'a str)> {
+    let mut best: Option<(String, f32, &str)> = None;
+
+    for model in models {
+        match recognize_text(&model.session, image, &model.dictionary) {
+            Ok((text, confidence)) => {
+                if text.trim().is_empty() {
+                    continue;
+                }
+                let dominated = match &best {
+                    Some((_, best_conf, _)) => confidence > *best_conf,
+                    None => true,
+                };
+                if dominated {
+                    best = Some((text, confidence, model.name));
+                }
+            }
+            Err(e) => {
+                eprintln!("[rag/ocr] Recognition failed ({}): {e}", model.name);
+            }
+        }
+    }
+
+    best
 }
 
 // --- Detection ---
@@ -425,14 +491,17 @@ fn find_text_boxes(
 
 // --- Recognition ---
 
+/// Run recognition on a cropped image. Returns (text, confidence).
+/// Confidence is the average softmax probability of the best class at each CTC timestep
+/// (excluding blank predictions). Range: 0.0 to 1.0.
 fn recognize_text(
     session: &Mutex<Session>,
     image: &DynamicImage,
     dictionary: &[String],
-) -> Result<String, String> {
+) -> Result<(String, f32), String> {
     let (w, h) = image.dimensions();
     if w == 0 || h == 0 {
-        return Ok(String::new());
+        return Ok((String::new(), 0.0));
     }
 
     // Resize to fixed height, scale width proportionally
@@ -467,19 +536,23 @@ fn recognize_text(
     let seq_len = shape[1] as usize;
     let num_classes = shape[2] as usize;
 
-    let text = ctc_decode(logits, seq_len, num_classes, dictionary);
-    Ok(text)
+    Ok(ctc_decode_with_confidence(
+        logits, seq_len, num_classes, dictionary,
+    ))
 }
 
 /// CTC greedy decode: argmax per timestep, collapse repeats, remove blanks.
-fn ctc_decode(
+/// Also computes average confidence (softmax probability of chosen class at non-blank timesteps).
+fn ctc_decode_with_confidence(
     logits: &[f32],
     seq_len: usize,
     num_classes: usize,
     dictionary: &[String],
-) -> String {
+) -> (String, f32) {
     let mut result = String::new();
     let mut prev_idx: usize = 0; // blank
+    let mut confidence_sum: f32 = 0.0;
+    let mut confidence_count: u32 = 0;
 
     for t in 0..seq_len {
         let offset = t * num_classes;
@@ -500,9 +573,21 @@ fn ctc_decode(
             if let Some(ch) = dictionary.get(best_idx) {
                 result.push_str(ch);
             }
+            // Compute softmax probability for this timestep's best class
+            let max_logit = best_val;
+            let exp_sum: f32 = slice.iter().map(|&v| (v - max_logit).exp()).sum();
+            let prob = 1.0 / exp_sum; // exp(max - max) / sum = 1 / sum
+            confidence_sum += prob;
+            confidence_count += 1;
         }
         prev_idx = best_idx;
     }
 
-    result
+    let confidence = if confidence_count > 0 {
+        confidence_sum / confidence_count as f32
+    } else {
+        0.0
+    };
+
+    (result, confidence)
 }
