@@ -12,9 +12,11 @@ use super::roles::{default_roles, AgentRole};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct TeamPreset {
+    #[serde(default)]
     pub id: String,
     pub name: String,
     pub roles: Vec<String>,
+    #[serde(default)]
     pub is_builtin: bool,
 }
 
