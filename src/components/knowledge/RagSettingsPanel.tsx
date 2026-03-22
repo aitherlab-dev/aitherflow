@@ -9,6 +9,7 @@ const MODELS = [
   { value: "multilingual-e5-small", label: "multilingual-e5-small — Multilingual, 118MB" },
   { value: "multilingual-e5-large", label: "multilingual-e5-large — Multilingual, best quality, 560MB" },
   { value: "nomic-embed-text-v1.5", label: "nomic-embed-text-v1.5 — English, 137MB" },
+  { value: "bge-m3", label: "bge-m3 — Multilingual M3, 100+ languages, 560MB" },
 ];
 
 const CHUNK_SIZES = [256, 512, 1024, 2048];
