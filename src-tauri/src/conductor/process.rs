@@ -399,8 +399,14 @@ pub async fn run_cli_session(
         let team_poll = team.clone();
         let (stop_tx, mut stop_rx) = tokio::sync::oneshot::channel::<()>();
 
+        // Subscribe to push notifications for instant message delivery
+        let inbox_notify = crate::teamwork::mailbox::subscribe_inbox(&team_poll, &agent_id_poll);
+        let team_cleanup = team_poll.clone();
+        let agent_cleanup = agent_id_poll.clone();
+
         let handle = tokio::spawn(async move {
-            let mut interval = tokio::time::interval(std::time::Duration::from_secs(3));
+            // Fallback interval: 30s in case push notification was missed
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
             // Skip the first immediate tick
             interval.tick().await;
 
@@ -409,7 +415,7 @@ pub async fn run_cli_session(
             let mut pending_ndjson: Option<String> = None;
 
             loop {
-                // Check for stop signal alongside interval tick
+                // Wait for: stop signal, push notification, or fallback interval
                 tokio::select! {
                     _ = &mut stop_rx => {
                         // Graceful shutdown: process any pending messages before exiting
@@ -428,6 +434,7 @@ pub async fn run_cli_session(
                         }
                         break;
                     }
+                    _ = inbox_notify.notified() => {}
                     _ = interval.tick() => {}
                 }
 
@@ -512,6 +519,9 @@ pub async fn run_cli_session(
                     eprintln!("[teamwork] Failed to mark messages as read: {e}");
                 }
             }
+
+            // Cleanup: unsubscribe from push notifications
+            crate::teamwork::mailbox::unsubscribe_inbox(&team_cleanup, &agent_cleanup);
         });
 
         (Some(handle), Some(stop_tx))

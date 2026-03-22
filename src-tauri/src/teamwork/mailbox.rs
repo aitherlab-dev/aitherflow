@@ -4,6 +4,7 @@ use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::{Arc, LazyLock, Mutex};
+use tokio::sync::Notify;
 
 use crate::config;
 use crate::file_ops::atomic_write;
@@ -13,6 +14,35 @@ use super::validate_name;
 /// Per-inbox lock to prevent concurrent write races.
 static INBOX_LOCKS: LazyLock<Mutex<HashMap<String, Arc<Mutex<()>>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// Push-notification registry: when a message lands in an inbox,
+/// the corresponding Notify is triggered so the polling task wakes immediately.
+static INBOX_NOTIFIERS: LazyLock<Mutex<HashMap<String, Arc<Notify>>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// Subscribe to push notifications for a specific agent's inbox.
+/// Returns an `Arc<Notify>` that will be notified on every new message.
+pub(crate) fn subscribe_inbox(team: &str, agent_id: &str) -> Arc<Notify> {
+    let key = inbox_lock_key(team, agent_id);
+    let mut map = INBOX_NOTIFIERS.lock().unwrap_or_else(|e| e.into_inner());
+    map.entry(key).or_insert_with(|| Arc::new(Notify::new())).clone()
+}
+
+/// Unsubscribe from push notifications (cleanup on agent shutdown).
+pub(crate) fn unsubscribe_inbox(team: &str, agent_id: &str) {
+    let key = inbox_lock_key(team, agent_id);
+    let mut map = INBOX_NOTIFIERS.lock().unwrap_or_else(|e| e.into_inner());
+    map.remove(&key);
+}
+
+/// Notify the subscriber (if any) that a new message arrived.
+fn notify_inbox(team: &str, agent_id: &str) {
+    let key = inbox_lock_key(team, agent_id);
+    let map = INBOX_NOTIFIERS.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(notifier) = map.get(&key) {
+        notifier.notify_one();
+    }
+}
 
 fn inbox_lock(key: &str) -> Arc<Mutex<()>> {
     let mut map = INBOX_LOCKS.lock().unwrap_or_else(|e| {
@@ -125,6 +155,9 @@ fn append_to_inbox(team: &str, msg: &TeamMessage) -> Result<(), String> {
         .map_err(|e| format!("Failed to write to inbox: {e}"))?;
     file.sync_all()
         .map_err(|e| format!("Failed to sync inbox: {e}"))?;
+
+    // Push-notify the agent's polling task (if subscribed)
+    notify_inbox(team, &msg.to);
 
     Ok(())
 }
