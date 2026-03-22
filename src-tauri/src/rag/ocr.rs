@@ -395,8 +395,13 @@ fn ocr_image(engine: &mut OcrEngine, image: &DynamicImage) -> Result<String, Str
     Ok(lines.join("\n"))
 }
 
-/// Run all recognition models on a cropped image, return (text, confidence, model_name)
-/// for the model with highest confidence. Returns None if all models fail or produce empty text.
+/// Confidence threshold: if first model scores above this, skip remaining models.
+const HIGH_CONFIDENCE_THRESH: f32 = 0.8;
+
+/// Run recognition models on a cropped image, return (text, confidence, model_name)
+/// for the model with highest confidence. If the first model scores above
+/// HIGH_CONFIDENCE_THRESH, remaining models are skipped to halve inference cost.
+/// Returns None if all models fail or produce empty text.
 fn recognize_best(
     models: &mut [RecModel],
     image: &DynamicImage,
@@ -409,12 +414,17 @@ fn recognize_best(
                 if text.trim().is_empty() {
                     continue;
                 }
-                let dominated = match &best {
+                let is_better = match &best {
                     Some((_, best_conf, _)) => confidence > *best_conf,
                     None => true,
                 };
-                if dominated {
+                if is_better {
                     best = Some((text, confidence, model.name));
+                }
+                // Early exit: high confidence means this model's script matches well,
+                // no need to try remaining models
+                if confidence > HIGH_CONFIDENCE_THRESH {
+                    break;
                 }
             }
             Err(e) => {
