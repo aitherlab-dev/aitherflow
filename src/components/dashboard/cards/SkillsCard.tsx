@@ -154,16 +154,14 @@ export const SkillsCard = memo(function SkillsCard({
       expanded={expanded}
       onToggle={onToggle}
       headerExtra={
-        expanded ? (
-          <Tooltip text="Skills settings">
-            <button
-              className="dash-card__settings-btn"
-              onClick={handleSettingsClick}
-            >
-              <Settings size={12} />
-            </button>
-          </Tooltip>
-        ) : undefined
+        <Tooltip text="Skills settings">
+          <button
+            className="dash-card__settings-btn"
+            onClick={handleSettingsClick}
+          >
+            <Settings size={12} />
+          </button>
+        </Tooltip>
       }
     >
       <div className="dash-card__skills-sections">
