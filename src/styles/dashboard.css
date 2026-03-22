@@ -219,27 +219,6 @@
   white-space: nowrap;
 }
 
-/* Settings button in card header */
-.dash-card__settings-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--fg-dim);
-  cursor: pointer;
-  flex-shrink: 0;
-  margin-left: 4px;
-  transition: color 0.15s, background 0.15s;
-}
-
-.dash-card__settings-btn:hover {
-  color: var(--fg);
-  background: var(--bg-card);
-}
 
 /* Skills sections inside card */
 .dash-card__skills-sections {

@@ -156,7 +156,7 @@ export const SkillsCard = memo(function SkillsCard({
       headerExtra={
         <Tooltip text="Skills settings">
           <button
-            className="dash-card__settings-btn"
+            className="dash-card__action"
             onClick={handleSettingsClick}
           >
             <Settings size={12} />
