@@ -309,3 +309,40 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   },
 
 }));
+
+/**
+ * Launch a team via backend, register agents in stores, set roles.
+ * Shared by PresetManagerModal and WelcomeScreen preset cards.
+ */
+export async function launchTeam(
+  projectPath: string,
+  roles: string[],
+): Promise<string[]> {
+  const agentIds = await invoke<string[]>("launch_team", { projectPath, roles });
+
+  const projectName = useProjectStore.getState().projects.find((p) => p.path === projectPath)?.name
+    ?? projectPath.split("/").pop() ?? projectPath;
+
+  const currentAgents = useAgentStore.getState().agents;
+  const newAgents: AgentEntry[] = agentIds.map((id, i) => ({
+    id,
+    projectPath,
+    projectName,
+    createdAt: Date.now(),
+    order: currentAgents.length + i,
+  }));
+  await useAgentStore.getState().registerAgents(newAgents);
+
+  // Set roles in conductorStore (lazy import to avoid circular deps)
+  const { useConductorStore } = await import("./conductorStore");
+  const { setAgentRole } = useConductorStore.getState();
+  const roleEntries = await invoke<Array<{ name: string; system_prompt: string; allowed_tools: string[]; can_manage: boolean; is_default: boolean }>>("roles_list");
+  for (let i = 0; i < agentIds.length; i++) {
+    const match = roleEntries.find((r) => r.name === roles[i]);
+    if (match) {
+      setAgentRole(agentIds[i], match);
+    }
+  }
+
+  return agentIds;
+}

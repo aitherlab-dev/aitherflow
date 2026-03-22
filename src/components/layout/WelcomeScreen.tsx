@@ -11,7 +11,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { useProjectStore } from "../../stores/projectStore";
-import { useAgentStore } from "../../stores/agentStore";
+import { useAgentStore, launchTeam } from "../../stores/agentStore";
 import { switchChat } from "../../stores/chatService";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useSkillStore } from "../../stores/skillStore";
@@ -176,30 +176,13 @@ export function WelcomeScreen() {
       if (!selectedProject) return;
 
       try {
-        const agentIds = await invoke<string[]>("launch_team", {
-          projectPath: selectedProject,
-          roles: preset.roles,
-        });
-
-        const projectName = projects.find((p) => p.path === selectedProject)?.name
-          ?? selectedProject.split("/").pop() ?? selectedProject;
-
-        const currentAgents = useAgentStore.getState().agents;
-        const newAgents = agentIds.map((id, i) => ({
-          id,
-          projectPath: selectedProject,
-          projectName,
-          createdAt: Date.now(),
-          order: currentAgents.length + i,
-        }));
-        await useAgentStore.getState().registerAgents(newAgents);
-
+        await launchTeam(selectedProject, preset.roles);
         useLayoutStore.getState().closeWelcome();
       } catch (e) {
         console.error("[WelcomeScreen] Failed to launch preset:", e);
       }
     },
-    [teamRow, selectedProject, projects],
+    [teamRow, selectedProject],
   );
 
   const handleDeletePreset = useCallback(
