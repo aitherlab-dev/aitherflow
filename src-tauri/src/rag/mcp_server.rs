@@ -17,7 +17,7 @@ use tokio::sync::{mpsc, RwLock};
 
 use std::sync::Arc;
 
-use super::{chunker, commands, embedder, index, parser, rag_settings, store, validate_uuid};
+use super::{commands, embedder, index, rag_settings, store, validate_uuid};
 
 // ---------------------------------------------------------------------------
 // Global state
@@ -479,55 +479,13 @@ async fn tool_reindex_document(args: &Value) -> Result<String, String> {
         ));
     }
 
-    // Remove old chunks from index
-    index::remove_document_chunks(base_id, document_id).await?;
-
-    // Re-parse the file
-    let file_path = doc.path.clone();
-    let (texts, new_chunk_count) = tokio::task::spawn_blocking(move || {
-        let path = std::path::Path::new(&file_path);
-        let parsed = parser::parse_file(path)?;
-        let chunks = chunker::split_text_with_params(
-            &parsed.text,
-            parsed.is_markdown,
-            chunk_size,
-            chunk_overlap,
-        )?;
-        let texts: Vec<String> = chunks.into_iter().map(|c| c.text).collect();
-        let count = texts.len();
-        Ok::<_, String>((texts, count))
-    })
-    .await
-    .map_err(|e| format!("Task join error: {e}"))??;
-
-    if texts.is_empty() {
-        return Err("No content after re-chunking".into());
-    }
-
-    // Re-embed
-    let texts_for_embed = texts.clone();
-    let embeddings = tokio::task::spawn_blocking(move || embedder::embed_texts(&texts_for_embed))
-        .await
-        .map_err(|e| format!("Task join error: {e}"))??;
-
-    // Re-index
-    index::add_chunks(base_id, document_id, &texts, &embeddings).await?;
-
-    // Update chunk count in metadata
-    let bid = base_id.to_string();
-    let did = document_id.to_string();
-    tokio::task::spawn_blocking(move || {
-        let mut meta = store::get_base(&bid)?;
-        if let Some(doc) = meta.documents.iter_mut().find(|d| d.id == did) {
-            doc.chunk_count = new_chunk_count;
-        }
-        crate::file_ops::write_json(
-            &super::config::base_meta_path(&bid),
-            &meta,
-        )
-    })
-    .await
-    .map_err(|e| format!("Task join error: {e}"))??;
+    let new_chunk_count = commands::reindex_single_document(
+        base_id,
+        &doc,
+        Some(chunk_size),
+        Some(chunk_overlap),
+    )
+    .await?;
 
     Ok(format!(
         "Document '{}' reindexed: {} chunks (size={}, overlap={})",

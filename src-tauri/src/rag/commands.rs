@@ -483,9 +483,12 @@ pub async fn rag_save_settings(settings: rag_settings::RagSettings) -> Result<bo
 
 /// Reindex a single document: remove old chunks → parse → chunk → embed → re-add.
 /// Returns new chunk count on success. Used by both rag_reindex_base and mcp tool.
+/// If chunk_size/chunk_overlap are None, uses defaults from rag settings.
 pub async fn reindex_single_document(
     base_id: &str,
     doc: &store::DocumentMeta,
+    chunk_size: Option<usize>,
+    chunk_overlap: Option<usize>,
 ) -> Result<usize, String> {
     let bid = base_id.to_string();
     let did = doc.id.clone();
@@ -493,12 +496,17 @@ pub async fn reindex_single_document(
     // Remove old chunks
     index::remove_document_chunks(&bid, &did).await?;
 
-    // Re-parse
+    // Re-parse with optional custom chunk params
     let file_path = doc.path.clone();
     let (texts, new_chunk_count) = tokio::task::spawn_blocking(move || {
         let path = std::path::Path::new(&file_path);
         let parsed = parser::parse_file(path)?;
-        let chunks = chunker::split_text(&parsed.text, parsed.is_markdown)?;
+        let chunks = match (chunk_size, chunk_overlap) {
+            (Some(size), Some(overlap)) => {
+                chunker::split_text_with_params(&parsed.text, parsed.is_markdown, size, overlap)?
+            }
+            _ => chunker::split_text(&parsed.text, parsed.is_markdown)?,
+        };
         let texts: Vec<String> = chunks.into_iter().map(|c| c.text).collect();
         let count = texts.len();
         Ok::<_, String>((texts, count))
@@ -575,7 +583,7 @@ pub async fn rag_reindex_base(
             continue;
         }
 
-        match reindex_single_document(&base_id, doc).await {
+        match reindex_single_document(&base_id, doc, None, None).await {
             Ok(chunks) => {
                 eprintln!(
                     "[rag] Reindexed {}/{}: {} ({} chunks)",

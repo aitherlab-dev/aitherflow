@@ -45,10 +45,13 @@ export const BaseDetail = memo(function BaseDetail() {
     setReindexConfirmOpen(false);
     setIsReindexing(true);
     setReindexSummary(null);
-    const summary = await reindexBase(base.id);
-    setIsReindexing(false);
-    if (summary) {
-      setReindexSummary(summary);
+    try {
+      const summary = await reindexBase(base.id);
+      if (summary) {
+        setReindexSummary(summary);
+      }
+    } finally {
+      setIsReindexing(false);
     }
   }, [base, reindexBase]);
 
