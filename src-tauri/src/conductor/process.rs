@@ -441,7 +441,12 @@ pub async fn run_cli_session(
                 // Quick status check (avoids inbox I/O when not idle)
                 match writer_poll.get_status().await {
                     SessionStatus::Exited => break,
-                    SessionStatus::Thinking => continue,
+                    SessionStatus::Thinking => {
+                        // Re-notify so select! wakes immediately on next iteration
+                        // instead of waiting for the 30s fallback interval
+                        inbox_notify.notify_one();
+                        continue;
+                    }
                     SessionStatus::Idle => {}
                 }
 
