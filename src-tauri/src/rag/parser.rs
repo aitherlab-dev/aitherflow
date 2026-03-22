@@ -147,7 +147,7 @@ fn parse_text(path: &Path, ext: &str) -> Result<ParsedDocument, String> {
 }
 
 /// Extract text from a PDF file.
-/// Tries pdftotext (poppler-utils) first, falls back to pdf-extract crate.
+/// Tries pdftotext first, then pdf-extract, then OCR for scanned documents.
 fn parse_pdf(path: &Path) -> Result<ParsedDocument, String> {
     // Try pdftotext CLI first (better quality for complex PDFs)
     match parse_pdf_pdftotext(path) {
@@ -158,7 +158,15 @@ fn parse_pdf(path: &Path) -> Result<ParsedDocument, String> {
     }
 
     // Fallback: pdf-extract crate
-    parse_pdf_extract(path)
+    match parse_pdf_extract(path) {
+        Ok(doc) => return Ok(doc),
+        Err(e) => {
+            eprintln!("[rag] pdf-extract failed, falling back to OCR: {e}");
+        }
+    }
+
+    // Final fallback: OCR for scanned documents (images without text layer)
+    parse_pdf_ocr(path)
 }
 
 /// Extract text using pdftotext CLI from poppler-utils.
@@ -205,6 +213,16 @@ fn parse_pdf_extract(path: &Path) -> Result<ParsedDocument, String> {
 
     Ok(ParsedDocument {
         text: trimmed,
+        is_markdown: false,
+    })
+}
+
+/// Fallback OCR extraction for scanned PDFs using PP-OCR ONNX models.
+fn parse_pdf_ocr(path: &Path) -> Result<ParsedDocument, String> {
+    eprintln!("[rag] Attempting OCR for scanned PDF: {}", path.display());
+    let text = super::ocr::ocr_pdf(path)?;
+    Ok(ParsedDocument {
+        text,
         is_markdown: false,
     })
 }

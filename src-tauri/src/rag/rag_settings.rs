@@ -10,6 +10,7 @@ pub const AVAILABLE_MODELS: &[(&str, &str, usize)] = &[
     ("multilingual-e5-small", "Multilingual (ru/en/zh/...), 118MB", 384),
     ("multilingual-e5-large", "Multilingual, higher quality, 560MB", 1024),
     ("nomic-embed-text-v1.5", "Good quality, English, 137MB", 768),
+    ("bge-m3", "Multilingual M3, 100+ languages, 8192 ctx, 560MB", 1024),
 ];
 
 /// RAG module settings stored in rag/settings.json.
@@ -98,6 +99,7 @@ pub fn resolve_model(name: &str) -> fastembed::EmbeddingModel {
         "multilingual-e5-small" => fastembed::EmbeddingModel::MultilingualE5Small,
         "multilingual-e5-large" => fastembed::EmbeddingModel::MultilingualE5Large,
         "nomic-embed-text-v1.5" => fastembed::EmbeddingModel::NomicEmbedTextV15,
+        "bge-m3" => fastembed::EmbeddingModel::BGEM3,
         _ => fastembed::EmbeddingModel::AllMiniLML6V2,
     }
 }

@@ -4,6 +4,7 @@ pub mod config;
 pub mod embedder;
 pub mod mcp_server;
 pub mod index;
+pub mod ocr;
 pub mod parser;
 pub mod rag_settings;
 pub mod store;

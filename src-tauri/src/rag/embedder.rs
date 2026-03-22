@@ -1,6 +1,6 @@
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
 
-use fastembed::{InitOptions, TextEmbedding};
+use fastembed::{TextEmbedding, TextInitOptions};
 
 use super::config as rag_config;
 use super::rag_settings;
@@ -8,16 +8,17 @@ use super::rag_settings;
 /// Global embedding model instance (initialized once on first use).
 /// NOTE: embed_texts must always be called from tokio::task::spawn_blocking.
 /// Model is determined at init time from rag_settings. Changing model requires app restart.
-static EMBEDDER: OnceLock<EmbedderInfo> = OnceLock::new();
+/// Mutex is needed because fastembed v5 embed() requires &mut self.
+static EMBEDDER: OnceLock<Mutex<EmbedderInfo>> = OnceLock::new();
 
 struct EmbedderInfo {
     model: TextEmbedding,
     dimension: usize,
 }
 
-fn get_or_init() -> Result<&'static EmbedderInfo, String> {
-    if let Some(info) = EMBEDDER.get() {
-        return Ok(info);
+fn get_or_init() -> Result<&'static Mutex<EmbedderInfo>, String> {
+    if let Some(m) = EMBEDDER.get() {
+        return Ok(m);
     }
 
     let settings = rag_settings::load();
@@ -34,11 +35,11 @@ fn get_or_init() -> Result<&'static EmbedderInfo, String> {
     );
 
     let model = TextEmbedding::try_new(
-        InitOptions::new(fastembed_model).with_cache_dir(cache_dir),
+        TextInitOptions::new(fastembed_model).with_cache_dir(cache_dir),
     )
     .map_err(|e| format!("Failed to initialize embedding model: {e}"))?;
 
-    let info = EmbedderInfo { model, dimension };
+    let info = Mutex::new(EmbedderInfo { model, dimension });
     // OnceLock::set returns Err if already initialized by a concurrent caller —
     // that's fine, we just use whichever value won the race.
     let _ = EMBEDDER.set(info);
@@ -51,9 +52,12 @@ pub fn embed_texts(texts: &[String]) -> Result<Vec<Vec<f32>>, String> {
         return Ok(Vec::new());
     }
 
-    let info = get_or_init()?;
+    let mutex = get_or_init()?;
+    let mut info = mutex
+        .lock()
+        .map_err(|e| format!("Embedder lock poisoned: {e}"))?;
     info.model
-        .embed(texts.to_vec(), None)
+        .embed(texts, None)
         .map_err(|e| format!("Embedding failed: {e}"))
 }
 
@@ -61,6 +65,7 @@ pub fn embed_texts(texts: &[String]) -> Result<Vec<Vec<f32>>, String> {
 pub fn embedding_dimension() -> usize {
     EMBEDDER
         .get()
+        .and_then(|m| m.lock().ok())
         .map(|info| info.dimension)
         .unwrap_or_else(|| rag_settings::model_dimension(&rag_settings::load().embedding_model))
 }
