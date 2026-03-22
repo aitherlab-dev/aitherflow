@@ -147,12 +147,10 @@
 .welcome-card--selected {
   border-color: var(--accent);
   background: var(--accent-soft);
-  box-shadow: 0 0 0 1px var(--accent-stroke);
 }
 
 .welcome-card--selected:hover {
   border-color: var(--accent-icon);
-  box-shadow: 0 0 0 1px var(--accent-icon);
 }
 
 /* Small action button (just an icon, e.g. [+]) */
@@ -188,7 +186,7 @@
 
 .welcome-card-name {
   font-size: 0.82rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--fg);
   overflow: hidden;
   text-overflow: ellipsis;
