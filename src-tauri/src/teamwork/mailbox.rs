@@ -56,7 +56,7 @@ fn inbox_lock(key: &str) -> Arc<Mutex<()>> {
         .clone()
 }
 
-/// Remove lock entries for a given team prefix (called on team deletion).
+/// Remove lock and notifier entries for a given team prefix (called on team deletion).
 #[allow(dead_code)] // reserved for team lifecycle management
 pub(crate) fn remove_inbox_locks(team: &str) {
     let prefix = format!("{team}/");
@@ -64,6 +64,16 @@ pub(crate) fn remove_inbox_locks(team: &str) {
     map.retain(|key, arc| {
         if key.starts_with(&prefix) {
             Arc::strong_count(arc) > 1 // keep if someone holds it
+        } else {
+            true
+        }
+    });
+
+    // Also clean up push-notification subscriptions for this team
+    let mut notifiers = INBOX_NOTIFIERS.lock().unwrap_or_else(|e| e.into_inner());
+    notifiers.retain(|key, notify| {
+        if key.starts_with(&prefix) {
+            Arc::strong_count(notify) > 1 // keep if someone is still subscribed
         } else {
             true
         }
