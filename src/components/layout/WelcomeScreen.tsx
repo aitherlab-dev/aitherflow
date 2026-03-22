@@ -19,38 +19,57 @@ import { invoke, openDialog } from "../../lib/transport";
 import type { TeamPreset } from "../../types/projects";
 import { PresetManagerModal } from "./PresetManagerModal";
 
-/** Drag-scroll for a horizontal row: pointerdown → pointermove → pointerup */
+/** Drag-scroll for a horizontal row via mousedown + document mousemove/mouseup.
+ *  Uses a callback ref so listeners attach even when the element mounts later
+ *  (e.g. conditionally rendered Team section). */
 function useDragScroll() {
-  const ref = useRef<HTMLDivElement>(null);
   const dragState = useRef({ active: false, startX: 0, scrollLeft: 0, moved: false });
+  const cleanupRef = useRef<(() => void) | null>(null);
 
-  const onPointerDown = useCallback((e: React.PointerEvent) => {
-    const el = ref.current;
+  const ref = useCallback((el: HTMLDivElement | null) => {
+    // Detach previous listeners
+    cleanupRef.current?.();
+    cleanupRef.current = null;
     if (!el) return;
-    dragState.current = { active: true, startX: e.clientX, scrollLeft: el.scrollLeft, moved: false };
-    el.setPointerCapture(e.pointerId);
-    el.classList.add("welcome-row--dragging");
+
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.button !== 0) return;
+      dragState.current = { active: true, startX: e.clientX, scrollLeft: el.scrollLeft, moved: false };
+      el.classList.add("welcome-row--dragging");
+      e.preventDefault(); // prevent text selection
+    };
+
+    const onMouseMove = (e: MouseEvent) => {
+      const ds = dragState.current;
+      if (!ds.active) return;
+      const dx = e.clientX - ds.startX;
+      if (Math.abs(dx) > 3) ds.moved = true;
+      el.scrollLeft = ds.scrollLeft - dx;
+    };
+
+    const onMouseUp = () => {
+      dragState.current.active = false;
+      el.classList.remove("welcome-row--dragging");
+    };
+
+    el.addEventListener("mousedown", onMouseDown);
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+
+    cleanupRef.current = () => {
+      el.removeEventListener("mousedown", onMouseDown);
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+    };
   }, []);
 
-  const onPointerMove = useCallback((e: React.PointerEvent) => {
-    const ds = dragState.current;
-    if (!ds.active) return;
-    const dx = e.clientX - ds.startX;
-    if (Math.abs(dx) > 3) ds.moved = true;
-    if (ref.current) ref.current.scrollLeft = ds.scrollLeft - dx;
-  }, []);
-
-  const onPointerUp = useCallback((e: React.PointerEvent) => {
-    const ds = dragState.current;
-    ds.active = false;
-    ref.current?.releasePointerCapture(e.pointerId);
-    ref.current?.classList.remove("welcome-row--dragging");
-  }, []);
+  // Cleanup on unmount
+  useEffect(() => () => { cleanupRef.current?.(); }, []);
 
   /** True if the last pointer sequence included a drag (suppress click) */
   const wasDragged = useCallback(() => dragState.current.moved, []);
 
-  return { ref, onPointerDown, onPointerMove, onPointerUp, wasDragged };
+  return { ref, wasDragged };
 }
 
 export function WelcomeScreen() {
@@ -244,13 +263,7 @@ export function WelcomeScreen() {
         style={{ "--i": 2 } as React.CSSProperties}
       >
         <div className="welcome-section-title">Projects</div>
-        <div
-          className="welcome-row"
-          ref={projectsRow.ref}
-          onPointerDown={projectsRow.onPointerDown}
-          onPointerMove={projectsRow.onPointerMove}
-          onPointerUp={projectsRow.onPointerUp}
-        >
+        <div className="welcome-row" ref={projectsRow.ref}>
           {/* Workspace — always first */}
           {workspace && (
             <button
@@ -316,13 +329,7 @@ export function WelcomeScreen() {
           <div className="welcome-section-title">
             Team{selectedProjectName ? ` — ${selectedProjectName}` : ""}
           </div>
-          <div
-            className="welcome-row"
-            ref={teamRow.ref}
-            onPointerDown={teamRow.onPointerDown}
-            onPointerMove={teamRow.onPointerMove}
-            onPointerUp={teamRow.onPointerUp}
-          >
+          <div className="welcome-row" ref={teamRow.ref}>
             {/* Solo card */}
             <button
               className="welcome-card welcome-card--solo"
