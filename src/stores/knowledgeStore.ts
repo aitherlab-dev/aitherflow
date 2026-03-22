@@ -227,8 +227,8 @@ export const useKnowledgeStore = create<KnowledgeState>((set, get) => ({
       } catch (e) {
         console.error("Failed to add documents:", e);
         // Load partial results even on error
-        await get().loadDocuments(baseId).catch(() => {});
-        await get().loadBases().catch(() => {});
+        await get().loadDocuments(baseId).catch(console.error);
+        await get().loadBases().catch(console.error);
         set({ bgOperation: null });
         setErrorWithAutoClear(set, get, `Failed to add documents: ${errorMessage(e)}`);
       } finally {
