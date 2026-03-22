@@ -176,9 +176,9 @@ export function WelcomeScreen() {
       if (!selectedProject) return;
 
       try {
-        await invoke("presets_launch", {
+        await invoke("launch_team", {
           projectPath: selectedProject,
-          presetId: preset.id,
+          roles: preset.roles,
         });
         useLayoutStore.getState().closeWelcome();
       } catch (e) {
@@ -430,6 +430,7 @@ export function WelcomeScreen() {
       {/* Preset manager modal */}
       {showPresetManager && (
         <PresetManagerModal
+          projectPath={selectedProject ?? ""}
           onClose={() => {
             setShowPresetManager(false);
             loadPresets();

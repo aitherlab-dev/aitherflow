@@ -189,6 +189,7 @@ pub fn run() {
             teamwork::presets::presets_save,
             teamwork::presets::presets_delete,
             teamwork::presets::presets_launch,
+            teamwork::presets::launch_team,
             teamwork::mailbox::team_read_all_messages,
             teamwork::mailbox::team_clear_messages,
             teamwork::mailbox::team_broadcast,

@@ -364,21 +364,79 @@
   color: var(--error);
 }
 
-/* Create preset form */
-.preset-modal-form {
+/* Role counter rows */
+.preset-modal-roles-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  border-top: 1px solid var(--border);
-  padding-top: 12px;
+  gap: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
-.preset-modal-form-title {
-  font-size: 0.82rem;
-  font-weight: 600;
+.preset-modal-role-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.preset-modal-role-row:hover {
+  background: var(--bg-hover);
+}
+
+.preset-modal-role-name {
+  font-size: 0.85rem;
   color: var(--fg);
 }
 
+.preset-modal-role-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.preset-modal-role-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  font-family: inherit;
+}
+
+.preset-modal-role-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--accent-stroke);
+  color: var(--fg);
+}
+
+.preset-modal-role-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.preset-modal-role-count {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--fg-muted);
+  min-width: 20px;
+  text-align: center;
+}
+
+.preset-modal-role-count--active {
+  color: var(--accent);
+}
+
+/* Preset name input */
 .preset-modal-input {
   padding: 8px 10px;
   background: var(--input-bg);
@@ -395,56 +453,54 @@
   border-color: var(--accent);
 }
 
-.preset-modal-roles {
+/* Action buttons row */
+.preset-modal-actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
-.preset-modal-role-chip {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: transparent;
-  color: var(--fg-muted);
-  font-size: 0.78rem;
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-  font-family: inherit;
-}
-
-.preset-modal-role-chip:hover {
-  background: var(--bg-hover);
-}
-
-.preset-modal-role-chip--selected {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--fg);
-}
-
-.preset-modal-save {
-  align-self: flex-end;
-  padding: 6px 16px;
+.preset-modal-btn-primary {
+  padding: 8px 20px;
   background: var(--accent);
   border: none;
   border-radius: 6px;
   color: var(--bg);
-  font-size: 0.82rem;
+  font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
   transition: opacity 0.15s;
   font-family: inherit;
 }
 
-.preset-modal-save:hover {
+.preset-modal-btn-primary:hover:not(:disabled) {
   opacity: 0.85;
 }
 
-.preset-modal-save:disabled {
+.preset-modal-btn-primary:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.preset-modal-btn-secondary {
+  padding: 8px 16px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg-muted);
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  font-family: inherit;
+}
+
+.preset-modal-btn-secondary:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--accent-stroke);
+  color: var(--fg);
+}
+
+.preset-modal-btn-secondary:disabled {
   opacity: 0.4;
   cursor: default;
 }

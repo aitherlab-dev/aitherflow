@@ -1,135 +1,169 @@
 import { useState, useEffect, useCallback } from "react";
-import { X, Trash2 } from "lucide-react";
+import { X, Minus, Plus } from "lucide-react";
 import { invoke } from "../../lib/transport";
 import type { TeamPreset } from "../../types/projects";
 import type { RoleEntry } from "../../types/team";
+import { useLayoutStore } from "../../stores/layoutStore";
 
 interface PresetManagerModalProps {
+  projectPath: string;
+  /** If set, pre-fill role counters from this preset */
+  editPreset?: TeamPreset;
   onClose: () => void;
 }
 
-export function PresetManagerModal({ onClose }: PresetManagerModalProps) {
-  const [presets, setPresets] = useState<TeamPreset[]>([]);
-  const [roles, setRoles] = useState<RoleEntry[]>([]);
-  const [newName, setNewName] = useState("");
-  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+/** Count occurrences of each role name in a flat roles array */
+function countRoles(roles: string[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const r of roles) {
+    counts.set(r, (counts.get(r) ?? 0) + 1);
+  }
+  return counts;
+}
 
-  const loadData = useCallback(async () => {
+/** Expand role counts back to flat array: {Coder: 3, Reviewer: 1} → ["Coder","Coder","Coder","Reviewer"] */
+function expandRoles(counts: Map<string, number>): string[] {
+  const result: string[] = [];
+  for (const [name, count] of counts) {
+    for (let i = 0; i < count; i++) result.push(name);
+  }
+  return result;
+}
+
+export function PresetManagerModal({ projectPath, editPreset, onClose }: PresetManagerModalProps) {
+  const [roles, setRoles] = useState<RoleEntry[]>([]);
+  const [roleCounts, setRoleCounts] = useState<Map<string, number>>(new Map());
+  const [presetName, setPresetName] = useState("");
+
+  const loadRoles = useCallback(async () => {
     try {
-      const [p, r] = await Promise.all([
-        invoke<TeamPreset[]>("presets_list"),
-        invoke<RoleEntry[]>("roles_list"),
-      ]);
-      setPresets(p);
+      const r = await invoke<RoleEntry[]>("roles_list");
       setRoles(r);
     } catch (e) {
-      console.error("[PresetManagerModal] Failed to load data:", e);
+      console.error("[PresetManagerModal] Failed to load roles:", e);
     }
   }, []);
 
   useEffect(() => {
-    loadData().catch(console.error);
-  }, [loadData]);
+    loadRoles().catch(console.error);
+  }, [loadRoles]);
 
-  const handleDelete = useCallback(async (id: string) => {
-    try {
-      await invoke("presets_delete", { id });
-      setPresets((prev) => prev.filter((p) => p.id !== id));
-    } catch (e) {
-      console.error("[PresetManagerModal] Failed to delete preset:", e);
+  // Pre-fill from editPreset
+  useEffect(() => {
+    if (editPreset) {
+      setRoleCounts(countRoles(editPreset.roles));
+      setPresetName(editPreset.name);
     }
+  }, [editPreset]);
+
+  const adjustCount = useCallback((roleName: string, delta: number) => {
+    setRoleCounts((prev) => {
+      const next = new Map(prev);
+      const current = next.get(roleName) ?? 0;
+      const newVal = Math.max(0, current + delta);
+      if (newVal === 0) {
+        next.delete(roleName);
+      } else {
+        next.set(roleName, newVal);
+      }
+      return next;
+    });
   }, []);
 
-  const toggleRole = useCallback((roleName: string) => {
-    setSelectedRoles((prev) =>
-      prev.includes(roleName)
-        ? prev.filter((r) => r !== roleName)
-        : [...prev, roleName],
-    );
-  }, []);
+  const totalAgents = Array.from(roleCounts.values()).reduce((a, b) => a + b, 0);
+  const canLaunch = totalAgents > 0;
+  const canSave = presetName.trim().length > 0 && totalAgents > 0;
+
+  const handleLaunch = useCallback(async () => {
+    if (!canLaunch) return;
+    const rolesArray = expandRoles(roleCounts);
+    try {
+      await invoke("launch_team", { projectPath, roles: rolesArray });
+      onClose();
+      useLayoutStore.getState().closeWelcome();
+    } catch (e) {
+      console.error("[PresetManagerModal] Failed to launch team:", e);
+    }
+  }, [canLaunch, roleCounts, projectPath, onClose]);
 
   const handleSave = useCallback(async () => {
-    const trimmed = newName.trim();
-    if (!trimmed || selectedRoles.length === 0) return;
-
+    if (!canSave) return;
+    const rolesArray = expandRoles(roleCounts);
     const preset: Omit<TeamPreset, "id" | "is_builtin"> & { id?: string } = {
-      name: trimmed,
-      roles: selectedRoles,
+      name: presetName.trim(),
+      roles: rolesArray,
     };
-
     try {
       await invoke("presets_save", { preset });
-      setNewName("");
-      setSelectedRoles([]);
-      await loadData();
+      setPresetName("");
     } catch (e) {
       console.error("[PresetManagerModal] Failed to save preset:", e);
     }
-  }, [newName, selectedRoles, loadData]);
-
-  const canSave = newName.trim().length > 0 && selectedRoles.length > 0;
+  }, [canSave, roleCounts, presetName]);
 
   return (
     <div className="preset-modal-overlay" onClick={onClose}>
       <div className="preset-modal" onClick={(e) => e.stopPropagation()}>
         <div className="preset-modal-header">
-          <span className="preset-modal-title">Team Presets</span>
+          <span className="preset-modal-title">Launch Team</span>
           <button className="preset-modal-close" onClick={onClose}>
             <X size={16} />
           </button>
         </div>
 
-        {presets.length > 0 && (
-          <div className="preset-modal-list">
-            {presets.map((p) => (
-              <div key={p.id} className="preset-modal-item">
-                <div className="preset-modal-item-info">
-                  <span className="preset-modal-item-name">{p.name}</span>
-                  <span className="preset-modal-item-roles">
-                    {p.roles.join(", ")}
-                  </span>
-                </div>
-                {!p.is_builtin && (
+        {/* Role counters */}
+        <div className="preset-modal-roles-list">
+          {roles.map((r) => {
+            const count = roleCounts.get(r.name) ?? 0;
+            return (
+              <div key={r.name} className="preset-modal-role-row">
+                <span className="preset-modal-role-name">{r.name}</span>
+                <div className="preset-modal-role-controls">
                   <button
-                    className="preset-modal-item-delete"
-                    onClick={() => handleDelete(p.id)}
+                    className="preset-modal-role-btn"
+                    disabled={count === 0}
+                    onClick={() => adjustCount(r.name, -1)}
                   >
-                    <Trash2 size={14} />
+                    <Minus size={14} />
                   </button>
-                )}
+                  <span className={`preset-modal-role-count${count > 0 ? " preset-modal-role-count--active" : ""}`}>
+                    {count}
+                  </span>
+                  <button
+                    className="preset-modal-role-btn"
+                    onClick={() => adjustCount(r.name, 1)}
+                  >
+                    <Plus size={14} />
+                  </button>
+                </div>
               </div>
-            ))}
-          </div>
-        )}
+            );
+          })}
+        </div>
 
-        <div className="preset-modal-form">
-          <span className="preset-modal-form-title">New Preset</span>
-          <input
-            className="preset-modal-input"
-            placeholder="Preset name"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.code === "Enter" && canSave) handleSave();
-            }}
-          />
-          <div className="preset-modal-roles">
-            {roles.map((r) => (
-              <button
-                key={r.name}
-                className={`preset-modal-role-chip${selectedRoles.includes(r.name) ? " preset-modal-role-chip--selected" : ""}`}
-                onClick={() => toggleRole(r.name)}
-              >
-                {r.name}
-              </button>
-            ))}
-          </div>
+        {/* Optional preset name */}
+        <input
+          className="preset-modal-input"
+          placeholder="Preset name (optional)"
+          value={presetName}
+          onChange={(e) => setPresetName(e.target.value)}
+        />
+
+        {/* Action buttons */}
+        <div className="preset-modal-actions">
           <button
-            className="preset-modal-save"
+            className="preset-modal-btn-secondary"
             disabled={!canSave}
             onClick={handleSave}
           >
             Save
+          </button>
+          <button
+            className="preset-modal-btn-primary"
+            disabled={!canLaunch}
+            onClick={handleLaunch}
+          >
+            Launch ({totalAgents})
           </button>
         </div>
       </div>

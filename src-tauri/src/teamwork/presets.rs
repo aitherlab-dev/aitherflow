@@ -124,6 +124,63 @@ fn find_role_by_name(name: &str) -> Option<AgentRole> {
 }
 
 #[tauri::command]
+pub async fn launch_team(
+    app: tauri::AppHandle,
+    project_path: String,
+    roles: Vec<String>,
+    model: Option<String>,
+    effort: Option<String>,
+) -> Result<Vec<String>, String> {
+    if roles.is_empty() {
+        return Err("At least one role is required".to_string());
+    }
+
+    let roles_to_launch: Vec<(String, AgentRole)> = tokio::task::spawn_blocking(move || {
+        let mut resolved = Vec::new();
+        for role_name in &roles {
+            let role = find_role_by_name(role_name)
+                .ok_or_else(|| format!("Role '{}' not found", role_name))?;
+            let agent_id = Uuid::new_v4().to_string();
+            resolved.push((agent_id, role));
+        }
+        Ok::<_, String>(resolved)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))??;
+
+    let mut launched_ids: Vec<String> = Vec::new();
+
+    for (agent_id, role) in roles_to_launch {
+        let options = StartSessionOptions {
+            agent_id: Some(agent_id.clone()),
+            prompt: String::new(),
+            project_path: Some(project_path.clone()),
+            model: model.clone(),
+            effort: effort.clone(),
+            resume_session_id: None,
+            permission_mode: None,
+            chrome: false,
+            attachments: vec![],
+            role_system_prompt: Some(role.system_prompt),
+            role_allowed_tools: Some(role.allowed_tools),
+        };
+
+        let sessions = app.state::<SessionManager>();
+        if let Err(e) = crate::conductor::start_session(app.clone(), sessions, options).await {
+            let sm = app.state::<SessionManager>().inner().clone();
+            for id in &launched_ids {
+                sm.kill(id).await;
+            }
+            return Err(format!("Failed to start agent '{}': {e}", agent_id));
+        }
+
+        launched_ids.push(agent_id);
+    }
+
+    Ok(launched_ids)
+}
+
+#[tauri::command]
 pub async fn presets_launch(
     app: tauri::AppHandle,
     project_path: String,
