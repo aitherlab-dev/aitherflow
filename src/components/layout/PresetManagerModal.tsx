@@ -114,7 +114,7 @@ export function PresetManagerModal({ projectPath, editPreset, onClose }: PresetM
 
         {/* Role counters */}
         <div className="preset-modal-roles-list">
-          {roles.map((r) => {
+          {roles.filter((r) => r.name !== "Agent").map((r) => {
             const count = roleCounts.get(r.name) ?? 0;
             return (
               <div key={r.name} className="preset-modal-role-row">
