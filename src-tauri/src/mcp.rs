@@ -466,6 +466,41 @@ fn test_http(config: &McpServerConfig) -> Result<McpTestResult, String> {
     }
 }
 
+/// Status of a built-in MCP server.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BuiltinMcpStatus {
+    pub name: String,
+    pub running: bool,
+    pub port: Option<u16>,
+}
+
+/// Get status of all built-in MCP servers (teamwork, models, knowledge).
+#[tauri::command]
+pub async fn get_builtin_mcp_status() -> Vec<BuiltinMcpStatus> {
+    let teamwork_port = crate::teamwork::mcp_server::get_mcp_port();
+    let models_port = crate::external_models::mcp_server::get_port();
+    let knowledge_port = crate::rag::mcp_server::get_port();
+
+    vec![
+        BuiltinMcpStatus {
+            name: "Teamwork".into(),
+            running: teamwork_port.is_some(),
+            port: teamwork_port,
+        },
+        BuiltinMcpStatus {
+            name: "Models".into(),
+            running: models_port.is_some(),
+            port: models_port,
+        },
+        BuiltinMcpStatus {
+            name: "Knowledge".into(),
+            running: knowledge_port.is_some(),
+            port: knowledge_port,
+        },
+    ]
+}
+
 /// Reset project MCP choices via CLI.
 #[tauri::command]
 pub async fn reset_mcp_project_choices(project_path: String) -> Result<(), String> {

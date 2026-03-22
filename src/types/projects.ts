@@ -2,7 +2,6 @@ export interface ProjectBookmark {
   path: string;
   name: string;
   additionalDirs?: string[];
-  teamworkEnabled?: boolean;
 }
 
 export interface WelcomeCard {

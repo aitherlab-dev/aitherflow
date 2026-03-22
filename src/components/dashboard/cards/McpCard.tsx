@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Cable } from "lucide-react";
+import { Cable, Circle } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
 import { useMcpStore } from "../../../stores/mcpStore";
 import { DashboardCard } from "../DashboardCard";
@@ -13,6 +13,7 @@ export const McpCard = memo(function McpCard({
 }) {
   const globalServers = useMcpStore(useShallow((s) => s.global.map((m) => m.name)));
   const projectServers = useMcpStore(useShallow((s) => s.project.map((m) => m.name)));
+  const builtin = useMcpStore(useShallow((s) => s.builtin));
   const total = globalServers.length + projectServers.length;
 
   return (
@@ -26,6 +27,27 @@ export const McpCard = memo(function McpCard({
       onToggle={onToggle}
     >
       <div className="dash-card__details">
+        {builtin.length > 0 && (
+          <>
+            <div className="dash-card__row">
+              <span className="dash-card__label">Built-in</span>
+              <span>{builtin.filter((b) => b.running).length}/{builtin.length}</span>
+            </div>
+            {builtin.map((s) => (
+              <div key={s.name} className="dash-card__row dash-card__row--sub">
+                <Circle
+                  size={8}
+                  fill={s.running ? "var(--status-green)" : "var(--status-red)"}
+                  stroke="none"
+                />
+                <span className="dash-card__label">{s.name}</span>
+                {s.running && s.port && (
+                  <span className="dash-card__dim">:{s.port}</span>
+                )}
+              </div>
+            ))}
+          </>
+        )}
         {globalServers.length > 0 && (
           <>
             <div className="dash-card__row">
@@ -52,7 +74,7 @@ export const McpCard = memo(function McpCard({
             ))}
           </>
         )}
-        {total === 0 && (
+        {total === 0 && builtin.length === 0 && (
           <div className="dash-card__row">
             <span className="dash-card__label">No servers configured</span>
           </div>

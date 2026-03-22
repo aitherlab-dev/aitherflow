@@ -30,3 +30,9 @@ export interface McpTestResult {
   ok: boolean;
   message: string;
 }
+
+export interface BuiltinMcpStatus {
+  name: string;
+  running: boolean;
+  port: number | null;
+}

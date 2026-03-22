@@ -159,6 +159,7 @@ pub fn run() {
             mcp::save_project_mcp_servers,
             mcp::test_mcp_server,
             mcp::reset_mcp_project_choices,
+            mcp::get_builtin_mcp_status,
             claude_md::list_claude_md_files,
             claude_md::read_claude_md,
             claude_md::save_claude_md,

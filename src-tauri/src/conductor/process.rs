@@ -121,8 +121,10 @@ pub struct CliSessionConfig {
     pub permission_mode: Option<String>,
     pub chrome: bool,
     pub image_attachments: Vec<AttachmentPayload>,
-    /// Project path with teamwork_enabled (None = no project teamwork).
+    /// Project path for teamwork (None = no project teamwork).
     pub teamwork_project_path: Option<String>,
+    /// Additional directories to include in CLI context (--add-dir)
+    pub additional_dirs: Vec<String>,
     /// Standalone role system prompt (not from team — applied via --append-system-prompt)
     pub role_system_prompt: Option<String>,
     /// Standalone role allowed tools (not from team — applied via --allowedTools)
@@ -150,6 +152,7 @@ pub async fn run_cli_session(
         chrome,
         image_attachments,
         teamwork_project_path,
+        additional_dirs,
         role_system_prompt,
         role_allowed_tools,
     } = config;
@@ -209,6 +212,13 @@ pub async fn run_cli_session(
 
     if chrome {
         args.push("--chrome".into());
+    }
+
+    // Additional directories (--add-dir for each)
+    for dir in &additional_dirs {
+        crate::files::validate_path_safe(std::path::Path::new(dir))?;
+        args.push("--add-dir".into());
+        args.push(dir.clone());
     }
 
     // Standalone role — apply system prompt and allowed tools

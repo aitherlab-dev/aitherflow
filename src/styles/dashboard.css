@@ -302,6 +302,11 @@
   color: var(--fg-muted);
 }
 
+.dash-card__dim {
+  color: var(--fg-dim);
+  font-size: 0.8em;
+}
+
 /* Toggle switch */
 
 .dash-card__toggle {

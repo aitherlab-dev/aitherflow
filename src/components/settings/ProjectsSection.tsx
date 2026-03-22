@@ -29,7 +29,6 @@ const ProjectItem = memo(function ProjectItem({
   const removeProject = useProjectStore((s) => s.removeProject);
   const addDirectory = useProjectStore((s) => s.addDirectory);
   const removeDirectory = useProjectStore((s) => s.removeDirectory);
-  const toggleTeamwork = useProjectStore((s) => s.toggleTeamwork);
 
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -81,10 +80,6 @@ const ProjectItem = memo(function ProjectItem({
     },
     [project.path, removeDirectory],
   );
-
-  const handleToggleTeamwork = useCallback(() => {
-    toggleTeamwork(project.path).catch(console.error);
-  }, [project.path, toggleTeamwork]);
 
   return (
     <div className="project-item">
@@ -149,14 +144,6 @@ const ProjectItem = memo(function ProjectItem({
             <FolderPlus size={14} />
             <span>Add directory</span>
           </button>
-          <label className="project-teamwork-toggle">
-            <input
-              type="checkbox"
-              checked={!!project.teamworkEnabled}
-              onChange={handleToggleTeamwork}
-            />
-            <span>Teamwork</span>
-          </label>
         </div>
       )}
     </div>

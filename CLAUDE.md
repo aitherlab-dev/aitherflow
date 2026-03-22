@@ -77,6 +77,10 @@ Release: Linux (deb, rpm, AppImage) + macOS (dmg) — собирается на 
 
 CSS-переменные: `:root` (тёмная) и `[data-theme="light"]`. Фон: `--bg` → `--bg-soft`/`--bg-hard` → `--bg-card` → `--bg-hover` → `--input-bg`. Табы: `--tab-bg` → `--tab-bg-hover` → `--tab-bg-active` → `--tab-bg-active-hover`. Карточки: `--card-bg`. Акцент: `--accent`, `--accent-soft`, `--accent-stroke`, `--accent-icon`. НЕ хардкодить цвета. Палитра: `memory/palette.md` (auto-memory)
 
+## Документация
+
+При написании и правке кода — **сверяться с актуальной документацией** через MCP Context7 (`resolve-library-id` → `query-docs`). Особенно для: Tauri 2, React 19, Tailwind CSS v4, Zustand, Vite.
+
 ## Работа с пользователем
 
 - **Пользователь работает через GUI (aitherflow), НЕ через терминал.** Рабочая директория занята запущенным приложением

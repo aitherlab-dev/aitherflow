@@ -33,17 +33,19 @@ pub async fn start_session(
     let role_system_prompt = options.role_system_prompt;
     let role_allowed_tools = options.role_allowed_tools;
 
-    // Check if project has teamwork_enabled
-    let teamwork_project_path = if let Some(ref pp) = project_path {
+    // Teamwork is always enabled for projects
+    let teamwork_project_path = project_path.clone();
+
+    // Load additional directories for the project
+    let additional_dirs = if let Some(ref pp) = project_path {
         let pp_check = pp.clone();
-        let enabled = tokio::task::spawn_blocking(move || {
-            crate::projects::is_teamwork_enabled_sync(&pp_check)
+        tokio::task::spawn_blocking(move || {
+            crate::projects::get_additional_dirs_sync(&pp_check)
         })
         .await
-        .unwrap_or(false);
-        if enabled { project_path.clone() } else { None }
+        .unwrap_or_default()
     } else {
-        None
+        Vec::new()
     };
 
     // Clone for the spawned task (State<'_> can't cross spawn boundary)
@@ -67,6 +69,7 @@ pub async fn start_session(
                 chrome,
                 image_attachments,
                 teamwork_project_path,
+                additional_dirs,
                 role_system_prompt,
                 role_allowed_tools,
             },

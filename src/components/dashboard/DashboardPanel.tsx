@@ -82,6 +82,7 @@ export const DashboardPanel = memo(function DashboardPanel() {
     if (mcpState.needsReload(activeProjectPath ?? undefined)) {
       mcpState.load(activeProjectPath ?? undefined).catch(console.error);
     }
+    mcpState.loadBuiltin().catch(console.error);
   }, [activeProjectPath]);
 
   useEffect(() => {

@@ -5,6 +5,7 @@ import type {
   McpServerConfig,
   McpData,
   McpTestResult,
+  BuiltinMcpStatus,
 } from "../types/mcp";
 
 type McpScope = "global" | "project";
@@ -12,6 +13,7 @@ type McpScope = "global" | "project";
 interface McpState {
   global: McpServer[];
   project: McpServer[];
+  builtin: BuiltinMcpStatus[];
   globalPath: string;
   projectPath: string | null;
   /** Which project path data was loaded for (null = never loaded) */
@@ -20,6 +22,7 @@ interface McpState {
   testResults: Map<string, McpTestResult>;
 
   load: (projectPath?: string) => Promise<void>;
+  loadBuiltin: () => Promise<void>;
   /** Check if data needs reload for the given project path */
   needsReload: (projectPath?: string) => boolean;
   addServer: (scope: McpScope, name: string, config: McpServerConfig, projectDir?: string) => Promise<void>;
@@ -31,6 +34,7 @@ interface McpState {
 export const useMcpStore = create<McpState>((set, get) => ({
   global: [],
   project: [],
+  builtin: [],
   globalPath: "",
   projectPath: null,
   loadedForProject: undefined,
@@ -60,6 +64,15 @@ export const useMcpStore = create<McpState>((set, get) => ({
       });
     } catch (e) {
       console.error("Failed to load MCP servers:", e);
+    }
+  },
+
+  loadBuiltin: async () => {
+    try {
+      const statuses = await invoke<BuiltinMcpStatus[]>("get_builtin_mcp_status");
+      set({ builtin: statuses });
+    } catch (e) {
+      console.error("Failed to load built-in MCP status:", e);
     }
   },
 
