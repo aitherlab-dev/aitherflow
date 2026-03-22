@@ -69,14 +69,9 @@ fn all_presets_sync() -> Vec<TeamPreset> {
 
 #[tauri::command]
 pub async fn presets_list() -> Result<Vec<TeamPreset>, String> {
-    tokio::task::spawn_blocking(|| {
-        let mut result = default_presets();
-        let custom = read_custom_presets_sync();
-        result.extend(custom);
-        Ok(result)
-    })
-    .await
-    .map_err(|e| format!("Task join error: {e}"))?
+    tokio::task::spawn_blocking(all_presets_sync)
+        .await
+        .map_err(|e| format!("Task join error: {e}"))
 }
 
 #[tauri::command]
@@ -84,6 +79,9 @@ pub async fn presets_save(preset: TeamPreset) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
         if preset.name.trim().is_empty() {
             return Err("Preset name cannot be empty".to_string());
+        }
+        if preset.id.starts_with("builtin-") {
+            return Err("Cannot overwrite a built-in preset".to_string());
         }
         if preset.roles.is_empty() {
             return Err("Preset must have at least one role".to_string());
@@ -125,22 +123,21 @@ pub async fn presets_delete(id: String) -> Result<(), String> {
     .map_err(|e| format!("Task join error: {e}"))?
 }
 
-/// Find an AgentRole by name from defaults + custom roles.
+/// Find an AgentRole by name — custom roles first (overrides), then defaults.
 fn find_role_by_name(name: &str) -> Option<AgentRole> {
-    let defaults = default_roles();
-    if let Some(r) = defaults.into_iter().find(|r| r.name.eq_ignore_ascii_case(name)) {
-        return Some(r);
-    }
-    // Check custom roles
+    // Custom roles take priority (user overrides)
     let custom_path = config::config_dir().join("custom_roles.json");
     if custom_path.exists() {
-        if let Ok(custom) = read_json::<Vec<AgentRole>>(&custom_path) {
-            if let Some(r) = custom.into_iter().find(|r| r.name.eq_ignore_ascii_case(name)) {
-                return Some(r);
-            }
+        let custom = read_json::<Vec<AgentRole>>(&custom_path).unwrap_or_else(|e| {
+            eprintln!("[teamwork] Failed to read custom roles: {e}");
+            Vec::new()
+        });
+        if let Some(r) = custom.into_iter().find(|r| r.name.eq_ignore_ascii_case(name)) {
+            return Some(r);
         }
     }
-    None
+    // Fall back to defaults
+    default_roles().into_iter().find(|r| r.name.eq_ignore_ascii_case(name))
 }
 
 #[tauri::command]
@@ -175,13 +172,11 @@ pub async fn presets_launch(
     .await
     .map_err(|e| format!("Task join error: {e}"))??;
 
-    let mut agent_ids = Vec::new();
+    let mut launched_ids: Vec<String> = Vec::new();
 
     for (agent_id, role) in roles_to_launch {
-        agent_ids.push(agent_id.clone());
-
         let options = StartSessionOptions {
-            agent_id: Some(agent_id),
+            agent_id: Some(agent_id.clone()),
             prompt: String::new(),
             project_path: Some(project_path.clone()),
             model: model.clone(),
@@ -195,8 +190,17 @@ pub async fn presets_launch(
         };
 
         let sessions = app.state::<SessionManager>();
-        crate::conductor::start_session(app.clone(), sessions, options).await?;
+        if let Err(e) = crate::conductor::start_session(app.clone(), sessions, options).await {
+            // Roll back: kill already launched sessions
+            let sm = app.state::<SessionManager>().inner().clone();
+            for id in &launched_ids {
+                sm.kill(id).await;
+            }
+            return Err(format!("Failed to start agent '{}': {e}", agent_id));
+        }
+
+        launched_ids.push(agent_id);
     }
 
-    Ok(agent_ids)
+    Ok(launched_ids)
 }
