@@ -252,31 +252,6 @@
   opacity: 0.5;
 }
 
-/* ── Label buttons ── */
-.input-bar-label-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  min-width: 86px;
-  height: 28px;
-  padding: 0 10px;
-  border-radius: 6px;
-  border: 1px solid var(--fg-dim);
-  background: transparent;
-  color: var(--fg-muted);
-  font-size: 0.72rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-  white-space: nowrap;
-}
-
-.input-bar-label-btn:hover {
-  background: var(--bg-hover);
-  color: var(--fg);
-}
-
 .input-bar-stop {
   background: var(--bg-hover);
   color: var(--fg-muted);

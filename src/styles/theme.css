@@ -221,13 +221,11 @@
 
 [data-theme="light"] .input-bar,
 [data-theme="light"] .input-bar-row,
-[data-theme="light"] .input-bar-btn,
-[data-theme="light"] .input-bar-label-btn {
+[data-theme="light"] .input-bar-btn {
   border-color: var(--accent);
 }
 
-[data-theme="light"] .input-bar-btn,
-[data-theme="light"] .input-bar-label-btn {
+[data-theme="light"] .input-bar-btn {
   background: var(--tab-bg);
 }
 
