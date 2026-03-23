@@ -152,6 +152,7 @@ pub async fn launch_team(
 
     for (agent_id, role) in roles_to_launch {
         let prompt = role.start_message.clone().unwrap_or_else(|| DEFAULT_START_MESSAGE.to_string());
+        let role_name_str = role.name.clone();
         let options = StartSessionOptions {
             agent_id: Some(agent_id.clone()),
             prompt,
@@ -164,6 +165,7 @@ pub async fn launch_team(
             attachments: vec![],
             role_system_prompt: Some(role.system_prompt),
             role_allowed_tools: Some(role.allowed_tools),
+            role_name: Some(role_name_str),
         };
 
         let sessions = app.state::<SessionManager>();
@@ -217,6 +219,7 @@ pub async fn presets_launch(
 
     for (agent_id, role) in roles_to_launch {
         let prompt = role.start_message.clone().unwrap_or_else(|| DEFAULT_START_MESSAGE.to_string());
+        let role_name_str = role.name.clone();
         let options = StartSessionOptions {
             agent_id: Some(agent_id.clone()),
             prompt,
@@ -229,6 +232,7 @@ pub async fn presets_launch(
             attachments: vec![],
             role_system_prompt: Some(role.system_prompt),
             role_allowed_tools: Some(role.allowed_tools),
+            role_name: Some(role_name_str),
         };
 
         let sessions = app.state::<SessionManager>();

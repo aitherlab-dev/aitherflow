@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { invoke } from "../lib/transport";
 import type { AgentEntry, AgentsConfig } from "../types/agents";
-import { useChatStore } from "./chatStore";
+import { useChatStore, agentStates } from "./chatStore";
 import { switchAgent, clearAgentState } from "./chatService";
 import { useProjectStore } from "./projectStore";
 import { resetTelegramState } from "../services/telegramService";
@@ -336,11 +336,32 @@ export async function launchTeam(
   // Set roles in conductorStore (lazy import to avoid circular deps)
   const { useConductorStore } = await import("./conductorStore");
   const { setAgentRole } = useConductorStore.getState();
-  const roleEntries = await invoke<Array<{ name: string; system_prompt: string; allowed_tools: string[]; can_manage: boolean; is_default: boolean }>>("roles_list");
+  const roleEntries = await invoke<Array<{ name: string; system_prompt: string; allowed_tools: string[]; can_manage: boolean; is_default: boolean; start_message?: string }>>("roles_list");
   for (let i = 0; i < agentIds.length; i++) {
     const match = roleEntries.find((r) => r.name === roles[i]);
     if (match) {
       setAgentRole(agentIds[i], match);
+
+      // Add start_message as user message in agent chat history
+      const startMsg = match.start_message;
+      if (startMsg) {
+        const existing = agentStates.get(agentIds[i]);
+        if (existing) {
+          existing.messages = [
+            ...existing.messages,
+            { id: crypto.randomUUID(), role: "user", text: startMsg, timestamp: Date.now() },
+          ];
+        }
+        // Also update active agent's Zustand store if it's the current one
+        if (useChatStore.getState().agentId === agentIds[i]) {
+          useChatStore.setState((prev) => ({
+            messages: [
+              ...prev.messages,
+              { id: crypto.randomUUID(), role: "user", text: startMsg, timestamp: Date.now() },
+            ],
+          }));
+        }
+      }
     }
   }
 

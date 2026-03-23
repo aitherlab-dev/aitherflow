@@ -148,6 +148,8 @@ pub struct StartSessionOptions {
     pub role_system_prompt: Option<String>,
     /// Role allowed tools (applied via --allowedTools)
     pub role_allowed_tools: Option<Vec<String>>,
+    /// Role name (passed to teamwork MCP for agent registration)
+    pub role_name: Option<String>,
 }
 
 /// Options for sending a follow-up message to an existing session.

@@ -129,6 +129,8 @@ pub struct CliSessionConfig {
     pub role_system_prompt: Option<String>,
     /// Standalone role allowed tools (not from team — applied via --allowedTools)
     pub role_allowed_tools: Option<Vec<String>>,
+    /// Role name for teamwork MCP registration
+    pub role_name: Option<String>,
 }
 
 /// Spawn Claude CLI and run the session until the process exits.
@@ -155,6 +157,7 @@ pub async fn run_cli_session(
         additional_dirs,
         role_system_prompt,
         role_allowed_tools,
+        role_name,
     } = config;
 
     // For project teamwork, use the project slug as the mailbox namespace.
@@ -165,15 +168,22 @@ pub async fn run_cli_session(
     let mcp_generation = if let (Some(ref pp), Some(ref slug)) =
         (&teamwork_project_path, &project_teamwork_slug)
     {
-        let default_role = crate::teamwork::roles::AgentRole {
-            name: "Agent".to_string(),
-            system_prompt: String::new(),
-            allowed_tools: Vec::new(),
-            can_manage: false,
-            start_message: None,
-        };
+        let resolved_role = role_name
+            .as_deref()
+            .and_then(|name| {
+                crate::teamwork::roles::default_roles()
+                    .into_iter()
+                    .find(|r| r.name.eq_ignore_ascii_case(name))
+            })
+            .unwrap_or_else(|| crate::teamwork::roles::AgentRole {
+                name: "Agent".to_string(),
+                system_prompt: String::new(),
+                allowed_tools: Vec::new(),
+                can_manage: false,
+                start_message: None,
+            });
         if let Some(mcp) = crate::teamwork::mcp_server::get_state() {
-            mcp.register_project_agent(&agent_id, pp, slug, default_role)
+            mcp.register_project_agent(&agent_id, pp, slug, resolved_role)
                 .await
         } else {
             0
