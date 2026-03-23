@@ -350,12 +350,22 @@ export async function launchTeam(
       // Add start_message as user message in agent chat history
       const startMsg = match.start_message;
       if (startMsg) {
+        const userMsg = { id: crypto.randomUUID(), role: "user" as const, text: startMsg, timestamp: Date.now() };
         const existing = agentStates.get(agentIds[i]);
         if (existing) {
-          existing.messages = [
-            ...existing.messages,
-            { id: crypto.randomUUID(), role: "user", text: startMsg, timestamp: Date.now() },
-          ];
+          existing.messages = [...existing.messages, userMsg];
+        } else {
+          agentStates.set(agentIds[i], {
+            messages: [userMsg],
+            streamingMessage: null,
+            chatId: null,
+            hasSession: false,
+            isThinking: false,
+            planMode: false,
+            currentToolActivity: null,
+            toolCount: 0,
+            error: null,
+          });
         }
         // Also update active agent's Zustand store if it's the current one
         if (useChatStore.getState().agentId === agentIds[i]) {
