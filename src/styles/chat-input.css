@@ -252,7 +252,7 @@
   opacity: 0.5;
 }
 
-/* ── Label buttons (Row 2: New Chat, Model, Skills) ── */
+/* ── Label buttons ── */
 .input-bar-label-btn {
   display: flex;
   align-items: center;

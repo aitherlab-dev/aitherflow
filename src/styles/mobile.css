@@ -93,19 +93,6 @@
     max-width: 85%;
   }
 
-  /* ── InputBar: simplified ── */
-
-  /* Hide second row entirely (New Chat, Model, Skills label buttons) */
-  .input-bar-bottom {
-    grid-template-columns: auto 1fr auto;
-    grid-template-rows: 1fr; /* single row */
-  }
-
-  /* Hide row 2 cells — they are the 4th, 5th, 6th children of the grid */
-  .input-bar-bottom > :nth-child(n+4) {
-    display: none;
-  }
-
   /* Hide restart button on mobile — session management via sidebar */
   .input-bar-cell--btns .input-bar-btn[aria-label="Restart session"] {
     display: none;

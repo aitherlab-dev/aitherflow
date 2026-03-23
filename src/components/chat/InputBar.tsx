@@ -1,6 +1,6 @@
 import { memo, useState, useRef, useCallback, useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { Plus, Star, Mic, MicOff, ArrowUp, Square, MessageSquarePlus, Loader2, UserCog, Radio } from "lucide-react";
+import { Plus, Mic, MicOff, ArrowUp, Square, MessageSquarePlus, Loader2, Radio } from "lucide-react";
 import { openDialog, invoke } from "../../lib/transport";
 import { useChatStore, agentStates } from "../../stores/chatStore";
 import { sendMessage, stopGeneration, newChat, switchPermissionMode } from "../../stores/chatService";
@@ -10,8 +10,6 @@ import { usePasteHandler } from "../../hooks/usePasteHandler";
 import { ThinkingIndicator } from "./ThinkingIndicator";
 import { AttachmentList } from "./AttachmentList";
 
-import { RoleMenu } from "./RoleMenu";
-import { SkillsMenu } from "./SkillsMenu";
 import { CommandsMenu } from "./CommandsMenu";
 import { useConductorStore } from "../../stores/conductorStore";
 import { useVoice } from "../../hooks/useVoice";
@@ -38,13 +36,9 @@ const TEXT_EXTENSIONS = [
 export const InputBar = memo(function InputBar() {
   const [text, setText] = useState("");
 
-  const [roleMenuRect, setRoleMenuRect] = useState<DOMRect | null>(null);
-  const [skillsMenuRect, setSkillsMenuRect] = useState<DOMRect | null>(null);
   const [commandsMenuRect, setCommandsMenuRect] = useState<DOMRect | null>(null);
   const [modeSwitching, setModeSwitching] = useState(false);
 
-  const roleBtnRef = useRef<HTMLButtonElement>(null);
-  const skillsBtnRef = useRef<HTMLButtonElement>(null);
   const { attachments, processFromPaths, addAttachment, removeAttachment, clearAttachments } = useFileAttach();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
@@ -52,11 +46,6 @@ export const InputBar = memo(function InputBar() {
 
   const hasSession = useChatStore((s) => s.hasSession);
   const planMode = useChatStore((s) => s.planMode);
-  const agentId = useChatStore((s) => s.agentId);
-  const agentRoles = useConductorStore(useShallow((s) => s.agentRoles));
-  const defaultRole = useConductorStore((s) => s.defaultRole);
-  const explicitRole = agentRoles[agentId];
-  const currentRoleName = explicitRole !== undefined ? (explicitRole?.name ?? null) : (defaultRole?.name ?? null);
   const projectPath = useChatStore((s) => s.projectPath);
   const agents = useAgentStore(useShallow((s) => s.agents));
   // Voice input — insert appends, replace overwrites (for streaming interim)
@@ -329,6 +318,16 @@ export const InputBar = memo(function InputBar() {
             </Tooltip>
           ) : (
             <>
+              <Tooltip text={"New chat" + hk("newChat")}>
+                <button
+                  className="input-bar-btn"
+                  onClick={() => { if (!isThinking) newChat().catch(console.error); }}
+                  disabled={isThinking}
+                  aria-label="New chat"
+                >
+                  <MessageSquarePlus size={18} />
+                </button>
+              </Tooltip>
               {agents.length > 0 && (
                 <Tooltip text="Broadcast to team (Ctrl+Enter)">
                   <button
@@ -371,67 +370,7 @@ export const InputBar = memo(function InputBar() {
           </Tooltip>
         </div>
 
-        {/* Row 2 */}
-        <div className="input-bar-cell input-bar-cell--btns">
-          <Tooltip text={"New chat" + hk("newChat")}>
-            <button
-              className="input-bar-label-btn"
-              onClick={() => { if (!isThinking) newChat().catch(console.error); }}
-              disabled={isThinking}
-              aria-label="New chat"
-            >
-              <MessageSquarePlus size={14} />
-              <span>New Chat</span>
-            </button>
-          </Tooltip>
-          <Tooltip text="Select role">
-          <button
-            ref={roleBtnRef}
-            className="input-bar-label-btn"
-            aria-label="Select role"
-            onClick={() => {
-              if (roleBtnRef.current) {
-                setRoleMenuRect(roleBtnRef.current.getBoundingClientRect());
-              }
-            }}
-          >
-            <UserCog size={14} />
-            <span>{currentRoleName ?? "No role"}</span>
-          </button>
-          </Tooltip>
-        </div>
-        <div className="input-bar-cell input-bar-cell--btns input-bar-cell--end">
-          <Tooltip text="Favorite skills">
-          <button
-            ref={skillsBtnRef}
-            className="input-bar-label-btn"
-            aria-label="Favorite skills"
-            onClick={() => {
-              if (skillsMenuRect) {
-                setSkillsMenuRect(null);
-              } else if (skillsBtnRef.current) {
-                setSkillsMenuRect(skillsBtnRef.current.getBoundingClientRect());
-              }
-            }}
-          >
-            <Star size={14} />
-            <span>Skills</span>
-          </button>
-          </Tooltip>
-        </div>
       </div>
-      {roleMenuRect && (
-        <RoleMenu
-          anchorRect={roleMenuRect}
-          onClose={() => setRoleMenuRect(null)}
-        />
-      )}
-      {skillsMenuRect && (
-        <SkillsMenu
-          anchorRect={skillsMenuRect}
-          onClose={() => setSkillsMenuRect(null)}
-        />
-      )}
       {commandsMenuRect && (
         <CommandsMenu
           anchorRect={commandsMenuRect}
