@@ -10,9 +10,9 @@ interface ModelDef {
 }
 
 const MODELS: ModelDef[] = [
-  { id: "sonnet", label: "Sonnet" },
-  { id: "opus", label: "Opus" },
-  { id: "haiku", label: "Haiku" },
+  { id: "sonnet", label: "Sonnet 4.6" },
+  { id: "opus", label: "Opus 4.6" },
+  { id: "haiku", label: "Haiku 4.5" },
 ];
 
 const EFFORT_LEVELS: { id: "high" | "medium" | "low"; label: string }[] = [

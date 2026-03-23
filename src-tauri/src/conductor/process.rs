@@ -347,6 +347,9 @@ pub async fn run_cli_session(
         cmd.env("PATH", extended);
     }
 
+    // Enable 1M context window for Opus
+    cmd.env("ANTHROPIC_DEFAULT_OPUS_MODEL", "claude-opus-4-6[1m]");
+
     cmd.args(&args)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
