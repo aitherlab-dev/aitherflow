@@ -24,9 +24,11 @@ const EFFORT_LEVELS: { id: "high" | "medium" | "low"; label: string }[] = [
 interface ModelMenuProps {
   anchorRect: DOMRect;
   onClose: () => void;
+  /** Called when user picks a model (before onClose). If provided, caller handles the switch. */
+  onModelSelect?: (modelId: string) => void;
 }
 
-export const ModelMenu = memo(function ModelMenu({ anchorRect, onClose }: ModelMenuProps) {
+export const ModelMenu = memo(function ModelMenu({ anchorRect, onClose, onModelSelect }: ModelMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const subRef = useRef<HTMLDivElement>(null);
   const selectedModel = useConductorStore((s) => s.selectedModel);
@@ -48,9 +50,13 @@ export const ModelMenu = memo(function ModelMenu({ anchorRect, onClose }: ModelM
   };
 
   const handleModelClick = useCallback((modelId: string) => {
-    setSelectedModel(modelId);
+    if (onModelSelect) {
+      onModelSelect(modelId);
+    } else {
+      setSelectedModel(modelId);
+    }
     onClose();
-  }, [setSelectedModel, onClose]);
+  }, [setSelectedModel, onClose, onModelSelect]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent, modelId: string) => {
     e.preventDefault();

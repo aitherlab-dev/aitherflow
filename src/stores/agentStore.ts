@@ -317,8 +317,13 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 export async function launchTeam(
   projectPath: string,
   roles: string[],
+  models?: string[],
 ): Promise<string[]> {
-  const agentIds = await invoke<string[]>("launch_team", { projectPath, roles });
+  const agentIds = await invoke<string[]>("launch_team", {
+    projectPath,
+    roles,
+    models: models?.length ? models : undefined,
+  });
 
   const projectName = useProjectStore.getState().projects.find((p) => p.path === projectPath)?.name
     ?? projectPath.split("/").pop() ?? projectPath;

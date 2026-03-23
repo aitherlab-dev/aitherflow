@@ -128,12 +128,14 @@ pub async fn launch_team(
     app: tauri::AppHandle,
     project_path: String,
     roles: Vec<String>,
-    model: Option<String>,
+    models: Option<Vec<String>>,
     effort: Option<String>,
 ) -> Result<Vec<String>, String> {
     if roles.is_empty() {
         return Err("At least one role is required".to_string());
     }
+
+    let models_vec = models.unwrap_or_default();
 
     let roles_to_launch: Vec<(String, AgentRole)> = tokio::task::spawn_blocking(move || {
         let mut resolved = Vec::new();
@@ -150,14 +152,15 @@ pub async fn launch_team(
 
     let mut launched_ids: Vec<String> = Vec::new();
 
-    for (agent_id, role) in roles_to_launch {
+    for (i, (agent_id, role)) in roles_to_launch.into_iter().enumerate() {
         let prompt = role.start_message.clone().unwrap_or_else(|| DEFAULT_START_MESSAGE.to_string());
         let role_name_str = role.name.clone();
+        let per_role_model = models_vec.get(i).cloned().filter(|m| !m.is_empty());
         let options = StartSessionOptions {
             agent_id: Some(agent_id.clone()),
             prompt,
             project_path: Some(project_path.clone()),
-            model: model.clone(),
+            model: per_role_model,
             effort: effort.clone(),
             resume_session_id: None,
             permission_mode: None,

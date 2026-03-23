@@ -3,7 +3,7 @@ import { useShallow } from "zustand/react/shallow";
 import { Plus, Mic, MicOff, ArrowUp, Square, MessageSquarePlus, Loader2, Radio } from "lucide-react";
 import { openDialog, invoke } from "../../lib/transport";
 import { useChatStore, agentStates } from "../../stores/chatStore";
-import { sendMessage, stopGeneration, newChat, switchPermissionMode } from "../../stores/chatService";
+import { sendMessage, stopGeneration, newChat, switchPermissionMode, switchModel } from "../../stores/chatService";
 import { useAttachmentStore } from "../../stores/attachmentStore";
 import { useFileAttach } from "../../hooks/useFileAttach";
 import { usePasteHandler } from "../../hooks/usePasteHandler";
@@ -11,6 +11,7 @@ import { ThinkingIndicator } from "./ThinkingIndicator";
 import { AttachmentList } from "./AttachmentList";
 
 import { CommandsMenu } from "./CommandsMenu";
+import { ModelMenu } from "./ModelMenu";
 import { useConductorStore } from "../../stores/conductorStore";
 import { useVoice } from "../../hooks/useVoice";
 import { useAgentStore } from "../../stores/agentStore";
@@ -23,6 +24,13 @@ function hk(action: HotkeyAction): string {
   return b ? ` (${bindingToString(b)})` : "";
 }
 
+
+function shortModelName(model: string): string {
+  if (model.includes("opus")) return "opus";
+  if (model.includes("haiku")) return "haiku";
+  if (model.includes("sonnet")) return "sonnet";
+  return model;
+}
 
 /** Max textarea height in px (8 full lines) */
 const MAX_HEIGHT = 210;
@@ -37,16 +45,21 @@ export const InputBar = memo(function InputBar() {
   const [text, setText] = useState("");
 
   const [commandsMenuRect, setCommandsMenuRect] = useState<DOMRect | null>(null);
+  const [modelMenuRect, setModelMenuRect] = useState<DOMRect | null>(null);
   const [modeSwitching, setModeSwitching] = useState(false);
+  const [modelSwitching, setModelSwitching] = useState(false);
 
   const { attachments, processFromPaths, addAttachment, removeAttachment, clearAttachments } = useFileAttach();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
+  const modelBtnRef = useRef<HTMLButtonElement>(null);
   const isThinking = useChatStore((s) => s.isThinking);
 
   const hasSession = useChatStore((s) => s.hasSession);
   const planMode = useChatStore((s) => s.planMode);
   const projectPath = useChatStore((s) => s.projectPath);
+  const currentModel = useConductorStore((s) => s.model);
+  const selectedModel = useConductorStore((s) => s.selectedModel);
   const agents = useAgentStore(useShallow((s) => s.agents));
   // Voice input — insert appends, replace overwrites (for streaming interim)
   const handleVoiceInsert = useCallback((transcribed: string) => {
@@ -281,6 +294,20 @@ export const InputBar = memo(function InputBar() {
               <Plus size={18} />
             </button>
           </Tooltip>
+          <Tooltip text="Switch model (restarts session)">
+            <button
+              ref={modelBtnRef}
+              className={`input-bar-mode-badge${modelSwitching ? " input-bar-mode-badge--switching" : ""}`}
+              disabled={isThinking || modelSwitching}
+              onClick={() => {
+                if (modelBtnRef.current) {
+                  setModelMenuRect(modelBtnRef.current.getBoundingClientRect());
+                }
+              }}
+            >
+              {modelSwitching ? "..." : shortModelName(currentModel ?? selectedModel)}
+            </button>
+          </Tooltip>
           {hasSession && (
             <Tooltip text={planMode ? "Switch to Edit mode (restarts session)" : "Switch to Plan mode (restarts session)"}>
             <button
@@ -371,6 +398,23 @@ export const InputBar = memo(function InputBar() {
         </div>
 
       </div>
+      {modelMenuRect && (
+        <ModelMenu
+          anchorRect={modelMenuRect}
+          onClose={() => setModelMenuRect(null)}
+          onModelSelect={async (modelId) => {
+            if (modelId === shortModelName(currentModel ?? selectedModel)) return;
+            setModelSwitching(true);
+            try {
+              await switchModel(modelId);
+            } catch (e) {
+              console.error(e);
+            } finally {
+              setModelSwitching(false);
+            }
+          }}
+        />
+      )}
       {commandsMenuRect && (
         <CommandsMenu
           anchorRect={commandsMenuRect}

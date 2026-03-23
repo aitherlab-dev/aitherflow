@@ -286,6 +286,73 @@ export async function switchPermissionMode(mode: "default" | "plan") {
   }
 }
 
+export async function switchModel(newModel: string) {
+  const conductor = useConductorStore.getState();
+  conductor.setSelectedModel(newModel);
+
+  const { agentId, hasSession } = useChatStore.getState();
+  if (!hasSession) return;
+
+  const sessionId = conductor.sessionId;
+
+  try {
+    await invoke("stop_session", { agentId });
+  } catch (e) {
+    console.error("Failed to stop session for model switch:", e);
+  }
+
+  // Wait for hasSession to become false (processExited), max 5s
+  if (useChatStore.getState().hasSession) {
+    await new Promise<void>((resolve) => {
+      const unsub = useChatStore.subscribe((s) => {
+        if (!s.hasSession) {
+          clearTimeout(timeout);
+          unsub();
+          resolve();
+        }
+      });
+      const timeout = setTimeout(() => {
+        unsub();
+        console.warn("[chatService] CLI process did not exit within 5s, force-clearing session state");
+        useChatStore.setState({ hasSession: false });
+        resolve();
+      }, 5000);
+    });
+  }
+
+  const state = useChatStore.getState();
+  let enableChrome = true;
+  try {
+    const settings = await invoke<{ enableChrome: boolean }>("load_settings");
+    enableChrome = settings.enableChrome;
+  } catch (e) { console.error("Failed to load settings for model switch:", e); }
+
+  const permissionMode = conductor.selectedPermissionMode !== "default" ? conductor.selectedPermissionMode : undefined;
+
+  try {
+    const permRole = useConductorStore.getState().getAgentRole(state.agentId);
+
+    await invoke("start_session", {
+      options: {
+        agentId: state.agentId,
+        prompt: "",
+        projectPath: state.projectPath,
+        model: newModel,
+        effort: conductor.selectedEffort !== "high" ? conductor.selectedEffort : undefined,
+        resumeSessionId: sessionId ?? undefined,
+        permissionMode,
+        chrome: enableChrome,
+        roleSystemPrompt: permRole?.system_prompt ? permRole.system_prompt : undefined,
+        roleAllowedTools: permRole?.allowed_tools.length ? permRole.allowed_tools : undefined,
+      } satisfies StartSessionOptions,
+    });
+    useChatStore.setState({ hasSession: true });
+  } catch (e) {
+    console.error("[switchModel] Failed:", e);
+    useChatStore.setState({ error: "Failed to switch model. Please try again." });
+  }
+}
+
 export async function switchChat(chatId: string) {
   const state = useChatStore.getState();
   if (state.currentChatId === chatId) return;

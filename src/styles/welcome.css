@@ -396,6 +396,23 @@
   gap: 6px;
 }
 
+.preset-modal-role-model {
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--fg-muted);
+  font-size: 0.7rem;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+}
+
+.preset-modal-role-model:focus {
+  border-color: var(--accent-stroke);
+}
+
 .preset-modal-role-btn {
   display: flex;
   align-items: center;

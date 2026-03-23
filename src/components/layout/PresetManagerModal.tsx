@@ -6,6 +6,13 @@ import type { RoleEntry } from "../../types/team";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { launchTeam } from "../../stores/agentStore";
 
+const MODEL_OPTIONS = [
+  { id: "", label: "Default" },
+  { id: "opus", label: "Opus" },
+  { id: "sonnet", label: "Sonnet" },
+  { id: "haiku", label: "Haiku" },
+];
+
 interface PresetManagerModalProps {
   projectPath: string;
   /** If set, pre-fill role counters from this preset */
@@ -22,18 +29,27 @@ function countRoles(roles: string[]): Map<string, number> {
   return counts;
 }
 
-/** Expand role counts back to flat array: {Coder: 3, Reviewer: 1} → ["Coder","Coder","Coder","Reviewer"] */
-function expandRoles(counts: Map<string, number>): string[] {
-  const result: string[] = [];
+/** Expand role counts + models to parallel arrays */
+function expandRolesAndModels(
+  counts: Map<string, number>,
+  models: Map<string, string>,
+): { roles: string[]; models: string[] } {
+  const rolesArr: string[] = [];
+  const modelsArr: string[] = [];
   for (const [name, count] of counts) {
-    for (let i = 0; i < count; i++) result.push(name);
+    const model = models.get(name) ?? "";
+    for (let i = 0; i < count; i++) {
+      rolesArr.push(name);
+      modelsArr.push(model);
+    }
   }
-  return result;
+  return { roles: rolesArr, models: modelsArr };
 }
 
 export function PresetManagerModal({ projectPath, editPreset, onClose }: PresetManagerModalProps) {
   const [roles, setRoles] = useState<RoleEntry[]>([]);
   const [roleCounts, setRoleCounts] = useState<Map<string, number>>(new Map());
+  const [roleModels, setRoleModels] = useState<Map<string, string>>(new Map());
   const [presetName, setPresetName] = useState("");
 
   const loadRoles = useCallback(async () => {
@@ -71,25 +87,38 @@ export function PresetManagerModal({ projectPath, editPreset, onClose }: PresetM
     });
   }, []);
 
+  const setRoleModel = useCallback((roleName: string, model: string) => {
+    setRoleModels((prev) => {
+      const next = new Map(prev);
+      if (model) {
+        next.set(roleName, model);
+      } else {
+        next.delete(roleName);
+      }
+      return next;
+    });
+  }, []);
+
   const totalAgents = Array.from(roleCounts.values()).reduce((a, b) => a + b, 0);
   const canLaunch = totalAgents > 0;
   const canSave = presetName.trim().length > 0 && totalAgents > 0;
 
   const handleLaunch = useCallback(async () => {
     if (!canLaunch) return;
-    const rolesArray = expandRoles(roleCounts);
+    const { roles: rolesArray, models: modelsArray } = expandRolesAndModels(roleCounts, roleModels);
+    const hasModels = modelsArray.some((m) => m !== "");
     try {
-      await launchTeam(projectPath, rolesArray);
+      await launchTeam(projectPath, rolesArray, hasModels ? modelsArray : undefined);
       onClose();
       useLayoutStore.getState().closeWelcome();
     } catch (e) {
       console.error("[PresetManagerModal] Failed to launch team:", e);
     }
-  }, [canLaunch, roleCounts, projectPath, onClose]);
+  }, [canLaunch, roleCounts, roleModels, projectPath, onClose]);
 
   const handleSave = useCallback(async () => {
     if (!canSave) return;
-    const rolesArray = expandRoles(roleCounts);
+    const { roles: rolesArray } = expandRolesAndModels(roleCounts, roleModels);
     const preset: Omit<TeamPreset, "id" | "is_builtin"> & { id?: string } = {
       name: presetName.trim(),
       roles: rolesArray,
@@ -100,7 +129,7 @@ export function PresetManagerModal({ projectPath, editPreset, onClose }: PresetM
     } catch (e) {
       console.error("[PresetManagerModal] Failed to save preset:", e);
     }
-  }, [canSave, roleCounts, presetName]);
+  }, [canSave, roleCounts, roleModels, presetName]);
 
   return (
     <div className="preset-modal-overlay" onClick={onClose}>
@@ -120,6 +149,17 @@ export function PresetManagerModal({ projectPath, editPreset, onClose }: PresetM
               <div key={r.name} className="preset-modal-role-row">
                 <span className="preset-modal-role-name">{r.name}</span>
                 <div className="preset-modal-role-controls">
+                  {count > 0 && (
+                    <select
+                      className="preset-modal-role-model"
+                      value={roleModels.get(r.name) ?? ""}
+                      onChange={(e) => setRoleModel(r.name, e.target.value)}
+                    >
+                      {MODEL_OPTIONS.map((m) => (
+                        <option key={m.id} value={m.id}>{m.label}</option>
+                      ))}
+                    </select>
+                  )}
                   <button
                     className="preset-modal-role-btn"
                     disabled={count === 0}

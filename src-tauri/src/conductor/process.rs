@@ -203,8 +203,10 @@ pub async fn run_cli_session(
         "--include-partial-messages".into(),
     ];
 
-    // model is intentionally not passed — CLI auto-selects 1M context variant
-    let _ = model;
+    if let Some(ref m) = model {
+        args.push("--model".into());
+        args.push(m.clone());
+    }
 
     if let Some(ref e) = effort {
         args.push("--effort".into());
