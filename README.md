@@ -1,132 +1,324 @@
 # aitherflow
 
-Desktop GUI for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI.
+Desktop GUI for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI. Multi-agent system with inter-agent communication, knowledge bases (RAG), external model providers, vision analysis, and more.
 
-Not a replacement — a visual interface on top of the CLI. Claude Code remains the sole engine; aitherflow manages processes and displays results.
-
-## Multi-Agent System
-
-Each agent runs as a **separate CLI process** with full isolation — own context, own session, own tools. This is not just multiple chat tabs.
-
-**Inter-agent communication.** Agents talk to each other through a built-in messaging system (MCP teamwork server). A coordinator can assign tasks, a coder writes code in an isolated worktree, a reviewer checks the result — all running in parallel without interfering with each other.
-
-**Worktree integration.** Agents work in separate git worktrees on their own branches. The main branch stays clean until you explicitly merge. No accidental commits to production, no context conflicts between agents.
-
-**Real coordination example:**
-1. Coordinator receives a task and breaks it down
-2. Coder creates a worktree, writes code, commits to a feature branch
-3. Reviewer inspects the changes, reports bugs
-4. Coordinator sends fixes back to the coder
-5. You merge when everything is verified
-
-## System Prompts
-
-A full system prompt editor built into the interface — not markdown files with "you are a senior developer" role descriptions.
-
-- Create, edit, and manage system prompts per project
-- Prompts shape agent behavior from the first message
-- Switch prompts between sessions without touching config files
-
-## External Models
-
-Connect additional AI providers alongside Claude Code. Models are available to agents through a built-in MCP server.
-
-- **OpenRouter** — access to 200+ models (GPT-4o, Gemini, Llama, Mistral, etc.)
-- **Google Gemini** — Gemini models with native vision support
-- **Ollama** — local models, no API key needed
-
-**Vision.** Analyze images and videos with external models. Video frame extraction via ffmpeg, configurable frame limits, native video support for Gemini. Vision profiles let you tune strategy per provider.
-
-**MCP tools:** `call_model`, `list_models`, `analyze_directory` — agents can call external models mid-conversation for second opinions, translations, or specialized tasks.
-
-API keys are stored in the system keyring, never in config files.
-
-## Knowledge Base
-
-Built-in RAG (Retrieval-Augmented Generation) system. Create knowledge bases from documents — agents search them automatically during conversations.
-
-- **Document sources:** PDF, EPUB, TXT/Markdown, web pages, YouTube transcripts
-- **Local embeddings:** fastembed (ONNX) — no external API calls for indexing
-- **Vector search:** LanceDB with semantic similarity
-- **MCP server** `aitherflow-knowledge` — agents get 4 tools: `search`, `list_bases`, `get_docs`, `reindex`
-- Configurable chunk size, overlap, search limits
-- Dashboard card for managing knowledge bases
-
-## Features
-
-- Multi-agent tabs with full process isolation
-- Inter-agent messaging and task coordination
-- Chat with streaming markdown responses
-- Model selector (Sonnet / Opus / Haiku) and reasoning effort control
-- Interactive permission prompts and plan/edit mode toggle
-- System prompt editor with per-project management
-- Skill browser with favorites, plugin management
-- External model providers (OpenRouter, Google Gemini, Ollama) with MCP server
-- Knowledge base with RAG — PDF, EPUB, web, YouTube, local embeddings
-- Vision analysis — images and video via external models
-- Telegram bot integration
-- Voice input (Deepgram)
-- Dark and light themes (warm palette)
-
-## Install
-
-### Requirements
-
-- **[Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code)** — installed and authenticated (`npm install -g @anthropic-ai/claude-code && claude`)
-- Active [Anthropic](https://console.anthropic.com/) subscription (Max or Pro plan)
-
-### Download
-
-Go to [Releases](https://github.com/aitherlab-dev/aitherflow/releases) and download the latest version for your platform:
-
-| Platform | Format |
-|----------|--------|
-| **Linux** | `.deb` (Ubuntu/Debian), `.rpm` (Fedora) |
-| **macOS** | `.dmg` (Apple Silicon) |
-
-> **macOS note:** The app is not signed with an Apple Developer certificate. On first launch, right-click the app → Open → Open to bypass Gatekeeper.
-
-### Build from source
-
-**Prerequisites:** [Rust](https://rustup.rs/) (stable), [Node.js](https://nodejs.org/) 20+, [pnpm](https://pnpm.io/), [Tauri 2 system deps](https://v2.tauri.app/start/prerequisites/)
-
-```bash
-git clone https://github.com/aitherlab-dev/aitherflow.git
-cd aitherflow
-pnpm install
-pnpm tauri build
-```
-
-Packages will be in `target/release/bundle/`.
-
-For development:
-
-```bash
-pnpm tauri dev
-```
-
-## Stack
-
-| Layer | Tech |
-|-------|------|
-| Backend | Rust, Tauri 2 |
-| Frontend | React 19, TypeScript, Vite |
-| Styling | Tailwind CSS v4 |
-| State | Zustand |
-| Icons | Lucide React |
-| Data | JSON |
-| Embeddings | fastembed (ONNX) |
-| Vector DB | LanceDB |
-
-## Platforms
-
-- **Linux** — deb, rpm
-- **macOS** — dmg (Apple Silicon)
-
-## License
-
-[MIT](LICENSE)
+**[Documentation](DOCS.md)** · **[Releases](https://github.com/aitherlab-dev/aitherflow/releases)** · **[aitherlab](https://github.com/aitherlab-dev)**
 
 ---
 
-Part of the [aitherlab](https://github.com/aitherlab-dev) project family.
+# 🧃 AITHERFLOW
+
+### *"It's like a compurter program... for your compurter"* — Dr. Steve Brule
+
+---
+
+> **[CAMERA 3... no wait, CAMERA 1... which one has the red light??]**
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Built with Rust](https://img.shields.io/badge/Built%20with-Rust-orange.svg)](https://www.rust-lang.org/)
+[![Runs on Tauri](https://img.shields.io/badge/Runs%20on-Toory%20...%20Torri%20...%20Tauri-blue.svg)](https://tauri.app/)
+
+---
+
+## What Is This Prorgam
+
+Okay so basically, aitherflow is a **desktop wraper** *(wrappper? ...rapper?)* for Claude Code CLI. You know Claude? He's the smart computer man who lives inside the wires. Very smart. Probably went to college or something, I dunno.
+
+**[awkward pause, someone drops a coffee mug off-screen]**
+
+The point is — Claude does all the thinking, and aitherflow makes it look pretty. Like when you put a nice frame around a pitcher of your dog. The dog didn't change but now it's got a frame. Same thing. Exackly the same thing.
+
+```
+┌─────────────────────────────┐
+│                             │
+│     YOUR BEAUTIFUL GUI      │
+│     (that's "gooey")        │
+│                             │
+│   ┌─────────────────────┐   │
+│   │  CLAUDE CODE CLI    │   │
+│   │  (the smart part)   │   │
+│   │  he's doin all the  │   │
+│   │  work in there      │   │
+│   └─────────────────────┘   │
+│                             │
+│   [CHAT] [FILES] [BRAINS]   │
+│                             │
+└─────────────────────────────┘
+     ↑
+     you are here
+     (probably)
+```
+
+---
+
+## Featurse
+
+**[VHS tracking artifacts intensify]**
+
+- **Multi-Agent Suport** — You can run like, MULTIPLE Claudes at the same time. It's like having a bunch of smart guys but they're all named Claude. *[turns to wrong camera]* Each one gets their own little process, like little apartments for compurter brains.
+
+- **RAG Knowledge Bases** — RAG stands for... *[squints at teleprompter]* ...Reely Awesome...Growledg...? Anyway it reads your documents and remembers stuff. PDFs, EPUBs, websites, even YouTube. It's like a libary but it lives in your compurter and doesn't shush you.
+
+- **Warm Coffee Theme** — The colors are warm like a coffee, very cozy. Dark mode has coffee tones and light mode is... also nice probably. *[knocks over glass of water]* CSS varimables, no hardcoded hexes. That's important. My producer told me to say that.
+
+- **Telegram Integratoin** — Send files to Telegram right from the app! Like sending a fax but it actually works and goes to your phone instead of a machine that nobody checks ever.
+
+- **MCP Servers** — MCP stands for... Model... Contexual... Prortocol. It's how the compurter talks to other compurters. Like a telephone but for robots. We have TWO of them, which is one more than one.
+
+---
+
+## Techknical Stack
+
+**[low quality title card with clip art of a computer]**
+
+| What | The Thing | My Notes |
+|------|-----------|----------|
+| Backend | Rust / Tauri 2 | Rust is very fast. Like a car but for code. Vroom vroom. |
+| Frontend | React 19 + TypeScript | It's react. You know react. Everybody knows react. If you don't know react I can't help you, sorry. |
+| Styling | Tailwind CSS v4 | You type little words and the compurter makes it pretty. Magic. |
+| State | Zustand | It's like Redux but it doesn't make you want to cry. Each store is its own little guy. They don't talk to each other, like my neighbors. |
+| Data | JSON files | Just files. On your disk. No databaise. Simple, like me. |
+| Platforms | Linux + macOS | No Windoes, sorry. *[whispers to camera]* we don't talk about Windoes here |
+
+---
+
+## Instollation
+
+**[SCENE: A kitchen, for some reason. BRULE stands at the counter with a laptop next to a blender]**
+
+### Preerequitsites
+
+You're gonna need some stuff first. Don't worry it's easy, I did it and I'm... well I did it.
+
+- **[Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code)** — the smart guy who does the actual work. Install him first: `npm install -g @anthropic-ai/claude-code && claude`
+- An [Anthropic](https://console.anthropic.com/) subscription (Max or Pro plan). Because smart compurter men aren't free. Well, the app is free. The brain costs money. Like college.
+
+### Download the Prorgam
+
+Go to **[Releases](https://github.com/aitherlab-dev/aitherflow/releases)** and grab the latest one:
+
+| Platform | Format | Notes |
+|----------|--------|-------|
+| **Linux** | `.deb`, `.rpm` | For Ubuntu people and Fedora people. You know who you are. |
+| **macOS** | `.dmg` | Apple Silicon. Right-click → Open → Open because Apple doesn't trust us. Rude. |
+
+### Bilding from Sorse
+
+If you're one of THOSE people who builds everything from source (respect), here you go:
+
+```bash
+# Clone it (not like the movie, more like copying)
+git clone https://github.com/aitherlab-dev/aitherflow.git
+cd aitherflow
+
+# Install the depandensees
+pnpm install
+
+# Run the development mode
+# (this is the one where it's not finished yet but you can look at it)
+pnpm tauri dev
+```
+
+**[BRULE accidentally hits enter too many times]**
+
+```bash
+# For the real deal production build:
+pnpm tauri build
+# Now you got a real program! Like the ones that come on CDs!
+# Remember CDs? They were shiny.
+```
+
+You need [Rust](https://rustup.rs/), [Node.js](https://nodejs.org/) 20+, [pnpm](https://pnpm.io/), and [Tauri 2 system deps](https://v2.tauri.app/start/prerequisites/). That's a lot of stuff but I believe in you. Probably.
+
+---
+
+## Projeckt Structur
+
+**[camera slowly zooms in on BRULE's face as he tries to read the teleprompter]**
+
+```
+aitherflow/
+├── src/                    ← the gooey part (React)
+│   ├── components/         ← little pieces of the gooey
+│   │   ├── chat/           ← where you talk to Claude
+│   │   ├── dashboard/      ← the main screen with cards and stuff
+│   │   ├── settings/       ← tweaky knobs
+│   │   ├── knowledge/      ← the brain library (RAG)
+│   │   └── teamwork/       ← multi-agent party zone
+│   ├── stores/             ← zustand lives here (one per room)
+│   ├── hooks/              ← react hooks (not fishing hooks)
+│   └── types/              ← typescript types (like labels for your jars)
+│
+├── src-tauri/              ← the rusty part (Rust backend)
+│   └── src/
+│       ├── conductor/      ← the boss module, runs everything
+│       ├── rag/            ← knowledge base brain stuff
+│       ├── telegram/       ← phone messaging thing
+│       ├── plugins/        ← extra bits
+│       └── [many .rs files]← each one does a little job, like ants
+│
+└── fa fa fa fa fa fa fa...
+```
+
+---
+
+## How It Werks
+
+**[informercial voice, camera 2]**
+
+So Claude Code has this CLI thing, right? It's a command line... interfenace. You type stuff and it types stuff back. Very advanced.
+
+Aitherflow takes that CLI and puts a BEAUTIFUL GRAPHICAL wrapper around it. Like putting a tuxedo on a very smart dog.
+
+```
+YOU → type message in pretty GUI
+         ↓
+AITHERFLOW → sends it to Claude CLI process
+         ↓
+CLAUDE → thinks real hard (he's very smart)
+         ↓
+AITHERFLOW → shows you the anser in pretty GUI
+         ↓
+YOU → "wow that's great thanks compurter"
+```
+
+The streaming works like this: first you get a `system` message (that's Claude saying hi), then a bunch of `content_block_delta` messages (that's him thinking out loud, fa fa fa), then `assistant` (he's done thinking), then `result` (here's your anser, dummy).
+
+**[BRULE picks up a phone that isn't ringing]** Yes? No, I'm doing the documintation right now. Tell Gary I'll call him back.
+
+---
+
+## Multi-Agent Mode
+
+**[title card: "MULTI-AGENT MODE" in Comic Sans, spinning]**
+
+This is the cool part. You can have MULTIPLE Claudes running at the SAME TIME. Each one is a separate CLI process with full isolation. They each get their own context, their own session, their own tools. This is not just tabs. This is like... a whole office building of Claudes. *[looks at notes written on hand]*
+
+It's like a restaurant but instead of waiters you have a bunch of Claudes running around and they're all really smart but they CAN talk to each other through a built-in messaging system. Unlike my family at Thanksgiving.
+
+**Real example of them working together:**
+1. Coordinator gets a task and breaks it down (the boss Claude)
+2. Coder creates a worktree, writes code, commits to a feature branch (the worker Claude)
+3. Reviewer inspects the changes, reports bugs (the mean Claude)
+4. Coordinator sends fixes back to the coder (middle management Claude)
+5. You merge when everything looks good (you're still the real boss, don't worry)
+
+---
+
+## RAG (Reely Awesome Growledg)
+
+**[BRULE holds up a book upside down]**
+
+The RAG system lets Claude read your documents so he knows stuff. It uses:
+
+- **fastembed** for making embedings (that's when you turn words into numbers, I think. Locally. No API calls. Your words stay in your compurter.)
+- **LanceDB** for storing the numbers somewhere
+- It can read: PDFs, EPUBs, plain text, websites, and even YouTube vidoes (!)
+
+There's a whole MCP server called `aitherflow-knowledge` that gives Claude four tools: search, list bases, get documents, and reindex. That's four tools. Count 'em. *[holds up three fingers]*
+
+You can configure chunk sizes and overlap and search limits and stuff like that. I don't know what those words mean but there's a nice dashboard card where you can click buttons.
+
+---
+
+## External Models
+
+**[BRULE puts on reading glasses upside down]**
+
+Sometimes Claude needs a second opinion. Like when you go to another doctor because the first doctor said something you didn't like. So we added external model support:
+
+- **OpenRouter** — 200+ models. That's a lot of models. Like a modeling agency but for AI.
+- **Google Gemini** — Google's models. They can look at pictures too (vision). Fancy.
+- **Ollama** — local models, no API key needed. They live in your compurter like Claude but they're different guys.
+
+Agents can call these models mid-conversation using MCP tools: `call_model`, `list_models`, `analyze_directory`. It's like phoning a friend on Who Wants to Be a Millionaire except the friend is also a compurter.
+
+API keys go in your system keyring. Not in config files. Because we're profeshional.
+
+---
+
+## Developmint
+
+**[scene transitions with a star wipe effect that takes too long]**
+
+```bash
+pnpm tauri dev          # makes it go (development mode)
+pnpm tauri build        # makes it go (for real this time)
+pnpm typecheck          # checks if you typed good
+pnpm lint               # yells at you about your code style
+cargo clippy            # a little crab tells you what's wrong (from src-tauri/)
+cargo test              # makes sure nothing is broken (from src-tauri/)
+```
+
+### Importent Rules for Develorpers
+
+1. **`spawn_blocking`** — use it for ALL tauri commands with file operations. If you don't, the compurter gets stuck like when you put too much bread in the toaster.
+2. **`atomic_write()`** — for writing files safely. Because files are importent.
+3. **NO Virtuoso** — Do NOT add virtualization to MessageList. It was removed on purpose. Like when they took asbestos out of buildings. It caused problems. Don't put it back.
+4. **Lucide React ONLY** — for icons. No inline SVG. No CSS icons. Only Lucide. *[stares directly into camera]* Only. Lucide.
+5. **CSS variables** — all colors must use CSS variables. If I catch you hardcoding a hex value I will come to your house and... well I won't actually do anything but I'll be very disappornted.
+
+For the full boring technical documentation, check out **[DOCS.md](DOCS.md)**. It was written by a normal person, not by Dr. Steve Brule.
+
+---
+
+## Contribooting
+
+**[camera is slightly tilted, nobody fixes it for the rest of the segment]**
+
+Want to help make aitherflow better? That's nice of you. Here's what you do:
+
+1. Fork the reportisory (that's like copying someone's homework but it's allowed)
+2. Make your changes in a worktree — **NEVER checkout or switch branches!!** Only `git worktree add`. This is very serious. Last time someone did a `git checkout` we lost... *[gets emotional]* ...we lost Daryl's whole branch. Gone. Like tears in rain.
+3. Make sure `pnpm typecheck` and `pnpm lint` and `cargo clippy` don't yell at you
+4. Submit a PR and we'll look at it probably
+
+**[BRULE accidentally closes the laptop]** Wait how do I... *[opens it again]* ...okay sorry about that.
+
+---
+
+## Trubbleshooting
+
+**[low-res graphic: "HAVING PROBLEMS?" with a stock photo of a confused woman]**
+
+| Problem | Solushion |
+|---------|-----------|
+| Black screen after WebView crash | Run the build from terminal, look for `Gdk-Message: Error 71`. That means the front end crashed. It's always the front end. *[shakes head]* |
+| App won't start | Did you install the depandensees? Did you run `pnpm install`? You gotta do that first, ya dingus. |
+| Claude isn't responding | Check if Claude CLI is installed and working. Type `claude --version` in your terminel. If nothing happens, Claude has left the building. |
+| Colors look wrong | You probably hardcoded a hex value. I TOLD you not to do that. Use CSS variables. Read the section about CSS variables. I'll wait. |
+| Multiple agents acting weird | Make sure each agent has its own state. Don't cross the stores. Never cross the stores. Like ghostbusters but for Zustand. |
+
+---
+
+## Lisense
+
+[MIT](LICENSE). That means you can do whatever you want with it. Free, like the air. Or like the samples at Costco. *[chewing something]* Have you been to Costco? They have great sampoles.
+
+---
+
+## Branding
+
+**aitherflow** — Written in **Oswald** font. "aither" is Bold 700, "flow" is Extra Light 200. It's called typografy. Very fancy.
+
+**[VHS static]**
+
+---
+
+Made with 🧃 by [aitherlab](https://github.com/aitherlab-dev)
+
+Powered by [Claude Code](https://claude.ai) (the smart compurter man) · Built with [Tauri](https://tauri.app/) (the framework, not the car... wait is there a car called Tauri? I should check... *[gets distracted]*)
+
+---
+
+**[END CARD: "FOR YOUR HEALTH" in glowing text, BRULE gives a thumbs up to camera 4, which is not recording]**
+
+*"Remember: aitherflow is for your compurter health. Check it out!"* — Dr. Steve Brule
+
+**[static, then test pattern]**
+
+---
+
+<p align="center">
+<sub>This README was written during a fever dream at the Channel 5 studios.<br>For actual documentation, see <a href="DOCS.md">DOCS.md</a>. Seriously.</sub>
+</p>
