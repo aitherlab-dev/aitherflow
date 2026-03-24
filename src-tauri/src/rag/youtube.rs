@@ -219,3 +219,101 @@ fn strip_vtt_tags(s: &str) -> String {
 
     result
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- parse_vtt ---
+
+    #[test]
+    fn vtt_basic_transcript() {
+        let vtt = "WEBVTT\nKind: captions\nLanguage: en\n\n00:00:00.000 --> 00:00:02.000\nHello world\n\n00:00:02.000 --> 00:00:04.000\nGoodbye world";
+        let result = parse_vtt(vtt);
+        assert_eq!(result, "Hello world Goodbye world");
+    }
+
+    #[test]
+    fn vtt_deduplicates_consecutive_lines() {
+        let vtt = "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nHello\n\n00:00:01.000 --> 00:00:02.000\nHello\n\n00:00:02.000 --> 00:00:03.000\nWorld";
+        let result = parse_vtt(vtt);
+        assert_eq!(result, "Hello World");
+    }
+
+    #[test]
+    fn vtt_strips_tags() {
+        let vtt = "WEBVTT\n\n00:00:00.000 --> 00:00:02.000\n<c>Hello</c> <00:00:01.234>world";
+        let result = parse_vtt(vtt);
+        assert_eq!(result, "Hello world");
+    }
+
+    #[test]
+    fn vtt_skips_numeric_cues() {
+        let vtt = "WEBVTT\n\n1\n00:00:00.000 --> 00:00:02.000\nHello\n\n2\n00:00:02.000 --> 00:00:04.000\nWorld";
+        let result = parse_vtt(vtt);
+        assert_eq!(result, "Hello World");
+    }
+
+    #[test]
+    fn vtt_empty() {
+        assert_eq!(parse_vtt(""), "");
+        assert_eq!(parse_vtt("WEBVTT\n\n"), "");
+    }
+
+    #[test]
+    fn vtt_skips_note() {
+        let vtt = "WEBVTT\n\nNOTE This is a comment\n\n00:00:00.000 --> 00:00:02.000\nHello";
+        let result = parse_vtt(vtt);
+        assert_eq!(result, "Hello");
+    }
+
+    // --- strip_vtt_tags ---
+
+    #[test]
+    fn strip_tags_basic() {
+        assert_eq!(strip_vtt_tags("<c>Hello</c>"), "Hello");
+    }
+
+    #[test]
+    fn strip_tags_timestamp() {
+        assert_eq!(strip_vtt_tags("<00:00:01.234>world"), "world");
+    }
+
+    #[test]
+    fn strip_tags_no_tags() {
+        assert_eq!(strip_vtt_tags("plain text"), "plain text");
+    }
+
+    #[test]
+    fn strip_tags_empty() {
+        assert_eq!(strip_vtt_tags(""), "");
+    }
+
+    // --- is_playlist_url ---
+
+    #[test]
+    fn playlist_dedicated_page() {
+        assert!(is_playlist_url("https://youtube.com/playlist?list=PLxxx"));
+    }
+
+    #[test]
+    fn playlist_list_without_video() {
+        assert!(is_playlist_url("https://youtube.com/?list=PLxxx"));
+    }
+
+    #[test]
+    fn playlist_single_video_with_list() {
+        // watch?v=...&list=... is a single video, not a playlist
+        assert!(!is_playlist_url("https://youtube.com/watch?v=abc&list=PLxxx"));
+    }
+
+    #[test]
+    fn playlist_regular_video() {
+        assert!(!is_playlist_url("https://youtube.com/watch?v=abc123"));
+    }
+
+    #[test]
+    fn playlist_empty() {
+        assert!(!is_playlist_url(""));
+    }
+}

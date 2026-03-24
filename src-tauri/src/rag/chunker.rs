@@ -42,3 +42,52 @@ pub fn split_text_with_params(
         })
         .collect())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn split_plain_text() {
+        let text = "Hello world. This is a test. Some more text here for chunking purposes.";
+        let chunks = split_text_with_params(text, false, 50, 10).unwrap();
+        assert!(!chunks.is_empty());
+        for chunk in &chunks {
+            assert!(!chunk.text.trim().is_empty());
+        }
+    }
+
+    #[test]
+    fn split_markdown_text() {
+        let text = "# Title\n\nParagraph one with some content.\n\n## Section\n\nParagraph two with more content.";
+        let chunks = split_text_with_params(text, true, 50, 10).unwrap();
+        assert!(!chunks.is_empty());
+    }
+
+    #[test]
+    fn split_empty_text() {
+        let chunks = split_text_with_params("", false, 100, 10).unwrap();
+        assert!(chunks.is_empty());
+    }
+
+    #[test]
+    fn split_whitespace_only() {
+        let chunks = split_text_with_params("   \n\n   ", false, 100, 10).unwrap();
+        assert!(chunks.is_empty());
+    }
+
+    #[test]
+    fn split_short_text_single_chunk() {
+        let text = "Short text.";
+        let chunks = split_text_with_params(text, false, 1000, 100).unwrap();
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(chunks[0].text, "Short text.");
+    }
+
+    #[test]
+    fn split_invalid_overlap() {
+        // overlap > chunk_size should error
+        let result = split_text_with_params("text", false, 10, 20);
+        assert!(result.is_err());
+    }
+}

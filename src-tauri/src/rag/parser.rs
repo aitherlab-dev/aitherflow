@@ -266,7 +266,7 @@ fn html_to_text(html: &str) -> String {
 }
 
 /// Extract readable text from Markdown by stripping formatting via pulldown-cmark.
-fn extract_markdown_text(md: &str) -> String {
+pub(crate) fn extract_markdown_text(md: &str) -> String {
     use pulldown_cmark::{Event, Parser, Tag, TagEnd};
 
     let parser = Parser::new(md);
@@ -307,4 +307,154 @@ fn extract_markdown_text(md: &str) -> String {
     }
 
     output.trim().to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- sanitize_text ---
+
+    #[test]
+    fn sanitize_removes_decorative_only_lines() {
+        let input = "Hello\n●●●\nWorld";
+        let result = sanitize_text(input);
+        assert_eq!(result, "Hello\nWorld");
+    }
+
+    #[test]
+    fn sanitize_removes_control_chars() {
+        let input = "Hello\x01\x02World";
+        let result = sanitize_text(input);
+        assert_eq!(result, "HelloWorld");
+    }
+
+    #[test]
+    fn sanitize_keeps_tabs() {
+        let input = "Hello\tWorld";
+        let result = sanitize_text(input);
+        assert_eq!(result, "Hello\tWorld");
+    }
+
+    #[test]
+    fn sanitize_collapses_blank_lines() {
+        let input = "A\n\n\n\n\nB";
+        let result = sanitize_text(input);
+        assert_eq!(result, "A\n\n\nB");
+    }
+
+    #[test]
+    fn sanitize_empty_input() {
+        assert_eq!(sanitize_text(""), "");
+    }
+
+    // --- collapse_repeated_decorative ---
+
+    #[test]
+    fn collapse_keeps_two_decorative() {
+        assert_eq!(collapse_repeated_decorative("══"), "══");
+    }
+
+    #[test]
+    fn collapse_removes_three_plus_decorative() {
+        assert_eq!(collapse_repeated_decorative("═══"), "");
+        assert_eq!(collapse_repeated_decorative("══════"), "");
+    }
+
+    #[test]
+    fn collapse_preserves_normal_text() {
+        assert_eq!(collapse_repeated_decorative("hello"), "hello");
+    }
+
+    #[test]
+    fn collapse_mixed_content() {
+        assert_eq!(collapse_repeated_decorative("text═══more"), "textmore");
+    }
+
+    #[test]
+    fn collapse_short_string() {
+        assert_eq!(collapse_repeated_decorative("ab"), "ab");
+        assert_eq!(collapse_repeated_decorative(""), "");
+    }
+
+    // --- normalize_blank_lines ---
+
+    #[test]
+    fn normalize_keeps_two_blanks() {
+        let input = "A\n\n\nB";
+        let result = normalize_blank_lines(input);
+        assert_eq!(result, "A\n\n\nB");
+    }
+
+    #[test]
+    fn normalize_collapses_many_blanks() {
+        let input = "A\n\n\n\n\n\nB";
+        let result = normalize_blank_lines(input);
+        assert_eq!(result, "A\n\n\nB");
+    }
+
+    #[test]
+    fn normalize_no_blanks() {
+        let input = "A\nB\nC";
+        let result = normalize_blank_lines(input);
+        assert_eq!(result, "A\nB\nC");
+    }
+
+    // --- is_decorative ---
+
+    #[test]
+    fn decorative_chars() {
+        assert!(is_decorative('●'));
+        assert!(is_decorative('═'));
+        assert!(is_decorative('•'));
+        assert!(!is_decorative('A'));
+        assert!(!is_decorative(' '));
+        assert!(!is_decorative('1'));
+    }
+
+    // --- extract_markdown_text ---
+
+    #[test]
+    fn markdown_extracts_plain_text() {
+        let md = "# Title\n\nSome **bold** and *italic* text.";
+        let result = extract_markdown_text(md);
+        assert!(result.contains("Title"));
+        assert!(result.contains("Some bold and italic text."));
+    }
+
+    #[test]
+    fn markdown_skips_code_blocks() {
+        let md = "Text before\n\n```rust\nlet x = 1;\n```\n\nText after";
+        let result = extract_markdown_text(md);
+        assert!(result.contains("Text before"));
+        assert!(result.contains("Text after"));
+        assert!(!result.contains("let x = 1"));
+    }
+
+    #[test]
+    fn markdown_keeps_inline_code() {
+        let md = "Use `println!` for output.";
+        let result = extract_markdown_text(md);
+        assert!(result.contains("println!"));
+    }
+
+    #[test]
+    fn markdown_empty() {
+        assert_eq!(extract_markdown_text(""), "");
+    }
+
+    // --- html_to_text ---
+
+    #[test]
+    fn html_basic_conversion() {
+        let html = "<p>Hello <b>world</b></p>";
+        let result = html_to_text(html);
+        assert!(result.contains("Hello"));
+        assert!(result.contains("world"));
+    }
+
+    #[test]
+    fn html_empty() {
+        assert_eq!(html_to_text("").trim(), "");
+    }
 }

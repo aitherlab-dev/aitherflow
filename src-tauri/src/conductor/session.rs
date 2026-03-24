@@ -217,26 +217,6 @@ impl SessionManager {
         }
     }
 
-    /// Check if a session exists and its process is still alive.
-    pub async fn is_alive(&self, agent_id: &str) -> bool {
-        let mut map = self.sessions.lock().await;
-        if let Some(session) = map.get_mut(agent_id) {
-            match session.child.try_wait() {
-                Ok(Some(_)) => {
-                    // Process exited — clean up
-                    map.remove(agent_id);
-                    false
-                }
-                Ok(None) => true, // Still running
-                Err(e) => {
-                    eprintln!("[conductor] try_wait failed for agent {agent_id}: {e}");
-                    false
-                }
-            }
-        } else {
-            false
-        }
-    }
 
     /// Kill all sessions synchronously (called on app exit).
     /// Uses `try_lock` + `start_kill` to avoid async runtime dependency.

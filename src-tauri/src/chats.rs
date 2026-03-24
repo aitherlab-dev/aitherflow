@@ -487,3 +487,149 @@ pub async fn toggle_chat_pin(chat_id: String, pinned: bool) -> Result<(), String
     .await
     .map_err(|e| format!("Task join error: {e}"))?
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_chat() -> ChatFile {
+        ChatFile {
+            id: "test-123".into(),
+            project_path: "/home/user/project".into(),
+            agent_id: Some("agent-1".into()),
+            title: "Test chat".into(),
+            created_at: 1710950400000,
+            session_id: Some("sess-456".into()),
+            custom_title: None,
+            pinned: None,
+            messages: vec![],
+        }
+    }
+
+    // --- Serialization ---
+
+    #[test]
+    fn chat_serde_roundtrip() {
+        let chat = sample_chat();
+        let json = serde_json::to_string(&chat).unwrap();
+        let restored: ChatFile = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.id, "test-123");
+        assert_eq!(restored.project_path, "/home/user/project");
+        assert_eq!(restored.agent_id, Some("agent-1".into()));
+        assert_eq!(restored.title, "Test chat");
+        assert_eq!(restored.created_at, 1710950400000);
+    }
+
+    #[test]
+    fn chat_camel_case_keys() {
+        let chat = sample_chat();
+        let json = serde_json::to_string(&chat).unwrap();
+        assert!(json.contains("projectPath"));
+        assert!(json.contains("agentId"));
+        assert!(json.contains("createdAt"));
+        assert!(json.contains("sessionId"));
+        assert!(!json.contains("project_path"));
+    }
+
+    #[test]
+    fn chat_skips_none_fields() {
+        let chat = ChatFile {
+            custom_title: None,
+            pinned: None,
+            agent_id: None,
+            ..sample_chat()
+        };
+        let json = serde_json::to_string(&chat).unwrap();
+        assert!(!json.contains("customTitle"));
+        assert!(!json.contains("pinned"));
+        assert!(!json.contains("agentId"));
+    }
+
+    #[test]
+    fn chat_includes_some_fields() {
+        let chat = ChatFile {
+            custom_title: Some("My chat".into()),
+            pinned: Some(true),
+            ..sample_chat()
+        };
+        let json = serde_json::to_string(&chat).unwrap();
+        assert!(json.contains("\"customTitle\":\"My chat\""));
+        assert!(json.contains("\"pinned\":true"));
+    }
+
+    #[test]
+    fn chat_deserialize_minimal_json() {
+        let json = r#"{
+            "id": "abc",
+            "projectPath": "/tmp",
+            "title": "Test",
+            "createdAt": 1000,
+            "messages": []
+        }"#;
+        let chat: ChatFile = serde_json::from_str(json).unwrap();
+        assert_eq!(chat.id, "abc");
+        assert_eq!(chat.agent_id, None);
+        assert_eq!(chat.custom_title, None);
+        assert_eq!(chat.pinned, None);
+        assert_eq!(chat.session_id, None);
+    }
+
+    // --- Messages ---
+
+    #[test]
+    fn chat_with_messages() {
+        let chat = ChatFile {
+            messages: vec![
+                ChatMessageStored {
+                    id: "msg-1".into(),
+                    role: "user".into(),
+                    text: "Hello".into(),
+                    timestamp: 1000,
+                    tools: vec![],
+                    attachments: vec![],
+                },
+                ChatMessageStored {
+                    id: "msg-2".into(),
+                    role: "assistant".into(),
+                    text: "Hi there".into(),
+                    timestamp: 2000,
+                    tools: vec![],
+                    attachments: vec![],
+                },
+            ],
+            ..sample_chat()
+        };
+        let json = serde_json::to_string(&chat).unwrap();
+        let restored: ChatFile = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.messages.len(), 2);
+        assert_eq!(restored.messages[0].role, "user");
+        assert_eq!(restored.messages[1].text, "Hi there");
+    }
+
+    #[test]
+    fn message_skips_empty_tools_and_attachments() {
+        let msg = ChatMessageStored {
+            id: "m1".into(),
+            role: "user".into(),
+            text: "test".into(),
+            timestamp: 1000,
+            tools: vec![],
+            attachments: vec![],
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(!json.contains("tools"));
+        assert!(!json.contains("attachments"));
+    }
+
+    // --- ChatMeta from ChatFileMeta ---
+
+    #[test]
+    fn meta_from_chat() {
+        let chat = sample_chat();
+        let meta = ChatFileMeta::from_chat(&chat);
+        assert_eq!(meta.id, chat.id);
+        assert_eq!(meta.project_path, chat.project_path);
+        assert_eq!(meta.title, chat.title);
+        assert_eq!(meta.created_at, chat.created_at);
+    }
+}

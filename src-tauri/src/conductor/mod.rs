@@ -146,15 +146,6 @@ pub async fn stop_session(
     Ok(())
 }
 
-/// Check if an agent has an active (alive) CLI session.
-#[tauri::command]
-pub async fn has_active_session(
-    sessions: State<'_, SessionManager>,
-    agent_id: Option<String>,
-) -> Result<bool, String> {
-    let agent_id = agent_id.unwrap_or_else(|| DEFAULT_AGENT_ID.to_string());
-    Ok(sessions.is_alive(&agent_id).await)
-}
 
 /// Aggregate CLI usage statistics from all JSONL session files.
 #[tauri::command]

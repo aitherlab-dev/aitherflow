@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fs;
 use std::path::PathBuf;
 
 use crate::config;
@@ -182,21 +181,6 @@ pub async fn translate_content(
 
         save_cache(&cache)?;
         Ok(cache)
-    })
-    .await
-    .map_err(|e| format!("Task join error: {e}"))?
-}
-
-/// Clear all cached translations.
-#[tauri::command]
-pub async fn clear_translations() -> Result<(), String> {
-    tokio::task::spawn_blocking(|| {
-        let path = cache_path();
-        if path.exists() {
-            fs::remove_file(&path)
-                .map_err(|e| format!("Failed to remove translations cache: {e}"))?;
-        }
-        Ok(())
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?

@@ -162,3 +162,89 @@ pub async fn save_settings(settings: AppSettings) -> Result<(), String> {
     .await
     .map_err(|e| format!("Task join error: {e}"))?
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- mask_key ---
+
+    #[test]
+    fn mask_empty_key() {
+        assert_eq!(mask_key(""), "");
+    }
+
+    #[test]
+    fn mask_short_key() {
+        assert_eq!(mask_key("abc"), "****");
+        assert_eq!(mask_key("a"), "****");
+        assert_eq!(mask_key("abcd"), "****");
+    }
+
+    #[test]
+    fn mask_normal_key() {
+        assert_eq!(mask_key("gsk_abc123xyz"), "****3xyz");
+        assert_eq!(mask_key("12345"), "****2345");
+    }
+
+    #[test]
+    fn mask_long_key() {
+        let key = "a".repeat(100);
+        let masked = mask_key(&key);
+        assert_eq!(masked, "****aaaa");
+    }
+
+    // --- AppSettings defaults ---
+
+    #[test]
+    fn settings_defaults() {
+        let s = AppSettings::default();
+        assert!(!s.bypass_permissions);
+        assert_eq!(s.translation_language, "");
+        assert_eq!(s.groq_api_key, "");
+        assert_eq!(s.voice_language, "");
+        assert_eq!(s.deepgram_api_key, "");
+        assert_eq!(s.default_role_name, "");
+    }
+
+    #[test]
+    fn settings_serde_defaults() {
+        // Deserialize empty JSON — all defaults should apply
+        let json = "{}";
+        let s: AppSettings = serde_json::from_str(json).unwrap();
+        assert!(s.enable_chrome); // default = true
+        assert!(s.voice_post_process); // default = true
+        assert_eq!(s.voice_provider, "groq");
+        assert_eq!(s.voice_post_model, "llama-3.3-70b-versatile");
+    }
+
+    #[test]
+    fn settings_serde_roundtrip() {
+        let s = AppSettings {
+            bypass_permissions: true,
+            translation_language: "ru".into(),
+            enable_chrome: false,
+            voice_language: "en".into(),
+            voice_post_process: false,
+            voice_post_model: "custom-model".into(),
+            voice_provider: "deepgram".into(),
+            default_role_name: "coder".into(),
+            groq_api_key: String::new(),
+            deepgram_api_key: String::new(),
+        };
+        let json = serde_json::to_string(&s).unwrap();
+        let restored: AppSettings = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.bypass_permissions, true);
+        assert_eq!(restored.translation_language, "ru");
+        assert_eq!(restored.enable_chrome, false);
+        assert_eq!(restored.voice_provider, "deepgram");
+        assert_eq!(restored.default_role_name, "coder");
+    }
+
+    #[test]
+    fn settings_ignores_unknown_fields() {
+        let json = r#"{"unknownField": "value", "bypassPermissions": true}"#;
+        let s: AppSettings = serde_json::from_str(json).unwrap();
+        assert!(s.bypass_permissions);
+    }
+}
