@@ -17,23 +17,23 @@ use super::config as rag_config;
 
 const DET_MODEL_FILE: &str = "pp-ocrv4-det.onnx";
 
-// Two recognition models: Latin/English (PP-OCRv4) and Cyrillic (PP-OCRv3)
+// Two recognition models: Latin/English (PP-OCRv4) and East Slavic (PP-OCRv5)
 const REC_EN_MODEL_FILE: &str = "en-pp-ocrv4-rec.onnx";
 const REC_EN_DICT_FILE: &str = "en_dict.txt";
-const REC_CYR_MODEL_FILE: &str = "cyrillic-pp-ocrv3-rec.onnx";
-const REC_CYR_DICT_FILE: &str = "cyrillic_dict.txt";
+const REC_ESLAV_MODEL_FILE: &str = "eslav-pp-ocrv5-rec.onnx";
+const REC_ESLAV_DICT_FILE: &str = "eslav_dict.txt";
 
-// HuggingFace-hosted PP-OCR ONNX models (RapidOCR community exports)
+// PP-OCR ONNX models
 const DET_MODEL_URL: &str =
     "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv4/ch_PP-OCRv4_det_infer.onnx";
 const REC_EN_MODEL_URL: &str =
     "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.7.0/onnx/PP-OCRv4/rec/en_PP-OCRv4_rec_infer.onnx";
 const REC_EN_DICT_URL: &str =
     "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.7.0/paddle/PP-OCRv4/rec/en_PP-OCRv4_rec_infer/en_dict.txt";
-const REC_CYR_MODEL_URL: &str =
-    "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.7.0/onnx/PP-OCRv4/rec/cyrillic_PP-OCRv3_rec_infer.onnx";
-const REC_CYR_DICT_URL: &str =
-    "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.7.0/paddle/PP-OCRv4/rec/cyrillic_PP-OCRv3_rec_infer/cyrillic_dict.txt";
+const REC_ESLAV_MODEL_URL: &str =
+    "https://huggingface.co/monkt/paddleocr-onnx/resolve/main/languages/eslav/rec.onnx";
+const REC_ESLAV_DICT_URL: &str =
+    "https://huggingface.co/monkt/paddleocr-onnx/resolve/main/languages/eslav/dict.txt";
 
 // Detection normalization (ImageNet stats, BGR order — matches PaddleOCR det preprocessing)
 const DET_MEAN: [f32; 3] = [0.485, 0.456, 0.406];
@@ -50,7 +50,6 @@ const DET_MIN_BOX_SIZE: u32 = 5;
 const DET_UNCLIP_RATIO: f32 = 1.5; // DB post-processing: expand shrunk text regions
 
 // Recognition parameters
-const REC_IMG_HEIGHT: u32 = 48;
 const REC_MAX_WIDTH: u32 = 320;
 
 // Safety limit: max pages to OCR per document
@@ -69,6 +68,8 @@ struct RecModel {
     dictionary: Vec<String>,
     name: &'static str,
     output_name: String,
+    img_height: u32,
+    content_height: u32, // actual trained height (may differ from img_height if ONNX was padded)
 }
 
 struct OcrEngine {
@@ -141,8 +142,8 @@ fn init_engine() -> Result<OcrEngine, String> {
         (DET_MODEL_FILE, DET_MODEL_URL),
         (REC_EN_MODEL_FILE, REC_EN_MODEL_URL),
         (REC_EN_DICT_FILE, REC_EN_DICT_URL),
-        (REC_CYR_MODEL_FILE, REC_CYR_MODEL_URL),
-        (REC_CYR_DICT_FILE, REC_CYR_DICT_URL),
+        (REC_ESLAV_MODEL_FILE, REC_ESLAV_MODEL_URL),
+        (REC_ESLAV_DICT_FILE, REC_ESLAV_DICT_URL),
     ];
     for (file, url) in downloads {
         download_if_missing(&client, &models_dir.join(file), url)?;
@@ -153,20 +154,20 @@ fn init_engine() -> Result<OcrEngine, String> {
     let det_output_name = first_output_name(&det_session, "det")?;
     eprintln!("[rag/ocr] Det output name: {det_output_name}");
 
-    eprintln!("[rag/ocr] Loading English/Latin recognition model...");
+    eprintln!("[rag/ocr] Loading English/Latin recognition model (PP-OCRv4)...");
     let en_session = load_session(models_dir.join(REC_EN_MODEL_FILE), "rec-en")?;
     let en_output_name = first_output_name(&en_session, "rec-en")?;
     let en_dict = load_dictionary(models_dir.join(REC_EN_DICT_FILE))?;
 
-    eprintln!("[rag/ocr] Loading Cyrillic recognition model...");
-    let cyr_session = load_session(models_dir.join(REC_CYR_MODEL_FILE), "rec-cyr")?;
-    let cyr_output_name = first_output_name(&cyr_session, "rec-cyr")?;
-    let cyr_dict = load_dictionary(models_dir.join(REC_CYR_DICT_FILE))?;
+    eprintln!("[rag/ocr] Loading East Slavic recognition model (PP-OCRv5)...");
+    let eslav_session = load_session(models_dir.join(REC_ESLAV_MODEL_FILE), "rec-eslav")?;
+    let eslav_output_name = first_output_name(&eslav_session, "rec-eslav")?;
+    let eslav_dict = load_dictionary(models_dir.join(REC_ESLAV_DICT_FILE))?;
 
     eprintln!(
-        "[rag/ocr] OCR engine initialized (en dict: {}, cyr dict: {})",
+        "[rag/ocr] OCR engine initialized (en dict: {}, eslav dict: {})",
         en_dict.len(),
-        cyr_dict.len()
+        eslav_dict.len()
     );
 
     Ok(OcrEngine {
@@ -174,16 +175,20 @@ fn init_engine() -> Result<OcrEngine, String> {
         det_output_name,
         rec_models: vec![
             RecModel {
+                session: eslav_session,
+                dictionary: eslav_dict,
+                name: "eslav",
+                output_name: eslav_output_name,
+                img_height: 48, // ONNX export has fixed height 48
+                content_height: 32, // trained on 32px, padded to 48 in ONNX
+            },
+            RecModel {
                 session: en_session,
                 dictionary: en_dict,
                 name: "en",
                 output_name: en_output_name,
-            },
-            RecModel {
-                session: cyr_session,
-                dictionary: cyr_dict,
-                name: "cyr",
-                output_name: cyr_output_name,
+                img_height: 48, // PP-OCRv4 uses 48px
+                content_height: 48,
             },
         ],
     })
@@ -409,11 +414,14 @@ fn ocr_image(engine: &mut OcrEngine, image: &DynamicImage) -> Result<String, Str
 
 /// Confidence threshold: if first model scores above this, skip remaining models.
 const HIGH_CONFIDENCE_THRESH: f32 = 0.8;
+/// Minimum confidence for script-specific preference (prefer Cyrillic output over Latin).
+const SCRIPT_PREF_MIN_CONF: f32 = 0.3;
 
 /// Run recognition models on a cropped image, return (text, confidence, model_name)
-/// for the model with highest confidence. If the first model scores above
-/// HIGH_CONFIDENCE_THRESH, remaining models are skipped to halve inference cost.
-/// Returns None if all models fail or produce empty text.
+/// for the best result. Prefers output containing extended characters (Cyrillic etc.)
+/// over ASCII-only output when both have reasonable confidence, since a model producing
+/// script-specific characters is a stronger signal than raw confidence comparison
+/// across different models.
 fn recognize_best(
     models: &mut [RecModel],
     image: &DynamicImage,
@@ -421,13 +429,25 @@ fn recognize_best(
     let mut best: Option<(String, f32, &'static str)> = None;
 
     for model in models.iter_mut() {
-        match recognize_text(&mut model.session, &model.output_name, image, &model.dictionary) {
+        match recognize_text(&mut model.session, &model.output_name, image, &model.dictionary, model.img_height, model.content_height) {
             Ok((text, confidence)) => {
                 if text.trim().is_empty() {
                     continue;
                 }
                 let is_better = match &best {
-                    Some((_, best_conf, _)) => confidence > *best_conf,
+                    Some((prev_text, best_conf, _)) => {
+                        let new_has_extended = has_extended_chars(&text);
+                        let prev_has_extended = has_extended_chars(prev_text);
+                        if new_has_extended && !prev_has_extended && confidence > SCRIPT_PREF_MIN_CONF {
+                            // Prefer extended-script output (Cyrillic etc.) over ASCII-only
+                            true
+                        } else if !new_has_extended && prev_has_extended && *best_conf > SCRIPT_PREF_MIN_CONF {
+                            // Don't replace extended-script with ASCII-only
+                            false
+                        } else {
+                            confidence > *best_conf
+                        }
+                    }
                     None => true,
                 };
                 if is_better {
@@ -446,6 +466,11 @@ fn recognize_best(
     }
 
     best
+}
+
+/// Check if text contains non-ASCII alphabetic characters (Cyrillic, Greek, etc.)
+fn has_extended_chars(text: &str) -> bool {
+    text.chars().any(|c| c.is_alphabetic() && !c.is_ascii())
 }
 
 // --- Detection ---
@@ -639,21 +664,34 @@ fn recognize_text(
     output_name: &str,
     image: &DynamicImage,
     dictionary: &[String],
+    img_height: u32,
+    content_height: u32,
 ) -> Result<(String, f32), String> {
     let (w, h) = image.dimensions();
     if w == 0 || h == 0 {
         return Ok((String::new(), 0.0));
     }
 
-    // Resize to fixed height, scale width proportionally
-    let new_h = REC_IMG_HEIGHT;
-    let new_w = ((w as f32 / h as f32) * new_h as f32) as u32;
+    // Resize to content height, scale width proportionally
+    let new_w = ((w as f32 / h as f32) * content_height as f32) as u32;
     let new_w = new_w.clamp(1, REC_MAX_WIDTH);
+    let new_h = img_height;
 
-    let resized = image.resize_exact(new_w, new_h, image::imageops::FilterType::Lanczos3);
+    // Resize to content_height, then pad to img_height if needed
+    let resized = image.resize_exact(new_w, content_height, image::imageops::FilterType::Lanczos3);
     let rgb = resized.to_rgb8();
 
-    let tensor = image_to_tensor(&rgb, new_h, new_w, &REC_MEAN, &REC_STD);
+    let tensor = if content_height < img_height {
+        // Build tensor at full img_height, place content at top, pad bottom with normalized zeros
+        let t = image_to_tensor(&rgb, content_height, new_w, &REC_MEAN, &REC_STD);
+        // Expand to full height (zeros = padding after normalization: (0 - 0.5) / 0.5 = -1.0)
+        let mut full = Array4::<f32>::from_elem((1, 3, new_h as usize, new_w as usize), -1.0);
+        full.slice_mut(ndarray::s![.., .., ..content_height as usize, ..])
+            .assign(&t.view());
+        full
+    } else {
+        image_to_tensor(&rgb, new_h, new_w, &REC_MEAN, &REC_STD)
+    };
     let input_value = Value::from_array(tensor)
         .map_err(|e| format!("Failed to create rec input tensor: {e}"))?;
 
