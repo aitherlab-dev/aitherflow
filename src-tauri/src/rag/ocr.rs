@@ -27,13 +27,13 @@ const REC_CYR_DICT_FILE: &str = "cyrillic_dict.txt";
 const DET_MODEL_URL: &str =
     "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv4/ch_PP-OCRv4_det_infer.onnx";
 const REC_EN_MODEL_URL: &str =
-    "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv4/en_PP-OCRv4_rec_infer.onnx";
+    "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.7.0/onnx/PP-OCRv4/rec/en_PP-OCRv4_rec_infer.onnx";
 const REC_EN_DICT_URL: &str =
-    "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv4/en_dict.txt";
+    "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.7.0/paddle/PP-OCRv4/rec/en_PP-OCRv4_rec_infer/en_dict.txt";
 const REC_CYR_MODEL_URL: &str =
-    "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv3/cyrillic_PP-OCRv3_rec_infer.onnx";
+    "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.7.0/onnx/PP-OCRv4/rec/cyrillic_PP-OCRv3_rec_infer.onnx";
 const REC_CYR_DICT_URL: &str =
-    "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv3/cyrillic_dict.txt";
+    "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.7.0/paddle/PP-OCRv4/rec/cyrillic_PP-OCRv3_rec_infer/cyrillic_dict.txt";
 
 // ImageNet normalization constants
 const MEAN: [f32; 3] = [0.485, 0.456, 0.406];
