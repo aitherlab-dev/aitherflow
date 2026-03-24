@@ -35,14 +35,19 @@ const REC_CYR_MODEL_URL: &str =
 const REC_CYR_DICT_URL: &str =
     "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.7.0/paddle/PP-OCRv4/rec/cyrillic_PP-OCRv3_rec_infer/cyrillic_dict.txt";
 
-// ImageNet normalization constants
-const MEAN: [f32; 3] = [0.485, 0.456, 0.406];
-const STD: [f32; 3] = [0.229, 0.224, 0.225];
+// Detection normalization (ImageNet stats, BGR order — matches PaddleOCR det preprocessing)
+const DET_MEAN: [f32; 3] = [0.485, 0.456, 0.406];
+const DET_STD: [f32; 3] = [0.229, 0.224, 0.225];
+
+// Recognition normalization (simple [-1, 1] mapping — matches PaddleOCR rec preprocessing)
+const REC_MEAN: [f32; 3] = [0.5, 0.5, 0.5];
+const REC_STD: [f32; 3] = [0.5, 0.5, 0.5];
 
 // Detection parameters
 const DET_MAX_SIDE: u32 = 960;
 const DET_THRESH: f32 = 0.3;
 const DET_MIN_BOX_SIZE: u32 = 5;
+const DET_UNCLIP_RATIO: f32 = 1.5; // DB post-processing: expand shrunk text regions
 
 // Recognition parameters
 const REC_IMG_HEIGHT: u32 = 48;
@@ -471,8 +476,8 @@ fn detect_text(
     let resized = image.resize_exact(new_w, new_h, image::imageops::FilterType::Lanczos3);
     let rgb = resized.to_rgb8();
 
-    // Build input tensor [1, 3, H, W] normalized with ImageNet stats
-    let tensor = image_to_tensor(&rgb, new_h, new_w);
+    // Build input tensor [1, 3, H, W] — detection uses ImageNet normalization
+    let tensor = image_to_tensor(&rgb, new_h, new_w, &DET_MEAN, &DET_STD);
     let input_value = Value::from_array(tensor)
         .map_err(|e| format!("Failed to create det input tensor: {e}"))?;
 
@@ -520,7 +525,7 @@ fn detect_text(
     Ok(boxes)
 }
 
-fn image_to_tensor(rgb: &RgbImage, h: u32, w: u32) -> Array4<f32> {
+fn image_to_tensor(rgb: &RgbImage, h: u32, w: u32, mean: &[f32; 3], std: &[f32; 3]) -> Array4<f32> {
     let mut tensor = Array4::<f32>::zeros((1, 3, h as usize, w as usize));
     // PP-OCR models expect BGR channel order; RgbImage stores RGB
     const BGR_MAP: [usize; 3] = [2, 1, 0];
@@ -530,7 +535,7 @@ fn image_to_tensor(rgb: &RgbImage, h: u32, w: u32) -> Array4<f32> {
             let pixel = rgb.get_pixel(x, y);
             for c in 0..3 {
                 let val = pixel[BGR_MAP[c]] as f32 / 255.0;
-                tensor[[0, c, y as usize, x as usize]] = (val - MEAN[c]) / STD[c];
+                tensor[[0, c, y as usize, x as usize]] = (val - mean[c]) / std[c];
             }
         }
     }
@@ -604,9 +609,13 @@ fn find_text_boxes(
 
             // Filter out tiny boxes
             if bw >= DET_MIN_BOX_SIZE && bh >= DET_MIN_BOX_SIZE {
-                // Expand box slightly for better recognition
-                let pad_x = (bw as f32 * 0.05) as u32;
-                let pad_y = (bh as f32 * 0.05) as u32;
+                // DB-style unclip: expand by area * ratio / perimeter
+                // DB detection outputs shrunk text regions; this expands them back
+                let area = bw as f32 * bh as f32;
+                let perimeter = 2.0 * (bw as f32 + bh as f32);
+                let distance = (area * DET_UNCLIP_RATIO / perimeter).max(2.0);
+                let pad_x = distance as u32;
+                let pad_y = distance as u32;
                 boxes.push(TextBox {
                     x: bx.saturating_sub(pad_x),
                     y: by.saturating_sub(pad_y),
@@ -644,7 +653,7 @@ fn recognize_text(
     let resized = image.resize_exact(new_w, new_h, image::imageops::FilterType::Lanczos3);
     let rgb = resized.to_rgb8();
 
-    let tensor = image_to_tensor(&rgb, new_h, new_w);
+    let tensor = image_to_tensor(&rgb, new_h, new_w, &REC_MEAN, &REC_STD);
     let input_value = Value::from_array(tensor)
         .map_err(|e| format!("Failed to create rec input tensor: {e}"))?;
 
@@ -717,4 +726,124 @@ fn ctc_decode_with_confidence(
     };
 
     (result, confidence)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    #[test]
+    fn test_ocr_debug() {
+        let pdf_path = Path::new("/home/sasha/Documents/Книги/LVKuleshov_Azbuka_Kinorezhissury.pdf");
+        if !pdf_path.exists() {
+            eprintln!("TEST SKIPPED: PDF not found at {}", pdf_path.display());
+            return;
+        }
+
+        // Step 1: Render page 10
+        eprintln!("=== Rendering page 10 ===");
+        let img = render_single_page(pdf_path, 10).expect("Failed to render page 10");
+        let (orig_w, orig_h) = img.dimensions();
+        eprintln!("Original image: {orig_w}x{orig_h}");
+
+        // Step 2: Initialize engine
+        eprintln!("\n=== Initializing OCR engine ===");
+        let engine_result = init_engine();
+        let mut engine = engine_result.expect("Failed to init engine");
+
+        // Step 3-4: Run detection with detailed diagnostics (scoped borrow)
+        {
+            eprintln!("\n=== Running detection ===");
+            let det_session = &mut engine.det_session;
+            let det_output_name = &engine.det_output_name;
+
+            let scale = (DET_MAX_SIDE as f32) / (orig_w.max(orig_h) as f32);
+            let scale = scale.min(1.0);
+            let new_w = ((orig_w as f32 * scale) as u32).max(32);
+            let new_h = ((orig_h as f32 * scale) as u32).max(32);
+            let new_w = new_w.div_ceil(32) * 32;
+            let new_h = new_h.div_ceil(32) * 32;
+            eprintln!("Resize: {orig_w}x{orig_h} → {new_w}x{new_h} (scale={scale:.4})");
+
+            let resized = img.resize_exact(new_w, new_h, image::imageops::FilterType::Lanczos3);
+            let rgb = resized.to_rgb8();
+            let tensor = image_to_tensor(&rgb, new_h, new_w, &DET_MEAN, &DET_STD);
+            eprintln!("Input tensor shape: [1, 3, {new_h}, {new_w}]");
+
+            let input_value = Value::from_array(tensor).expect("Failed to create input tensor");
+            let outputs = det_session
+                .run(ort::inputs!["x" => input_value])
+                .expect("Detection inference failed");
+
+            let output_value = &outputs[det_output_name.as_str()];
+            let (shape, prob_data): (_, &[f32]) = output_value
+                .try_extract_tensor::<f32>()
+                .expect("Failed to extract tensor");
+
+            eprintln!("Output tensor shape: {:?}", shape);
+            eprintln!("Output data length: {}", prob_data.len());
+            eprintln!("Expected length (new_h*new_w): {}", new_h as usize * new_w as usize);
+
+            let (map_h, map_w) = if shape.len() >= 4 {
+                (shape[2] as u32, shape[3] as u32)
+            } else if shape.len() >= 3 {
+                (shape[1] as u32, shape[2] as u32)
+            } else {
+                (new_h, new_w)
+            };
+            eprintln!("Map dimensions: {map_w}x{map_h}");
+            eprintln!("Match input? w: {} h: {}", map_w == new_w, map_h == new_h);
+
+            // Probability distribution
+            let mut pmin = f32::MAX;
+            let mut pmax = f32::MIN;
+            let mut psum = 0.0f64;
+            for &v in prob_data {
+                if v < pmin { pmin = v; }
+                if v > pmax { pmax = v; }
+                psum += v as f64;
+            }
+            let pmean = psum / prob_data.len() as f64;
+            eprintln!("\nProb stats: min={pmin:.6} max={pmax:.6} mean={pmean:.6}");
+
+            for &thresh in &[0.1, 0.2, 0.3, 0.5, 0.7] {
+                let count = prob_data.iter().filter(|&&v| v > thresh).count();
+                let pct = count as f64 / prob_data.len() as f64 * 100.0;
+                eprintln!("  pixels > {thresh:.1}: {count} ({pct:.2}%)");
+            }
+
+            eprintln!("\n=== Finding text boxes ===");
+            let boxes = find_text_boxes(prob_data, map_w, map_h, orig_w, orig_h);
+            eprintln!("Found {} text boxes", boxes.len());
+
+            for (i, b) in boxes.iter().take(10).enumerate() {
+                eprintln!("  Box {i}: x={} y={} w={} h={}", b.x, b.y, b.w, b.h);
+            }
+            if boxes.len() > 10 {
+                eprintln!("  ... and {} more", boxes.len() - 10);
+            }
+        }
+
+        // Step 5: Full OCR pipeline for this page (detect + recognize)
+        eprintln!("\n=== Full OCR pipeline ===");
+        let full_result = ocr_image(&mut engine, &img);
+        match full_result {
+            Ok(text) => {
+                let char_count = text.len();
+                let line_count = text.lines().count();
+                eprintln!("OCR result: {char_count} chars, {line_count} lines");
+                if !text.is_empty() {
+                    let preview: String = text.chars().take(500).collect();
+                    eprintln!("Preview:\n{preview}");
+                }
+            }
+            Err(e) => {
+                eprintln!("OCR failed: {e}");
+            }
+        }
+
+        // The test passes if we get this far — it's diagnostic
+        eprintln!("\n=== Done ===");
+    }
 }
