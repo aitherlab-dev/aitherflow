@@ -96,9 +96,13 @@ export function WelcomeScreen() {
   const [presetsLoaded, setPresetsLoaded] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const [showPresetManager, setShowPresetManager] = useState(false);
+  const [focusedRow, setFocusedRow] = useState(0); // 0 = projects, 1 = team
+  const [focusedIndex, setFocusedIndex] = useState(0);
 
   const projectsRow = useDragScroll();
   const teamRow = useDragScroll();
+
+  const focusedCardRef = useRef<HTMLButtonElement | null>(null);
 
   // Workspace is always the first project
   const workspace = projects[0];
@@ -238,6 +242,119 @@ export function WelcomeScreen() {
       !welcomeCards.some((c) => c.projectPath === p.path),
   );
 
+  // Item counts for keyboard navigation
+  const projectsCount = (workspace ? 1 : 0) + welcomeCards.length + (availableProjects.length > 0 ? 1 : 0);
+  const teamVisible = !!(selectedProject && presetsLoaded);
+  const teamCount = teamVisible ? 1 + presets.length + 1 : 0; // solo + presets + "new team"
+
+  // Map focusedIndex in projects row to a project path (for Enter logic)
+  const getProjectPathAtIndex = useCallback((index: number): string | null => {
+    if (workspace && index === 0) return workspace.path;
+    const cardIdx = workspace ? index - 1 : index;
+    if (cardIdx >= 0 && cardIdx < welcomeCards.length) return welcomeCards[cardIdx].projectPath;
+    return null; // action card "+"
+  }, [workspace, welcomeCards]);
+
+  // Initialize focused index to match selectedProject
+  useEffect(() => {
+    if (!selectedProject) return;
+    if (workspace && selectedProject === workspace.path) {
+      setFocusedIndex(0);
+      return;
+    }
+    const cardIdx = welcomeCards.findIndex((c) => c.projectPath === selectedProject);
+    if (cardIdx >= 0) {
+      setFocusedIndex((workspace ? 1 : 0) + cardIdx);
+    }
+  }, []); // only on mount
+
+  // Scroll focused card into view
+  useEffect(() => {
+    focusedCardRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [focusedRow, focusedIndex]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    if (showPicker || showPresetManager) return;
+
+    const handleNav = (e: KeyboardEvent) => {
+      const rowCount = focusedRow === 0 ? projectsCount : teamCount;
+
+      switch (e.code) {
+        case "ArrowRight": {
+          e.preventDefault();
+          setFocusedIndex((prev) => Math.min(prev + 1, rowCount - 1));
+          break;
+        }
+        case "ArrowLeft": {
+          e.preventDefault();
+          setFocusedIndex((prev) => Math.max(prev - 1, 0));
+          break;
+        }
+        case "ArrowDown": {
+          e.preventDefault();
+          if (focusedRow === 0 && teamVisible) {
+            setFocusedRow(1);
+            setFocusedIndex((prev) => Math.min(prev, teamCount - 1));
+          }
+          break;
+        }
+        case "ArrowUp": {
+          e.preventDefault();
+          if (focusedRow === 1) {
+            setFocusedRow(0);
+            setFocusedIndex((prev) => Math.min(prev, projectsCount - 1));
+          }
+          break;
+        }
+        case "Enter": {
+          e.preventDefault();
+          if (focusedRow === 0) {
+            // Projects row
+            const path = getProjectPathAtIndex(focusedIndex);
+            if (path) {
+              // Project card: if already selected → launch, else → select
+              if (path === selectedProject) {
+                const project = projects.find((p) => p.path === path);
+                if (project) {
+                  const chatId = path === lastOpenedProject ? lastOpenedChatId : null;
+                  openProject(project.path, project.name, chatId).catch(console.error);
+                }
+              } else {
+                setSelectedProject(path);
+              }
+            } else {
+              // "+" action card
+              setShowPicker(true);
+            }
+          } else {
+            // Team row
+            if (focusedIndex === 0) {
+              // Solo
+              handleSoloLaunch().catch(console.error);
+            } else if (focusedIndex <= presets.length) {
+              // Preset
+              handlePresetLaunch(presets[focusedIndex - 1]).catch(console.error);
+            } else {
+              // "New team"
+              setShowPresetManager(true);
+            }
+          }
+          break;
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleNav);
+    return () => window.removeEventListener("keydown", handleNav);
+  }, [
+    showPicker, showPresetManager, focusedRow, focusedIndex,
+    projectsCount, teamCount, teamVisible,
+    selectedProject, projects, lastOpenedProject, lastOpenedChatId,
+    openProject, getProjectPathAtIndex, presets,
+    handleSoloLaunch, handlePresetLaunch,
+  ]);
+
   const selectedProjectName =
     projects.find((p) => p.path === selectedProject)?.name ?? "";
 
@@ -274,7 +391,8 @@ export function WelcomeScreen() {
           {/* Workspace — always first */}
           {workspace && (
             <button
-              className={`welcome-card${selectedProject === workspace.path ? " welcome-card--selected" : ""}`}
+              ref={focusedRow === 0 && focusedIndex === 0 ? focusedCardRef : undefined}
+              className={`welcome-card${selectedProject === workspace.path ? " welcome-card--selected" : ""}${focusedRow === 0 && focusedIndex === 0 ? " welcome-card--focused" : ""}`}
               onClick={() => handleSelectProject(workspace.path)}
             >
               <div className="welcome-card-icon">
@@ -285,10 +403,14 @@ export function WelcomeScreen() {
           )}
 
           {/* Pinned project cards */}
-          {welcomeCards.map((card) => (
+          {welcomeCards.map((card, i) => {
+            const cardIndex = (workspace ? 1 : 0) + i;
+            const isFocused = focusedRow === 0 && focusedIndex === cardIndex;
+            return (
             <button
               key={card.projectPath}
-              className={`welcome-card${selectedProject === card.projectPath ? " welcome-card--selected" : ""}`}
+              ref={isFocused ? focusedCardRef : undefined}
+              className={`welcome-card${selectedProject === card.projectPath ? " welcome-card--selected" : ""}${isFocused ? " welcome-card--focused" : ""}`}
               onClick={() => handleSelectProject(card.projectPath)}
             >
               <div
@@ -313,17 +435,23 @@ export function WelcomeScreen() {
               </div>
               <div className="welcome-card-name">{card.projectName}</div>
             </button>
-          ))}
+            );
+          })}
 
           {/* Add project [+] */}
-          {availableProjects.length > 0 && (
+          {availableProjects.length > 0 && (() => {
+            const addIndex = (workspace ? 1 : 0) + welcomeCards.length;
+            const isFocused = focusedRow === 0 && focusedIndex === addIndex;
+            return (
             <button
-              className="welcome-card welcome-card--action-sm"
+              ref={isFocused ? focusedCardRef : undefined}
+              className={`welcome-card welcome-card--action-sm${isFocused ? " welcome-card--focused" : ""}`}
               onClick={() => { if (!projectsRow.wasDragged()) setShowPicker(true); }}
             >
               <Plus size={20} />
             </button>
-          )}
+            );
+          })()}
         </div>
       </div>
 
@@ -339,7 +467,8 @@ export function WelcomeScreen() {
           <div className="welcome-row" ref={teamRow.ref}>
             {/* Solo card */}
             <button
-              className="welcome-card welcome-card--solo"
+              ref={focusedRow === 1 && focusedIndex === 0 ? focusedCardRef : undefined}
+              className={`welcome-card welcome-card--solo${focusedRow === 1 && focusedIndex === 0 ? " welcome-card--focused" : ""}`}
               onClick={handleSoloLaunch}
             >
               <div className="welcome-card-icon">
@@ -349,10 +478,14 @@ export function WelcomeScreen() {
             </button>
 
             {/* Preset cards */}
-            {presets.map((preset) => (
+            {presets.map((preset, i) => {
+              const presetIndex = 1 + i;
+              const isFocused = focusedRow === 1 && focusedIndex === presetIndex;
+              return (
               <button
                 key={preset.id}
-                className="welcome-card"
+                ref={isFocused ? focusedCardRef : undefined}
+                className={`welcome-card${isFocused ? " welcome-card--focused" : ""}`}
                 onClick={() => handlePresetLaunch(preset)}
               >
                 {!preset.is_builtin && (
@@ -385,16 +518,24 @@ export function WelcomeScreen() {
                   {preset.roles.join(", ")}
                 </div>
               </button>
-            ))}
+              );
+            })}
 
             {/* New team */}
-            <button
-              className="welcome-card welcome-card--action"
-              onClick={() => { if (!teamRow.wasDragged()) setShowPresetManager(true); }}
-            >
-              <UserPlus size={20} />
-              <div className="welcome-card-name">New team</div>
-            </button>
+            {(() => {
+              const newTeamIndex = 1 + presets.length;
+              const isFocused = focusedRow === 1 && focusedIndex === newTeamIndex;
+              return (
+              <button
+                ref={isFocused ? focusedCardRef : undefined}
+                className={`welcome-card welcome-card--action${isFocused ? " welcome-card--focused" : ""}`}
+                onClick={() => { if (!teamRow.wasDragged()) setShowPresetManager(true); }}
+              >
+                <UserPlus size={20} />
+                <div className="welcome-card-name">New team</div>
+              </button>
+              );
+            })()}
           </div>
         </div>
       )}

@@ -153,6 +153,12 @@
   border-color: var(--accent-icon);
 }
 
+/* Keyboard-focused card */
+.welcome-card--focused {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* Small action button (just an icon, e.g. [+]) */
 .welcome-card--action-sm {
   border-style: dashed;
