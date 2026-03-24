@@ -28,6 +28,7 @@ pnpm-debug.log*
 devlog/
 FEATURES.md
 AUDIT-*.md
+README-brule.md
 
 # Claude Code local files (personal, not part of the project)
 .claude/
