@@ -127,6 +127,7 @@ fn init_engine() -> Result<OcrEngine, String> {
 
     let client = reqwest::blocking::Client::builder()
         .timeout(DOWNLOAD_TIMEOUT)
+        .user_agent("aitherflow/1.0")
         .build()
         .map_err(|e| format!("Failed to create HTTP client: {e}"))?;
 
