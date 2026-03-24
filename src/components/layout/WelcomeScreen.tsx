@@ -161,7 +161,18 @@ export function WelcomeScreen() {
   const handleSelectProject = useCallback((path: string) => {
     if (projectsRow.wasDragged()) return;
     setSelectedProject(path);
-  }, [projectsRow]);
+    // Sync focusedIndex with clicked project
+    if (workspace && path === workspace.path) {
+      setFocusedRow(0);
+      setFocusedIndex(0);
+    } else {
+      const idx = welcomeCards.findIndex((c) => c.projectPath === path);
+      if (idx >= 0) {
+        setFocusedRow(0);
+        setFocusedIndex((workspace ? 1 : 0) + idx);
+      }
+    }
+  }, [projectsRow, workspace, welcomeCards]);
 
   const handleSoloLaunch = useCallback(async () => {
     if (teamRow.wasDragged()) return;
@@ -267,6 +278,14 @@ export function WelcomeScreen() {
       setFocusedIndex((workspace ? 1 : 0) + cardIdx);
     }
   }, []); // only on mount
+
+  // Reset focusedRow when team section disappears
+  useEffect(() => {
+    if (!teamVisible && focusedRow === 1) {
+      setFocusedRow(0);
+      setFocusedIndex((prev) => Math.min(prev, projectsCount - 1));
+    }
+  }, [teamVisible, focusedRow, projectsCount]);
 
   // Scroll focused card into view
   useEffect(() => {
