@@ -260,8 +260,13 @@ pub fn ocr_pdf(path: &Path) -> Result<String, String> {
 
     // Process one page at a time to keep memory bounded
     for page_num in 1..=pages_to_process {
+        eprintln!("[rag/ocr] Page {page_num}/{pages_to_process}...");
         let img = match render_single_page(path, page_num) {
-            Ok(img) => img,
+            Ok(img) => {
+                let (w, h) = img.dimensions();
+                eprintln!("[rag/ocr] Page {page_num} rendered: {w}x{h}");
+                img
+            }
             Err(e) => {
                 eprintln!("[rag/ocr] Page {page_num} render failed: {e}");
                 continue;
@@ -272,6 +277,7 @@ pub fn ocr_pdf(path: &Path) -> Result<String, String> {
         match result {
             Ok(text) => {
                 let trimmed = text.trim();
+                eprintln!("[rag/ocr] Page {page_num}: {} chars extracted", trimmed.len());
                 if !trimmed.is_empty() {
                     if !all_text.is_empty() {
                         all_text.push_str("\n\n");
@@ -477,24 +483,53 @@ fn detect_text(
     // Access output by name (not .values().next() which has undefined order)
     let output_value = &outputs[output_name];
 
-    let (_, prob_data) = output_value
+    let (shape, prob_data) = output_value
         .try_extract_tensor::<f32>()
         .map_err(|e| format!("Failed to extract det output: {e}"))?;
 
+    // Use actual output spatial dimensions, not assumed input dimensions
+    let (map_h, map_w) = if shape.len() >= 4 {
+        (shape[2] as u32, shape[3] as u32)
+    } else if shape.len() >= 3 {
+        (shape[1] as u32, shape[2] as u32)
+    } else {
+        (new_h, new_w)
+    };
+
+    // Diagnostic: probability distribution stats
+    let mut pmin = f32::MAX;
+    let mut pmax = f32::MIN;
+    let mut psum = 0.0f64;
+    let mut above_thresh = 0usize;
+    for &v in prob_data {
+        if v < pmin { pmin = v; }
+        if v > pmax { pmax = v; }
+        psum += v as f64;
+        if v > DET_THRESH { above_thresh += 1; }
+    }
+    let pmean = if !prob_data.is_empty() { psum / prob_data.len() as f64 } else { 0.0 };
+    eprintln!(
+        "[rag/ocr] Det: input={}x{}, output={}x{}, data_len={}, prob min={:.4} max={:.4} mean={:.4}, pixels>{DET_THRESH}={}",
+        new_w, new_h, map_w, map_h, prob_data.len(), pmin, pmax, pmean, above_thresh
+    );
+
     // Threshold to binary mask and find connected component bounding boxes
-    let boxes = find_text_boxes(prob_data, new_w, new_h, orig_w, orig_h);
+    let boxes = find_text_boxes(prob_data, map_w, map_h, orig_w, orig_h);
+    eprintln!("[rag/ocr] Detected {} text boxes", boxes.len());
 
     Ok(boxes)
 }
 
 fn image_to_tensor(rgb: &RgbImage, h: u32, w: u32) -> Array4<f32> {
     let mut tensor = Array4::<f32>::zeros((1, 3, h as usize, w as usize));
+    // PP-OCR models expect BGR channel order; RgbImage stores RGB
+    const BGR_MAP: [usize; 3] = [2, 1, 0];
 
     for y in 0..h {
         for x in 0..w {
             let pixel = rgb.get_pixel(x, y);
             for c in 0..3 {
-                let val = pixel[c] as f32 / 255.0;
+                let val = pixel[BGR_MAP[c]] as f32 / 255.0;
                 tensor[[0, c, y as usize, x as usize]] = (val - MEAN[c]) / STD[c];
             }
         }
