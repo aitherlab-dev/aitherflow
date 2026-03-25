@@ -12,7 +12,7 @@ use std::path::{Component, Path};
 use tracing::{error, info};
 
 /// Validate that a path is safe: no traversal components, must be absolute.
-fn validate_path_safe(path: &Path) -> Result<(), String> {
+pub fn validate_path_safe(path: &Path) -> Result<(), String> {
     if !path.is_absolute() {
         return Err(format!("Path must be absolute: {}", path.display()));
     }
@@ -91,10 +91,6 @@ pub fn generate_image(params: &Value, config: &Config) -> Result<String, String>
     );
 
     let preset = resolve_preset(&config.default_model)?;
-
-    // Point HuggingFace Hub cache to our models_path
-    validate_path_safe(&config.models_path)?;
-    std::env::set_var("HF_HOME", &config.models_path);
 
     let out = output_path.clone();
     let neg = negative_prompt.clone();

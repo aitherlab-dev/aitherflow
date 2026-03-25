@@ -10,6 +10,12 @@ use std::sync::mpsc;
 use std::thread;
 use tracing::{error, info};
 
+enum Event {
+    StdinLine(String),
+    ToolResult(JsonRpcResponse),
+    StdinClosed,
+}
+
 fn main() {
     tracing_subscriber::fmt()
         .with_writer(io::stderr)
@@ -30,6 +36,14 @@ fn main() {
     };
     config.ensure_dirs();
 
+    // Set HF_HOME once before any threads start
+    if let Err(e) = tools::validate_path_safe(&config.models_path) {
+        error!("Invalid models_path: {e}");
+        std::process::exit(1);
+    }
+    // SAFETY: called before spawning any threads
+    unsafe { std::env::set_var("HF_HOME", &config.models_path) };
+
     info!(
         models_path = %config.models_path.display(),
         output_path = %config.output_path.display(),
@@ -37,70 +51,85 @@ fn main() {
         "Config loaded"
     );
 
-    let stdin = io::stdin();
+    let (event_tx, event_rx) = mpsc::channel::<Event>();
+
+    // Stdin reader thread
+    let stdin_tx = event_tx.clone();
+    thread::spawn(move || {
+        let stdin = io::stdin();
+        for line in stdin.lock().lines() {
+            match line {
+                Ok(l) => {
+                    let l = l.trim().to_string();
+                    if !l.is_empty() {
+                        if stdin_tx.send(Event::StdinLine(l)).is_err() {
+                            break;
+                        }
+                    }
+                }
+                Err(e) => {
+                    error!("Failed to read stdin: {e}");
+                    break;
+                }
+            }
+        }
+        let _ = stdin_tx.send(Event::StdinClosed);
+    });
+
     let mut stdout = io::stdout();
 
-    // Channel for async tool results
-    let (result_tx, result_rx) = mpsc::channel::<JsonRpcResponse>();
+    for event in &event_rx {
+        match event {
+            Event::StdinClosed => break,
+            Event::ToolResult(response) => {
+                write_response(&mut stdout, &response);
+            }
+            Event::StdinLine(line) => {
+                let request: JsonRpcRequest = match serde_json::from_str(&line) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        error!("Failed to parse request: {e}");
+                        let resp = JsonRpcResponse::error(
+                            Value::Null,
+                            -32700,
+                            format!("Parse error: {e}"),
+                        );
+                        write_response(&mut stdout, &resp);
+                        continue;
+                    }
+                };
 
-    for line in stdin.lock().lines() {
-        // Drain any completed async results first
-        while let Ok(response) = result_rx.try_recv() {
-            write_response(&mut stdout, &response);
+                // Notifications have no id — don't respond
+                let id = match request.id {
+                    Some(id) => id,
+                    None => {
+                        if request.method == "notifications/initialized" {
+                            info!("Client initialized notification received");
+                        }
+                        continue;
+                    }
+                };
+
+                let response = match request.method.as_str() {
+                    "initialize" => handle_initialize(id),
+                    "tools/list" => handle_tools_list(id),
+                    "tools/call" => {
+                        handle_tools_call(id, &request.params, &config, &event_tx);
+                        continue;
+                    }
+                    method => {
+                        info!("Unknown method: {method}");
+                        JsonRpcResponse::error(
+                            id,
+                            -32601,
+                            format!("Method not found: {method}"),
+                        )
+                    }
+                };
+
+                write_response(&mut stdout, &response);
+            }
         }
-
-        let line = match line {
-            Ok(l) => l,
-            Err(e) => {
-                error!("Failed to read stdin: {e}");
-                break;
-            }
-        };
-
-        let line = line.trim().to_string();
-        if line.is_empty() {
-            continue;
-        }
-
-        let request: JsonRpcRequest = match serde_json::from_str(&line) {
-            Ok(r) => r,
-            Err(e) => {
-                error!("Failed to parse request: {e}");
-                let resp = JsonRpcResponse::error(
-                    Value::Null,
-                    -32700,
-                    format!("Parse error: {e}"),
-                );
-                write_response(&mut stdout, &resp);
-                continue;
-            }
-        };
-
-        // Notifications have no id — don't respond
-        let id = match request.id {
-            Some(id) => id,
-            None => {
-                if request.method == "notifications/initialized" {
-                    info!("Client initialized notification received");
-                }
-                continue;
-            }
-        };
-
-        let response = match request.method.as_str() {
-            "initialize" => handle_initialize(id),
-            "tools/list" => handle_tools_list(id),
-            "tools/call" => {
-                handle_tools_call(id, &request.params, &config, &result_tx, &mut stdout);
-                continue;
-            }
-            method => {
-                info!("Unknown method: {method}");
-                JsonRpcResponse::error(id, -32601, format!("Method not found: {method}"))
-            }
-        };
-
-        write_response(&mut stdout, &response);
     }
 
     info!("mcp-image-gen server shutting down");
@@ -196,8 +225,7 @@ fn handle_tools_call(
     id: Value,
     params: &Value,
     config: &Config,
-    result_tx: &mpsc::Sender<JsonRpcResponse>,
-    stdout: &mut io::Stdout,
+    event_tx: &mpsc::Sender<Event>,
 ) {
     let tool_name = params
         .get("name")
@@ -206,18 +234,15 @@ fn handle_tools_call(
 
     match tool_name {
         "generate_image" => {
-            // Run generation in a separate thread so we don't block stdin
             let params = params.clone();
             let config = config.clone();
-            let tx = result_tx.clone();
+            let tx = event_tx.clone();
             thread::spawn(move || {
                 let response = match tools::generate_image(&params, &config) {
                     Ok(msg) => JsonRpcResponse::tool_result(id, msg),
                     Err(e) => JsonRpcResponse::tool_error(id, e),
                 };
-                if let Err(e) = tx.send(response) {
-                    error!("Failed to send result back: {e}");
-                }
+                let _ = tx.send(Event::ToolResult(response));
             });
         }
         "list_models" => {
@@ -225,7 +250,7 @@ fn handle_tools_call(
                 Ok(msg) => JsonRpcResponse::tool_result(id, msg),
                 Err(e) => JsonRpcResponse::tool_error(id, e),
             };
-            write_response(stdout, &response);
+            let _ = event_tx.send(Event::ToolResult(response));
         }
         _ => {
             let response = JsonRpcResponse::error(
@@ -233,7 +258,7 @@ fn handle_tools_call(
                 -32602,
                 format!("Unknown tool: {tool_name}"),
             );
-            write_response(stdout, &response);
+            let _ = event_tx.send(Event::ToolResult(response));
         }
     }
 }
