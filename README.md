@@ -1,27 +1,26 @@
+<h1 align="center">🧃 AITHERFLOW</h1>
 
-# aitherflow
+<p align="center">
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
+  <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/Built%20with-Rust-orange.svg" alt="Built with Rust"></a>
+  <a href="https://tauri.app/"><img src="https://img.shields.io/badge/Runs%20on-Toory%20...%20Torri%20...%20Tauri-blue.svg" alt="Runs on Tauri"></a>
+</p>
 
-Desktop GUI for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI. Multi-agent system with inter-agent communication, knowledge bases (RAG), external model providers, vision analysis, and more.
+<p align="center">
+  Desktop GUI for <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a> CLI. Multi-agent system with inter-agent communication, knowledge bases (RAG), external model providers, vision analysis, and more.
+</p>
 
-**[Documentation](DOCS.md)** · **[Releases](https://github.com/aitherlab-dev/aitherflow/releases)** · **[aitherlab](https://github.com/aitherlab-dev)**
-
----
-
-https://github.com/user-attachments/assets/efbedbd6-ced3-40b6-a7be-d0f482aee412
-
-
-
-# 🧃 AITHERFLOW
-
-### *"It's like a compurter program... for your compurter"* — Dr. Steve Brule
+<p align="center">
+  <strong><a href="DOCS.md">Documentation</a></strong> · <strong><a href="https://github.com/aitherlab-dev/aitherflow/releases">Releases</a></strong> · <strong><a href="https://github.com/aitherlab-dev">aitherlab</a></strong>
+</p>
 
 ---
 
 > **[CAMERA 3... no wait, CAMERA 1... which one has the red light??]**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Built with Rust](https://img.shields.io/badge/Built%20with-Rust-orange.svg)](https://www.rust-lang.org/)
-[![Runs on Tauri](https://img.shields.io/badge/Runs%20on-Toory%20...%20Torri%20...%20Tauri-blue.svg)](https://tauri.app/)
+https://github.com/user-attachments/assets/efbedbd6-ced3-40b6-a7be-d0f482aee412
+
+### *"It's like a compurter program... for your compurter"* — Dr. Steve Brule
 
 ---
 

@@ -101,11 +101,11 @@
   --fg-dim: #8a7e72;
 
   --accent: #a84e1c;
-  --accent-soft: #8a4218;
+  --accent-soft: var(--tab-bg);
   --accent-stroke: #cacaca;
   --accent-icon: #d97a4b;
   --accent-dim: #af3a03;
-  --accent-deep: #6b3412;
+  --accent-deep: var(--bg-hard);
 
   --border: #c4b9a8;
   --input-bg: #e5ddd0;
