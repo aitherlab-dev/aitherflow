@@ -127,10 +127,8 @@ fn main() {
             match line {
                 Ok(l) => {
                     let l = l.trim().to_string();
-                    if !l.is_empty() {
-                        if stdin_tx.send(Event::StdinLine(l)).is_err() {
-                            break;
-                        }
+                    if !l.is_empty() && stdin_tx.send(Event::StdinLine(l)).is_err() {
+                        break;
                     }
                 }
                 Err(e) => {

@@ -4,9 +4,9 @@
   "version": "0.6.1",
   "identifier": "dev.aitherlab.aitherflow",
   "build": {
-    "beforeDevCommand": "pnpm dev",
+    "beforeDevCommand": "bash scripts/build-sidecar.sh && pnpm dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "pnpm build",
+    "beforeBuildCommand": "bash scripts/build-sidecar.sh --release && pnpm build",
     "frontendDist": "../dist"
   },
   "app": {

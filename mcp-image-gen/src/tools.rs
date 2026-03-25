@@ -539,9 +539,9 @@ fn model_id_from_filename(filename: &str) -> &'static str {
         "flux1-mini"
     } else if filename.contains("flux") && filename.contains("1") && filename.contains("dev") {
         "flux1-dev"
-    } else if filename.contains("sdxl") || filename.contains("sd_xl") {
-        "sdxl-turbo"
-    } else if filename.contains("sd") && filename.contains("turbo") {
+    } else if filename.contains("sdxl") || filename.contains("sd_xl")
+        || (filename.contains("sd") && filename.contains("turbo"))
+    {
         "sdxl-turbo"
     } else {
         warn!("Cannot determine model type from filename '{filename}', defaulting to FLUX.1 Schnell");
