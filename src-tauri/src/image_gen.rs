@@ -38,11 +38,11 @@ pub struct ImageGenSettings {
     #[serde(default)]
     pub resolution_preset: ResolutionPreset,
     #[serde(default = "default_size")]
-    pub width: u32,
+    pub width: i32,
     #[serde(default = "default_size")]
-    pub height: u32,
+    pub height: i32,
     #[serde(default = "default_steps")]
-    pub steps: u32,
+    pub steps: i32,
     #[serde(default)]
     pub selected_model: String,
 }
@@ -75,11 +75,11 @@ fn default_images_path() -> String {
         .into_owned()
 }
 
-fn default_size() -> u32 {
+fn default_size() -> i32 {
     1024
 }
 
-fn default_steps() -> u32 {
+fn default_steps() -> i32 {
     20
 }
 
