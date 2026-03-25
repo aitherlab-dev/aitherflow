@@ -53,16 +53,39 @@ fn test_mcp_server_generate_image() {
 
     match result {
         Some(resp) => {
-            println!("Generate response: {resp}");
+            // Truncate base64 for readable output
+            let display_resp = if resp.len() > 500 {
+                format!("{}... ({} bytes total)", &resp[..500], resp.len())
+            } else {
+                resp.clone()
+            };
+            println!("Generate response: {display_resp}");
+
             // Check for error
             if resp.contains("\"isError\":true") || resp.contains("\"isError\": true") {
                 let output = child.wait_with_output().unwrap();
                 let stderr_str = String::from_utf8_lossy(&output.stderr);
-                panic!("Generation failed!\nResponse: {resp}\nStderr: {stderr_str}");
+                panic!("Generation failed!\nResponse: {display_resp}\nStderr: {stderr_str}");
             }
+
+            // Verify response contains image content block with base64 data
             assert!(
-                resp.contains("path") || resp.contains("result"),
-                "Unexpected response: {resp}"
+                resp.contains("\"type\":\"image\"") || resp.contains("\"type\": \"image\""),
+                "Response should contain image content block: {display_resp}"
+            );
+            assert!(
+                resp.contains("\"mimeType\":\"image/png\"") || resp.contains("\"mimeType\": \"image/png\""),
+                "Response should contain image/png mimeType: {display_resp}"
+            );
+            assert!(
+                resp.contains("\"data\":") || resp.contains("\"data\" :"),
+                "Response should contain base64 data: {display_resp}"
+            );
+
+            // Verify text metadata block is also present (path is JSON-escaped inside text field)
+            assert!(
+                resp.contains("path"),
+                "Response should contain path in text metadata: {display_resp}"
             );
 
             // Verify image file was actually created on disk

@@ -341,7 +341,26 @@ fn handle_tools_call(
                 let response = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                     tools::generate_image(&params, &config)
                 })) {
-                    Ok(Ok(msg)) => JsonRpcResponse::tool_result(id, msg),
+                    Ok(Ok(msg)) => {
+                        // Try to read the generated image and return it as base64
+                        let path = serde_json::from_str::<Value>(&msg)
+                            .ok()
+                            .and_then(|v| v.get("path")?.as_str().map(String::from));
+                        match path {
+                            Some(p) => match std::fs::read(&p) {
+                                Ok(bytes) => {
+                                    use base64::Engine;
+                                    let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+                                    JsonRpcResponse::tool_result_with_image(id, b64, "image/png", msg)
+                                }
+                                Err(e) => {
+                                    warn!("Failed to read generated image {p}: {e}");
+                                    JsonRpcResponse::tool_result(id, msg)
+                                }
+                            },
+                            None => JsonRpcResponse::tool_result(id, msg),
+                        }
+                    }
                     Ok(Err(e)) => JsonRpcResponse::tool_error(id, e),
                     Err(panic_err) => {
                         let msg = panic_message(&panic_err);

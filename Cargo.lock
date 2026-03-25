@@ -5470,6 +5470,7 @@ dependencies = [
 name = "mcp-image-gen"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "chrono",
  "diffusion-rs",
  "diffusion-rs-sys",
