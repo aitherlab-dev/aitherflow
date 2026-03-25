@@ -1,3 +1,5 @@
+https://github.com/user-attachments/assets/cc4534af-9700-4650-92e4-b00623bbeb94
+
 # aitherflow
 
 Desktop GUI for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI. Multi-agent system with inter-agent communication, knowledge bases (RAG), external model providers, vision analysis, and more.
