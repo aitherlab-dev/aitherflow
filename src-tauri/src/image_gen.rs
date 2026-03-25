@@ -1,6 +1,5 @@
-use hf_hub::api::sync::ApiBuilder;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::config;
 use crate::file_ops::{read_json, write_json};
@@ -162,27 +161,35 @@ fn validate_filename(filename: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Check if a model file exists in the hf-hub cache structure on disk.
+/// Cache layout: {models_path}/models--{org}--{repo}/snapshots/{hash}/{filename}
+fn is_model_downloaded(models_path: &Path, repo_id: &str, filename: &str) -> bool {
+    let cache_dir = format!("models--{}", repo_id.replace('/', "--"));
+    let snapshots_dir = models_path.join(&cache_dir).join("snapshots");
+    let Ok(entries) = std::fs::read_dir(&snapshots_dir) else {
+        return false;
+    };
+    for entry in entries.flatten() {
+        if entry.path().join(filename).exists() {
+            return true;
+        }
+    }
+    false
+}
+
 #[tauri::command]
 pub async fn list_image_gen_models(models_path: String) -> Result<Vec<ImageModel>, String> {
     tokio::task::spawn_blocking(move || {
         let dir = PathBuf::from(&models_path);
         validate_path_safe(&dir)?;
-        let api = ApiBuilder::new()
-            .with_cache_dir(dir)
-            .build()
-            .map_err(|e| format!("Failed to init HF API: {e}"))?;
         let models: Vec<ImageModel> = KNOWN_MODELS
             .iter()
-            .map(|m| {
-                let repo = api.model(m.repo_id.to_string());
-                let downloaded = repo.get(m.hf_file).is_ok();
-                ImageModel {
-                    id: m.id.to_string(),
-                    name: m.name.to_string(),
-                    repo_id: m.repo_id.to_string(),
-                    size_mb: m.size_mb,
-                    downloaded,
-                }
+            .map(|m| ImageModel {
+                id: m.id.to_string(),
+                name: m.name.to_string(),
+                repo_id: m.repo_id.to_string(),
+                size_mb: m.size_mb,
+                downloaded: is_model_downloaded(&dir, m.repo_id, m.hf_file),
             })
             .collect();
         Ok(models)
