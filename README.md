@@ -1,4 +1,3 @@
-https://github.com/user-attachments/assets/cc4534af-9700-4650-92e4-b00623bbeb94
 
 # aitherflow
 
@@ -7,6 +6,10 @@ Desktop GUI for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CL
 **[Documentation](DOCS.md)** · **[Releases](https://github.com/aitherlab-dev/aitherflow/releases)** · **[aitherlab](https://github.com/aitherlab-dev)**
 
 ---
+
+https://github.com/user-attachments/assets/efbedbd6-ced3-40b6-a7be-d0f482aee412
+
+
 
 # 🧃 AITHERFLOW
 
