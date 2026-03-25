@@ -20,15 +20,9 @@ function isAiApiCall(toolName: string, toolInput: Record<string, unknown>): bool
 /** Image file extensions for result detection */
 const IMAGE_EXTENSIONS = /\.(png|jpg|jpeg|webp)$/i;
 
-/** Tools that can return generated images */
-const IMAGE_TOOLS = new Set([
-  "generate_image",
-  "mcp__aitherflow-models__generate_image",
-]);
-
-/** Extract image path from a generate_image tool result (expects JSON with "path" field) */
-function extractImagePath(toolName: string, result?: string): string | null {
-  if (!result || !IMAGE_TOOLS.has(toolName)) return null;
+/** Extract image path from any tool result (expects JSON with "path" field pointing to an image) */
+function extractImagePath(_toolName: string, result?: string): string | null {
+  if (!result) return null;
   try {
     const parsed = JSON.parse(result.trim());
     const path = parsed.path;

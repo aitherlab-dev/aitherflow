@@ -60,6 +60,13 @@
   overflow: hidden;
 }
 
+.chat-message-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
 .chat-show-more {
   display: block;
   margin-top: 4px;

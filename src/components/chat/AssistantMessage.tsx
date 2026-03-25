@@ -2,9 +2,23 @@ import { memo, useMemo, useState, useCallback } from "react";
 import { ChevronRight, Sparkles } from "lucide-react";
 import { StreamdownRenderer } from "./StreamdownRenderer";
 import { InteractiveCard } from "./InteractiveCard";
+import { ImageResult } from "./ImageResult";
 import type { ChatMessage } from "../../types/chat";
 import { isInteractiveTool } from "../../types/chat";
 import { formatMessageTime } from "../../lib/formatTime";
+
+const IMAGE_PATH_RE = /(?:^|[\s`])(\/?(?:~\/|\/)[^\s`]*\.(?:png|jpg|jpeg|webp|gif|svg))(?:[\s`]|$)/gim;
+
+/** Extract unique image file paths from message text */
+function extractImagePaths(text: string): string[] {
+  const paths = new Set<string>();
+  let match;
+  while ((match = IMAGE_PATH_RE.exec(text)) !== null) {
+    paths.add(match[1]);
+  }
+  IMAGE_PATH_RE.lastIndex = 0;
+  return [...paths];
+}
 
 const TURN_SEPARATOR = "\n<!-- turn -->\n";
 
@@ -56,6 +70,11 @@ export const AssistantMessage = memo(function AssistantMessage({
     );
   }
 
+  const imagePaths = useMemo(
+    () => (finalText ? extractImagePaths(finalText) : []),
+    [finalText],
+  );
+
   // Finished — show collapsible thinking + final text
   return (
     <div className="chat-message chat-message-assistant">
@@ -70,6 +89,13 @@ export const AssistantMessage = memo(function AssistantMessage({
       {finalText && (
         <div className="chat-message-content">
           <StreamdownRenderer content={finalText} />
+        </div>
+      )}
+      {imagePaths.length > 0 && (
+        <div className="chat-message-images">
+          {imagePaths.map((p) => (
+            <ImageResult key={p} filePath={p} />
+          ))}
         </div>
       )}
       {interactiveTools &&
