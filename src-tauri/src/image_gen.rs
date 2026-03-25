@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 use crate::config;
 use crate::file_ops::{read_json, write_json};
+use crate::files::validate_path_safe;
 
 /// Resolution preset names
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -125,10 +126,22 @@ pub async fn save_image_gen_settings(settings: ImageGenSettings) -> Result<(), S
         .map_err(|e| format!("Task join error: {e}"))?
 }
 
+/// Validate that a filename has no path separators or traversal
+fn validate_filename(filename: &str) -> Result<(), String> {
+    if filename.is_empty() {
+        return Err("Filename cannot be empty".into());
+    }
+    if filename.contains('/') || filename.contains('\\') || filename.contains("..") {
+        return Err(format!("Invalid filename: {filename}"));
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn list_image_gen_models(models_path: String) -> Result<Vec<ImageModel>, String> {
     tokio::task::spawn_blocking(move || {
         let dir = PathBuf::from(&models_path);
+        validate_path_safe(&dir)?;
         let models: Vec<ImageModel> = KNOWN_MODELS
             .iter()
             .map(|(id, name, filename, size_mb)| {
@@ -151,7 +164,10 @@ pub async fn list_image_gen_models(models_path: String) -> Result<Vec<ImageModel
 #[tauri::command]
 pub async fn delete_image_gen_model(models_path: String, filename: String) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
-        let path = PathBuf::from(&models_path).join(&filename);
+        validate_filename(&filename)?;
+        let dir = PathBuf::from(&models_path);
+        validate_path_safe(&dir)?;
+        let path = dir.join(&filename);
         if path.exists() {
             std::fs::remove_file(&path)
                 .map_err(|e| format!("Failed to delete {}: {e}", path.display()))?;
@@ -185,9 +201,12 @@ mod tests {
 
     #[test]
     fn settings_serde_roundtrip() {
+        let tmp = std::env::temp_dir();
+        let models_path = tmp.join("models").to_string_lossy().into_owned();
+        let images_path = tmp.join("images").to_string_lossy().into_owned();
         let s = ImageGenSettings {
-            models_path: "/tmp/models".into(),
-            images_path: "/tmp/images".into(),
+            models_path: models_path.clone(),
+            images_path: images_path.clone(),
             resolution_preset: ResolutionPreset::Portrait,
             width: 576,
             height: 1024,
@@ -201,8 +220,8 @@ mod tests {
         assert_eq!(restored.steps, 30);
         assert_eq!(restored.selected_model, "flux-schnell");
         assert_eq!(restored.resolution_preset, ResolutionPreset::Portrait);
-        assert_eq!(restored.models_path, "/tmp/models");
-        assert_eq!(restored.images_path, "/tmp/images");
+        assert_eq!(restored.models_path, models_path);
+        assert_eq!(restored.images_path, images_path);
     }
 
     #[test]
@@ -399,5 +418,32 @@ mod tests {
         let s: ImageGenSettings = serde_json::from_str(json).unwrap();
         assert_eq!(s.models_path, "");
         assert_eq!(s.images_path, "");
+    }
+
+    // ── Filename validation (security) ──
+
+    #[test]
+    fn validate_filename_normal() {
+        assert!(validate_filename("model.safetensors").is_ok());
+        assert!(validate_filename("flux1-schnell.safetensors").is_ok());
+    }
+
+    #[test]
+    fn validate_filename_empty() {
+        assert!(validate_filename("").is_err());
+    }
+
+    #[test]
+    fn validate_filename_traversal() {
+        assert!(validate_filename("../../etc/passwd").is_err());
+        assert!(validate_filename("..").is_err());
+        assert!(validate_filename("../model.safetensors").is_err());
+    }
+
+    #[test]
+    fn validate_filename_slashes() {
+        assert!(validate_filename("path/to/file").is_err());
+        assert!(validate_filename("path\\to\\file").is_err());
+        assert!(validate_filename("/etc/passwd").is_err());
     }
 }

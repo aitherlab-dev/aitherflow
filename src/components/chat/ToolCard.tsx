@@ -20,23 +20,22 @@ function isAiApiCall(toolName: string, toolInput: Record<string, unknown>): bool
 /** Image file extensions for result detection */
 const IMAGE_EXTENSIONS = /\.(png|jpg|jpeg|webp)$/i;
 
+/** Tools that can return generated images */
+const IMAGE_TOOLS = new Set([
+  "generate_image",
+  "mcp__aitherflow-models__generate_image",
+]);
+
 /** Extract image path from a generate_image tool result */
 function extractImagePath(toolName: string, result?: string): string | null {
-  if (!result) return null;
-  if (toolName === "generate_image" || toolName === "mcp__aitherflow-models__generate_image") {
-    // Result might be just a path, or JSON with a path field
-    const trimmed = result.trim();
-    if (IMAGE_EXTENSIONS.test(trimmed)) return trimmed;
-    try {
-      const parsed = JSON.parse(trimmed);
-      const path = parsed.path || parsed.image_path || parsed.output;
-      if (typeof path === "string" && IMAGE_EXTENSIONS.test(path)) return path;
-    } catch { /* not JSON, that's fine */ }
-  }
-  // Any tool returning an image path
-  if (IMAGE_EXTENSIONS.test(result.trim()) && result.trim().startsWith("/")) {
-    return result.trim();
-  }
+  if (!result || !IMAGE_TOOLS.has(toolName)) return null;
+  const trimmed = result.trim();
+  if (IMAGE_EXTENSIONS.test(trimmed)) return trimmed;
+  try {
+    const parsed = JSON.parse(trimmed);
+    const path = parsed.path || parsed.image_path || parsed.output;
+    if (typeof path === "string" && IMAGE_EXTENSIONS.test(path)) return path;
+  } catch { /* not JSON, that's fine */ }
   return null;
 }
 

@@ -63,6 +63,16 @@ export const ImageGenSection = memo(function ImageGenSection() {
     [],
   );
 
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(refreshTimerRef.current), []);
+  const debouncedRefreshModels = useCallback(
+    (modelsPath: string) => {
+      clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = setTimeout(() => refreshModels(modelsPath), 600);
+    },
+    [refreshModels],
+  );
+
   const pickDir = useCallback(
     async (field: "modelsPath" | "imagesPath") => {
       if (!settings) return;
@@ -79,6 +89,10 @@ export const ImageGenSection = memo(function ImageGenSection() {
   const handleDelete = useCallback(
     (model: ImageModel) => {
       if (!settings) return;
+      const ok = window.confirm(
+        `Delete ${model.name} (${formatSize(model.sizeMb)})? This cannot be undone.`,
+      );
+      if (!ok) return;
       invoke("delete_image_gen_model", {
         modelsPath: settings.modelsPath,
         filename: model.filename,
@@ -122,7 +136,7 @@ export const ImageGenSection = memo(function ImageGenSection() {
             onChange={(e) => {
               const updated = { ...settings, modelsPath: e.target.value };
               save(updated);
-              refreshModels(e.target.value);
+              debouncedRefreshModels(e.target.value);
             }}
             spellCheck={false}
           />

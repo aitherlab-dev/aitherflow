@@ -14,7 +14,7 @@ export const ImageResult = memo(function ImageResult({ filePath }: ImageResultPr
   useEffect(() => {
     convertFileSrc(filePath)
       .then(setSrc)
-      .catch(() => setError(true));
+      .catch((e) => { console.error(e); setError(true); });
   }, [filePath]);
 
   const handleClick = useCallback(() => {

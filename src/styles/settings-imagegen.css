@@ -72,8 +72,8 @@
 }
 
 .imggen-model-btn--danger:hover {
-  color: var(--error, #e55);
-  border-color: var(--error, #e55);
+  color: var(--error);
+  border-color: var(--error);
 }
 
 .imggen-model-btn--disabled {
