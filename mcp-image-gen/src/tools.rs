@@ -175,6 +175,39 @@ pub fn list_models(config: &Config) -> Result<String, String> {
     Ok(result)
 }
 
+pub fn download_model(params: &Value, config: &Config) -> Result<String, String> {
+    let args = params.get("arguments").ok_or("Missing arguments")?;
+
+    let model_id = args
+        .get("model_id")
+        .and_then(|v| v.as_str())
+        .ok_or("Missing required parameter: model_id")?;
+
+    info!(model_id = model_id, "Downloading model");
+
+    let preset = resolve_preset(model_id)?;
+
+    // Building a PresetBuilder triggers HF Hub download (HF_HOME is set in main)
+    let (_img_config, _model_config) = PresetBuilder::default()
+        .preset(preset)
+        .prompt("test".to_string())
+        .build()
+        .map_err(|e| {
+            error!("Model download failed: {e}");
+            format!("Model download failed: {e}")
+        })?;
+
+    info!(model_id = model_id, "Model downloaded successfully");
+
+    let result = serde_json::json!({
+        "status": "ok",
+        "model": model_id,
+        "path": config.models_path.to_string_lossy()
+    });
+
+    Ok(result.to_string())
+}
+
 fn resolve_preset(model_name: &str) -> Result<Preset, String> {
     match model_name {
         "FLUX.2-klein-4B" | "flux2-klein-4b" => {

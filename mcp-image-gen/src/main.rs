@@ -209,6 +209,20 @@ fn handle_tools_list(id: Value) -> JsonRpcResponse {
                     }
                 },
                 {
+                    "name": "download_model",
+                    "description": "Download a model from HuggingFace. The model will be stored in the configured models directory.",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "model_id": {
+                                "type": "string",
+                                "description": "Model identifier (e.g. FLUX.2-klein-4B, FLUX.1-schnell, SDXL-turbo)"
+                            }
+                        },
+                        "required": ["model_id"]
+                    }
+                },
+                {
                     "name": "list_models",
                     "description": "List available (downloaded) image generation models",
                     "inputSchema": {
@@ -239,6 +253,18 @@ fn handle_tools_call(
             let tx = event_tx.clone();
             thread::spawn(move || {
                 let response = match tools::generate_image(&params, &config) {
+                    Ok(msg) => JsonRpcResponse::tool_result(id, msg),
+                    Err(e) => JsonRpcResponse::tool_error(id, e),
+                };
+                let _ = tx.send(Event::ToolResult(response));
+            });
+        }
+        "download_model" => {
+            let params = params.clone();
+            let config = config.clone();
+            let tx = event_tx.clone();
+            thread::spawn(move || {
+                let response = match tools::download_model(&params, &config) {
                     Ok(msg) => JsonRpcResponse::tool_result(id, msg),
                     Err(e) => JsonRpcResponse::tool_error(id, e),
                 };

@@ -121,13 +121,13 @@ pub fn load_settings_sync() -> ImageGenSettings {
 
 /// Available models synced with MCP server (resolve_preset in tools.rs)
 pub const KNOWN_MODELS: &[KnownModel] = &[
-    KnownModel { id: "flux2-klein-4b", name: "FLUX.2 Klein 4B", repo_id: "black-forest-labs/FLUX.2-klein-4B", hf_file: "flux2-klein-4b-Q8_0.gguf", size_mb: 8000 },
-    KnownModel { id: "flux2-klein-9b", name: "FLUX.2 Klein 9B", repo_id: "black-forest-labs/FLUX.2-klein-9B", hf_file: "flux2-klein-9b-Q4_0.gguf", size_mb: 18000 },
-    KnownModel { id: "flux2-dev", name: "FLUX.2 Dev", repo_id: "black-forest-labs/FLUX.2-dev", hf_file: "flux2-dev-Q2_K.gguf", size_mb: 24000 },
-    KnownModel { id: "flux1-dev", name: "FLUX.1 Dev", repo_id: "black-forest-labs/FLUX.1-dev", hf_file: "flux1-dev-Q2_K.gguf", size_mb: 24000 },
-    KnownModel { id: "flux1-schnell", name: "FLUX.1 Schnell", repo_id: "Green-Sky/flux.1-schnell-GGUF", hf_file: "flux1-schnell-Q2_K.gguf", size_mb: 4700 },
-    KnownModel { id: "flux1-mini", name: "FLUX.1 Mini", repo_id: "HyperX-Sentience/Flux-Mini-GGUF", hf_file: "Flux-Mini-Q8_0.gguf", size_mb: 3400 },
-    KnownModel { id: "sdxl-turbo", name: "SDXL Turbo", repo_id: "stabilityai/sdxl-turbo", hf_file: "sd_xl_turbo_1.0_fp16.safetensors", size_mb: 6900 },
+    KnownModel { id: "flux2-klein-4b", name: "FLUX.2 Klein 4B", repo_id: "unsloth/FLUX.2-klein-4B-GGUF", hf_file: "flux-2-klein-4b-Q8_0.gguf", size_mb: 4403 },
+    KnownModel { id: "flux2-klein-9b", name: "FLUX.2 Klein 9B", repo_id: "unsloth/FLUX.2-klein-9B-GGUF", hf_file: "flux-2-klein-9b-Q8_0.gguf", size_mb: 10220 },
+    KnownModel { id: "flux2-dev", name: "FLUX.2 Dev", repo_id: "city96/FLUX.2-dev-gguf", hf_file: "flux2-dev-Q2_K.gguf", size_mb: 13209 },
+    KnownModel { id: "flux1-dev", name: "FLUX.1 Dev", repo_id: "city96/FLUX.1-dev-gguf", hf_file: "flux1-dev-Q8_0.gguf", size_mb: 13005 },
+    KnownModel { id: "flux1-schnell", name: "FLUX.1 Schnell", repo_id: "city96/FLUX.1-schnell-gguf", hf_file: "flux1-schnell-Q8_0.gguf", size_mb: 13005 },
+    KnownModel { id: "flux1-mini", name: "FLUX.1 Mini", repo_id: "gpustack/FLUX.1-mini-GGUF", hf_file: "FLUX.1-mini-Q8_0.gguf", size_mb: 9574 },
+    KnownModel { id: "sdxl-turbo", name: "SDXL Turbo", repo_id: "stabilityai/sdxl-turbo", hf_file: "sd_xl_turbo_1.0_fp16.safetensors", size_mb: 7108 },
 ];
 
 #[tauri::command]

@@ -33,6 +33,8 @@ export const ImageGenSection = memo(function ImageGenSection() {
   const [models, setModels] = useState<ImageModel[]>([]);
   const [downloadingModel, setDownloadingModel] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [customUrl, setCustomUrl] = useState("");
+  const [downloadingUrl, setDownloadingUrl] = useState(false);
 
   useEffect(() => {
     invoke<ImageGenSettings>("load_image_gen_settings")
@@ -109,6 +111,26 @@ export const ImageGenSection = memo(function ImageGenSection() {
     },
     [settings, downloadingModel, refreshModels],
   );
+
+  const handleUrlDownload = useCallback(async () => {
+    if (!settings || !customUrl.trim() || downloadingUrl) return;
+    setDownloadingUrl(true);
+    setDownloadError(null);
+    try {
+      await invoke("download_model_by_url", {
+        url: customUrl.trim(),
+        modelsPath: settings.modelsPath,
+      });
+      setCustomUrl("");
+      refreshModels(settings.modelsPath);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("URL download failed:", e);
+      setDownloadError(msg);
+    } finally {
+      setDownloadingUrl(false);
+    }
+  }, [settings, customUrl, downloadingUrl, refreshModels]);
 
   const handleResolutionChange = useCallback(
     (preset: string) => {
@@ -279,6 +301,39 @@ export const ImageGenSection = memo(function ImageGenSection() {
           </>
         );
       })()}
+
+      {/* Download custom model by URL */}
+      <div className="settings-toggle-row">
+        <div className="settings-toggle-info">
+          <span className="settings-toggle-label">Download custom model</span>
+          <span className="settings-toggle-desc">
+            Paste a HuggingFace model URL to download
+          </span>
+        </div>
+        <div className="settings-input-row">
+          <input
+            type="text"
+            className="settings-input"
+            value={customUrl}
+            onChange={(e) => setCustomUrl(e.target.value)}
+            placeholder="HuggingFace model URL"
+            spellCheck={false}
+            disabled={downloadingUrl}
+          />
+          <button
+            className={`imggen-model-btn ${downloadingUrl || !customUrl.trim() ? "imggen-model-btn--disabled" : ""}`}
+            disabled={downloadingUrl || !customUrl.trim()}
+            onClick={handleUrlDownload}
+          >
+            {downloadingUrl ? (
+              <Loader2 size={14} className="imggen-spinner" />
+            ) : (
+              <Download size={14} />
+            )}
+            <span>{downloadingUrl ? "Downloading..." : "Download"}</span>
+          </button>
+        </div>
+      </div>
 
       {/* Resolution */}
       <div className="settings-toggle-row">
