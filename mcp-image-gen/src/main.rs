@@ -6,6 +6,7 @@ use config::Config;
 use mcp::{JsonRpcRequest, JsonRpcResponse};
 use serde_json::{json, Value};
 use std::io::{self, BufRead, Write};
+use std::path::Path;
 use std::sync::mpsc;
 use std::thread;
 use tracing::{error, info};
@@ -14,6 +15,42 @@ enum Event {
     StdinLine(String),
     ToolResult(JsonRpcResponse),
     StdinClosed,
+}
+
+/// Ensure HF token is available under HF_HOME.
+/// Priority: HF_TOKEN env → copy ~/.cache/huggingface/token → models_path/token
+fn ensure_hf_token(models_path: &Path) {
+    let dest = models_path.join("token");
+
+    // 1. If HF_TOKEN env is set, write it to models_path/token
+    if let Ok(token) = std::env::var("HF_TOKEN") {
+        let token = token.trim().to_string();
+        if !token.is_empty() {
+            if !dest.exists() {
+                let _ = std::fs::write(&dest, &token);
+            }
+            return;
+        }
+    }
+
+    // 2. If models_path/token already exists, nothing to do
+    if dest.exists() {
+        return;
+    }
+
+    // 3. Copy from default HF cache location
+    if let Some(home) = dirs::home_dir() {
+        let src = home.join(".cache/huggingface/token");
+        if src.exists() {
+            if let Ok(token) = std::fs::read_to_string(&src) {
+                let token = token.trim();
+                if !token.is_empty() {
+                    let _ = std::fs::write(&dest, token);
+                    info!("HF token copied to {}", dest.display());
+                }
+            }
+        }
+    }
 }
 
 fn main() {
@@ -36,13 +73,31 @@ fn main() {
     };
     config.ensure_dirs();
 
-    // Set HF_HOME once before any threads start
+    // Set HF_HOME = models_path so everything (models, VAE, CLIP) goes there
     if let Err(e) = tools::validate_path_safe(&config.models_path) {
         error!("Invalid models_path: {e}");
         std::process::exit(1);
     }
     // SAFETY: called before spawning any threads
     unsafe { std::env::set_var("HF_HOME", &config.models_path) };
+
+    // Copy HF token into models_path/token so hf-hub finds it under HF_HOME
+    ensure_hf_token(&config.models_path);
+
+    // Pass token to diffusion-rs internal API (it ignores HF_HOME/token and HF_TOKEN env)
+    if let Ok(token) = std::env::var("HF_TOKEN") {
+        let token = token.trim().to_string();
+        if !token.is_empty() {
+            diffusion_rs::util::set_hf_token(&token);
+            info!("HF token set for diffusion-rs from HF_TOKEN env");
+        }
+    } else if let Ok(token) = std::fs::read_to_string(config.models_path.join("token")) {
+        let token = token.trim().to_string();
+        if !token.is_empty() {
+            diffusion_rs::util::set_hf_token(&token);
+            info!("HF token set for diffusion-rs from models_path/token");
+        }
+    }
 
     info!(
         models_path = %config.models_path.display(),
@@ -133,6 +188,16 @@ fn main() {
     }
 
     info!("mcp-image-gen server shutting down");
+}
+
+fn panic_message(err: &Box<dyn std::any::Any + Send>) -> String {
+    if let Some(s) = err.downcast_ref::<&str>() {
+        s.to_string()
+    } else if let Some(s) = err.downcast_ref::<String>() {
+        s.clone()
+    } else {
+        "unknown panic".to_string()
+    }
 }
 
 fn write_response(stdout: &mut io::Stdout, response: &JsonRpcResponse) {
@@ -252,9 +317,15 @@ fn handle_tools_call(
             let config = config.clone();
             let tx = event_tx.clone();
             thread::spawn(move || {
-                let response = match tools::generate_image(&params, &config) {
-                    Ok(msg) => JsonRpcResponse::tool_result(id, msg),
-                    Err(e) => JsonRpcResponse::tool_error(id, e),
+                let response = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    tools::generate_image(&params, &config)
+                })) {
+                    Ok(Ok(msg)) => JsonRpcResponse::tool_result(id, msg),
+                    Ok(Err(e)) => JsonRpcResponse::tool_error(id, e),
+                    Err(panic_err) => {
+                        let msg = panic_message(&panic_err);
+                        JsonRpcResponse::tool_error(id, format!("generate_image panicked: {msg}"))
+                    }
                 };
                 let _ = tx.send(Event::ToolResult(response));
             });
@@ -264,9 +335,15 @@ fn handle_tools_call(
             let config = config.clone();
             let tx = event_tx.clone();
             thread::spawn(move || {
-                let response = match tools::download_model(&params, &config) {
-                    Ok(msg) => JsonRpcResponse::tool_result(id, msg),
-                    Err(e) => JsonRpcResponse::tool_error(id, e),
+                let response = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    tools::download_model(&params, &config)
+                })) {
+                    Ok(Ok(msg)) => JsonRpcResponse::tool_result(id, msg),
+                    Ok(Err(e)) => JsonRpcResponse::tool_error(id, e),
+                    Err(panic_err) => {
+                        let msg = panic_message(&panic_err);
+                        JsonRpcResponse::tool_error(id, format!("download_model panicked: {msg}"))
+                    }
                 };
                 let _ = tx.send(Event::ToolResult(response));
             });
