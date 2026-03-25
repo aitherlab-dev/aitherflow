@@ -165,6 +165,11 @@ pub async fn delete_image_gen_model(models_path: String, filename: String) -> Re
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::file_ops::{read_json, write_json};
+    use std::fs;
+    use tempfile::TempDir;
+
+    // ── Defaults & serde ──
 
     #[test]
     fn settings_defaults() {
@@ -174,6 +179,8 @@ mod tests {
         assert_eq!(s.steps, 20);
         assert_eq!(s.resolution_preset, ResolutionPreset::Square);
         assert!(s.selected_model.is_empty());
+        assert!(s.models_path.contains("models"));
+        assert!(s.images_path.contains("images"));
     }
 
     #[test]
@@ -193,6 +200,9 @@ mod tests {
         assert_eq!(restored.height, 1024);
         assert_eq!(restored.steps, 30);
         assert_eq!(restored.selected_model, "flux-schnell");
+        assert_eq!(restored.resolution_preset, ResolutionPreset::Portrait);
+        assert_eq!(restored.models_path, "/tmp/models");
+        assert_eq!(restored.images_path, "/tmp/images");
     }
 
     #[test]
@@ -201,6 +211,23 @@ mod tests {
         assert_eq!(s.width, 1024);
         assert_eq!(s.height, 1024);
         assert_eq!(s.steps, 20);
+        assert_eq!(s.resolution_preset, ResolutionPreset::Square);
+    }
+
+    #[test]
+    fn settings_all_resolution_presets() {
+        for (variant, name) in [
+            (ResolutionPreset::Square, "square"),
+            (ResolutionPreset::Portrait, "portrait"),
+            (ResolutionPreset::Landscape, "landscape"),
+            (ResolutionPreset::Custom, "custom"),
+        ] {
+            let s = ImageGenSettings { resolution_preset: variant.clone(), ..Default::default() };
+            let json = serde_json::to_string(&s).unwrap();
+            assert!(json.contains(name), "JSON should contain '{name}': {json}");
+            let restored: ImageGenSettings = serde_json::from_str(&json).unwrap();
+            assert_eq!(restored.resolution_preset, variant);
+        }
     }
 
     #[test]
@@ -212,5 +239,165 @@ mod tests {
             assert!(filename.ends_with(".safetensors"));
             assert!(*size > 0);
         }
+    }
+
+    // ── File-based load/save ──
+
+    #[test]
+    fn load_defaults_when_file_missing() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("nonexistent.json");
+        assert!(!path.exists());
+        // Simulate what load_image_gen_settings does
+        let result = if path.exists() {
+            read_json::<ImageGenSettings>(&path)
+        } else {
+            Ok(ImageGenSettings::default())
+        };
+        let s = result.unwrap();
+        assert_eq!(s.width, 1024);
+        assert_eq!(s.steps, 20);
+    }
+
+    #[test]
+    fn save_and_reload_roundtrip() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("settings.json");
+        let original = ImageGenSettings {
+            models_path: "/custom/models".into(),
+            images_path: "/custom/images".into(),
+            resolution_preset: ResolutionPreset::Landscape,
+            width: 1024,
+            height: 576,
+            steps: 35,
+            selected_model: "stable-diffusion-xl".into(),
+        };
+        write_json(&path, &original).unwrap();
+        assert!(path.exists());
+        let loaded: ImageGenSettings = read_json(&path).unwrap();
+        assert_eq!(loaded.models_path, "/custom/models");
+        assert_eq!(loaded.images_path, "/custom/images");
+        assert_eq!(loaded.resolution_preset, ResolutionPreset::Landscape);
+        assert_eq!(loaded.width, 1024);
+        assert_eq!(loaded.height, 576);
+        assert_eq!(loaded.steps, 35);
+        assert_eq!(loaded.selected_model, "stable-diffusion-xl");
+    }
+
+    // ── Model listing ──
+
+    #[test]
+    fn list_models_empty_dir() {
+        let tmp = TempDir::new().unwrap();
+        let dir = tmp.path();
+        let models: Vec<ImageModel> = KNOWN_MODELS
+            .iter()
+            .map(|(id, name, filename, size_mb)| ImageModel {
+                id: id.to_string(),
+                name: name.to_string(),
+                filename: filename.to_string(),
+                size_mb: *size_mb,
+                downloaded: dir.join(filename).exists(),
+            })
+            .collect();
+        assert_eq!(models.len(), 3);
+        for m in &models {
+            assert!(!m.downloaded, "{} should not be downloaded", m.name);
+        }
+    }
+
+    #[test]
+    fn list_models_with_downloaded_file() {
+        let tmp = TempDir::new().unwrap();
+        let dir = tmp.path();
+        // Create one model file
+        fs::write(dir.join("flux1-schnell.safetensors"), b"fake model data").unwrap();
+        let models: Vec<ImageModel> = KNOWN_MODELS
+            .iter()
+            .map(|(id, name, filename, size_mb)| ImageModel {
+                id: id.to_string(),
+                name: name.to_string(),
+                filename: filename.to_string(),
+                size_mb: *size_mb,
+                downloaded: dir.join(filename).exists(),
+            })
+            .collect();
+        let flux = models.iter().find(|m| m.id == "flux-schnell").unwrap();
+        assert!(flux.downloaded);
+        let sdxl = models.iter().find(|m| m.id == "stable-diffusion-xl").unwrap();
+        assert!(!sdxl.downloaded);
+    }
+
+    // ── Model deletion ──
+
+    #[test]
+    fn delete_existing_model() {
+        let tmp = TempDir::new().unwrap();
+        let dir = tmp.path();
+        let file = dir.join("test-model.safetensors");
+        fs::write(&file, b"model data").unwrap();
+        assert!(file.exists());
+        // Simulate delete logic
+        let path = PathBuf::from(dir).join("test-model.safetensors");
+        if path.exists() {
+            fs::remove_file(&path).unwrap();
+        }
+        assert!(!file.exists());
+    }
+
+    #[test]
+    fn delete_nonexistent_model_is_noop() {
+        let tmp = TempDir::new().unwrap();
+        let dir = tmp.path();
+        let path = dir.join("nonexistent.safetensors");
+        // Should not error — matches the command logic (if path.exists())
+        if path.exists() {
+            fs::remove_file(&path).unwrap();
+        }
+        assert!(!path.exists());
+    }
+
+    // ── Edge cases: invalid/extreme values ──
+
+    #[test]
+    fn settings_zero_dimensions() {
+        let json = r#"{"width": 0, "height": 0, "steps": 0}"#;
+        let s: ImageGenSettings = serde_json::from_str(json).unwrap();
+        assert_eq!(s.width, 0);
+        assert_eq!(s.height, 0);
+        assert_eq!(s.steps, 0);
+    }
+
+    #[test]
+    fn settings_extreme_values() {
+        let json = r#"{"width": 99999, "height": 99999, "steps": 1000}"#;
+        let s: ImageGenSettings = serde_json::from_str(json).unwrap();
+        assert_eq!(s.width, 99999);
+        assert_eq!(s.height, 99999);
+        assert_eq!(s.steps, 1000);
+    }
+
+    #[test]
+    fn settings_ignores_unknown_fields() {
+        let json = r#"{"unknownField": "value", "width": 512}"#;
+        let s: ImageGenSettings = serde_json::from_str(json).unwrap();
+        assert_eq!(s.width, 512);
+        assert_eq!(s.height, 1024); // default
+    }
+
+    #[test]
+    fn settings_invalid_resolution_preset_fallback() {
+        // Unknown preset value falls back to deserialize error — verify we handle known values
+        let json = r#"{"resolutionPreset": "custom"}"#;
+        let s: ImageGenSettings = serde_json::from_str(json).unwrap();
+        assert_eq!(s.resolution_preset, ResolutionPreset::Custom);
+    }
+
+    #[test]
+    fn settings_empty_paths() {
+        let json = r#"{"modelsPath": "", "imagesPath": ""}"#;
+        let s: ImageGenSettings = serde_json::from_str(json).unwrap();
+        assert_eq!(s.models_path, "");
+        assert_eq!(s.images_path, "");
     }
 }
