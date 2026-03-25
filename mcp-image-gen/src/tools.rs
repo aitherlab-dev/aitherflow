@@ -381,28 +381,10 @@ pub fn generate_image(params: &Value, config: &Config) -> Result<String, String>
         .build()
         .map_err(|e| format!("Failed to build model config: {e}"))?;
 
-    // catch_unwind covers Rust panics inside gen_img().
-    // C++ segfaults (CUDA OOM, Vulkan) will still kill the process — that's expected.
-    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        gen_img(&img_config, &mut model_config)
-    })) {
-        Ok(Ok(())) => {}
-        Ok(Err(e)) => {
-            error!("Image generation failed: {e}");
-            return Err(format!("Image generation failed: {e}"));
-        }
-        Err(panic_err) => {
-            let msg = if let Some(s) = panic_err.downcast_ref::<&str>() {
-                s.to_string()
-            } else if let Some(s) = panic_err.downcast_ref::<String>() {
-                s.clone()
-            } else {
-                "unknown panic".to_string()
-            };
-            error!("Image generation panicked: {msg}");
-            return Err(format!("Image generation panicked: {msg}"));
-        }
-    }
+    gen_img(&img_config, &mut model_config).map_err(|e| {
+        error!("Image generation failed: {e}");
+        format!("Image generation failed: {e}")
+    })?;
 
     info!("Image saved to {}", output_path.display());
 

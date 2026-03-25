@@ -9,7 +9,7 @@ use std::io::{self, BufRead, Write};
 use std::path::Path;
 use std::sync::mpsc;
 use std::thread;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 enum Event {
     StdinLine(String),
@@ -27,7 +27,9 @@ fn ensure_hf_token(models_path: &Path) {
         let token = token.trim().to_string();
         if !token.is_empty() {
             if !dest.exists() {
-                let _ = std::fs::write(&dest, &token);
+                if let Err(e) = std::fs::write(&dest, &token) {
+                    warn!("Failed to write HF token to {}: {e}", dest.display());
+                }
             }
             return;
         }
@@ -45,8 +47,11 @@ fn ensure_hf_token(models_path: &Path) {
             if let Ok(token) = std::fs::read_to_string(&src) {
                 let token = token.trim();
                 if !token.is_empty() {
-                    let _ = std::fs::write(&dest, token);
-                    info!("HF token copied to {}", dest.display());
+                    if let Err(e) = std::fs::write(&dest, token) {
+                        warn!("Failed to write HF token to {}: {e}", dest.display());
+                    } else {
+                        info!("HF token copied to {}", dest.display());
+                    }
                 }
             }
         }
