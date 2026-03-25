@@ -10,6 +10,7 @@ mod file_ops;
 mod file_watcher;
 mod files;
 mod hooks;
+mod image_gen;
 mod mcp;
 mod plugins;
 mod projects;
@@ -92,6 +93,10 @@ pub fn run() {
             agents::save_agents,
             settings::load_settings,
             settings::save_settings,
+            image_gen::load_image_gen_settings,
+            image_gen::save_image_gen_settings,
+            image_gen::list_image_gen_models,
+            image_gen::delete_image_gen_model,
             attachments::process_file,
             attachments::read_clipboard_image,
             attachments::read_clipboard_text,

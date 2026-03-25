@@ -3,6 +3,7 @@ import { ChevronRight } from "lucide-react";
 import type { ToolActivity } from "../../types/chat";
 import { summarizeToolInput } from "../../stores/chatStore";
 import { useFileViewerStore } from "../../stores/fileViewerStore";
+import { ImageResult } from "./ImageResult";
 
 /** Tools whose summary is a file path (clickable) */
 const FILE_TOOLS = new Set([
@@ -14,6 +15,28 @@ function isAiApiCall(toolName: string, toolInput: Record<string, unknown>): bool
   if (toolName !== "Bash") return false;
   const cmd = typeof toolInput.command === "string" ? toolInput.command : "";
   return /\/chat\/completions|\/api\/generate|\/api\/chat/.test(cmd);
+}
+
+/** Image file extensions for result detection */
+const IMAGE_EXTENSIONS = /\.(png|jpg|jpeg|webp)$/i;
+
+/** Tools that can return generated images */
+const IMAGE_TOOLS = new Set([
+  "generate_image",
+  "mcp__aitherflow-models__generate_image",
+]);
+
+/** Extract image path from a generate_image tool result */
+function extractImagePath(toolName: string, result?: string): string | null {
+  if (!result || !IMAGE_TOOLS.has(toolName)) return null;
+  const trimmed = result.trim();
+  if (IMAGE_EXTENSIONS.test(trimmed)) return trimmed;
+  try {
+    const parsed = JSON.parse(trimmed);
+    const path = parsed.path || parsed.image_path || parsed.output;
+    if (typeof path === "string" && IMAGE_EXTENSIONS.test(path)) return path;
+  } catch { /* not JSON, that's fine */ }
+  return null;
 }
 
 /** Color class suffix per tool type */
@@ -46,6 +69,7 @@ export const ToolCard = memo(function ToolCard({ activity, isRunning }: ToolCard
   const colorCls = toolColorClass(activity.toolName);
   const hasError = activity.isError === true;
   const isAiResult = isAiApiCall(activity.toolName, activity.toolInput);
+  const imagePath = extractImagePath(activity.toolName, activity.result);
 
   const toggle = useCallback(() => setExpanded((v) => !v), []);
 
@@ -82,6 +106,8 @@ export const ToolCard = memo(function ToolCard({ activity, isRunning }: ToolCard
           className={`tool-card-chevron ${expanded ? "tool-card-chevron--open" : ""}`}
         />
       </button>
+
+      {imagePath && <ImageResult filePath={imagePath} />}
 
       {expanded && (
         <div className="tool-card-detail">

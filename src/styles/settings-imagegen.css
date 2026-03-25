@@ -1,0 +1,113 @@
+/* ── Image Generation settings ── */
+
+.imggen-models-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 280px;
+}
+
+.imggen-model-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.imggen-model-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.imggen-model-name {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.imggen-model-size {
+  font-size: 0.75rem;
+  color: var(--fg-muted);
+}
+
+.imggen-model-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.imggen-model-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-hover);
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.imggen-model-btn:hover {
+  background: var(--bg-card);
+  color: var(--fg);
+}
+
+.imggen-model-btn--active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent-stroke);
+}
+
+.imggen-model-btn--active:hover {
+  background: var(--accent-soft);
+}
+
+.imggen-model-btn--danger:hover {
+  color: var(--error);
+  border-color: var(--error);
+}
+
+.imggen-model-btn--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.imggen-size-input {
+  width: 90px !important;
+  text-align: center;
+}
+
+.imggen-size-x {
+  color: var(--fg-muted);
+  font-size: 0.85rem;
+}
+
+.imggen-steps-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.imggen-slider {
+  width: 160px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.imggen-steps-value {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--fg);
+  min-width: 24px;
+  text-align: center;
+}
