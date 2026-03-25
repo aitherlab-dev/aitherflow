@@ -1,0 +1,170 @@
+use crate::config::Config;
+use chrono::Utc;
+use diffusion_rs::api::gen_img;
+use diffusion_rs::preset::{
+    Flux1MiniWeight, Flux1Weight, Flux2Klein4BWeight, Flux2Klein9BWeight, Flux2Weight, Preset,
+    PresetBuilder,
+};
+use serde_json::Value;
+use sha2::{Digest, Sha256};
+use std::fs;
+use tracing::{error, info};
+
+pub fn generate_image(params: &Value, config: &Config) -> Result<String, String> {
+    let args = params.get("arguments").ok_or("Missing arguments")?;
+
+    let prompt = args
+        .get("prompt")
+        .and_then(|v| v.as_str())
+        .ok_or("Missing required parameter: prompt")?
+        .to_string();
+
+    let negative_prompt = args
+        .get("negative_prompt")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    let width = args
+        .get("width")
+        .and_then(|v| v.as_u64())
+        .map(|v| v as i32)
+        .unwrap_or(config.default_width as i32);
+
+    let height = args
+        .get("height")
+        .and_then(|v| v.as_u64())
+        .map(|v| v as i32)
+        .unwrap_or(config.default_height as i32);
+
+    let steps = args
+        .get("steps")
+        .and_then(|v| v.as_u64())
+        .map(|v| v as i32)
+        .unwrap_or(config.default_steps as i32);
+
+    let seed = args
+        .get("seed")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(-1);
+
+    // Generate output filename: timestamp + short hash of prompt
+    let timestamp = Utc::now().format("%Y%m%d_%H%M%S");
+    let mut hasher = Sha256::new();
+    hasher.update(prompt.as_bytes());
+    let hash = format!("{:x}", hasher.finalize());
+    let short_hash = &hash[..8];
+    let filename = format!("{timestamp}_{short_hash}.png");
+    let output_path = config.output_path.join(&filename);
+
+    info!(
+        prompt = %prompt,
+        width = width,
+        height = height,
+        steps = steps,
+        seed = seed,
+        output = %output_path.display(),
+        "Generating image"
+    );
+
+    let preset = resolve_preset(&config.default_model)?;
+
+    let out = output_path.clone();
+    let neg = negative_prompt.clone();
+
+    let (img_config, mut model_config) = PresetBuilder::default()
+        .preset(preset)
+        .prompt(prompt.clone())
+        .with_modifier(move |mut configs| {
+            configs.0.width(width);
+            configs.0.height(height);
+            configs.0.steps(steps);
+            configs.0.seed(seed);
+            configs.0.output(out);
+            if !neg.is_empty() {
+                configs.0.negative_prompt(neg);
+            }
+            Ok(configs)
+        })
+        .build()
+        .map_err(|e| format!("Failed to build config: {e}"))?;
+
+    gen_img(&img_config, &mut model_config).map_err(|e| {
+        error!("Image generation failed: {e}");
+        format!("Image generation failed: {e}")
+    })?;
+
+    info!("Image saved to {}", output_path.display());
+
+    Ok(format!(
+        "Image generated successfully.\nPath: {}\nSize: {}x{}\nSteps: {}\nPrompt: {}",
+        output_path.display(),
+        width,
+        height,
+        steps,
+        prompt
+    ))
+}
+
+pub fn list_models(config: &Config) -> Result<String, String> {
+    let models_dir = &config.models_path;
+
+    if !models_dir.exists() {
+        return Ok(
+            "No models directory found. Models will be downloaded automatically on first use."
+                .into(),
+        );
+    }
+
+    let entries = fs::read_dir(models_dir)
+        .map_err(|e| format!("Failed to read models directory: {e}"))?;
+
+    let mut models = Vec::new();
+
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("Failed to read entry: {e}"))?;
+        let ft = entry
+            .file_type()
+            .map_err(|e| format!("Failed to get file type: {e}"))?;
+
+        if ft.is_dir() || ft.is_file() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            let kind = if ft.is_dir() { "directory" } else { "file" };
+            models.push(format!("  - {} ({})", name, kind));
+        }
+    }
+
+    if models.is_empty() {
+        return Ok(
+            "No models found. Models will be downloaded automatically on first use.".into(),
+        );
+    }
+
+    let mut result = format!(
+        "Models directory: {}\n\nAvailable models:\n",
+        models_dir.display()
+    );
+    result.push_str(&models.join("\n"));
+    result.push_str(&format!("\n\nDefault model: {}", config.default_model));
+
+    Ok(result)
+}
+
+fn resolve_preset(model_name: &str) -> Result<Preset, String> {
+    match model_name {
+        "FLUX.2-klein-4B" | "flux2-klein-4b" => {
+            Ok(Preset::Flux2Klein4B(Flux2Klein4BWeight::default()))
+        }
+        "FLUX.2-klein-9B" | "flux2-klein-9b" => {
+            Ok(Preset::Flux2Klein9B(Flux2Klein9BWeight::default()))
+        }
+        "FLUX.2-dev" | "flux2-dev" => Ok(Preset::Flux2Dev(Flux2Weight::default())),
+        "FLUX.1-dev" | "flux1-dev" => Ok(Preset::Flux1Dev(Flux1Weight::default())),
+        "FLUX.1-schnell" | "flux1-schnell" => Ok(Preset::Flux1Schnell(Flux1Weight::default())),
+        "FLUX.1-mini" | "flux1-mini" => Ok(Preset::Flux1Mini(Flux1MiniWeight::default())),
+        "SDXL-turbo" | "sdxl-turbo" => Ok(Preset::SDXLTurbo1_0),
+        _ => Err(format!(
+            "Unknown model: {model_name}. Supported: FLUX.2-klein-4B, FLUX.2-klein-9B, FLUX.2-dev, FLUX.1-dev, FLUX.1-schnell, FLUX.1-mini, SDXL-turbo"
+        )),
+    }
+}
