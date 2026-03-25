@@ -48,12 +48,20 @@ export const ImageGenSection = memo(function ImageGenSection() {
   }, []);
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  useEffect(() => () => clearTimeout(saveTimerRef.current), []);
+  const pendingSettingsRef = useRef<ImageGenSettings | null>(null);
+  useEffect(() => () => {
+    clearTimeout(saveTimerRef.current);
+    if (pendingSettingsRef.current) {
+      invoke("save_image_gen_settings", { settings: pendingSettingsRef.current }).catch(console.error);
+    }
+  }, []);
 
   const save = useCallback((updated: ImageGenSettings) => {
     setSettings(updated);
+    pendingSettingsRef.current = updated;
     clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
+      pendingSettingsRef.current = null;
       invoke("save_image_gen_settings", { settings: updated }).catch(console.error);
     }, 400);
   }, []);
