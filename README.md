@@ -69,6 +69,10 @@ The point is — Claude does all the thinking, and aitherflow makes it look pret
 
 - **MCP Servers** — MCP stands for... Model... Contexual... Prortocol. It's how the compurter talks to other compurters. Like a telephone but for robots. We have TWO of them, which is one more than one.
 
+- **Image Generashion** — Your compurter can draw pitchers now. Like an artist but without the beret and the sad backstory. It uses your **GPU** *(that's the expensieve card inside your compurter that gamers yell about)* to make images LOCALLY. No cloud. The pitchers never leave your house. *[accidentally knocks a model off the desk]* You pick a model — FLUCKS... FLUX? And SDXL which I think is a skateboard trick — download it from HuggingFace *(aww that's a nice name for a website)* and then just ask Claude to draw stuff and BAM, pitcher shows up right in the chat. **[BRULE holds up a crayon drawing]** It's like this but better. Way better. Don't tell my mom I said that.
+
+- **Right-Click Atatch** — You can right-click a file and go "attach to messige" and it just... goes in there. Into the message. No more dragging files around like some kind of cavemann. *[drags mouse across screen aggressively]* We live in the FUTURE now. Act like it.
+
 ---
 
 ## Techknical Stack
@@ -82,6 +86,7 @@ The point is — Claude does all the thinking, and aitherflow makes it look pret
 | Styling | Tailwind CSS v4 | You type little words and the compurter makes it pretty. Magic. |
 | State | Zustand | It's like Redux but it doesn't make you want to cry. Each store is its own little guy. They don't talk to each other, like my neighbors. |
 | Data | JSON files | Just files. On your disk. No databaise. Simple, like me. |
+| Image Gen | diffusion-rs / stable-diffusion.cpp | Your video card becomes an artist. Like Picasso but it doesn't cut its ear off. Wait that was the other guy. |
 | Platforms | Linux + macOS | No Windoes, sorry. *[whispers to camera]* we don't talk about Windoes here |
 
 ---
@@ -157,6 +162,7 @@ aitherflow/
 │   └── src/
 │       ├── conductor/      ← the boss module, runs everything
 │       ├── rag/            ← knowledge base brain stuff
+│       ├── image_gen/      ← picture making factory
 │       ├── telegram/       ← phone messaging thing
 │       ├── plugins/        ← extra bits
 │       └── [many .rs files]← each one does a little job, like ants
