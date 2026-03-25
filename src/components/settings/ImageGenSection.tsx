@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, memo } from "react";
-import { FolderOpen, Download, Loader2 } from "lucide-react";
+import { FolderOpen, Download, Loader2, Check, FileSearch } from "lucide-react";
 import { invoke, openDialog } from "../../lib/transport";
 import { Tooltip } from "../shared/Tooltip";
 
@@ -13,10 +13,12 @@ interface ImageGenSettings {
   selectedModel: string;
 }
 
-interface LocalModel {
+interface ImageModel {
+  id: string;
   name: string;
-  path: string;
+  repoId: string;
   sizeMb: number;
+  downloaded: boolean;
 }
 
 const RESOLUTION_PRESETS: Record<string, { label: string; w: number; h: number }> = {
@@ -28,7 +30,8 @@ const RESOLUTION_PRESETS: Record<string, { label: string; w: number; h: number }
 
 export const ImageGenSection = memo(function ImageGenSection() {
   const [settings, setSettings] = useState<ImageGenSettings | null>(null);
-  const [models, setModels] = useState<LocalModel[]>([]);
+  const [models, setModels] = useState<ImageModel[]>([]);
+  const [downloadingModel, setDownloadingModel] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [customUrl, setCustomUrl] = useState("");
   const [downloadingUrl, setDownloadingUrl] = useState(false);
@@ -37,7 +40,7 @@ export const ImageGenSection = memo(function ImageGenSection() {
     invoke<ImageGenSettings>("load_image_gen_settings")
       .then((s) => {
         setSettings(s);
-        invoke<LocalModel[]>("list_image_gen_models", { modelsPath: s.modelsPath })
+        invoke<ImageModel[]>("list_image_gen_models", { modelsPath: s.modelsPath })
           .then(setModels)
           .catch(console.error);
       })
@@ -57,7 +60,7 @@ export const ImageGenSection = memo(function ImageGenSection() {
 
   const refreshModels = useCallback(
     (modelsPath: string) => {
-      invoke<LocalModel[]>("list_image_gen_models", { modelsPath })
+      invoke<ImageModel[]>("list_image_gen_models", { modelsPath })
         .then(setModels)
         .catch(console.error);
     },
@@ -85,6 +88,28 @@ export const ImageGenSection = memo(function ImageGenSection() {
       }
     },
     [settings, save, refreshModels],
+  );
+
+  const handleDownload = useCallback(
+    async (model: ImageModel) => {
+      if (!settings || downloadingModel) return;
+      setDownloadingModel(model.id);
+      setDownloadError(null);
+      try {
+        await invoke("download_image_gen_model", {
+          modelId: model.id,
+          modelsPath: settings.modelsPath,
+        });
+        refreshModels(settings.modelsPath);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error("Download failed:", e);
+        setDownloadError(`${model.name}: ${msg}`);
+      } finally {
+        setDownloadingModel(null);
+      }
+    },
+    [settings, downloadingModel, refreshModels],
   );
 
   const handleUrlDownload = useCallback(async () => {
@@ -177,35 +202,105 @@ export const ImageGenSection = memo(function ImageGenSection() {
       </div>
 
       {/* Model selection */}
-      <div className="settings-toggle-row">
-        <div className="settings-toggle-info">
-          <span className="settings-toggle-label">Model</span>
-          <span className="settings-toggle-desc">
-            Select a model from the models directory
-          </span>
-        </div>
-        <select
-          className="settings-select"
-          value={settings.selectedModel}
-          onChange={(e) => save({ ...settings, selectedModel: e.target.value })}
-          disabled={models.length === 0}
-        >
-          {models.length === 0 ? (
-            <option value="">No models found</option>
-          ) : (
-            models.map((m) => (
-              <option key={m.path} value={m.path}>
-                {m.name} ({formatSize(m.sizeMb)})
-              </option>
-            ))
-          )}
-        </select>
-      </div>
-      {downloadError && (
-        <div className="settings-toggle-row">
-          <div className="imggen-error">{downloadError}</div>
-        </div>
-      )}
+      {(() => {
+        const CUSTOM = "__custom__";
+        const isCustom = !models.some((m) => m.id === settings.selectedModel);
+        const selectValue = isCustom ? CUSTOM : settings.selectedModel;
+        const selected = models.find((m) => m.id === settings.selectedModel);
+
+        return (
+          <>
+            <div className="settings-toggle-row">
+              <div className="settings-toggle-info">
+                <span className="settings-toggle-label">Model</span>
+                <span className="settings-toggle-desc">
+                  Select which model to use for generation
+                </span>
+              </div>
+              <div className="settings-input-row">
+                <select
+                  className="settings-select"
+                  value={selectValue}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    save({ ...settings, selectedModel: v === CUSTOM ? "" : v });
+                    setDownloadError(null);
+                  }}
+                >
+                  {models.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name} ({formatSize(m.sizeMb)})
+                    </option>
+                  ))}
+                  <option value={CUSTOM}>Custom model</option>
+                </select>
+                {!isCustom && selected && (
+                  selected.downloaded ? (
+                    <span className="imggen-ready">
+                      <Check size={14} />
+                      <span>Ready</span>
+                    </span>
+                  ) : (
+                    <button
+                      className={`imggen-model-btn ${downloadingModel ? "imggen-model-btn--disabled" : ""}`}
+                      disabled={downloadingModel !== null}
+                      onClick={() => handleDownload(selected)}
+                    >
+                      {downloadingModel === selected.id ? (
+                        <Loader2 size={14} className="imggen-spinner" />
+                      ) : (
+                        <Download size={14} />
+                      )}
+                      <span>{downloadingModel === selected.id ? "Downloading..." : "Download"}</span>
+                    </button>
+                  )
+                )}
+              </div>
+            </div>
+            {isCustom && (
+              <div className="settings-toggle-row">
+                <div className="settings-toggle-info">
+                  <span className="settings-toggle-label">Model file</span>
+                  <span className="settings-toggle-desc">
+                    Path to .safetensors or .gguf file
+                  </span>
+                </div>
+                <div className="settings-input-row">
+                  <input
+                    type="text"
+                    className="settings-input"
+                    value={settings.selectedModel}
+                    onChange={(e) => save({ ...settings, selectedModel: e.target.value })}
+                    placeholder="/path/to/model.gguf"
+                    spellCheck={false}
+                  />
+                  <Tooltip text="Browse">
+                    <button
+                      className="settings-input-toggle"
+                      onClick={async () => {
+                        const result = await openDialog({
+                          title: "Select model file",
+                          filters: [{ name: "Model files", extensions: ["safetensors", "gguf"] }],
+                        });
+                        if (typeof result === "string") {
+                          save({ ...settings, selectedModel: result });
+                        }
+                      }}
+                    >
+                      <FileSearch size={14} />
+                    </button>
+                  </Tooltip>
+                </div>
+              </div>
+            )}
+            {downloadError && (
+              <div className="settings-toggle-row">
+                <div className="imggen-error">{downloadError}</div>
+              </div>
+            )}
+          </>
+        );
+      })()}
 
       {/* Download custom model by URL */}
       <div className="settings-toggle-row">

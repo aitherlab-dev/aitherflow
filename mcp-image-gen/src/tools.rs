@@ -8,9 +8,6 @@ use std::fs;
 use std::path::{Component, Path, PathBuf};
 use tracing::{error, info, warn};
 
-/// Suppress diffusion-rs C++ log and progress output that would corrupt
-/// MCP JSON-RPC on stdout. Uses the stable-diffusion.cpp callback API.
-/// Call once at startup before any gen_img() calls.
 /// Redirect diffusion-rs C++ log and progress output to stderr
 /// (instead of stdout which would corrupt MCP JSON-RPC).
 /// Uses the stable-diffusion.cpp callback API.
@@ -79,9 +76,22 @@ fn download_hf_file(models_path: &Path, repo: &str, file: &str) -> Result<PathBu
 
     let api = builder.build().map_err(|e| format!("Failed to build HF API: {e}"))?;
     let repo_api = api.model(repo.to_string());
-    repo_api
-        .get(file)
-        .map_err(|e| format!("Failed to download {repo}/{file}: {e}"))
+    repo_api.get(file).map_err(|e| {
+        let msg = format!("Failed to download {repo}/{file}: {e}");
+        let err_lower = e.to_string().to_lowercase();
+        if err_lower.contains("401")
+            || err_lower.contains("403")
+            || err_lower.contains("unauthorized")
+            || err_lower.contains("forbidden")
+        {
+            format!(
+                "{msg}. This model requires a HuggingFace token and license acceptance. \
+                 Set HF_TOKEN env variable and accept the license at huggingface.co"
+            )
+        } else {
+            msg
+        }
+    })
 }
 
 /// Components needed for a model: (repo, file) pairs for each role.
@@ -634,7 +644,9 @@ mod tests {
     fn test_resolve_model_by_path() {
         // Create a temp .gguf file
         let dir = std::env::temp_dir().join("mcp-image-gen-test");
-        let _ = fs::create_dir_all(&dir);
+        if let Err(e) = fs::create_dir_all(&dir) {
+            warn!("Failed to create test dir: {e}");
+        }
         let file = dir.join("flux-2-klein-4b-Q8_0.gguf");
         let mut f = std::fs::File::create(&file).unwrap();
         f.write_all(b"fake").unwrap();
@@ -644,8 +656,12 @@ mod tests {
         assert_eq!(model_path.unwrap(), file);
         assert!(components.llm.is_some());
 
-        let _ = fs::remove_file(&file);
-        let _ = fs::remove_dir(&dir);
+        if let Err(e) = fs::remove_file(&file) {
+            warn!("Failed to clean up test file: {e}");
+        }
+        if let Err(e) = fs::remove_dir(&dir) {
+            warn!("Failed to clean up test dir: {e}");
+        }
     }
 
     #[test]
