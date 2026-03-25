@@ -16,7 +16,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 chrono = "0.4"
 sha2 = "0.10"
-diffusion-rs = "0.1"
+diffusion-rs = { version = "0.1", features = ["cuda"] }
 diffusion-rs-sys = "0.1"
 hf-hub = { version = "0.4", features = ["ureq"], default-features = false }
 base64 = "0.22"
