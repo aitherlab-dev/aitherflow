@@ -8,35 +8,27 @@ use std::fs;
 use std::path::{Component, Path, PathBuf};
 use tracing::{error, info, warn};
 
-/// RAII guard that redirects stdout to /dev/null and restores it on drop.
-/// Panic-safe: even if the wrapped code panics, stdout is restored.
-#[cfg(unix)]
-struct StdoutGuard {
-    saved_fd: i32,
-}
-
-#[cfg(unix)]
-impl StdoutGuard {
-    fn new() -> Result<Self, String> {
-        use std::os::unix::io::AsRawFd;
-        let devnull = std::fs::File::open("/dev/null")
-            .map_err(|e| format!("Failed to open /dev/null: {e}"))?;
-        let saved_fd = unsafe { libc::dup(1) };
-        if saved_fd < 0 {
-            return Err("Failed to dup stdout".into());
-        }
-        unsafe { libc::dup2(devnull.as_raw_fd(), 1) };
-        Ok(Self { saved_fd })
+/// Suppress diffusion-rs C++ log and progress output that would corrupt
+/// MCP JSON-RPC on stdout. Uses the stable-diffusion.cpp callback API.
+/// Call once at startup before any gen_img() calls.
+pub fn suppress_diffusion_output() {
+    unsafe extern "C" fn noop_log(
+        _level: diffusion_rs_sys::sd_log_level_t,
+        _text: *const std::os::raw::c_char,
+        _data: *mut std::ffi::c_void,
+    ) {
     }
-}
+    unsafe extern "C" fn noop_progress(
+        _step: std::os::raw::c_int,
+        _steps: std::os::raw::c_int,
+        _time: f32,
+        _data: *mut std::ffi::c_void,
+    ) {
+    }
 
-#[cfg(unix)]
-impl Drop for StdoutGuard {
-    fn drop(&mut self) {
-        unsafe {
-            libc::dup2(self.saved_fd, 1);
-            libc::close(self.saved_fd);
-        }
+    unsafe {
+        diffusion_rs_sys::sd_set_log_callback(Some(noop_log), std::ptr::null_mut());
+        diffusion_rs_sys::sd_set_progress_callback(Some(noop_progress), std::ptr::null_mut());
     }
 }
 
@@ -58,7 +50,9 @@ pub fn validate_path_safe(path: &Path) -> Result<(), String> {
 
 /// Download a file from HuggingFace Hub into models_path (used as cache dir).
 fn download_hf_file(models_path: &Path, repo: &str, file: &str) -> Result<PathBuf, String> {
-    let mut builder = ApiBuilder::new().with_cache_dir(models_path.to_path_buf());
+    let mut builder = ApiBuilder::new()
+        .with_cache_dir(models_path.to_path_buf())
+        .with_progress(false);
 
     // Try HF_TOKEN env first, then models_path/token file
     let token = std::env::var("HF_TOKEN")
@@ -387,36 +381,28 @@ pub fn generate_image(params: &Value, config: &Config) -> Result<String, String>
         .build()
         .map_err(|e| format!("Failed to build model config: {e}"))?;
 
-    // Redirect stdout to /dev/null during gen_img() — diffusion-rs writes
-    // progress bar to stdout which corrupts MCP JSON-RPC protocol.
-    // StdoutGuard restores stdout even on panic via Drop.
-    {
-        #[cfg(unix)]
-        let _guard = StdoutGuard::new()?;
-
-        let catch_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            gen_img(&img_config, &mut model_config)
-        }));
-
-        match catch_result {
-            Ok(Ok(())) => {}
-            Ok(Err(e)) => {
-                error!("Image generation failed: {e}");
-                return Err(format!("Image generation failed: {e}"));
-            }
-            Err(panic_err) => {
-                let msg = if let Some(s) = panic_err.downcast_ref::<&str>() {
-                    s.to_string()
-                } else if let Some(s) = panic_err.downcast_ref::<String>() {
-                    s.clone()
-                } else {
-                    "unknown panic".to_string()
-                };
-                error!("Image generation panicked: {msg}");
-                return Err(format!("Image generation panicked: {msg}"));
-            }
+    // catch_unwind covers Rust panics inside gen_img().
+    // C++ segfaults (CUDA OOM, Vulkan) will still kill the process — that's expected.
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        gen_img(&img_config, &mut model_config)
+    })) {
+        Ok(Ok(())) => {}
+        Ok(Err(e)) => {
+            error!("Image generation failed: {e}");
+            return Err(format!("Image generation failed: {e}"));
         }
-    };
+        Err(panic_err) => {
+            let msg = if let Some(s) = panic_err.downcast_ref::<&str>() {
+                s.to_string()
+            } else if let Some(s) = panic_err.downcast_ref::<String>() {
+                s.clone()
+            } else {
+                "unknown panic".to_string()
+            };
+            error!("Image generation panicked: {msg}");
+            return Err(format!("Image generation panicked: {msg}"));
+        }
+    }
 
     info!("Image saved to {}", output_path.display());
 

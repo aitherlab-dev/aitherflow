@@ -99,6 +99,9 @@ fn main() {
         }
     }
 
+    // Suppress diffusion-rs C++ log/progress output before any gen_img() calls
+    tools::suppress_diffusion_output();
+
     info!(
         models_path = %config.models_path.display(),
         images_path = %config.images_path.display(),

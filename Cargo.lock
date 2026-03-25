@@ -5472,7 +5472,9 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "diffusion-rs",
+ "diffusion-rs-sys",
  "dirs",
+ "hf-hub",
  "serde",
  "serde_json",
  "sha2",
