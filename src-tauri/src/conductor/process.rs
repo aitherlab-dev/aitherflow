@@ -348,7 +348,8 @@ pub async fn run_cli_session(
                 let mut env = serde_json::json!({
                     "HF_HOME": &image_settings.models_path,
                     "AITHERFLOW_MODELS_PATH": &image_settings.models_path,
-                    "AITHERFLOW_IMAGES_PATH": &image_settings.images_path
+                    "AITHERFLOW_IMAGES_PATH": &image_settings.images_path,
+                    "AITHERFLOW_SELECTED_MODEL": &image_settings.selected_model
                 });
                 // Pass HF token so gated models can be downloaded
                 if let Some(token) = read_hf_token() {
