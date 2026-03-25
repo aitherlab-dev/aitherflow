@@ -326,3 +326,48 @@
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
+
+/* ═══════════════════════════════════════════
+   Image Result — inline preview in tool card
+   ═══════════════════════════════════════════ */
+
+.imgresult-container {
+  position: relative;
+  padding: 8px 12px;
+  max-width: 360px;
+}
+
+.imgresult-image {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.imgresult-image:hover {
+  opacity: 0.9;
+}
+
+.imgresult-expand {
+  position: absolute;
+  top: 14px;
+  right: 18px;
+  background: var(--bg-hard);
+  color: var(--fg-muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.imgresult-container:hover .imgresult-expand {
+  opacity: 1;
+}
+
+.imgresult-expand:hover {
+  color: var(--fg);
+  background: var(--bg-hover);
+}

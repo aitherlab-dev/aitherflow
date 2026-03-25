@@ -16,6 +16,7 @@ import {
   Keyboard,
   Blocks,
   BookOpen,
+  Image,
 } from "lucide-react";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { ProjectsSection } from "./ProjectsSection";
@@ -32,6 +33,7 @@ import { ClaudeMdSection } from "./ClaudeMdSection";
 import { RolesSection } from "./RolesSection";
 import { ExternalModelsSection } from "./ExternalModelsSection";
 import { KnowledgeSection } from "./KnowledgeSection";
+import { ImageGenSection } from "./ImageGenSection";
 
 const NAV_ITEMS = [
   { id: "general", label: "General", icon: User },
@@ -41,6 +43,7 @@ const NAV_ITEMS = [
   { id: "mcp", label: "MCP Servers", icon: Cable },
   { id: "skills", label: "Skills", icon: Sparkles },
   { id: "knowledge", label: "Knowledge", icon: BookOpen },
+  { id: "image-gen", label: "Image Generation", icon: Image },
   { id: "projects", label: "Projects", icon: FolderOpen },
   { id: "language", label: "Language", icon: Languages },
   { id: "voice", label: "Voice", icon: Mic },
@@ -119,6 +122,9 @@ function SectionContent({ section }: { section: string }) {
   }
   if (section === "knowledge") {
     return <KnowledgeSection />;
+  }
+  if (section === "image-gen") {
+    return <ImageGenSection />;
   }
   if (section === "projects") {
     return <ProjectsSection />;
