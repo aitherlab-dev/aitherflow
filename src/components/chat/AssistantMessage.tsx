@@ -51,6 +51,11 @@ export const AssistantMessage = memo(function AssistantMessage({
     };
   }, [message.text]);
 
+  const imagePaths = useMemo(
+    () => (finalText ? extractImagePaths(finalText) : []),
+    [finalText],
+  );
+
   // While streaming — show current block, with collapsible thinking above
   if (message.isStreaming) {
     return (
@@ -69,11 +74,6 @@ export const AssistantMessage = memo(function AssistantMessage({
       </div>
     );
   }
-
-  const imagePaths = useMemo(
-    () => (finalText ? extractImagePaths(finalText) : []),
-    [finalText],
-  );
 
   // Finished — show collapsible thinking + final text
   return (
