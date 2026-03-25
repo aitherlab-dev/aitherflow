@@ -52,3 +52,5 @@ arrow-schema = "57"
 ort = { version = "=2.0.0-rc.11", default-features = false, features = ["ndarray"] }
 ndarray = "0.17"
 tempfile = "3"
+hf-hub = "0.4"
+tracing = "0.1"

@@ -10,6 +10,7 @@ mod file_ops;
 mod file_watcher;
 mod files;
 mod hooks;
+mod image_download;
 mod image_gen;
 mod mcp;
 mod plugins;
@@ -97,6 +98,7 @@ pub fn run() {
             image_gen::save_image_gen_settings,
             image_gen::list_image_gen_models,
             image_gen::delete_image_gen_model,
+            image_download::download_image_gen_model,
             attachments::process_file,
             attachments::read_clipboard_image,
             attachments::read_clipboard_text,

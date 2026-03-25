@@ -81,6 +81,32 @@
   cursor: not-allowed;
 }
 
+@keyframes imggen-spin {
+  to { transform: rotate(360deg); }
+}
+
+.imggen-spinner {
+  animation: imggen-spin 1s linear infinite;
+}
+
+.imggen-error {
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  color: var(--error);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
+  border-radius: 6px;
+}
+
+.imggen-ready {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
 .imggen-size-input {
   width: 90px !important;
   text-align: center;

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, memo } from "react";
-import { FolderOpen, Download, Trash2 } from "lucide-react";
+import { FolderOpen, Download, Loader2, Check, FileSearch } from "lucide-react";
 import { invoke, openDialog } from "../../lib/transport";
 import { Tooltip } from "../shared/Tooltip";
 
@@ -16,7 +16,7 @@ interface ImageGenSettings {
 interface ImageModel {
   id: string;
   name: string;
-  filename: string;
+  repoId: string;
   sizeMb: number;
   downloaded: boolean;
 }
@@ -31,6 +31,8 @@ const RESOLUTION_PRESETS: Record<string, { label: string; w: number; h: number }
 export const ImageGenSection = memo(function ImageGenSection() {
   const [settings, setSettings] = useState<ImageGenSettings | null>(null);
   const [models, setModels] = useState<ImageModel[]>([]);
+  const [downloadingModel, setDownloadingModel] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   useEffect(() => {
     invoke<ImageGenSettings>("load_image_gen_settings")
@@ -86,21 +88,26 @@ export const ImageGenSection = memo(function ImageGenSection() {
     [settings, save, refreshModels],
   );
 
-  const handleDelete = useCallback(
-    (model: ImageModel) => {
-      if (!settings) return;
-      const ok = window.confirm(
-        `Delete ${model.name} (${formatSize(model.sizeMb)})? This cannot be undone.`,
-      );
-      if (!ok) return;
-      invoke("delete_image_gen_model", {
-        modelsPath: settings.modelsPath,
-        filename: model.filename,
-      })
-        .then(() => refreshModels(settings.modelsPath))
-        .catch(console.error);
+  const handleDownload = useCallback(
+    async (model: ImageModel) => {
+      if (!settings || downloadingModel) return;
+      setDownloadingModel(model.id);
+      setDownloadError(null);
+      try {
+        await invoke("download_image_gen_model", {
+          modelId: model.id,
+          modelsPath: settings.modelsPath,
+        });
+        refreshModels(settings.modelsPath);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error("Download failed:", e);
+        setDownloadError(`${model.name}: ${msg}`);
+      } finally {
+        setDownloadingModel(null);
+      }
     },
-    [settings, refreshModels],
+    [settings, downloadingModel, refreshModels],
   );
 
   const handleResolutionChange = useCallback(
@@ -173,50 +180,105 @@ export const ImageGenSection = memo(function ImageGenSection() {
       </div>
 
       {/* Model selection */}
-      <div className="settings-toggle-row" style={{ alignItems: "flex-start" }}>
-        <div className="settings-toggle-info">
-          <span className="settings-toggle-label">Model</span>
-          <span className="settings-toggle-desc">
-            Select which model to use for generation
-          </span>
-        </div>
-        <div className="imggen-models-list">
-          {models.map((m) => (
-            <div key={m.id} className="imggen-model-card">
-              <div className="imggen-model-info">
-                <span className="imggen-model-name">{m.name}</span>
-                <span className="imggen-model-size">{formatSize(m.sizeMb)}</span>
+      {(() => {
+        const CUSTOM = "__custom__";
+        const isCustom = !models.some((m) => m.id === settings.selectedModel);
+        const selectValue = isCustom ? CUSTOM : settings.selectedModel;
+        const selected = models.find((m) => m.id === settings.selectedModel);
+
+        return (
+          <>
+            <div className="settings-toggle-row">
+              <div className="settings-toggle-info">
+                <span className="settings-toggle-label">Model</span>
+                <span className="settings-toggle-desc">
+                  Select which model to use for generation
+                </span>
               </div>
-              <div className="imggen-model-actions">
-                {m.downloaded ? (
-                  <>
-                    <Tooltip text="Use this model">
-                      <button
-                        className={`imggen-model-btn ${settings.selectedModel === m.id ? "imggen-model-btn--active" : ""}`}
-                        onClick={() => save({ ...settings, selectedModel: m.id })}
-                      >
-                        {settings.selectedModel === m.id ? "Active" : "Select"}
-                      </button>
-                    </Tooltip>
-                    <Tooltip text="Delete model">
-                      <button className="imggen-model-btn imggen-model-btn--danger" onClick={() => handleDelete(m)}>
-                        <Trash2 size={14} />
-                      </button>
-                    </Tooltip>
-                  </>
-                ) : (
-                  <Tooltip text="Download not yet available">
-                    <button className="imggen-model-btn imggen-model-btn--disabled" disabled>
-                      <Download size={14} />
-                      <span>Download</span>
+              <div className="settings-input-row">
+                <select
+                  className="settings-select"
+                  value={selectValue}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    save({ ...settings, selectedModel: v === CUSTOM ? "" : v });
+                    setDownloadError(null);
+                  }}
+                >
+                  {models.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name} ({formatSize(m.sizeMb)})
+                    </option>
+                  ))}
+                  <option value={CUSTOM}>Custom model</option>
+                </select>
+                {!isCustom && selected && (
+                  selected.downloaded ? (
+                    <span className="imggen-ready">
+                      <Check size={14} />
+                      <span>Ready</span>
+                    </span>
+                  ) : (
+                    <button
+                      className={`imggen-model-btn ${downloadingModel ? "imggen-model-btn--disabled" : ""}`}
+                      disabled={downloadingModel !== null}
+                      onClick={() => handleDownload(selected)}
+                    >
+                      {downloadingModel === selected.id ? (
+                        <Loader2 size={14} className="imggen-spinner" />
+                      ) : (
+                        <Download size={14} />
+                      )}
+                      <span>{downloadingModel === selected.id ? "Downloading..." : "Download"}</span>
                     </button>
-                  </Tooltip>
+                  )
                 )}
               </div>
             </div>
-          ))}
-        </div>
-      </div>
+            {isCustom && (
+              <div className="settings-toggle-row">
+                <div className="settings-toggle-info">
+                  <span className="settings-toggle-label">Model file</span>
+                  <span className="settings-toggle-desc">
+                    Path to .safetensors or .gguf file
+                  </span>
+                </div>
+                <div className="settings-input-row">
+                  <input
+                    type="text"
+                    className="settings-input"
+                    value={settings.selectedModel}
+                    onChange={(e) => save({ ...settings, selectedModel: e.target.value })}
+                    placeholder="/path/to/model.gguf"
+                    spellCheck={false}
+                  />
+                  <Tooltip text="Browse">
+                    <button
+                      className="settings-input-toggle"
+                      onClick={async () => {
+                        const result = await openDialog({
+                          title: "Select model file",
+                          filters: [{ name: "Model files", extensions: ["safetensors", "gguf"] }],
+                        });
+                        if (typeof result === "string") {
+                          save({ ...settings, selectedModel: result });
+                        }
+                      }}
+                    >
+                      <FileSearch size={14} />
+                    </button>
+                  </Tooltip>
+                </div>
+              </div>
+            )}
+            {downloadError && (
+              <div className="settings-toggle-row">
+                <div className="imggen-error">{downloadError}</div>
+              </div>
+            )}
+          </>
+        );
+      })()}
 
       {/* Resolution */}
       <div className="settings-toggle-row">

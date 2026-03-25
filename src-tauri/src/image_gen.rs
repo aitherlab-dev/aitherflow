@@ -1,3 +1,4 @@
+use hf_hub::api::sync::ApiBuilder;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -16,13 +17,22 @@ pub enum ResolutionPreset {
     Custom,
 }
 
-/// Known models that can be downloaded (stub list for now)
+/// Known model definition
+pub struct KnownModel {
+    pub id: &'static str,
+    pub name: &'static str,
+    pub repo_id: &'static str,
+    pub hf_file: &'static str,
+    pub size_mb: u64,
+}
+
+/// Model info returned to frontend
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ImageModel {
     pub id: String,
     pub name: String,
-    pub filename: String,
+    pub repo_id: String,
     pub size_mb: u64,
     pub downloaded: bool,
 }
@@ -43,7 +53,7 @@ pub struct ImageGenSettings {
     pub height: i32,
     #[serde(default = "default_steps")]
     pub steps: i32,
-    #[serde(default)]
+    #[serde(default = "default_selected_model")]
     pub selected_model: String,
 }
 
@@ -56,7 +66,7 @@ impl Default for ImageGenSettings {
             width: default_size(),
             height: default_size(),
             steps: default_steps(),
-            selected_model: String::new(),
+            selected_model: default_selected_model(),
         }
     }
 }
@@ -83,26 +93,24 @@ fn default_steps() -> i32 {
     20
 }
 
+fn default_selected_model() -> String {
+    "flux2-klein-4b".to_string()
+}
+
 /// Path to image-gen settings file
 fn settings_path() -> PathBuf {
     config::config_dir().join("image-gen").join("settings.json")
 }
 
-/// Available models (hardcoded for now — will come from MCP later)
-const KNOWN_MODELS: &[(&str, &str, &str, u64)] = &[
-    (
-        "stable-diffusion-xl",
-        "Stable Diffusion XL",
-        "sd_xl_base_1.0.safetensors",
-        6938,
-    ),
-    (
-        "stable-diffusion-1.5",
-        "Stable Diffusion 1.5",
-        "v1-5-pruned-emaonly.safetensors",
-        4265,
-    ),
-    ("flux-schnell", "FLUX.1 Schnell", "flux1-schnell.safetensors", 23800),
+/// Available models synced with MCP server (resolve_preset in tools.rs)
+pub const KNOWN_MODELS: &[KnownModel] = &[
+    KnownModel { id: "flux2-klein-4b", name: "FLUX.2 Klein 4B", repo_id: "black-forest-labs/FLUX.2-klein-4B", hf_file: "flux2-klein-4b-Q8_0.gguf", size_mb: 8000 },
+    KnownModel { id: "flux2-klein-9b", name: "FLUX.2 Klein 9B", repo_id: "black-forest-labs/FLUX.2-klein-9B", hf_file: "flux2-klein-9b-Q4_0.gguf", size_mb: 18000 },
+    KnownModel { id: "flux2-dev", name: "FLUX.2 Dev", repo_id: "black-forest-labs/FLUX.2-dev", hf_file: "flux2-dev-Q2_K.gguf", size_mb: 24000 },
+    KnownModel { id: "flux1-dev", name: "FLUX.1 Dev", repo_id: "black-forest-labs/FLUX.1-dev", hf_file: "flux1-dev-Q2_K.gguf", size_mb: 24000 },
+    KnownModel { id: "flux1-schnell", name: "FLUX.1 Schnell", repo_id: "Green-Sky/flux.1-schnell-GGUF", hf_file: "flux1-schnell-Q2_K.gguf", size_mb: 4700 },
+    KnownModel { id: "flux1-mini", name: "FLUX.1 Mini", repo_id: "HyperX-Sentience/Flux-Mini-GGUF", hf_file: "Flux-Mini-Q8_0.gguf", size_mb: 3400 },
+    KnownModel { id: "sdxl-turbo", name: "SDXL Turbo", repo_id: "stabilityai/sdxl-turbo", hf_file: "sd_xl_turbo_1.0_fp16.safetensors", size_mb: 6900 },
 ];
 
 #[tauri::command]
@@ -142,15 +150,20 @@ pub async fn list_image_gen_models(models_path: String) -> Result<Vec<ImageModel
     tokio::task::spawn_blocking(move || {
         let dir = PathBuf::from(&models_path);
         validate_path_safe(&dir)?;
+        let api = ApiBuilder::new()
+            .with_cache_dir(dir)
+            .build()
+            .map_err(|e| format!("Failed to init HF API: {e}"))?;
         let models: Vec<ImageModel> = KNOWN_MODELS
             .iter()
-            .map(|(id, name, filename, size_mb)| {
-                let downloaded = dir.join(filename).exists();
+            .map(|m| {
+                let repo = api.model(m.repo_id.to_string());
+                let downloaded = repo.get(m.hf_file).is_ok();
                 ImageModel {
-                    id: id.to_string(),
-                    name: name.to_string(),
-                    filename: filename.to_string(),
-                    size_mb: *size_mb,
+                    id: m.id.to_string(),
+                    name: m.name.to_string(),
+                    repo_id: m.repo_id.to_string(),
+                    size_mb: m.size_mb,
                     downloaded,
                 }
             })
@@ -194,7 +207,7 @@ mod tests {
         assert_eq!(s.height, 1024);
         assert_eq!(s.steps, 20);
         assert_eq!(s.resolution_preset, ResolutionPreset::Square);
-        assert!(s.selected_model.is_empty());
+        assert_eq!(s.selected_model, "flux2-klein-4b");
         assert!(s.models_path.contains("models"));
         assert!(s.images_path.contains("images"));
     }
@@ -251,13 +264,23 @@ mod tests {
 
     #[test]
     fn known_models_list() {
-        assert_eq!(KNOWN_MODELS.len(), 3);
-        for (id, name, filename, size) in KNOWN_MODELS {
-            assert!(!id.is_empty());
-            assert!(!name.is_empty());
-            assert!(filename.ends_with(".safetensors"));
-            assert!(*size > 0);
+        assert_eq!(KNOWN_MODELS.len(), 7);
+        for m in KNOWN_MODELS {
+            assert!(!m.id.is_empty());
+            assert!(!m.name.is_empty());
+            assert!(!m.repo_id.is_empty());
+            assert!(!m.hf_file.is_empty());
+            assert!(m.size_mb > 0);
         }
+    }
+
+    #[test]
+    fn known_models_default_exists() {
+        let default_id = default_selected_model();
+        assert!(
+            KNOWN_MODELS.iter().any(|m| m.id == default_id),
+            "Default model '{default_id}' must exist in KNOWN_MODELS"
+        );
     }
 
     // ── File-based load/save ──
@@ -303,48 +326,31 @@ mod tests {
         assert_eq!(loaded.selected_model, "stable-diffusion-xl");
     }
 
-    // ── Model listing ──
+    // ── Model structure ──
 
     #[test]
-    fn list_models_empty_dir() {
-        let tmp = TempDir::new().unwrap();
-        let dir = tmp.path();
-        let models: Vec<ImageModel> = KNOWN_MODELS
-            .iter()
-            .map(|(id, name, filename, size_mb)| ImageModel {
-                id: id.to_string(),
-                name: name.to_string(),
-                filename: filename.to_string(),
-                size_mb: *size_mb,
-                downloaded: dir.join(filename).exists(),
-            })
-            .collect();
-        assert_eq!(models.len(), 3);
-        for m in &models {
-            assert!(!m.downloaded, "{} should not be downloaded", m.name);
-        }
+    fn known_models_unique_ids() {
+        let mut ids: Vec<&str> = KNOWN_MODELS.iter().map(|m| m.id).collect();
+        let len_before = ids.len();
+        ids.sort();
+        ids.dedup();
+        assert_eq!(ids.len(), len_before, "Model IDs must be unique");
     }
 
     #[test]
-    fn list_models_with_downloaded_file() {
-        let tmp = TempDir::new().unwrap();
-        let dir = tmp.path();
-        // Create one model file
-        fs::write(dir.join("flux1-schnell.safetensors"), b"fake model data").unwrap();
-        let models: Vec<ImageModel> = KNOWN_MODELS
-            .iter()
-            .map(|(id, name, filename, size_mb)| ImageModel {
-                id: id.to_string(),
-                name: name.to_string(),
-                filename: filename.to_string(),
-                size_mb: *size_mb,
-                downloaded: dir.join(filename).exists(),
-            })
-            .collect();
-        let flux = models.iter().find(|m| m.id == "flux-schnell").unwrap();
-        assert!(flux.downloaded);
-        let sdxl = models.iter().find(|m| m.id == "stable-diffusion-xl").unwrap();
-        assert!(!sdxl.downloaded);
+    fn image_model_serde() {
+        let m = ImageModel {
+            id: "test".into(),
+            name: "Test Model".into(),
+            repo_id: "org/repo".into(),
+            size_mb: 1000,
+            downloaded: true,
+        };
+        let json = serde_json::to_string(&m).unwrap();
+        assert!(json.contains("repoId")); // camelCase
+        let restored: ImageModel = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.id, "test");
+        assert!(restored.downloaded);
     }
 
     // ── Model deletion ──

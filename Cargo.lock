@@ -43,7 +43,7 @@ dependencies = [
 
 [[package]]
 name = "aitherflow"
-version = "0.5.1"
+version = "0.6.0"
 dependencies = [
  "arboard",
  "arrow-array",
@@ -57,6 +57,7 @@ dependencies = [
  "fastembed",
  "fs2",
  "futures-util",
+ "hf-hub",
  "hound",
  "html2text",
  "image",
@@ -83,6 +84,7 @@ dependencies = [
  "text-splitter",
  "tokio",
  "tokio-tungstenite",
+ "tracing",
  "trash",
  "uuid",
 ]
@@ -3674,16 +3676,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "629d8f3bbeda9d148036d6b0de0a3ab947abd08ce90626327fc3547a49d59d97"
 dependencies = [
  "dirs",
+ "futures",
  "http",
  "indicatif",
  "libc",
  "log",
  "native-tls",
+ "num_cpus",
  "rand 0.9.2",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
+ "tokio",
  "ureq 2.12.1",
  "windows-sys 0.60.2",
 ]
