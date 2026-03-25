@@ -11,12 +11,20 @@ use tracing::{error, info, warn};
 /// Suppress diffusion-rs C++ log and progress output that would corrupt
 /// MCP JSON-RPC on stdout. Uses the stable-diffusion.cpp callback API.
 /// Call once at startup before any gen_img() calls.
+/// Redirect diffusion-rs C++ log and progress output to stderr
+/// (instead of stdout which would corrupt MCP JSON-RPC).
+/// Uses the stable-diffusion.cpp callback API.
+/// Call once at startup before any gen_img() calls.
 pub fn suppress_diffusion_output() {
-    unsafe extern "C" fn noop_log(
+    unsafe extern "C" fn stderr_log(
         _level: diffusion_rs_sys::sd_log_level_t,
-        _text: *const std::os::raw::c_char,
+        text: *const std::os::raw::c_char,
         _data: *mut std::ffi::c_void,
     ) {
+        if !text.is_null() {
+            let msg = std::ffi::CStr::from_ptr(text).to_string_lossy();
+            eprint!("[sdcpp] {msg}");
+        }
     }
     unsafe extern "C" fn noop_progress(
         _step: std::os::raw::c_int,
@@ -27,7 +35,7 @@ pub fn suppress_diffusion_output() {
     }
 
     unsafe {
-        diffusion_rs_sys::sd_set_log_callback(Some(noop_log), std::ptr::null_mut());
+        diffusion_rs_sys::sd_set_log_callback(Some(stderr_log), std::ptr::null_mut());
         diffusion_rs_sys::sd_set_progress_callback(Some(noop_progress), std::ptr::null_mut());
     }
 }
@@ -110,7 +118,7 @@ fn get_model_components(model_id: &str) -> Result<ModelComponents, String> {
     match model_id {
         "FLUX.2-klein-4B" | "flux2-klein-4b" => Ok(ModelComponents {
             diffusion: ("leejet/FLUX.2-klein-4B-GGUF", "flux-2-klein-4b-Q8_0.gguf"),
-            vae: Some(("ffxvs/vae-flux", "ae.safetensors")),
+            vae: Some(("black-forest-labs/FLUX.2-dev", "vae/diffusion_pytorch_model.safetensors")),
             llm: Some(("unsloth/Qwen3-4B-GGUF", "Qwen3-4B-Q8_0.gguf")),
             clip_l: None,
             t5xxl: None,
@@ -125,7 +133,7 @@ fn get_model_components(model_id: &str) -> Result<ModelComponents, String> {
         }),
         "FLUX.2-klein-9B" | "flux2-klein-9b" => Ok(ModelComponents {
             diffusion: ("leejet/FLUX.2-klein-9B-GGUF", "flux-2-klein-9b-Q8_0.gguf"),
-            vae: Some(("ffxvs/vae-flux", "ae.safetensors")),
+            vae: Some(("black-forest-labs/FLUX.2-dev", "vae/diffusion_pytorch_model.safetensors")),
             llm: Some(("unsloth/Qwen3-8B-GGUF", "Qwen3-8B-Q8_0.gguf")),
             clip_l: None,
             t5xxl: None,
@@ -140,7 +148,7 @@ fn get_model_components(model_id: &str) -> Result<ModelComponents, String> {
         }),
         "FLUX.2-dev" | "flux2-dev" => Ok(ModelComponents {
             diffusion: ("city96/FLUX.2-dev-gguf", "flux2-dev-Q2_K.gguf"),
-            vae: Some(("ffxvs/vae-flux", "ae.safetensors")),
+            vae: Some(("black-forest-labs/FLUX.2-dev", "vae/diffusion_pytorch_model.safetensors")),
             llm: Some((
                 "unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF",
                 "Mistral-Small-3.2-24B-Instruct-2506-Q2_K.gguf",
@@ -690,23 +698,25 @@ mod tests {
     // ── ModelComponents: verify public VAE repos ──
 
     #[test]
-    fn test_klein4b_uses_public_vae() {
+    fn test_klein4b_uses_flux2_vae() {
         let c = get_model_components("flux2-klein-4b").unwrap();
-        let (repo, _) = c.vae.unwrap();
-        assert!(!repo.contains("black-forest-labs"), "VAE should use public repo, not gated black-forest-labs");
+        let (repo, file) = c.vae.unwrap();
+        assert!(repo.contains("FLUX.2"), "FLUX.2 Klein 4B should use FLUX.2 VAE (32 latent channels)");
+        assert!(file.contains("diffusion_pytorch_model"), "FLUX.2 VAE file should be diffusion_pytorch_model.safetensors");
     }
 
     #[test]
-    fn test_klein9b_uses_public_vae() {
+    fn test_klein9b_uses_flux2_vae() {
         let c = get_model_components("flux2-klein-9b").unwrap();
-        let (repo, _) = c.vae.unwrap();
-        assert!(!repo.contains("black-forest-labs"), "VAE should use public repo, not gated black-forest-labs");
+        let (repo, file) = c.vae.unwrap();
+        assert!(repo.contains("FLUX.2"), "FLUX.2 Klein 9B should use FLUX.2 VAE (32 latent channels)");
+        assert!(file.contains("diffusion_pytorch_model"), "FLUX.2 VAE file should be diffusion_pytorch_model.safetensors");
     }
 
     #[test]
     fn test_flux1_schnell_uses_public_vae() {
         let c = get_model_components("flux1-schnell").unwrap();
         let (repo, _) = c.vae.unwrap();
-        assert!(!repo.contains("black-forest-labs"), "VAE should use public repo, not gated black-forest-labs");
+        assert!(!repo.contains("black-forest-labs"), "FLUX.1 VAE should use public repo, not gated black-forest-labs");
     }
 }

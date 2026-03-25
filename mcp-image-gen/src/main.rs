@@ -140,12 +140,24 @@ fn main() {
     });
 
     let mut stdout = io::stdout();
+    let mut pending_tools: usize = 0;
+    let mut stdin_closed = false;
 
     for event in &event_rx {
         match event {
-            Event::StdinClosed => break,
+            Event::StdinClosed => {
+                stdin_closed = true;
+                if pending_tools == 0 {
+                    break;
+                }
+                info!("Stdin closed, waiting for {pending_tools} pending tool call(s)");
+            }
             Event::ToolResult(response) => {
+                pending_tools = pending_tools.saturating_sub(1);
                 write_response(&mut stdout, &response);
+                if stdin_closed && pending_tools == 0 {
+                    break;
+                }
             }
             Event::StdinLine(line) => {
                 let request: JsonRpcRequest = match serde_json::from_str(&line) {
@@ -177,6 +189,7 @@ fn main() {
                     "initialize" => handle_initialize(id),
                     "tools/list" => handle_tools_list(id),
                     "tools/call" => {
+                        pending_tools += 1;
                         handle_tools_call(id, &request.params, &config, &event_tx);
                         continue;
                     }

@@ -42,27 +42,48 @@ impl Config {
     pub fn load() -> Result<Self, String> {
         let path = Self::config_path()?;
 
-        if path.exists() {
+        let mut config = if path.exists() {
             match fs::read_to_string(&path) {
                 Ok(content) => match serde_json::from_str::<Config>(&content) {
-                    Ok(config) => {
+                    Ok(cfg) => {
                         info!("Config loaded from {}", path.display());
-                        return Ok(config);
+                        cfg
                     }
                     Err(e) => {
                         warn!("Failed to parse config: {e}, using defaults");
+                        let cfg = Config::new()?;
+                        cfg.save();
+                        cfg
                     }
                 },
                 Err(e) => {
                     warn!("Failed to read config: {e}, using defaults");
+                    let cfg = Config::new()?;
+                    cfg.save();
+                    cfg
                 }
             }
         } else {
             info!("No config found at {}, creating defaults", path.display());
+            let cfg = Config::new()?;
+            cfg.save();
+            cfg
+        };
+
+        // Env-переменные имеют приоритет над конфиг-файлом
+        if let Ok(val) = std::env::var("AITHERFLOW_MODELS_PATH") {
+            info!("Overriding models_path from env: {val}");
+            config.models_path = PathBuf::from(val);
+        }
+        if let Ok(val) = std::env::var("AITHERFLOW_IMAGES_PATH") {
+            info!("Overriding images_path from env: {val}");
+            config.images_path = PathBuf::from(val);
+        }
+        if let Ok(val) = std::env::var("AITHERFLOW_SELECTED_MODEL") {
+            info!("Overriding selected_model from env: {val}");
+            config.selected_model = val;
         }
 
-        let config = Config::new()?;
-        config.save();
         Ok(config)
     }
 

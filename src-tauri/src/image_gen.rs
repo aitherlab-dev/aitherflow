@@ -1,4 +1,3 @@
-use hf_hub::api::sync::ApiBuilder;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -17,24 +16,24 @@ pub enum ResolutionPreset {
     Custom,
 }
 
-/// Known model definition
+/// Known model definition (for download by id)
 pub struct KnownModel {
     pub id: &'static str,
     pub name: &'static str,
     pub repo_id: &'static str,
     pub hf_file: &'static str,
-    pub size_mb: u64,
 }
 
-/// Model info returned to frontend
-#[derive(Serialize, Deserialize, Clone)]
+/// Model file found on disk, returned to frontend
+#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct ImageModel {
-    pub id: String,
+pub struct LocalModel {
+    /// Display name (filename)
     pub name: String,
-    pub repo_id: String,
+    /// Full absolute path to the model file
+    pub path: String,
+    /// File size in megabytes
     pub size_mb: u64,
-    pub downloaded: bool,
 }
 
 /// Image generation settings stored on disk
@@ -121,13 +120,13 @@ pub fn load_settings_sync() -> ImageGenSettings {
 
 /// Available models synced with MCP server (resolve_preset in tools.rs)
 pub const KNOWN_MODELS: &[KnownModel] = &[
-    KnownModel { id: "flux2-klein-4b", name: "FLUX.2 Klein 4B", repo_id: "unsloth/FLUX.2-klein-4B-GGUF", hf_file: "flux-2-klein-4b-Q8_0.gguf", size_mb: 4403 },
-    KnownModel { id: "flux2-klein-9b", name: "FLUX.2 Klein 9B", repo_id: "unsloth/FLUX.2-klein-9B-GGUF", hf_file: "flux-2-klein-9b-Q8_0.gguf", size_mb: 10220 },
-    KnownModel { id: "flux2-dev", name: "FLUX.2 Dev", repo_id: "city96/FLUX.2-dev-gguf", hf_file: "flux2-dev-Q2_K.gguf", size_mb: 13209 },
-    KnownModel { id: "flux1-dev", name: "FLUX.1 Dev", repo_id: "city96/FLUX.1-dev-gguf", hf_file: "flux1-dev-Q8_0.gguf", size_mb: 13005 },
-    KnownModel { id: "flux1-schnell", name: "FLUX.1 Schnell", repo_id: "city96/FLUX.1-schnell-gguf", hf_file: "flux1-schnell-Q8_0.gguf", size_mb: 13005 },
-    KnownModel { id: "flux1-mini", name: "FLUX.1 Mini", repo_id: "gpustack/FLUX.1-mini-GGUF", hf_file: "FLUX.1-mini-Q8_0.gguf", size_mb: 9574 },
-    KnownModel { id: "sdxl-turbo", name: "SDXL Turbo", repo_id: "stabilityai/sdxl-turbo", hf_file: "sd_xl_turbo_1.0_fp16.safetensors", size_mb: 7108 },
+    KnownModel { id: "flux2-klein-4b", name: "FLUX.2 Klein 4B", repo_id: "unsloth/FLUX.2-klein-4B-GGUF", hf_file: "flux-2-klein-4b-Q8_0.gguf" },
+    KnownModel { id: "flux2-klein-9b", name: "FLUX.2 Klein 9B", repo_id: "unsloth/FLUX.2-klein-9B-GGUF", hf_file: "flux-2-klein-9b-Q8_0.gguf" },
+    KnownModel { id: "flux2-dev", name: "FLUX.2 Dev", repo_id: "city96/FLUX.2-dev-gguf", hf_file: "flux2-dev-Q2_K.gguf" },
+    KnownModel { id: "flux1-dev", name: "FLUX.1 Dev", repo_id: "city96/FLUX.1-dev-gguf", hf_file: "flux1-dev-Q8_0.gguf" },
+    KnownModel { id: "flux1-schnell", name: "FLUX.1 Schnell", repo_id: "city96/FLUX.1-schnell-gguf", hf_file: "flux1-schnell-Q8_0.gguf" },
+    KnownModel { id: "flux1-mini", name: "FLUX.1 Mini", repo_id: "gpustack/FLUX.1-mini-GGUF", hf_file: "FLUX.1-mini-Q8_0.gguf" },
+    KnownModel { id: "sdxl-turbo", name: "SDXL Turbo", repo_id: "stabilityai/sdxl-turbo", hf_file: "sd_xl_turbo_1.0_fp16.safetensors" },
 ];
 
 #[tauri::command]
@@ -162,29 +161,58 @@ fn validate_filename(filename: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Model file extensions to look for
+const MODEL_EXTENSIONS: &[&str] = &["gguf", "safetensors"];
+
+/// Recursively scan a directory for model files (.gguf, .safetensors)
+fn scan_model_files(dir: &std::path::Path) -> Vec<LocalModel> {
+    let mut results = Vec::new();
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return results,
+    };
+    for entry in entries.flatten() {
+        let ft = match entry.file_type() {
+            Ok(ft) => ft,
+            Err(_) => continue,
+        };
+        let path = entry.path();
+        if ft.is_dir() || (ft.is_symlink() && path.is_dir()) {
+            results.extend(scan_model_files(&path));
+        } else if ft.is_file() || ft.is_symlink() {
+            if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+                if MODEL_EXTENSIONS.contains(&ext) {
+                    let name = path
+                        .file_name()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .into_owned();
+                    // std::fs::metadata follows symlinks, entry.metadata() does not
+                    let size_mb = std::fs::metadata(&path)
+                        .map(|m| m.len() / (1024 * 1024))
+                        .unwrap_or(0);
+                    results.push(LocalModel {
+                        name,
+                        path: path.to_string_lossy().into_owned(),
+                        size_mb,
+                    });
+                }
+            }
+        }
+    }
+    results
+}
+
 #[tauri::command]
-pub async fn list_image_gen_models(models_path: String) -> Result<Vec<ImageModel>, String> {
+pub async fn list_image_gen_models(models_path: String) -> Result<Vec<LocalModel>, String> {
     tokio::task::spawn_blocking(move || {
         let dir = PathBuf::from(&models_path);
         validate_path_safe(&dir)?;
-        let api = ApiBuilder::new()
-            .with_cache_dir(dir)
-            .build()
-            .map_err(|e| format!("Failed to init HF API: {e}"))?;
-        let models: Vec<ImageModel> = KNOWN_MODELS
-            .iter()
-            .map(|m| {
-                let repo = api.model(m.repo_id.to_string());
-                let downloaded = repo.get(m.hf_file).is_ok();
-                ImageModel {
-                    id: m.id.to_string(),
-                    name: m.name.to_string(),
-                    repo_id: m.repo_id.to_string(),
-                    size_mb: m.size_mb,
-                    downloaded,
-                }
-            })
-            .collect();
+        if !dir.exists() {
+            return Ok(Vec::new());
+        }
+        let mut models = scan_model_files(&dir);
+        models.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
         Ok(models)
     })
     .await
@@ -288,7 +316,6 @@ mod tests {
             assert!(!m.name.is_empty());
             assert!(!m.repo_id.is_empty());
             assert!(!m.hf_file.is_empty());
-            assert!(m.size_mb > 0);
         }
     }
 
@@ -345,31 +372,64 @@ mod tests {
         assert_eq!(loaded.selected_model, "stable-diffusion-xl");
     }
 
-    // ── Model structure ──
+    // ── Model scanning ──
 
     #[test]
-    fn known_models_unique_ids() {
-        let mut ids: Vec<&str> = KNOWN_MODELS.iter().map(|m| m.id).collect();
-        let len_before = ids.len();
-        ids.sort();
-        ids.dedup();
-        assert_eq!(ids.len(), len_before, "Model IDs must be unique");
+    fn scan_empty_dir() {
+        let tmp = TempDir::new().unwrap();
+        let models = scan_model_files(tmp.path());
+        assert!(models.is_empty());
     }
 
     #[test]
-    fn image_model_serde() {
-        let m = ImageModel {
-            id: "test".into(),
-            name: "Test Model".into(),
-            repo_id: "org/repo".into(),
-            size_mb: 1000,
-            downloaded: true,
+    fn scan_finds_gguf_and_safetensors() {
+        let tmp = TempDir::new().unwrap();
+        fs::write(tmp.path().join("model.gguf"), b"fake gguf").unwrap();
+        fs::write(tmp.path().join("model.safetensors"), b"fake safetensors").unwrap();
+        fs::write(tmp.path().join("readme.txt"), b"not a model").unwrap();
+        let models = scan_model_files(tmp.path());
+        assert_eq!(models.len(), 2);
+        let names: Vec<&str> = models.iter().map(|m| m.name.as_str()).collect();
+        assert!(names.contains(&"model.gguf"));
+        assert!(names.contains(&"model.safetensors"));
+    }
+
+    #[test]
+    fn scan_recursive_hf_structure() {
+        let tmp = TempDir::new().unwrap();
+        // Simulate hf-hub cache: models--org--repo/snapshots/hash/file.gguf
+        let snapshot = tmp.path().join("models--org--repo/snapshots/abc123");
+        fs::create_dir_all(&snapshot).unwrap();
+        fs::write(snapshot.join("flux-q8.gguf"), b"model data").unwrap();
+        let models = scan_model_files(tmp.path());
+        assert_eq!(models.len(), 1);
+        assert_eq!(models[0].name, "flux-q8.gguf");
+        assert!(models[0].path.contains("snapshots"));
+    }
+
+    #[test]
+    fn scan_returns_full_path_and_size() {
+        let tmp = TempDir::new().unwrap();
+        let data = vec![0u8; 2 * 1024 * 1024]; // 2 MB
+        fs::write(tmp.path().join("big.gguf"), &data).unwrap();
+        let models = scan_model_files(tmp.path());
+        assert_eq!(models.len(), 1);
+        assert_eq!(models[0].size_mb, 2);
+        assert!(models[0].path.ends_with("big.gguf"));
+    }
+
+    #[test]
+    fn local_model_serde() {
+        let m = LocalModel {
+            name: "test.gguf".into(),
+            path: "/models/test.gguf".into(),
+            size_mb: 5000,
         };
         let json = serde_json::to_string(&m).unwrap();
-        assert!(json.contains("repoId")); // camelCase
-        let restored: ImageModel = serde_json::from_str(&json).unwrap();
-        assert_eq!(restored.id, "test");
-        assert!(restored.downloaded);
+        assert!(json.contains("sizeMb")); // camelCase
+        let restored: LocalModel = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.name, "test.gguf");
+        assert_eq!(restored.path, "/models/test.gguf");
     }
 
     // ── Model deletion ──
@@ -381,7 +441,6 @@ mod tests {
         let file = dir.join("test-model.safetensors");
         fs::write(&file, b"model data").unwrap();
         assert!(file.exists());
-        // Simulate delete logic
         let path = PathBuf::from(dir).join("test-model.safetensors");
         if path.exists() {
             fs::remove_file(&path).unwrap();
@@ -394,7 +453,6 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let dir = tmp.path();
         let path = dir.join("nonexistent.safetensors");
-        // Should not error — matches the command logic (if path.exists())
         if path.exists() {
             fs::remove_file(&path).unwrap();
         }

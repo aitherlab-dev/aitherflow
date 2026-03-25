@@ -44,6 +44,12 @@ fn resolve_mcp_image_gen_binary() -> Option<std::path::PathBuf> {
     None
 }
 
+/// Read HuggingFace token from ~/.cache/huggingface/token (if it exists).
+fn read_hf_token() -> Option<String> {
+    let path = dirs::home_dir()?.join(".cache/huggingface/token");
+    std::fs::read_to_string(path).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
+}
+
 fn resolve_claude_binary() -> String {
     // Check if `claude` is already in PATH
     let which_cmd = if cfg!(windows) { "where" } else { "which" };
@@ -339,14 +345,22 @@ pub async fn run_cli_session(
         let image_settings = crate::image_gen::load_settings_sync();
         if image_settings.image_mcp_enabled {
             if let Some(bin_path) = resolve_mcp_image_gen_binary() {
+                let mut env = serde_json::json!({
+                    "HF_HOME": &image_settings.models_path,
+                    "AITHERFLOW_MODELS_PATH": &image_settings.models_path,
+                    "AITHERFLOW_IMAGES_PATH": &image_settings.images_path
+                });
+                // Pass HF token so gated models can be downloaded
+                if let Some(token) = read_hf_token() {
+                    env.as_object_mut().unwrap().insert(
+                        "HF_TOKEN".into(),
+                        serde_json::Value::String(token),
+                    );
+                }
                 mcp_servers.insert("aitherflow-image-gen".into(), serde_json::json!({
                     "type": "stdio",
                     "command": bin_path.to_string_lossy(),
-                    "env": {
-                        "HF_HOME": &image_settings.models_path,
-                        "AITHERFLOW_MODELS_PATH": &image_settings.models_path,
-                        "AITHERFLOW_IMAGES_PATH": &image_settings.images_path
-                    }
+                    "env": env
                 }));
             } else {
                 eprintln!("[{tag}] mcp-image-gen binary not found, skipping image generation MCP");
