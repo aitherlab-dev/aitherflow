@@ -14,6 +14,36 @@ const MAX_STDERR_BYTES: usize = 64 * 1024;
 
 /// Resolve the `claude` CLI binary path.
 /// Checks PATH first, then common install locations per platform.
+/// Find the mcp-image-gen binary. Checks next to current exe (workspace dev build
+/// and Tauri sidecar bundle).
+fn resolve_mcp_image_gen_binary() -> Option<std::path::PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    let dir = exe.parent()?;
+
+    // Plain name (workspace dev build — both binaries in target/debug/)
+    let plain = dir.join("mcp-image-gen");
+    if plain.exists() {
+        return Some(plain);
+    }
+
+    // Tauri sidecar with target triple
+    let target_triple = if cfg!(target_os = "macos") {
+        if cfg!(target_arch = "aarch64") {
+            "aarch64-apple-darwin"
+        } else {
+            "x86_64-apple-darwin"
+        }
+    } else {
+        "x86_64-unknown-linux-gnu"
+    };
+    let with_triple = dir.join(format!("mcp-image-gen-{target_triple}"));
+    if with_triple.exists() {
+        return Some(with_triple);
+    }
+
+    None
+}
+
 fn resolve_claude_binary() -> String {
     // Check if `claude` is already in PATH
     let which_cmd = if cfg!(windows) { "where" } else { "which" };
@@ -301,6 +331,26 @@ pub async fn run_cli_session(
                     "Authorization": format!("Bearer {token}")
                 }
             }));
+        }
+    }
+
+    // Image generation MCP (stdio sidecar — controlled by image_mcp_enabled setting)
+    {
+        let image_settings = crate::image_gen::load_settings_sync();
+        if image_settings.image_mcp_enabled {
+            if let Some(bin_path) = resolve_mcp_image_gen_binary() {
+                mcp_servers.insert("aitherflow-image-gen".into(), serde_json::json!({
+                    "type": "stdio",
+                    "command": bin_path.to_string_lossy(),
+                    "env": {
+                        "HF_HOME": &image_settings.models_path,
+                        "AITHERFLOW_MODELS_PATH": &image_settings.models_path,
+                        "AITHERFLOW_IMAGES_PATH": &image_settings.images_path
+                    }
+                }));
+            } else {
+                eprintln!("[{tag}] mcp-image-gen binary not found, skipping image generation MCP");
+            }
         }
     }
 

@@ -55,6 +55,12 @@ pub struct ImageGenSettings {
     pub steps: i32,
     #[serde(default = "default_selected_model")]
     pub selected_model: String,
+    #[serde(default = "default_true")]
+    pub image_mcp_enabled: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl Default for ImageGenSettings {
@@ -67,6 +73,7 @@ impl Default for ImageGenSettings {
             height: default_size(),
             steps: default_steps(),
             selected_model: default_selected_model(),
+            image_mcp_enabled: true,
         }
     }
 }
@@ -100,6 +107,16 @@ fn default_selected_model() -> String {
 /// Path to image-gen settings file
 fn settings_path() -> PathBuf {
     config::config_dir().join("image-gen").join("settings.json")
+}
+
+/// Load settings synchronously (for use in conductor/process.rs)
+pub fn load_settings_sync() -> ImageGenSettings {
+    let path = settings_path();
+    if path.exists() {
+        read_json::<ImageGenSettings>(&path).unwrap_or_default()
+    } else {
+        ImageGenSettings::default()
+    }
 }
 
 /// Available models synced with MCP server (resolve_preset in tools.rs)
@@ -225,6 +242,7 @@ mod tests {
             height: 1024,
             steps: 30,
             selected_model: "flux-schnell".into(),
+            ..Default::default()
         };
         let json = serde_json::to_string(&s).unwrap();
         let restored: ImageGenSettings = serde_json::from_str(&json).unwrap();
@@ -313,6 +331,7 @@ mod tests {
             height: 576,
             steps: 35,
             selected_model: "stable-diffusion-xl".into(),
+            ..Default::default()
         };
         write_json(&path, &original).unwrap();
         assert!(path.exists());
