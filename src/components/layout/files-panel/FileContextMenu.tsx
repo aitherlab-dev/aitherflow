@@ -9,7 +9,10 @@ import {
   Clipboard,
   Trash2,
   Pencil,
+  Paperclip,
 } from "lucide-react";
+import { useAttachmentStore } from "../../../stores/attachmentStore";
+import { useChatStore } from "../../../stores/chatStore";
 import type { ContextMenuState } from "./types";
 
 export const FileContextMenu = memo(function FileContextMenu({
@@ -64,6 +67,20 @@ export const FileContextMenu = memo(function FileContextMenu({
             <Clipboard size={14} />
             <span>Copy Path</span>
           </button>
+          {!menu.entry.isDir && (
+            <button
+              type="button"
+              className="files-context-menu__item"
+              disabled={!useChatStore.getState().currentChatId}
+              onClick={() => {
+                useAttachmentStore.getState().queueAttachment(menu.entry!.path);
+                onClose();
+              }}
+            >
+              <Paperclip size={14} />
+              <span>Attach to Message</span>
+            </button>
+          )}
           <button type="button" className="files-context-menu__item" onClick={onCopy}>
             <Copy size={14} />
             <span>Copy</span>
