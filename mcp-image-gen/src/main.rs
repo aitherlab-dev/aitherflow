@@ -76,13 +76,16 @@ fn main() {
             std::process::exit(1);
         }
     };
-    config.ensure_dirs();
-
-    // Set HF_HOME = models_path so everything (models, VAE, CLIP) goes there
+    // Validate paths before creating directories
     if let Err(e) = tools::validate_path_safe(&config.models_path) {
         error!("Invalid models_path: {e}");
         std::process::exit(1);
     }
+    if let Err(e) = tools::validate_path_safe(&config.images_path) {
+        error!("Invalid images_path: {e}");
+        std::process::exit(1);
+    }
+    config.ensure_dirs();
     // SAFETY: called before spawning any threads
     unsafe { std::env::set_var("HF_HOME", &config.models_path) };
 
