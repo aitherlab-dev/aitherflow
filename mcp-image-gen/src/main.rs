@@ -6,10 +6,11 @@ use config::Config;
 use mcp::{JsonRpcRequest, JsonRpcResponse};
 use serde_json::{json, Value};
 use std::io::{self, BufRead, Write};
+use std::sync::mpsc;
+use std::thread;
 use tracing::{error, info};
 
 fn main() {
-    // Log to stderr (stdout is reserved for MCP JSON-RPC)
     tracing_subscriber::fmt()
         .with_writer(io::stderr)
         .with_env_filter(
@@ -20,7 +21,13 @@ fn main() {
 
     info!("mcp-image-gen server starting");
 
-    let config = Config::load();
+    let config = match Config::load() {
+        Ok(c) => c,
+        Err(e) => {
+            error!("Failed to load config: {e}");
+            std::process::exit(1);
+        }
+    };
     config.ensure_dirs();
 
     info!(
@@ -33,7 +40,15 @@ fn main() {
     let stdin = io::stdin();
     let mut stdout = io::stdout();
 
+    // Channel for async tool results
+    let (result_tx, result_rx) = mpsc::channel::<JsonRpcResponse>();
+
     for line in stdin.lock().lines() {
+        // Drain any completed async results first
+        while let Ok(response) = result_rx.try_recv() {
+            write_response(&mut stdout, &response);
+        }
+
         let line = match line {
             Ok(l) => l,
             Err(e) => {
@@ -61,17 +76,24 @@ fn main() {
             }
         };
 
-        // Notifications (no id) don't need a response
+        // Notifications have no id — don't respond
         let id = match request.id {
             Some(id) => id,
-            None => continue,
+            None => {
+                if request.method == "notifications/initialized" {
+                    info!("Client initialized notification received");
+                }
+                continue;
+            }
         };
 
         let response = match request.method.as_str() {
             "initialize" => handle_initialize(id),
-            "notifications/initialized" => continue,
             "tools/list" => handle_tools_list(id),
-            "tools/call" => handle_tools_call(id, &request.params, &config),
+            "tools/call" => {
+                handle_tools_call(id, &request.params, &config, &result_tx, &mut stdout);
+                continue;
+            }
             method => {
                 info!("Unknown method: {method}");
                 JsonRpcResponse::error(id, -32601, format!("Method not found: {method}"))
@@ -170,25 +192,48 @@ fn handle_tools_list(id: Value) -> JsonRpcResponse {
     )
 }
 
-fn handle_tools_call(id: Value, params: &Value, config: &Config) -> JsonRpcResponse {
+fn handle_tools_call(
+    id: Value,
+    params: &Value,
+    config: &Config,
+    result_tx: &mpsc::Sender<JsonRpcResponse>,
+    stdout: &mut io::Stdout,
+) {
     let tool_name = params
         .get("name")
         .and_then(|n| n.as_str())
         .unwrap_or("");
 
     match tool_name {
-        "generate_image" => match tools::generate_image(params, config) {
-            Ok(msg) => JsonRpcResponse::tool_result(id, msg),
-            Err(e) => JsonRpcResponse::tool_error(id, e),
-        },
-        "list_models" => match tools::list_models(config) {
-            Ok(msg) => JsonRpcResponse::tool_result(id, msg),
-            Err(e) => JsonRpcResponse::tool_error(id, e),
-        },
-        _ => JsonRpcResponse::error(
-            id,
-            -32602,
-            format!("Unknown tool: {tool_name}"),
-        ),
+        "generate_image" => {
+            // Run generation in a separate thread so we don't block stdin
+            let params = params.clone();
+            let config = config.clone();
+            let tx = result_tx.clone();
+            thread::spawn(move || {
+                let response = match tools::generate_image(&params, &config) {
+                    Ok(msg) => JsonRpcResponse::tool_result(id, msg),
+                    Err(e) => JsonRpcResponse::tool_error(id, e),
+                };
+                if let Err(e) = tx.send(response) {
+                    error!("Failed to send result back: {e}");
+                }
+            });
+        }
+        "list_models" => {
+            let response = match tools::list_models(config) {
+                Ok(msg) => JsonRpcResponse::tool_result(id, msg),
+                Err(e) => JsonRpcResponse::tool_error(id, e),
+            };
+            write_response(stdout, &response);
+        }
+        _ => {
+            let response = JsonRpcResponse::error(
+                id,
+                -32602,
+                format!("Unknown tool: {tool_name}"),
+            );
+            write_response(stdout, &response);
+        }
     }
 }

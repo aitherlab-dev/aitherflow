@@ -8,7 +8,24 @@ use diffusion_rs::preset::{
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::fs;
+use std::path::{Component, Path};
 use tracing::{error, info};
+
+/// Validate that a path is safe: no traversal components, must be absolute.
+fn validate_path_safe(path: &Path) -> Result<(), String> {
+    if !path.is_absolute() {
+        return Err(format!("Path must be absolute: {}", path.display()));
+    }
+    for component in path.components() {
+        if matches!(component, Component::ParentDir) {
+            return Err(format!(
+                "Path traversal detected (..): {}",
+                path.display()
+            ));
+        }
+    }
+    Ok(())
+}
 
 pub fn generate_image(params: &Value, config: &Config) -> Result<String, String> {
     let args = params.get("arguments").ok_or("Missing arguments")?;
@@ -27,26 +44,29 @@ pub fn generate_image(params: &Value, config: &Config) -> Result<String, String>
 
     let width = args
         .get("width")
-        .and_then(|v| v.as_u64())
-        .map(|v| v as i32)
-        .unwrap_or(config.default_width as i32);
+        .and_then(|v| v.as_i64())
+        .and_then(|v| i32::try_from(v).ok())
+        .unwrap_or(config.default_width);
 
     let height = args
         .get("height")
-        .and_then(|v| v.as_u64())
-        .map(|v| v as i32)
-        .unwrap_or(config.default_height as i32);
+        .and_then(|v| v.as_i64())
+        .and_then(|v| i32::try_from(v).ok())
+        .unwrap_or(config.default_height);
 
     let steps = args
         .get("steps")
-        .and_then(|v| v.as_u64())
-        .map(|v| v as i32)
-        .unwrap_or(config.default_steps as i32);
+        .and_then(|v| v.as_i64())
+        .and_then(|v| i32::try_from(v).ok())
+        .unwrap_or(config.default_steps);
 
     let seed = args
         .get("seed")
         .and_then(|v| v.as_i64())
         .unwrap_or(-1);
+
+    // Validate output path
+    validate_path_safe(&config.output_path)?;
 
     // Generate output filename: timestamp + short hash of prompt
     let timestamp = Utc::now().format("%Y%m%d_%H%M%S");
@@ -56,6 +76,9 @@ pub fn generate_image(params: &Value, config: &Config) -> Result<String, String>
     let short_hash = &hash[..8];
     let filename = format!("{timestamp}_{short_hash}.png");
     let output_path = config.output_path.join(&filename);
+
+    // Validate the full output path too
+    validate_path_safe(&output_path)?;
 
     info!(
         prompt = %prompt,
@@ -68,6 +91,10 @@ pub fn generate_image(params: &Value, config: &Config) -> Result<String, String>
     );
 
     let preset = resolve_preset(&config.default_model)?;
+
+    // Point HuggingFace Hub cache to our models_path
+    validate_path_safe(&config.models_path)?;
+    std::env::set_var("HF_HOME", &config.models_path);
 
     let out = output_path.clone();
     let neg = negative_prompt.clone();
@@ -97,11 +124,12 @@ pub fn generate_image(params: &Value, config: &Config) -> Result<String, String>
     info!("Image saved to {}", output_path.display());
 
     Ok(format!(
-        "Image generated successfully.\nPath: {}\nSize: {}x{}\nSteps: {}\nPrompt: {}",
+        "Image generated successfully.\nPath: {}\nSize: {}x{}\nSteps: {}\nSeed: {}\nPrompt: {}",
         output_path.display(),
         width,
         height,
         steps,
+        seed,
         prompt
     ))
 }

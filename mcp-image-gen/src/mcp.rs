@@ -3,8 +3,8 @@ use serde_json::Value;
 
 #[derive(Deserialize)]
 pub struct JsonRpcRequest {
-    #[allow(dead_code)]
-    pub jsonrpc: String,
+    #[serde(rename = "jsonrpc")]
+    pub _jsonrpc: String,
     pub id: Option<Value>,
     pub method: String,
     #[serde(default)]

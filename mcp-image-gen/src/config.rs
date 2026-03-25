@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
-use std::fs;
 use std::path::PathBuf;
+use std::{fs, io};
 use tracing::{info, warn};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -8,46 +8,45 @@ pub struct Config {
     pub models_path: PathBuf,
     pub output_path: PathBuf,
     pub default_model: String,
-    pub default_width: u32,
-    pub default_height: u32,
-    pub default_steps: u32,
+    pub default_width: i32,
+    pub default_height: i32,
+    pub default_steps: i32,
 }
 
-impl Default for Config {
-    fn default() -> Self {
+impl Config {
+    pub fn new() -> Result<Self, String> {
         let data_dir = dirs::data_dir()
-            .unwrap_or_else(|| PathBuf::from("/tmp"))
-            .join("aither-flow");
+            .ok_or("Cannot determine data directory (XDG_DATA_HOME)")?;
+        let data_dir = data_dir.join("aither-flow");
 
-        Self {
+        Ok(Self {
             models_path: data_dir.join("models"),
             output_path: data_dir.join("images"),
             default_model: "FLUX.2-klein-4B".into(),
             default_width: 1024,
             default_height: 1024,
             default_steps: 20,
-        }
+        })
     }
-}
 
-impl Config {
-    pub fn config_path() -> PathBuf {
-        dirs::config_dir()
-            .unwrap_or_else(|| PathBuf::from("/tmp"))
+    pub fn config_path() -> Result<PathBuf, String> {
+        let config_dir = dirs::config_dir()
+            .ok_or("Cannot determine config directory (XDG_CONFIG_HOME)")?;
+        Ok(config_dir
             .join("aither-flow")
             .join("image-gen")
-            .join("settings.json")
+            .join("settings.json"))
     }
 
-    pub fn load() -> Self {
-        let path = Self::config_path();
+    pub fn load() -> Result<Self, String> {
+        let path = Self::config_path()?;
 
         if path.exists() {
             match fs::read_to_string(&path) {
                 Ok(content) => match serde_json::from_str::<Config>(&content) {
                     Ok(config) => {
                         info!("Config loaded from {}", path.display());
-                        return config;
+                        return Ok(config);
                     }
                     Err(e) => {
                         warn!("Failed to parse config: {e}, using defaults");
@@ -58,16 +57,22 @@ impl Config {
                 }
             }
         } else {
-            info!("No config found at {}, using defaults", path.display());
+            info!("No config found at {}, creating defaults", path.display());
         }
 
-        let config = Config::default();
+        let config = Config::new()?;
         config.save();
-        config
+        Ok(config)
     }
 
     pub fn save(&self) {
-        let path = Self::config_path();
+        let path = match Self::config_path() {
+            Ok(p) => p,
+            Err(e) => {
+                warn!("Cannot determine config path: {e}");
+                return;
+            }
+        };
 
         if let Some(parent) = path.parent() {
             if let Err(e) = fs::create_dir_all(parent) {
@@ -78,7 +83,7 @@ impl Config {
 
         match serde_json::to_string_pretty(self) {
             Ok(json) => {
-                if let Err(e) = fs::write(&path, json) {
+                if let Err(e) = atomic_write(&path, json.as_bytes()) {
                     warn!("Failed to write config: {e}");
                 }
             }
@@ -96,4 +101,16 @@ impl Config {
             warn!("Failed to create output dir: {e}");
         }
     }
+}
+
+/// Write to a temp file in the same directory, then atomically rename.
+fn atomic_write(path: &PathBuf, data: &[u8]) -> io::Result<()> {
+    let parent = path.parent().ok_or_else(|| {
+        io::Error::new(io::ErrorKind::InvalidInput, "path has no parent directory")
+    })?;
+    let tmp_path = parent.join(format!(".tmp_{}", std::process::id()));
+    fs::write(&tmp_path, data)?;
+    fs::rename(&tmp_path, path).inspect_err(|_| {
+        let _ = fs::remove_file(&tmp_path);
+    })
 }
