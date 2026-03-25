@@ -46,19 +46,19 @@ pub fn generate_image(params: &Value, config: &Config) -> Result<String, String>
         .get("width")
         .and_then(|v| v.as_i64())
         .and_then(|v| i32::try_from(v).ok())
-        .unwrap_or(config.default_width);
+        .unwrap_or(config.width);
 
     let height = args
         .get("height")
         .and_then(|v| v.as_i64())
         .and_then(|v| i32::try_from(v).ok())
-        .unwrap_or(config.default_height);
+        .unwrap_or(config.height);
 
     let steps = args
         .get("steps")
         .and_then(|v| v.as_i64())
         .and_then(|v| i32::try_from(v).ok())
-        .unwrap_or(config.default_steps);
+        .unwrap_or(config.steps);
 
     let seed = args
         .get("seed")
@@ -66,7 +66,7 @@ pub fn generate_image(params: &Value, config: &Config) -> Result<String, String>
         .unwrap_or(-1);
 
     // Validate output path
-    validate_path_safe(&config.output_path)?;
+    validate_path_safe(&config.images_path)?;
 
     // Generate output filename: timestamp + short hash of prompt
     let timestamp = Utc::now().format("%Y%m%d_%H%M%S");
@@ -75,7 +75,7 @@ pub fn generate_image(params: &Value, config: &Config) -> Result<String, String>
     let hash = format!("{:x}", hasher.finalize());
     let short_hash = &hash[..8];
     let filename = format!("{timestamp}_{short_hash}.png");
-    let output_path = config.output_path.join(&filename);
+    let output_path = config.images_path.join(&filename);
 
     // Validate the full output path too
     validate_path_safe(&output_path)?;
@@ -90,7 +90,7 @@ pub fn generate_image(params: &Value, config: &Config) -> Result<String, String>
         "Generating image"
     );
 
-    let preset = resolve_preset(&config.default_model)?;
+    let preset = resolve_preset(&config.selected_model)?;
 
     let out = output_path.clone();
     let neg = negative_prompt.clone();
@@ -119,15 +119,16 @@ pub fn generate_image(params: &Value, config: &Config) -> Result<String, String>
 
     info!("Image saved to {}", output_path.display());
 
-    Ok(format!(
-        "Image generated successfully.\nPath: {}\nSize: {}x{}\nSteps: {}\nSeed: {}\nPrompt: {}",
-        output_path.display(),
-        width,
-        height,
-        steps,
-        seed,
-        prompt
-    ))
+    let result = serde_json::json!({
+        "path": output_path.to_string_lossy(),
+        "width": width,
+        "height": height,
+        "steps": steps,
+        "seed": seed,
+        "prompt": prompt
+    });
+
+    Ok(result.to_string())
 }
 
 pub fn list_models(config: &Config) -> Result<String, String> {
@@ -169,7 +170,7 @@ pub fn list_models(config: &Config) -> Result<String, String> {
         models_dir.display()
     );
     result.push_str(&models.join("\n"));
-    result.push_str(&format!("\n\nDefault model: {}", config.default_model));
+    result.push_str(&format!("\n\nDefault model: {}", config.selected_model));
 
     Ok(result)
 }

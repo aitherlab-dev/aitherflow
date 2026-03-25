@@ -4,13 +4,14 @@ use std::{fs, io};
 use tracing::{info, warn};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Config {
     pub models_path: PathBuf,
-    pub output_path: PathBuf,
-    pub default_model: String,
-    pub default_width: i32,
-    pub default_height: i32,
-    pub default_steps: i32,
+    pub images_path: PathBuf,
+    pub selected_model: String,
+    pub width: i32,
+    pub height: i32,
+    pub steps: i32,
 }
 
 impl Config {
@@ -21,11 +22,11 @@ impl Config {
 
         Ok(Self {
             models_path: data_dir.join("models"),
-            output_path: data_dir.join("images"),
-            default_model: "FLUX.2-klein-4B".into(),
-            default_width: 1024,
-            default_height: 1024,
-            default_steps: 20,
+            images_path: data_dir.join("images"),
+            selected_model: "FLUX.2-klein-4B".into(),
+            width: 1024,
+            height: 1024,
+            steps: 20,
         })
     }
 
@@ -97,8 +98,8 @@ impl Config {
         if let Err(e) = fs::create_dir_all(&self.models_path) {
             warn!("Failed to create models dir: {e}");
         }
-        if let Err(e) = fs::create_dir_all(&self.output_path) {
-            warn!("Failed to create output dir: {e}");
+        if let Err(e) = fs::create_dir_all(&self.images_path) {
+            warn!("Failed to create images dir: {e}");
         }
     }
 }
