@@ -46,8 +46,8 @@ fn main() {
 
     info!(
         models_path = %config.models_path.display(),
-        output_path = %config.output_path.display(),
-        default_model = %config.default_model,
+        images_path = %config.images_path.display(),
+        selected_model = %config.selected_model,
         "Config loaded"
     );
 
