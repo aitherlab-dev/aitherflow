@@ -16,24 +16,25 @@ pub struct AnthropicAuthStatus {
 }
 
 /// Read OAuth credentials from CLI's credentials file.
-#[cfg(unix)]
 fn read_oauth_token() -> Result<(String, u64), String> {
-    use std::os::unix::fs::MetadataExt;
-
     let home = crate::config::home_dir();
     let cred_path = home.join(".claude").join(".credentials.json");
 
-    // Check file permissions before reading sensitive data
-    let meta = std::fs::metadata(&cred_path)
-        .map_err(|_| "Not logged in to Claude CLI (no credentials file)")?;
-    let mode = meta.mode();
-    if mode & 0o077 != 0 {
-        return Err(format!(
-            "Credentials file {:?} has unsafe permissions ({:o}). Run: chmod 600 {:?}",
-            cred_path,
-            mode & 0o777,
-            cred_path
-        ));
+    // Check file permissions before reading sensitive data (Unix only)
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        let meta = std::fs::metadata(&cred_path)
+            .map_err(|_| "Not logged in to Claude CLI (no credentials file)")?;
+        let mode = meta.mode();
+        if mode & 0o077 != 0 {
+            return Err(format!(
+                "Credentials file {:?} has unsafe permissions ({:o}). Run: chmod 600 {:?}",
+                cred_path,
+                mode & 0o777,
+                cred_path
+            ));
+        }
     }
 
     let data = std::fs::read_to_string(&cred_path)
