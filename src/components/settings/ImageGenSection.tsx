@@ -49,7 +49,7 @@ interface ModelDefinition {
   lora_strength: number;
 }
 
-type ModelType = "flux2" | "flux1" | "sdxl";
+type ModelType = "flux2" | "flux1" | "sdxl" | "zimage";
 
 const RESOLUTION_PRESETS: Record<string, { label: string; w: number; h: number }> = {
   square: { label: "Square (1024×1024)", w: 1024, h: 1024 },
@@ -135,6 +135,19 @@ function buildModelDefinition(
       t5xxl: { repo: "Green-Sky/flux.1-schnell-GGUF", file: "t5xxl_q8_0.gguf" },
       steps: 28,
       cfg_scale: 1.0,
+      vae_tiling: true,
+    };
+  }
+
+  if (type === "zimage") {
+    return {
+      ...base,
+      vae: { repo: "ffxvs/vae-flux", file: "ae.safetensors" },
+      llm: { repo: "unsloth/Qwen3-4B-GGUF", file: "Qwen3-4B-Q8_0.gguf" },
+      steps: 8,
+      cfg_scale: 1.0,
+      offload_cpu: true,
+      flash_attn: true,
       vae_tiling: true,
     };
   }
@@ -676,6 +689,7 @@ export const ImageGenSection = memo(function ImageGenSection() {
               <option value="flux2">FLUX.2</option>
               <option value="flux1">FLUX.1</option>
               <option value="sdxl">SDXL</option>
+              <option value="zimage">Z-Image</option>
             </select>
           </div>
           <div className="settings-toggle-row">
