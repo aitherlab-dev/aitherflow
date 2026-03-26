@@ -62,6 +62,8 @@ pub struct ModelDefinition {
     pub lora: Option<String>,
     #[serde(default = "default_lora_strength")]
     pub lora_strength: f32,
+    #[serde(default = "default_true")]
+    pub lora_enabled: bool,
 }
 
 fn default_json_steps() -> i32 { 4 }
@@ -79,6 +81,7 @@ pub struct ImageModel {
     pub downloaded: bool,
     pub lora: Option<String>,
     pub lora_strength: f32,
+    pub lora_enabled: bool,
 }
 
 /// Image generation settings stored on disk
@@ -193,6 +196,7 @@ fn default_model_definition() -> ModelDefinition {
         size_mb: 4403,
         lora: None,
         lora_strength: 1.0,
+        lora_enabled: true,
     }
 }
 
@@ -299,6 +303,7 @@ pub async fn list_image_gen_models(models_path: String) -> Result<Vec<ImageModel
                 downloaded: is_model_downloaded(&dir, &m.diffusion.repo, &m.diffusion.file),
                 lora: m.lora.clone(),
                 lora_strength: m.lora_strength,
+                lora_enabled: m.lora_enabled,
             })
             .collect();
         Ok(models)
@@ -361,6 +366,7 @@ pub async fn update_image_gen_model_lora(
     model_id: String,
     lora_path: Option<String>,
     lora_strength: f32,
+    enabled: bool,
 ) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
         if let Some(ref p) = lora_path {
@@ -373,6 +379,7 @@ pub async fn update_image_gen_model_lora(
             .ok_or_else(|| format!("Model '{}' not found", model_id))?;
         model.lora = lora_path;
         model.lora_strength = lora_strength;
+        model.lora_enabled = enabled;
         save_model_definitions(&models_json_path(), &models)
     })
     .await
@@ -559,6 +566,7 @@ mod tests {
             downloaded: true,
             lora: Some("/path/to/lora.safetensors".into()),
             lora_strength: 0.8,
+            lora_enabled: true,
         };
         let json = serde_json::to_string(&m).unwrap();
         assert!(json.contains("repoId")); // camelCase

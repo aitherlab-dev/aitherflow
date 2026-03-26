@@ -16,6 +16,7 @@ interface ImageModel {
   downloaded: boolean;
   lora: string | null;
   loraStrength: number;
+  loraEnabled: boolean;
 }
 
 export const ImageGenCard = memo(function ImageGenCard({
@@ -28,8 +29,7 @@ export const ImageGenCard = memo(function ImageGenCard({
   const [settings, setSettings] = useState<ImageGenSettings | null>(null);
   const [models, setModels] = useState<ImageModel[]>([]);
 
-  useEffect(() => {
-    if (!expanded) return;
+  const loadData = useCallback(() => {
     invoke<ImageGenSettings>("load_image_gen_settings")
       .then((s) => {
         setSettings(s);
@@ -38,13 +38,54 @@ export const ImageGenCard = memo(function ImageGenCard({
           .catch(console.error);
       })
       .catch(console.error);
-  }, [expanded]);
+  }, []);
+
+  useEffect(() => {
+    if (expanded) loadData();
+  }, [expanded, loadData]);
 
   const selected = models.find((m) => m.id === settings?.selectedModel);
   const isReady = selected?.downloaded ?? false;
+  const hasLora = !!selected?.lora;
   const loraFile = selected?.lora
     ? selected.lora.split("/").pop() ?? selected.lora
     : null;
+
+  // Header status: model name + LoRA status
+  const statusParts: string[] = [];
+  if (selected) statusParts.push(selected.name);
+  if (hasLora) statusParts.push(selected!.loraEnabled ? "LoRA: on" : "LoRA: off");
+  const statusText = statusParts.join(" · ") || "";
+
+  const handleModelChange = useCallback(
+    async (modelId: string) => {
+      if (!settings) return;
+      const updated = { ...settings, selectedModel: modelId };
+      setSettings(updated);
+      try {
+        await invoke("save_image_gen_settings", { settings: updated });
+      } catch (e) {
+        console.error("Failed to save settings:", e);
+      }
+    },
+    [settings],
+  );
+
+  const handleLoraToggle = useCallback(async () => {
+    if (!settings || !selected) return;
+    const newEnabled = !selected.loraEnabled;
+    try {
+      await invoke("update_image_gen_model_lora", {
+        modelId: selected.id,
+        loraPath: selected.lora,
+        loraStrength: selected.loraStrength,
+        enabled: newEnabled,
+      });
+      loadData();
+    } catch (e) {
+      console.error("Failed to toggle LoRA:", e);
+    }
+  }, [settings, selected, loadData]);
 
   const handleOpenSettings = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -64,27 +105,51 @@ export const ImageGenCard = memo(function ImageGenCard({
       id="imagegen"
       icon={Image}
       title="Image Gen"
-      statusText={isReady ? "Ready" : selected ? "Not downloaded" : ""}
+      statusText={statusText}
       statusColor={isReady ? "green" : selected ? "gray" : "dim"}
       expanded={expanded}
       onToggle={onToggle}
       headerExtra={settingsBtn}
     >
       <div className="dash-card__details">
+        {/* Model selector */}
         <div className="dash-card__row">
           <span className="dash-card__label">Model</span>
-          <span>{selected?.name ?? settings?.selectedModel ?? "—"}</span>
+          <select
+            className="dash-card__select"
+            value={settings?.selectedModel ?? ""}
+            onChange={(e) => handleModelChange(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {models.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name} {m.downloaded ? "✓" : ""}
+              </option>
+            ))}
+          </select>
         </div>
+
+        {/* LoRA status + toggle */}
         <div className="dash-card__row">
           <span className="dash-card__label">LoRA</span>
-          {loraFile ? (
-            <span>
-              {loraFile} ({selected!.loraStrength.toFixed(1)})
-            </span>
+          {hasLora ? (
+            <>
+              <span>
+                {loraFile} ({selected!.loraStrength.toFixed(1)})
+              </span>
+              <button
+                className={`dash-card__toggle ${selected!.loraEnabled ? "dash-card__toggle--on" : ""}`}
+                onClick={(e) => { e.stopPropagation(); handleLoraToggle(); }}
+              >
+                <span className="dash-card__toggle-knob" />
+              </button>
+            </>
           ) : (
             <span className="dash-card__dim">No LoRA</span>
           )}
         </div>
+
+        {/* Models dir */}
         {settings && (
           <div className="dash-card__row">
             <span className="dash-card__label">Models dir</span>

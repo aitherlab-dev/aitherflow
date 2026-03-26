@@ -325,3 +325,14 @@
 .dash-card__toggle--on .dash-card__toggle-knob {
   transform: translateX(14px);
 }
+
+.dash-card__select {
+  font-size: 0.72rem;
+  padding: 2px 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-card);
+  color: var(--fg);
+  cursor: pointer;
+  max-width: 160px;
+}

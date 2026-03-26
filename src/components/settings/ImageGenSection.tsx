@@ -21,6 +21,7 @@ interface ImageModel {
   downloaded: boolean;
   lora: string | null;
   loraStrength: number;
+  loraEnabled: boolean;
 }
 
 interface RepoFile {
@@ -352,15 +353,17 @@ export const ImageGenSection = memo(function ImageGenSection() {
   }, [settings?.selectedModel, models]);
 
   const handleLoraUpdate = useCallback(
-    async (path: string | null, strength: number) => {
+    async (path: string | null, strength: number, enabled?: boolean) => {
       if (!settings) return;
       const isCustom = !models.some((m) => m.id === settings.selectedModel);
       if (isCustom) return;
+      const model = models.find((m) => m.id === settings.selectedModel);
       try {
         await invoke("update_image_gen_model_lora", {
           modelId: settings.selectedModel,
           loraPath: path,
           loraStrength: strength,
+          enabled: enabled ?? model?.loraEnabled ?? true,
         });
       } catch (e) {
         console.error("LoRA update failed:", e);
