@@ -53,22 +53,16 @@ pub fn atomic_write(path: &Path, data: &[u8]) -> Result<(), String> {
     }
     let random = uuid::Uuid::new_v4();
     let tmp = path.with_extension(format!("aither_tmp_{random}"));
-    let mut file =
-        fs::File::create(&tmp).map_err(|e| format!("Failed to create temp file: {e}"))?;
-
-    // Verify the temp file is a regular file, not a symlink
-    let meta = fs::symlink_metadata(&tmp)
-        .map_err(|e| format!("Failed to stat temp file: {e}"))?;
-    if meta.file_type().is_symlink() {
-        let _ = fs::remove_file(&tmp);
-        return Err("Temp file is a symlink, aborting".into());
-    }
+    let mut opts = fs::OpenOptions::new();
+    opts.write(true).create_new(true);
     #[cfg(unix)]
     {
-        use std::os::unix::fs::PermissionsExt;
-        file.set_permissions(fs::Permissions::from_mode(0o600))
-            .map_err(|e| format!("Failed to set temp file permissions: {e}"))?;
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
     }
+    let mut file = opts
+        .open(&tmp)
+        .map_err(|e| format!("Failed to create temp file: {e}"))?;
     file.write_all(data)
         .map_err(|e| {
             if let Err(re) = fs::remove_file(&tmp) {

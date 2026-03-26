@@ -309,8 +309,7 @@ pub fn ocr_pdf(path: &Path) -> Result<String, String> {
             }
         };
 
-        for (i, img) in images.into_iter().enumerate() {
-            let page_num = first + i;
+        for (page_num, img) in images {
             let (w, h) = img.dimensions();
             eprintln!("[rag/ocr] Page {page_num} rendered: {w}x{h}");
 
@@ -375,7 +374,7 @@ fn get_page_count(path: &Path) -> Result<usize, String> {
 /// Render a single PDF page to an image using pdftoppm.
 /// Uses -f/-l to select page and -singlefile to produce exactly one output.
 /// Render a range of pages [first, last] in a single pdftoppm invocation.
-fn render_page_batch(path: &Path, first: usize, last: usize) -> Result<Vec<DynamicImage>, String> {
+fn render_page_batch(path: &Path, first: usize, last: usize) -> Result<Vec<(usize, DynamicImage)>, String> {
     let path_str = path.to_str().ok_or("Invalid path encoding")?;
     let tmp_dir =
         tempfile::tempdir().map_err(|e| format!("Failed to create temp dir: {e}"))?;
@@ -414,7 +413,7 @@ fn render_page_batch(path: &Path, first: usize, last: usize) -> Result<Vec<Dynam
     for (i, png_path) in png_paths.into_iter().enumerate() {
         let page_num = first + i;
         match image::open(&png_path) {
-            Ok(img) => images.push(img),
+            Ok(img) => images.push((page_num, img)),
             Err(e) => {
                 eprintln!("[rag/ocr] Failed to open page {page_num} image: {e}");
             }
