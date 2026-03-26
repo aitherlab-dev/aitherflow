@@ -2,6 +2,7 @@ use crate::config::Config;
 use chrono::Utc;
 use diffusion_rs::api::{gen_img, ConfigBuilder, ModelConfigBuilder};
 use hf_hub::api::sync::ApiBuilder;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -94,153 +95,190 @@ fn download_hf_file(models_path: &Path, repo: &str, file: &str) -> Result<PathBu
     })
 }
 
+/// Repo+file pair for a HuggingFace component.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RepoFile {
+    repo: String,
+    file: String,
+}
+
+/// Model definition as stored in models.json.
+/// Each entry fully describes how to download and configure a model.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ModelDefinition {
+    id: String,
+    name: String,
+    diffusion: RepoFile,
+    vae: Option<RepoFile>,
+    llm: Option<RepoFile>,
+    clip_l: Option<RepoFile>,
+    t5xxl: Option<RepoFile>,
+    #[serde(default)]
+    single_file: bool,
+    #[serde(default = "default_steps")]
+    steps: i32,
+    #[serde(default = "default_cfg_scale")]
+    cfg_scale: f32,
+    #[serde(default = "default_size")]
+    width: i32,
+    #[serde(default = "default_size")]
+    height: i32,
+    #[serde(default)]
+    offload_cpu: bool,
+    #[serde(default)]
+    flash_attn: bool,
+    #[serde(default)]
+    vae_tiling: bool,
+    #[serde(default)]
+    size_mb: u64,
+}
+
+fn default_steps() -> i32 { 4 }
+fn default_cfg_scale() -> f32 { 1.0 }
+fn default_size() -> i32 { 1024 }
+
 /// Components needed for a model: (repo, file) pairs for each role.
 #[derive(Debug)]
 struct ModelComponents {
-    /// Main diffusion model — set via .diffusion_model() for multi-component, .model() for single-file
-    diffusion: (&'static str, &'static str),
-    /// VAE decoder
-    vae: Option<(&'static str, &'static str)>,
-    /// LLM text encoder (Qwen3 for FLUX.2 Klein)
-    llm: Option<(&'static str, &'static str)>,
-    /// CLIP-L text encoder (for FLUX.1)
-    clip_l: Option<(&'static str, &'static str)>,
-    /// T5-XXL text encoder (for FLUX.1)
-    t5xxl: Option<(&'static str, &'static str)>,
-    /// Whether this is a single-file model (use .model() instead of .diffusion_model())
+    diffusion: (String, String),
+    vae: Option<(String, String)>,
+    llm: Option<(String, String)>,
+    clip_l: Option<(String, String)>,
+    t5xxl: Option<(String, String)>,
     single_file: bool,
-    /// Default steps
     steps: i32,
-    /// Default cfg_scale
     cfg_scale: f32,
-    /// Default size
     width: i32,
     height: i32,
-    /// Offload params to CPU
     offload_cpu: bool,
-    /// Flash attention
     flash_attn: bool,
-    /// VAE tiling
     vae_tiling: bool,
 }
 
-fn get_model_components(model_id: &str) -> Result<ModelComponents, String> {
-    match model_id {
-        "FLUX.2-klein-4B" | "flux2-klein-4b" => Ok(ModelComponents {
-            diffusion: ("leejet/FLUX.2-klein-4B-GGUF", "flux-2-klein-4b-Q8_0.gguf"),
-            vae: Some(("black-forest-labs/FLUX.2-dev", "vae/diffusion_pytorch_model.safetensors")),
-            llm: Some(("unsloth/Qwen3-4B-GGUF", "Qwen3-4B-Q8_0.gguf")),
-            clip_l: None,
-            t5xxl: None,
-            single_file: false,
-            steps: 4,
-            cfg_scale: 1.0,
-            width: 1024,
-            height: 1024,
-            offload_cpu: true,
-            flash_attn: true,
-            vae_tiling: true,
+/// Default model used as fallback when models.json doesn't exist.
+fn default_model_definition() -> ModelDefinition {
+    ModelDefinition {
+        id: "flux2-klein-4b".into(),
+        name: "FLUX.2 Klein 4B".into(),
+        diffusion: RepoFile {
+            repo: "leejet/FLUX.2-klein-4B-GGUF".into(),
+            file: "flux-2-klein-4b-Q8_0.gguf".into(),
+        },
+        vae: Some(RepoFile {
+            repo: "black-forest-labs/FLUX.2-dev".into(),
+            file: "vae/diffusion_pytorch_model.safetensors".into(),
         }),
-        "FLUX.2-klein-9B" | "flux2-klein-9b" => Ok(ModelComponents {
-            diffusion: ("leejet/FLUX.2-klein-9B-GGUF", "flux-2-klein-9b-Q8_0.gguf"),
-            vae: Some(("black-forest-labs/FLUX.2-dev", "vae/diffusion_pytorch_model.safetensors")),
-            llm: Some(("unsloth/Qwen3-8B-GGUF", "Qwen3-8B-Q8_0.gguf")),
-            clip_l: None,
-            t5xxl: None,
-            single_file: false,
-            steps: 4,
-            cfg_scale: 1.0,
-            width: 1024,
-            height: 1024,
-            offload_cpu: true,
-            flash_attn: true,
-            vae_tiling: true,
+        llm: Some(RepoFile {
+            repo: "unsloth/Qwen3-4B-GGUF".into(),
+            file: "Qwen3-4B-Q8_0.gguf".into(),
         }),
-        "FLUX.2-dev" | "flux2-dev" => Ok(ModelComponents {
-            diffusion: ("city96/FLUX.2-dev-gguf", "flux2-dev-Q2_K.gguf"),
-            vae: Some(("black-forest-labs/FLUX.2-dev", "vae/diffusion_pytorch_model.safetensors")),
-            llm: Some((
-                "unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF",
-                "Mistral-Small-3.2-24B-Instruct-2506-Q2_K.gguf",
-            )),
-            clip_l: None,
-            t5xxl: None,
-            single_file: false,
-            steps: 20,
-            cfg_scale: 1.0,
-            width: 1024,
-            height: 1024,
-            offload_cpu: true,
-            flash_attn: true,
-            vae_tiling: true,
-        }),
-        "FLUX.1-dev" | "flux1-dev" => Ok(ModelComponents {
-            diffusion: ("leejet/FLUX.1-dev-gguf", "flux1-dev-q8_0.gguf"),
-            vae: Some(("ffxvs/vae-flux", "ae.safetensors")),
-            llm: None,
-            clip_l: Some(("comfyanonymous/flux_text_encoders", "clip_l.safetensors")),
-            t5xxl: Some(("Green-Sky/flux.1-schnell-GGUF", "t5xxl_q8_0.gguf")),
-            single_file: false,
-            steps: 28,
-            cfg_scale: 1.0,
-            width: 1024,
-            height: 1024,
-            offload_cpu: false,
-            flash_attn: false,
-            vae_tiling: true,
-        }),
-        "FLUX.1-schnell" | "flux1-schnell" => Ok(ModelComponents {
-            diffusion: ("leejet/FLUX.1-schnell-gguf", "flux1-schnell-q8_0.gguf"),
-            vae: Some(("ffxvs/vae-flux", "ae.safetensors")),
-            llm: None,
-            clip_l: Some(("comfyanonymous/flux_text_encoders", "clip_l.safetensors")),
-            t5xxl: Some(("Green-Sky/flux.1-schnell-GGUF", "t5xxl_q8_0.gguf")),
-            single_file: false,
-            steps: 4,
-            cfg_scale: 1.0,
-            width: 1024,
-            height: 1024,
-            offload_cpu: false,
-            flash_attn: false,
-            vae_tiling: true,
-        }),
-        "FLUX.1-mini" | "flux1-mini" => Ok(ModelComponents {
-            diffusion: ("HyperX-Sentience/Flux-Mini-GGUF", "flux-mini-Q8_0.gguf"),
-            vae: Some(("Green-Sky/flux.1-schnell-GGUF", "ae-f16.gguf")),
-            llm: None,
-            clip_l: Some(("Green-Sky/flux.1-schnell-GGUF", "clip_l-q8_0.gguf")),
-            t5xxl: Some(("Green-Sky/flux.1-schnell-GGUF", "t5xxl_q8_0.gguf")),
-            single_file: false,
-            steps: 20,
-            cfg_scale: 1.0,
-            width: 1024,
-            height: 1024,
-            offload_cpu: false,
-            flash_attn: false,
-            vae_tiling: true,
-        }),
-        "SDXL-turbo" | "sdxl-turbo" => Ok(ModelComponents {
-            diffusion: (
-                "stabilityai/sdxl-turbo",
-                "sd_xl_turbo_1.0_fp16.safetensors",
-            ),
-            vae: Some(("madebyollin/sdxl-vae-fp16-fix", "sdxl.vae.safetensors")),
-            llm: None,
-            clip_l: None,
-            t5xxl: None,
-            single_file: true,
-            steps: 4,
-            cfg_scale: 1.0,
-            width: 1024,
-            height: 1024,
-            offload_cpu: false,
-            flash_attn: false,
-            vae_tiling: false,
-        }),
-        _ => Err(format!(
-            "Unknown model: {model_id}. Supported: FLUX.2-klein-4B, FLUX.2-klein-9B, FLUX.2-dev, FLUX.1-dev, FLUX.1-schnell, FLUX.1-mini, SDXL-turbo"
-        )),
+        clip_l: None,
+        t5xxl: None,
+        single_file: false,
+        steps: 4,
+        cfg_scale: 1.0,
+        width: 1024,
+        height: 1024,
+        offload_cpu: true,
+        flash_attn: true,
+        vae_tiling: true,
+        size_mb: 4403,
     }
+}
+
+/// Path to the shared models.json config file.
+/// Format: ~/.config/aither-flow/image-gen/models.json
+fn models_json_path() -> Result<PathBuf, String> {
+    let config_dir = dirs::config_dir()
+        .ok_or("Cannot determine config directory (XDG_CONFIG_HOME)")?;
+    Ok(config_dir.join("aither-flow").join("image-gen").join("models.json"))
+}
+
+/// Load model definitions from models.json.
+/// Creates the file with the default model if it doesn't exist.
+fn load_model_definitions() -> Result<Vec<ModelDefinition>, String> {
+    let path = models_json_path()?;
+
+    if path.exists() {
+        let content = fs::read_to_string(&path)
+            .map_err(|e| format!("Failed to read {}: {e}", path.display()))?;
+        let models: Vec<ModelDefinition> = serde_json::from_str(&content)
+            .map_err(|e| format!("Failed to parse {}: {e}", path.display()))?;
+        info!("Loaded {} model(s) from {}", models.len(), path.display());
+        Ok(models)
+    } else {
+        info!("No models.json found, creating default at {}", path.display());
+        let models = vec![default_model_definition()];
+        if let Err(e) = save_model_definitions(&path, &models) {
+            warn!("Failed to save default models.json: {e}");
+        }
+        Ok(models)
+    }
+}
+
+/// Write model definitions to models.json atomically.
+fn save_model_definitions(path: &Path, models: &[ModelDefinition]) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create dir {}: {e}", parent.display()))?;
+    }
+    let json = serde_json::to_string_pretty(models)
+        .map_err(|e| format!("Failed to serialize models: {e}"))?;
+    // Atomic write: temp file + rename
+    let parent = path.parent().ok_or("models.json path has no parent")?;
+    let tmp_path = parent.join(format!(".tmp_models_{}", std::process::id()));
+    fs::write(&tmp_path, json.as_bytes())
+        .map_err(|e| format!("Failed to write temp file: {e}"))?;
+    fs::rename(&tmp_path, path).inspect_err(|_| {
+        let _ = fs::remove_file(&tmp_path);
+    }).map_err(|e| format!("Failed to rename temp to {}: {e}", path.display()))
+}
+
+impl ModelDefinition {
+    fn to_components(&self) -> ModelComponents {
+        let rf_to_tuple = |rf: &RepoFile| (rf.repo.clone(), rf.file.clone());
+        ModelComponents {
+            diffusion: rf_to_tuple(&self.diffusion),
+            vae: self.vae.as_ref().map(rf_to_tuple),
+            llm: self.llm.as_ref().map(rf_to_tuple),
+            clip_l: self.clip_l.as_ref().map(rf_to_tuple),
+            t5xxl: self.t5xxl.as_ref().map(rf_to_tuple),
+            single_file: self.single_file,
+            steps: self.steps,
+            cfg_scale: self.cfg_scale,
+            width: self.width,
+            height: self.height,
+            offload_cpu: self.offload_cpu,
+            flash_attn: self.flash_attn,
+            vae_tiling: self.vae_tiling,
+        }
+    }
+}
+
+fn get_model_components(model_id: &str) -> Result<ModelComponents, String> {
+    let models = load_model_definitions()?;
+    let id_lower = model_id.to_lowercase().replace('.', "");
+
+    // Search by id (case-insensitive, dots stripped)
+    if let Some(def) = models.iter().find(|m| {
+        let m_id = m.id.to_lowercase().replace('.', "");
+        m_id == id_lower || m.id == model_id
+    }) {
+        return Ok(def.to_components());
+    }
+
+    // Fallback: try the hardcoded default if it matches
+    let default = default_model_definition();
+    let default_id = default.id.to_lowercase().replace('.', "");
+    if default_id == id_lower {
+        return Ok(default.to_components());
+    }
+
+    let available: Vec<&str> = models.iter().map(|m| m.id.as_str()).collect();
+    Err(format!(
+        "Unknown model: {model_id}. Available: {}",
+        available.join(", ")
+    ))
 }
 
 /// Build ConfigBuilder + ModelConfigBuilder from components, downloading files as needed.
@@ -255,7 +293,7 @@ fn build_model_config(
     // Download/resolve diffusion model
     let diffusion_path = match diffusion_override {
         Some(p) => p,
-        None => download_hf_file(models_path, components.diffusion.0, components.diffusion.1)?,
+        None => download_hf_file(models_path, &components.diffusion.0, &components.diffusion.1)?,
     };
 
     if components.single_file {
@@ -265,25 +303,25 @@ fn build_model_config(
     }
 
     // VAE
-    if let Some((repo, file)) = components.vae {
+    if let Some((ref repo, ref file)) = components.vae {
         let vae_path = download_hf_file(models_path, repo, file)?;
         model_config.vae(vae_path);
     }
 
-    // LLM (Qwen3 for FLUX.2 Klein, Mistral for FLUX.2 dev)
-    if let Some((repo, file)) = components.llm {
+    // LLM text encoder
+    if let Some((ref repo, ref file)) = components.llm {
         let llm_path = download_hf_file(models_path, repo, file)?;
         model_config.llm(llm_path);
     }
 
-    // CLIP-L (for FLUX.1)
-    if let Some((repo, file)) = components.clip_l {
+    // CLIP-L text encoder
+    if let Some((ref repo, ref file)) = components.clip_l {
         let clip_l_path = download_hf_file(models_path, repo, file)?;
         model_config.clip_l(clip_l_path);
     }
 
-    // T5-XXL (for FLUX.1)
-    if let Some((repo, file)) = components.t5xxl {
+    // T5-XXL text encoder
+    if let Some((ref repo, ref file)) = components.t5xxl {
         let t5_path = download_hf_file(models_path, repo, file)?;
         model_config.t5xxl(t5_path);
     }
@@ -475,17 +513,17 @@ pub fn download_model(params: &Value, config: &Config) -> Result<String, String>
     let components = get_model_components(model_id)?;
 
     // Download all components
-    download_hf_file(&config.models_path, components.diffusion.0, components.diffusion.1)?;
-    if let Some((repo, file)) = components.vae {
+    download_hf_file(&config.models_path, &components.diffusion.0, &components.diffusion.1)?;
+    if let Some((ref repo, ref file)) = components.vae {
         download_hf_file(&config.models_path, repo, file)?;
     }
-    if let Some((repo, file)) = components.llm {
+    if let Some((ref repo, ref file)) = components.llm {
         download_hf_file(&config.models_path, repo, file)?;
     }
-    if let Some((repo, file)) = components.clip_l {
+    if let Some((ref repo, ref file)) = components.clip_l {
         download_hf_file(&config.models_path, repo, file)?;
     }
-    if let Some((repo, file)) = components.t5xxl {
+    if let Some((ref repo, ref file)) = components.t5xxl {
         download_hf_file(&config.models_path, repo, file)?;
     }
 
@@ -554,30 +592,136 @@ mod tests {
     use super::*;
     use std::io::Write;
 
-    // ── get_model_components ──
+    // ── default_model_definition ──
 
     #[test]
-    fn test_get_model_components_all_ids() {
-        let ids = [
-            "flux2-klein-4b",
-            "flux2-klein-9b",
-            "flux2-dev",
-            "flux1-dev",
-            "flux1-schnell",
-            "flux1-mini",
-            "sdxl-turbo",
-        ];
-        for id in ids {
-            let result = get_model_components(id);
-            assert!(result.is_ok(), "get_model_components({id}) failed: {:?}", result.err());
-        }
+    fn test_default_model_definition() {
+        let def = default_model_definition();
+        assert_eq!(def.id, "flux2-klein-4b");
+        assert_eq!(def.name, "FLUX.2 Klein 4B");
+        assert_eq!(def.steps, 4);
+        assert!(def.llm.is_some());
+        assert!(def.vae.is_some());
+        assert!(def.clip_l.is_none());
+        assert!(def.t5xxl.is_none());
+        assert!(!def.single_file);
+        assert!(def.offload_cpu);
+        assert!(def.flash_attn);
+        assert!(def.vae_tiling);
     }
 
     #[test]
-    fn test_get_model_components_uppercase() {
-        assert!(get_model_components("FLUX.2-klein-4B").is_ok());
-        assert!(get_model_components("FLUX.1-schnell").is_ok());
-        assert!(get_model_components("SDXL-turbo").is_ok());
+    fn test_default_model_vae_is_flux2() {
+        let def = default_model_definition();
+        let vae = def.vae.unwrap();
+        assert!(vae.repo.contains("FLUX.2"), "Default model should use FLUX.2 VAE");
+        assert!(vae.file.contains("diffusion_pytorch_model"));
+    }
+
+    // ── ModelDefinition serde ──
+
+    #[test]
+    fn test_model_definition_serde_roundtrip() {
+        let def = default_model_definition();
+        let json = serde_json::to_string_pretty(&def).unwrap();
+        let restored: ModelDefinition = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.id, def.id);
+        assert_eq!(restored.steps, def.steps);
+        assert_eq!(restored.diffusion.repo, def.diffusion.repo);
+    }
+
+    #[test]
+    fn test_model_definitions_json_array() {
+        let models = vec![default_model_definition()];
+        let json = serde_json::to_string_pretty(&models).unwrap();
+        let restored: Vec<ModelDefinition> = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.len(), 1);
+        assert_eq!(restored[0].id, "flux2-klein-4b");
+    }
+
+    // ── save/load models.json ──
+
+    #[test]
+    fn test_save_and_load_models_json() {
+        let dir = std::env::temp_dir().join("mcp-image-gen-test-json");
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("models.json");
+
+        let models = vec![default_model_definition()];
+        save_model_definitions(&path, &models).unwrap();
+        assert!(path.exists());
+
+        let content = fs::read_to_string(&path).unwrap();
+        let loaded: Vec<ModelDefinition> = serde_json::from_str(&content).unwrap();
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].id, "flux2-klein-4b");
+
+        let _ = fs::remove_file(&path);
+        let _ = fs::remove_dir(&dir);
+    }
+
+    #[test]
+    fn test_load_custom_models_from_json() {
+        let dir = std::env::temp_dir().join("mcp-image-gen-test-custom");
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("models.json");
+
+        let custom = ModelDefinition {
+            id: "my-custom-model".into(),
+            name: "My Custom Model".into(),
+            diffusion: RepoFile { repo: "org/repo".into(), file: "model.gguf".into() },
+            vae: None,
+            llm: None,
+            clip_l: None,
+            t5xxl: None,
+            single_file: true,
+            steps: 10,
+            cfg_scale: 2.0,
+            width: 512,
+            height: 512,
+            offload_cpu: false,
+            flash_attn: false,
+            vae_tiling: false,
+            size_mb: 1000,
+        };
+        let models = vec![default_model_definition(), custom];
+        save_model_definitions(&path, &models).unwrap();
+
+        let content = fs::read_to_string(&path).unwrap();
+        let loaded: Vec<ModelDefinition> = serde_json::from_str(&content).unwrap();
+        assert_eq!(loaded.len(), 2);
+        assert_eq!(loaded[1].id, "my-custom-model");
+        assert!(loaded[1].single_file);
+        assert_eq!(loaded[1].steps, 10);
+
+        let _ = fs::remove_file(&path);
+        let _ = fs::remove_dir(&dir);
+    }
+
+    // ── to_components ──
+
+    #[test]
+    fn test_model_definition_to_components() {
+        let def = default_model_definition();
+        let comp = def.to_components();
+        assert_eq!(comp.diffusion.0, "leejet/FLUX.2-klein-4B-GGUF");
+        assert_eq!(comp.diffusion.1, "flux-2-klein-4b-Q8_0.gguf");
+        assert_eq!(comp.steps, 4);
+        assert!(comp.llm.is_some());
+        assert!(comp.vae.is_some());
+        assert!(comp.offload_cpu);
+    }
+
+    // ── get_model_components (reads from JSON or fallback) ──
+
+    #[test]
+    fn test_get_model_components_default() {
+        // The default model should always resolve (from JSON or fallback)
+        let result = get_model_components("flux2-klein-4b");
+        assert!(result.is_ok(), "Default model should always resolve: {:?}", result.err());
+        let c = result.unwrap();
+        assert_eq!(c.steps, 4);
+        assert!(c.llm.is_some());
     }
 
     #[test]
@@ -642,7 +786,6 @@ mod tests {
 
     #[test]
     fn test_resolve_model_by_path() {
-        // Create a temp .gguf file
         let dir = std::env::temp_dir().join("mcp-image-gen-test");
         if let Err(e) = fs::create_dir_all(&dir) {
             warn!("Failed to create test dir: {e}");
@@ -709,30 +852,5 @@ mod tests {
         assert!(config.width > 0);
         assert!(config.height > 0);
         assert!(config.steps > 0);
-    }
-
-    // ── ModelComponents: verify public VAE repos ──
-
-    #[test]
-    fn test_klein4b_uses_flux2_vae() {
-        let c = get_model_components("flux2-klein-4b").unwrap();
-        let (repo, file) = c.vae.unwrap();
-        assert!(repo.contains("FLUX.2"), "FLUX.2 Klein 4B should use FLUX.2 VAE (32 latent channels)");
-        assert!(file.contains("diffusion_pytorch_model"), "FLUX.2 VAE file should be diffusion_pytorch_model.safetensors");
-    }
-
-    #[test]
-    fn test_klein9b_uses_flux2_vae() {
-        let c = get_model_components("flux2-klein-9b").unwrap();
-        let (repo, file) = c.vae.unwrap();
-        assert!(repo.contains("FLUX.2"), "FLUX.2 Klein 9B should use FLUX.2 VAE (32 latent channels)");
-        assert!(file.contains("diffusion_pytorch_model"), "FLUX.2 VAE file should be diffusion_pytorch_model.safetensors");
-    }
-
-    #[test]
-    fn test_flux1_schnell_uses_public_vae() {
-        let c = get_model_components("flux1-schnell").unwrap();
-        let (repo, _) = c.vae.unwrap();
-        assert!(!repo.contains("black-forest-labs"), "FLUX.1 VAE should use public repo, not gated black-forest-labs");
     }
 }

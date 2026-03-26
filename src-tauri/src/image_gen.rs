@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
+use tracing::{info, warn};
 
 use crate::config;
-use crate::file_ops::{read_json, write_json};
+use crate::file_ops::{atomic_write, read_json, write_json};
 use crate::files::validate_path_safe;
 
 /// Resolution preset names
@@ -16,14 +17,50 @@ pub enum ResolutionPreset {
     Custom,
 }
 
-/// Known model definition
-pub struct KnownModel {
-    pub id: &'static str,
-    pub name: &'static str,
-    pub repo_id: &'static str,
-    pub hf_file: &'static str,
+/// Repo+file pair for a HuggingFace component (matches MCP server format).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RepoFile {
+    pub repo: String,
+    pub file: String,
+}
+
+/// Model definition as stored in ~/.config/aither-flow/image-gen/models.json.
+/// Shared format between MCP server and Tauri app.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModelDefinition {
+    pub id: String,
+    pub name: String,
+    pub diffusion: RepoFile,
+    #[serde(default)]
+    pub vae: Option<RepoFile>,
+    #[serde(default)]
+    pub llm: Option<RepoFile>,
+    #[serde(default)]
+    pub clip_l: Option<RepoFile>,
+    #[serde(default)]
+    pub t5xxl: Option<RepoFile>,
+    #[serde(default)]
+    pub single_file: bool,
+    #[serde(default = "default_json_steps")]
+    pub steps: i32,
+    #[serde(default = "default_json_cfg_scale")]
+    pub cfg_scale: f32,
+    #[serde(default = "default_size")]
+    pub width: i32,
+    #[serde(default = "default_size")]
+    pub height: i32,
+    #[serde(default)]
+    pub offload_cpu: bool,
+    #[serde(default)]
+    pub flash_attn: bool,
+    #[serde(default)]
+    pub vae_tiling: bool,
+    #[serde(default)]
     pub size_mb: u64,
 }
+
+fn default_json_steps() -> i32 { 4 }
+fn default_json_cfg_scale() -> f32 { 1.0 }
 
 /// Model info returned to frontend
 #[derive(Serialize, Deserialize, Clone)]
@@ -118,16 +155,75 @@ pub fn load_settings_sync() -> ImageGenSettings {
     }
 }
 
-/// Available models synced with MCP server (resolve_preset in tools.rs)
-pub const KNOWN_MODELS: &[KnownModel] = &[
-    KnownModel { id: "flux2-klein-4b", name: "FLUX.2 Klein 4B", repo_id: "unsloth/FLUX.2-klein-4B-GGUF", hf_file: "flux-2-klein-4b-Q8_0.gguf", size_mb: 4403 },
-    KnownModel { id: "flux2-klein-9b", name: "FLUX.2 Klein 9B", repo_id: "unsloth/FLUX.2-klein-9B-GGUF", hf_file: "flux-2-klein-9b-Q8_0.gguf", size_mb: 10220 },
-    KnownModel { id: "flux2-dev", name: "FLUX.2 Dev", repo_id: "city96/FLUX.2-dev-gguf", hf_file: "flux2-dev-Q2_K.gguf", size_mb: 13209 },
-    KnownModel { id: "flux1-dev", name: "FLUX.1 Dev", repo_id: "city96/FLUX.1-dev-gguf", hf_file: "flux1-dev-Q8_0.gguf", size_mb: 13005 },
-    KnownModel { id: "flux1-schnell", name: "FLUX.1 Schnell", repo_id: "city96/FLUX.1-schnell-gguf", hf_file: "flux1-schnell-Q8_0.gguf", size_mb: 13005 },
-    KnownModel { id: "flux1-mini", name: "FLUX.1 Mini", repo_id: "gpustack/FLUX.1-mini-GGUF", hf_file: "FLUX.1-mini-Q8_0.gguf", size_mb: 9574 },
-    KnownModel { id: "sdxl-turbo", name: "SDXL Turbo", repo_id: "stabilityai/sdxl-turbo", hf_file: "sd_xl_turbo_1.0_fp16.safetensors", size_mb: 7108 },
-];
+/// Default model used as fallback when models.json doesn't exist.
+fn default_model_definition() -> ModelDefinition {
+    ModelDefinition {
+        id: "flux2-klein-4b".into(),
+        name: "FLUX.2 Klein 4B".into(),
+        diffusion: RepoFile {
+            repo: "leejet/FLUX.2-klein-4B-GGUF".into(),
+            file: "flux-2-klein-4b-Q8_0.gguf".into(),
+        },
+        vae: Some(RepoFile {
+            repo: "black-forest-labs/FLUX.2-dev".into(),
+            file: "vae/diffusion_pytorch_model.safetensors".into(),
+        }),
+        llm: Some(RepoFile {
+            repo: "unsloth/Qwen3-4B-GGUF".into(),
+            file: "Qwen3-4B-Q8_0.gguf".into(),
+        }),
+        clip_l: None,
+        t5xxl: None,
+        single_file: false,
+        steps: 4,
+        cfg_scale: 1.0,
+        width: 1024,
+        height: 1024,
+        offload_cpu: true,
+        flash_attn: true,
+        vae_tiling: true,
+        size_mb: 4403,
+    }
+}
+
+/// Path to the shared models.json config file.
+fn models_json_path() -> PathBuf {
+    config::config_dir().join("image-gen").join("models.json")
+}
+
+/// Load model definitions from models.json.
+/// Creates the file with the default model if it doesn't exist.
+pub fn load_model_definitions() -> Result<Vec<ModelDefinition>, String> {
+    let path = models_json_path();
+
+    if path.exists() {
+        let content = std::fs::read_to_string(&path)
+            .map_err(|e| format!("Failed to read {}: {e}", path.display()))?;
+        let models: Vec<ModelDefinition> = serde_json::from_str(&content)
+            .map_err(|e| {
+                warn!("Failed to parse {}: {e}, using defaults", path.display());
+                format!("Failed to parse {}: {e}", path.display())
+            })?;
+        info!("Loaded {} model(s) from {}", models.len(), path.display());
+        Ok(models)
+    } else {
+        info!("No models.json found, creating default at {}", path.display());
+        let models = vec![default_model_definition()];
+        save_model_definitions(&path, &models)?;
+        Ok(models)
+    }
+}
+
+/// Write model definitions to models.json atomically.
+fn save_model_definitions(path: &Path, models: &[ModelDefinition]) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create dir {}: {e}", parent.display()))?;
+    }
+    let json = serde_json::to_string_pretty(models)
+        .map_err(|e| format!("Failed to serialize models: {e}"))?;
+    atomic_write(path, json.as_bytes())
+}
 
 #[tauri::command]
 pub async fn load_image_gen_settings() -> Result<ImageGenSettings, String> {
@@ -182,14 +278,15 @@ pub async fn list_image_gen_models(models_path: String) -> Result<Vec<ImageModel
     tokio::task::spawn_blocking(move || {
         let dir = PathBuf::from(&models_path);
         validate_path_safe(&dir)?;
-        let models: Vec<ImageModel> = KNOWN_MODELS
+        let definitions = load_model_definitions()?;
+        let models: Vec<ImageModel> = definitions
             .iter()
             .map(|m| ImageModel {
-                id: m.id.to_string(),
-                name: m.name.to_string(),
-                repo_id: m.repo_id.to_string(),
+                id: m.id.clone(),
+                name: m.name.clone(),
+                repo_id: m.diffusion.repo.clone(),
                 size_mb: m.size_mb,
-                downloaded: is_model_downloaded(&dir, m.repo_id, m.hf_file),
+                downloaded: is_model_downloaded(&dir, &m.diffusion.repo, &m.diffusion.file),
             })
             .collect();
         Ok(models)
@@ -288,24 +385,55 @@ mod tests {
     }
 
     #[test]
-    fn known_models_list() {
-        assert_eq!(KNOWN_MODELS.len(), 7);
-        for m in KNOWN_MODELS {
-            assert!(!m.id.is_empty());
-            assert!(!m.name.is_empty());
-            assert!(!m.repo_id.is_empty());
-            assert!(!m.hf_file.is_empty());
-            assert!(m.size_mb > 0);
-        }
+    fn default_model_definition_valid() {
+        let def = default_model_definition();
+        assert_eq!(def.id, "flux2-klein-4b");
+        assert_eq!(def.name, "FLUX.2 Klein 4B");
+        assert!(!def.diffusion.repo.is_empty());
+        assert!(!def.diffusion.file.is_empty());
+        assert!(def.vae.is_some());
+        assert!(def.llm.is_some());
+        assert!(def.size_mb > 0);
     }
 
     #[test]
-    fn known_models_default_exists() {
+    fn default_model_matches_selected() {
         let default_id = default_selected_model();
-        assert!(
-            KNOWN_MODELS.iter().any(|m| m.id == default_id),
-            "Default model '{default_id}' must exist in KNOWN_MODELS"
-        );
+        let def = default_model_definition();
+        assert_eq!(def.id, default_id, "Default model definition must match default_selected_model()");
+    }
+
+    #[test]
+    fn model_definition_serde_roundtrip() {
+        let def = default_model_definition();
+        let json = serde_json::to_string_pretty(&def).unwrap();
+        let restored: ModelDefinition = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.id, def.id);
+        assert_eq!(restored.steps, def.steps);
+        assert_eq!(restored.diffusion.repo, def.diffusion.repo);
+    }
+
+    #[test]
+    fn model_definitions_json_array() {
+        let models = vec![default_model_definition()];
+        let json = serde_json::to_string_pretty(&models).unwrap();
+        let restored: Vec<ModelDefinition> = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.len(), 1);
+        assert_eq!(restored[0].id, "flux2-klein-4b");
+    }
+
+    #[test]
+    fn save_and_load_model_definitions() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("models.json");
+        let models = vec![default_model_definition()];
+        save_model_definitions(&path, &models).unwrap();
+        assert!(path.exists());
+
+        let content = fs::read_to_string(&path).unwrap();
+        let loaded: Vec<ModelDefinition> = serde_json::from_str(&content).unwrap();
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].id, "flux2-klein-4b");
     }
 
     // ── File-based load/save ──
@@ -353,15 +481,6 @@ mod tests {
     }
 
     // ── Model structure ──
-
-    #[test]
-    fn known_models_unique_ids() {
-        let mut ids: Vec<&str> = KNOWN_MODELS.iter().map(|m| m.id).collect();
-        let len_before = ids.len();
-        ids.sort();
-        ids.dedup();
-        assert_eq!(ids.len(), len_before, "Model IDs must be unique");
-    }
 
     #[test]
     fn image_model_serde() {

@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use tracing::{error, info, warn};
 
 use crate::files::validate_path_safe;
-use crate::image_gen::KNOWN_MODELS;
+use crate::image_gen::load_model_definitions;
 
 /// Parse a HuggingFace URL into (repo_id, filename).
 /// Supports: https://huggingface.co/{org}/{repo}/resolve/main/{filename}
@@ -49,15 +49,16 @@ pub async fn download_image_gen_model(
         let dir = PathBuf::from(&models_path);
         validate_path_safe(&dir)?;
 
-        let model = KNOWN_MODELS
+        let definitions = load_model_definitions()?;
+        let model = definitions
             .iter()
             .find(|m| m.id == model_id)
             .ok_or_else(|| format!("Unknown model: {model_id}"))?;
 
         info!(
-            model_id = model.id,
-            repo = model.repo_id,
-            file = model.hf_file,
+            model_id = %model.id,
+            repo = %model.diffusion.repo,
+            file = %model.diffusion.file,
             "Downloading model from HuggingFace"
         );
 
@@ -66,14 +67,14 @@ pub async fn download_image_gen_model(
             .build()
             .map_err(|e| format!("Failed to init HF API: {e}"))?;
 
-        let repo = api.model(model.repo_id.to_string());
-        let path = repo.get(model.hf_file).map_err(|e| {
-            error!(model_id = model.id, "Download failed: {e}");
+        let repo = api.model(model.diffusion.repo.clone());
+        let path = repo.get(&model.diffusion.file).map_err(|e| {
+            error!(model_id = %model.id, "Download failed: {e}");
             format!("Failed to download {}: {e}", model.name)
         })?;
 
         info!(
-            model_id = model.id,
+            model_id = %model.id,
             path = %path.display(),
             "Model downloaded successfully"
         );
