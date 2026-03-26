@@ -39,6 +39,32 @@ async function getSettings() {
 
 // ── Helpers ──
 
+/** Wait for hasSession to become false (processExited), max 5s.
+ *  Subscribe BEFORE checking current value to avoid TOCTOU race. */
+function waitForSessionExit(): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const timeout = setTimeout(() => {
+      unsub();
+      console.warn("[chatService] CLI process did not exit within 5s, force-clearing session state");
+      useChatStore.setState({ hasSession: false });
+      resolve();
+    }, 5000);
+    const unsub = useChatStore.subscribe((s) => {
+      if (!s.hasSession) {
+        clearTimeout(timeout);
+        unsub();
+        resolve();
+      }
+    });
+    // Check AFTER subscribing — if already false, resolve immediately
+    if (!useChatStore.getState().hasSession) {
+      clearTimeout(timeout);
+      unsub();
+      resolve();
+    }
+  });
+}
+
 /** Guard to prevent duplicate chat creation on double-click Send */
 let isCreatingChat = false;
 
@@ -217,13 +243,21 @@ export async function restartSession() {
   }
 }
 
-export async function switchPermissionMode(mode: "default" | "plan") {
+export function switchPermissionMode(mode: "default" | "plan") {
   const conductor = useConductorStore.getState();
   conductor.setSelectedPermissionMode(mode);
 
   const { agentId, hasSession } = useChatStore.getState();
-  if (!hasSession) return;
+  if (!hasSession) return Promise.resolve();
 
+  return enqueueSession(() => switchPermissionModeInner(mode, agentId, conductor));
+}
+
+async function switchPermissionModeInner(
+  mode: "default" | "plan",
+  agentId: string,
+  conductor: ReturnType<typeof useConductorStore.getState>,
+) {
   const sessionId = conductor.sessionId;
 
   try {
@@ -232,24 +266,7 @@ export async function switchPermissionMode(mode: "default" | "plan") {
     console.error("Failed to stop session for mode switch:", e);
   }
 
-  // Wait for hasSession to become false (processExited), max 5s
-  if (useChatStore.getState().hasSession) {
-    await new Promise<void>((resolve) => {
-      const unsub = useChatStore.subscribe((s) => {
-        if (!s.hasSession) {
-          clearTimeout(timeout);
-          unsub();
-          resolve();
-        }
-      });
-      const timeout = setTimeout(() => {
-        unsub();
-        console.warn("[chatService] CLI process did not exit within 5s, force-clearing session state");
-        useChatStore.setState({ hasSession: false });
-        resolve();
-      }, 5000);
-    });
-  }
+  await waitForSessionExit();
 
   const state = useChatStore.getState();
   let enableChrome = true;
@@ -286,13 +303,21 @@ export async function switchPermissionMode(mode: "default" | "plan") {
   }
 }
 
-export async function switchModel(newModel: string) {
+export function switchModel(newModel: string) {
   const conductor = useConductorStore.getState();
   conductor.setSelectedModel(newModel);
 
   const { agentId, hasSession } = useChatStore.getState();
-  if (!hasSession) return;
+  if (!hasSession) return Promise.resolve();
 
+  return enqueueSession(() => switchModelInner(newModel, agentId, conductor));
+}
+
+async function switchModelInner(
+  newModel: string,
+  agentId: string,
+  conductor: ReturnType<typeof useConductorStore.getState>,
+) {
   const sessionId = conductor.sessionId;
 
   try {
@@ -301,24 +326,7 @@ export async function switchModel(newModel: string) {
     console.error("Failed to stop session for model switch:", e);
   }
 
-  // Wait for hasSession to become false (processExited), max 5s
-  if (useChatStore.getState().hasSession) {
-    await new Promise<void>((resolve) => {
-      const unsub = useChatStore.subscribe((s) => {
-        if (!s.hasSession) {
-          clearTimeout(timeout);
-          unsub();
-          resolve();
-        }
-      });
-      const timeout = setTimeout(() => {
-        unsub();
-        console.warn("[chatService] CLI process did not exit within 5s, force-clearing session state");
-        useChatStore.setState({ hasSession: false });
-        resolve();
-      }, 5000);
-    });
-  }
+  await waitForSessionExit();
 
   const state = useChatStore.getState();
   let enableChrome = true;
@@ -534,26 +542,29 @@ export async function toggleChatPin(chatId: string, pinned: boolean) {
   }
 }
 
-let switchAgentChain: Promise<void> = Promise.resolve();
+let sessionChain: Promise<void> = Promise.resolve();
 
-export async function switchAgent(
+function enqueueSession<T>(fn: () => Promise<T>): Promise<T> {
+  const prev = sessionChain;
+  let done: () => void;
+  sessionChain = new Promise((r) => { done = r; });
+  return (async () => {
+    try {
+      await prev;
+      return await fn();
+    } finally {
+      done!();
+    }
+  })();
+}
+
+export function switchAgent(
   agentId: string,
   projectPath: string,
   projectName: string,
   savedChatId: string | null,
 ) {
-  const prev = switchAgentChain;
-  let done: () => void;
-  switchAgentChain = new Promise((r) => { done = r; });
-  try {
-    await prev;
-    await switchAgentInner(agentId, projectPath, projectName, savedChatId);
-  } catch (e) {
-    console.error("[switchAgent] Failed:", e);
-    throw e;
-  } finally {
-    done!();
-  }
+  return enqueueSession(() => switchAgentInner(agentId, projectPath, projectName, savedChatId));
 }
 
 async function switchAgentInner(
@@ -564,10 +575,14 @@ async function switchAgentInner(
 ) {
   const state = useChatStore.getState();
 
+  // Flush RAF buffer BEFORE snapshotting so no buffered text is lost
+  clearToolActivityTimer();
+  cancelStreamRaf();
+
   // Snapshot BEFORE any async work to prevent race with event handlers
   agentStates.set(state.agentId, {
-    messages: state.messages,
-    streamingMessage: state.streamingMessage,
+    messages: useChatStore.getState().messages,
+    streamingMessage: useChatStore.getState().streamingMessage,
     chatId: state.currentChatId,
     hasSession: state.hasSession,
     isThinking: state.isThinking,
@@ -580,9 +595,6 @@ async function switchAgentInner(
   await persistMessages();
 
   useConductorStore.getState().saveUsageForAgent(state.agentId);
-
-  clearToolActivityTimer();
-  cancelStreamRaf();
 
   // Reset telegram state on agent switch (await to complete before restoring new agent)
   try {
