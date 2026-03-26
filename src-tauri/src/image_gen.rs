@@ -201,7 +201,7 @@ fn default_model_definition() -> ModelDefinition {
 }
 
 /// Path to the shared models.json config file.
-fn models_json_path() -> PathBuf {
+pub fn models_json_path() -> PathBuf {
     config::config_dir().join("image-gen").join("models.json")
 }
 
@@ -229,7 +229,7 @@ pub fn load_model_definitions() -> Result<Vec<ModelDefinition>, String> {
 }
 
 /// Write model definitions to models.json atomically.
-fn save_model_definitions(path: &Path, models: &[ModelDefinition]) -> Result<(), String> {
+pub fn save_model_definitions(path: &Path, models: &[ModelDefinition]) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)
             .map_err(|e| format!("Failed to create dir {}: {e}", parent.display()))?;

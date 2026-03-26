@@ -1,9 +1,11 @@
 use hf_hub::api::sync::ApiBuilder;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tracing::{error, info, warn};
 
 use crate::files::validate_path_safe;
-use crate::image_gen::{load_model_definitions, RepoFile};
+use crate::image_gen::{
+    load_model_definitions, models_json_path, save_model_definitions, ModelDefinition, RepoFile,
+};
 
 /// Parse a HuggingFace URL into (repo_id, filename).
 /// Supports: https://huggingface.co/{org}/{repo}/resolve/main/{filename}
@@ -113,6 +115,127 @@ pub async fn download_image_gen_model(
     .map_err(|e| format!("Task join error: {e}"))?
 }
 
+/// Detect model type from filename and build a ModelDefinition.
+fn build_definition_from_filename(filename: &str, repo_id: &str) -> ModelDefinition {
+    let lower = filename.to_lowercase();
+    let stem = Path::new(filename)
+        .file_stem()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
+    let id = stem
+        .to_lowercase()
+        .replace(' ', "-")
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
+        .collect::<String>();
+    let name = stem.replace('-', " ").replace('_', " ");
+
+    let mut def = ModelDefinition {
+        id,
+        name,
+        diffusion: RepoFile {
+            repo: repo_id.to_string(),
+            file: filename.to_string(),
+        },
+        vae: None,
+        llm: None,
+        clip_l: None,
+        t5xxl: None,
+        single_file: false,
+        steps: 4,
+        cfg_scale: 1.0,
+        width: 1024,
+        height: 1024,
+        offload_cpu: false,
+        flash_attn: false,
+        vae_tiling: false,
+        size_mb: 0,
+        lora: None,
+        lora_strength: 1.0,
+        lora_enabled: true,
+    };
+
+    if lower.contains("z-image") || lower.contains("z_image") {
+        // Z-Image: FLUX.1 VAE + Qwen3 LLM
+        def.vae = Some(RepoFile {
+            repo: "ffxvs/vae-flux".into(),
+            file: "ae.safetensors".into(),
+        });
+        def.llm = Some(RepoFile {
+            repo: "unsloth/Qwen3-4B-GGUF".into(),
+            file: "Qwen3-4B-Q8_0.gguf".into(),
+        });
+        def.steps = 8;
+        def.offload_cpu = true;
+        def.flash_attn = true;
+        def.vae_tiling = true;
+    } else if lower.contains("flux-2") || lower.contains("flux2") {
+        // FLUX.2: FLUX.2 VAE + Qwen3 LLM
+        def.vae = Some(RepoFile {
+            repo: "black-forest-labs/FLUX.2-dev".into(),
+            file: "vae/diffusion_pytorch_model.safetensors".into(),
+        });
+        def.llm = Some(RepoFile {
+            repo: "unsloth/Qwen3-4B-GGUF".into(),
+            file: "Qwen3-4B-Q8_0.gguf".into(),
+        });
+        def.steps = 4;
+        def.offload_cpu = true;
+        def.flash_attn = true;
+        def.vae_tiling = true;
+    } else if lower.contains("flux-1")
+        || lower.contains("flux1")
+        || lower.contains("flux-schnell")
+        || lower.contains("flux-dev")
+    {
+        // FLUX.1: FLUX.1 VAE + CLIP-L + T5-XXL
+        def.vae = Some(RepoFile {
+            repo: "ffxvs/vae-flux".into(),
+            file: "ae.safetensors".into(),
+        });
+        def.clip_l = Some(RepoFile {
+            repo: "comfyanonymous/flux_text_encoders".into(),
+            file: "clip_l.safetensors".into(),
+        });
+        def.t5xxl = Some(RepoFile {
+            repo: "Green-Sky/flux.1-schnell-GGUF".into(),
+            file: "t5xxl_q8_0.gguf".into(),
+        });
+        def.steps = 28;
+        def.vae_tiling = true;
+    } else {
+        // Fallback: SDXL single-file
+        def.vae = Some(RepoFile {
+            repo: "madebyollin/sdxl-vae-fp16-fix".into(),
+            file: "sdxl.vae.safetensors".into(),
+        });
+        def.single_file = true;
+        def.steps = 4;
+    }
+
+    def
+}
+
+/// Try to register a downloaded model in models.json (skip if id already exists).
+fn auto_register_model(def: &ModelDefinition) {
+    match load_model_definitions() {
+        Ok(mut models) => {
+            if models.iter().any(|m| m.id == def.id) {
+                info!(id = %def.id, "Model already registered, skipping");
+                return;
+            }
+            models.push(def.clone());
+            if let Err(e) = save_model_definitions(&models_json_path(), &models) {
+                warn!("Failed to auto-register model: {e}");
+            } else {
+                info!(id = %def.id, name = %def.name, "Model auto-registered in models.json");
+            }
+        }
+        Err(e) => warn!("Failed to load model definitions for auto-register: {e}"),
+    }
+}
+
 #[tauri::command]
 pub async fn download_model_by_url(
     url: String,
@@ -143,8 +266,13 @@ pub async fn download_model_by_url(
 
         info!(path = %path.display(), "Model downloaded successfully");
 
+        // Auto-register in models.json
+        let def = build_definition_from_filename(&filename, &repo_id);
+        auto_register_model(&def);
+
         Ok(serde_json::json!({
             "status": "ok",
+            "modelId": def.id,
             "path": path.to_string_lossy()
         }))
     })
