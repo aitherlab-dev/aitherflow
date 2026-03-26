@@ -137,3 +137,13 @@
   min-width: 24px;
   text-align: center;
 }
+
+.imggen-add-form {
+  padding: 8px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}

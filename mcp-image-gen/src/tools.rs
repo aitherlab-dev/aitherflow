@@ -136,11 +136,16 @@ struct ModelDefinition {
     vae_tiling: bool,
     #[serde(default)]
     size_mb: u64,
+    #[serde(default)]
+    lora: Option<String>,
+    #[serde(default = "default_lora_strength")]
+    lora_strength: f32,
 }
 
 fn default_steps() -> i32 { 4 }
 fn default_cfg_scale() -> f32 { 1.0 }
 fn default_size() -> i32 { 1024 }
+fn default_lora_strength() -> f32 { 1.0 }
 
 /// Components needed for a model: (repo, file) pairs for each role.
 #[derive(Debug)]
@@ -158,6 +163,8 @@ struct ModelComponents {
     offload_cpu: bool,
     flash_attn: bool,
     vae_tiling: bool,
+    lora: Option<String>,
+    lora_strength: f32,
 }
 
 /// Default model used as fallback when models.json doesn't exist.
@@ -188,6 +195,8 @@ fn default_model_definition() -> ModelDefinition {
         flash_attn: true,
         vae_tiling: true,
         size_mb: 4403,
+        lora: None,
+        lora_strength: 1.0,
     }
 }
 
@@ -256,6 +265,8 @@ impl ModelDefinition {
             offload_cpu: self.offload_cpu,
             flash_attn: self.flash_attn,
             vae_tiling: self.vae_tiling,
+            lora: self.lora.clone(),
+            lora_strength: self.lora_strength,
         }
     }
 }
@@ -340,6 +351,24 @@ fn build_model_config(
     }
     if components.vae_tiling {
         model_config.vae_tiling(true);
+    }
+
+    // LoRA adapter
+    if let Some(ref lora_path) = components.lora {
+        let path = PathBuf::from(lora_path);
+        if path.exists() {
+            if let Some(parent) = path.parent() {
+                let stem = path.file_stem().unwrap_or_default().to_string_lossy().to_string();
+                let spec = diffusion_rs::api::LoraSpec {
+                    file_name: stem,
+                    multiplier: components.lora_strength,
+                    is_high_noise: false,
+                };
+                model_config.lora_models(parent, vec![spec]);
+            }
+        } else {
+            warn!("LoRA file not found: {lora_path}");
+        }
     }
 
     config
@@ -688,6 +717,8 @@ mod tests {
             flash_attn: false,
             vae_tiling: false,
             size_mb: 1000,
+            lora: None,
+            lora_strength: 1.0,
         };
         let models = vec![default_model_definition(), custom];
         save_model_definitions(&path, &models).unwrap();

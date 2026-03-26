@@ -58,10 +58,15 @@ pub struct ModelDefinition {
     pub vae_tiling: bool,
     #[serde(default)]
     pub size_mb: u64,
+    #[serde(default)]
+    pub lora: Option<String>,
+    #[serde(default = "default_lora_strength")]
+    pub lora_strength: f32,
 }
 
 fn default_json_steps() -> i32 { 4 }
 fn default_json_cfg_scale() -> f32 { 1.0 }
+fn default_lora_strength() -> f32 { 1.0 }
 
 /// Model info returned to frontend
 #[derive(Serialize, Deserialize, Clone)]
@@ -184,6 +189,8 @@ fn default_model_definition() -> ModelDefinition {
         flash_attn: true,
         vae_tiling: true,
         size_mb: 4403,
+        lora: None,
+        lora_strength: 1.0,
     }
 }
 
@@ -308,6 +315,58 @@ pub async fn delete_image_gen_model(models_path: String, filename: String) -> Re
                 .map_err(|e| format!("Failed to delete {}: {e}", path.display()))?;
         }
         Ok(())
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+#[tauri::command]
+pub async fn add_image_gen_model(model: ModelDefinition) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let mut models = load_model_definitions()?;
+        if models.iter().any(|m| m.id == model.id) {
+            return Err(format!("Model with id '{}' already exists", model.id));
+        }
+        models.push(model);
+        save_model_definitions(&models_json_path(), &models)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+#[tauri::command]
+pub async fn remove_image_gen_model(model_id: String) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        if model_id == "flux2-klein-4b" {
+            return Err("Cannot remove the default model".into());
+        }
+        let mut models = load_model_definitions()?;
+        let before = models.len();
+        models.retain(|m| m.id != model_id);
+        if models.len() == before {
+            return Err(format!("Model '{}' not found", model_id));
+        }
+        save_model_definitions(&models_json_path(), &models)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+#[tauri::command]
+pub async fn update_image_gen_model_lora(
+    model_id: String,
+    lora_path: Option<String>,
+    lora_strength: f32,
+) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let mut models = load_model_definitions()?;
+        let model = models
+            .iter_mut()
+            .find(|m| m.id == model_id)
+            .ok_or_else(|| format!("Model '{}' not found", model_id))?;
+        model.lora = lora_path;
+        model.lora_strength = lora_strength;
+        save_model_definitions(&models_json_path(), &models)
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
