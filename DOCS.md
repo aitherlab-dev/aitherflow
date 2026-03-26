@@ -57,12 +57,16 @@ Built-in RAG (Retrieval-Augmented Generation) system. Create knowledge bases fro
 Local AI image generation through a built-in MCP server. No cloud APIs — everything runs on your GPU.
 
 - **MCP server** `mcp-image-gen` — Rust server using diffusion-rs (stable-diffusion.cpp bindings)
-- **Supported models:** FLUX.2 Klein 4B, FLUX.1 Dev/Schnell, SDXL Turbo, SD 3.5
+- **Dynamic model config** — models stored in `~/.config/aither-flow/image-gen/models.json`, no hardcoded list
+- **Supported architectures:** FLUX.2, FLUX.1, SDXL, Z-Image — add any GGUF model from HuggingFace
 - **GGUF quantization** — run large models on consumer GPUs (16GB VRAM)
-- **LoRA support** — customize generation with LoRA adapters
-- **Settings:** configurable model path, output path, resolution presets (square, portrait, landscape, custom), inference steps
+- **LoRA support** — per-model LoRA adapters with adjustable strength and enable/disable toggle
+- **Add models via UI** — choose type, paste HuggingFace URL, components (VAE, encoders) download automatically
+- **Auto-register** — models downloaded by URL are automatically added to the config
+- **Dashboard card** — at-a-glance model status, LoRA toggle, quick model switch
+- **Settings:** model path, output path, resolution presets (square, portrait, landscape, custom), inference steps
 - **In-chat preview** — generated images appear directly in the conversation
-- Models downloaded from HuggingFace, stored separately from the app
+- **CUDA GPU acceleration** — ~10x faster generation
 
 ## Features
 
@@ -75,7 +79,7 @@ Local AI image generation through a built-in MCP server. No cloud APIs — every
 - Skill browser with favorites, plugin management
 - External model providers (OpenRouter, Google Gemini, Ollama) with MCP server
 - Knowledge base with RAG — PDF, EPUB, web, YouTube, local embeddings
-- Local image generation via MCP server (FLUX, SDXL, SD 3.5 — GPU-accelerated)
+- Local image generation via MCP server (FLUX.2, FLUX.1, SDXL, Z-Image — GPU-accelerated, LoRA support)
 - Vision analysis — images and video via external models
 - Right-click file attachment — attach files to messages from the file browser
 - Telegram bot integration

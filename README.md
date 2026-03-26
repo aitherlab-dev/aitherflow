@@ -86,7 +86,7 @@ The point is — Claude does all the thinking, and aitherflow makes it look pret
 | Styling | Tailwind CSS v4 | You type little words and the compurter makes it pretty. Magic. |
 | State | Zustand | It's like Redux but it doesn't make you want to cry. Each store is its own little guy. They don't talk to each other, like my neighbors. |
 | Data | JSON files | Just files. On your disk. No databaise. Simple, like me. |
-| Image Gen | diffusion-rs / stable-diffusion.cpp | Your video card becomes an artist. Like Picasso but it doesn't cut its ear off. Wait that was the other guy. |
+| Image Gen | diffusion-rs / FLUX.2, FLUX.1, SDXL, Z-Image | Your video card becomes an artist. FLUX, LoRA, the whole shebang. Add any model from HuggingFace and it just works. Like Picasso but with more VRAM. |
 | Platforms | Linux + macOS | No Windoes, sorry. *[whispers to camera]* we don't talk about Windoes here |
 
 ---
