@@ -293,45 +293,51 @@ fn tool_definitions() -> Value {
         },
         {
             "name": "call_vision",
-            "description": "Analyze images or video files using a vision-capable model. Images are encoded directly; video files have frames extracted via ffmpeg.",
+            "description": "Analyze images or video files using a vision-capable model. Images are encoded directly; video files have frames extracted via ffmpeg. Supports PNG, JPG, GIF, WebP, BMP images and MP4, MOV, AVI, MKV, MTS, MXF, R3D, WebM video.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "provider": { "type": "string", "enum": ["openrouter", "google", "ollama"], "description": "The model provider to use" },
-                    "model": { "type": "string", "description": "Vision-capable model ID" },
+                    "model": { "type": "string", "description": "Vision-capable model ID (e.g. 'openai/gpt-4o', 'google/gemini-2.0-flash-001')" },
                     "prompt": { "type": "string", "description": "What to analyze or look for in the images/video" },
                     "file_paths": { "type": "array", "items": { "type": "string" }, "description": "Absolute paths to image or video files" },
                     "profile": {
-                        "type": "object", "description": "Video processing profile (optional)",
+                        "type": "object", "description": "Video processing profile (optional, defaults used if omitted)",
                         "properties": {
-                            "strategy": { "type": "string", "enum": ["auto", "native_video", "extract_frames"] },
-                            "framesPerClip": { "type": "number" }, "fps": { "type": "number" },
-                            "sceneDetection": { "type": "boolean" }, "sceneThreshold": { "type": "number" },
-                            "resolution": { "type": "number" }, "jpegQuality": { "type": "number" }
+                            "strategy": { "type": "string", "enum": ["auto", "native_video", "extract_frames"], "description": "Video processing strategy. Auto sends native video to Gemini, extracts frames for others (default: auto)" },
+                            "framesPerClip": { "type": "number", "description": "Extract exactly N frames evenly spaced (default: 5)" },
+                            "fps": { "type": "number", "description": "Frames per second (alternative to framesPerClip)" },
+                            "sceneDetection": { "type": "boolean", "description": "Use ffmpeg scene detection" },
+                            "sceneThreshold": { "type": "number", "description": "Scene change threshold 0.0-1.0 (default: 0.3)" },
+                            "resolution": { "type": "number", "description": "Frame width in pixels (default: 720)" },
+                            "jpegQuality": { "type": "number", "description": "JPEG quality 2-31, lower=better (default: 5)" }
                         }
                     },
-                    "max_tokens": { "type": "number", "description": "Maximum tokens in response (optional)" }
+                    "max_tokens": { "type": "number", "description": "Maximum tokens in response (optional, model default if omitted)" }
                 },
                 "required": ["provider", "model", "prompt", "file_paths"]
             }
         },
         {
             "name": "analyze_directory",
-            "description": "Analyze all video and image files in a directory using a vision model.",
+            "description": "Analyze all video and image files in a directory using a vision model. Processes files sequentially, extracts frames from videos via ffmpeg, and returns per-file analysis.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "provider": { "type": "string", "enum": ["openrouter", "google", "ollama"] },
+                    "provider": { "type": "string", "enum": ["openrouter", "google", "ollama"], "description": "The model provider to use" },
                     "model": { "type": "string", "description": "Vision-capable model ID" },
                     "prompt": { "type": "string", "description": "What to analyze or look for in each file" },
-                    "directory": { "type": "string", "description": "Absolute path to the directory" },
+                    "directory": { "type": "string", "description": "Absolute path to the directory containing video/image files" },
                     "profile": {
                         "type": "object", "description": "Video processing profile (optional)",
                         "properties": {
-                            "strategy": { "type": "string", "enum": ["auto", "native_video", "extract_frames"] },
-                            "framesPerClip": { "type": "number" }, "fps": { "type": "number" },
-                            "sceneDetection": { "type": "boolean" }, "sceneThreshold": { "type": "number" },
-                            "resolution": { "type": "number" }, "jpegQuality": { "type": "number" }
+                            "strategy": { "type": "string", "enum": ["auto", "native_video", "extract_frames"], "description": "Video processing strategy" },
+                            "framesPerClip": { "type": "number", "description": "Extract exactly N frames evenly spaced (default: 5)" },
+                            "fps": { "type": "number", "description": "Frames per second (alternative to framesPerClip)" },
+                            "sceneDetection": { "type": "boolean", "description": "Use ffmpeg scene detection" },
+                            "sceneThreshold": { "type": "number", "description": "Scene change threshold 0.0-1.0 (default: 0.3)" },
+                            "resolution": { "type": "number", "description": "Frame width in pixels (default: 720)" },
+                            "jpegQuality": { "type": "number", "description": "JPEG quality 2-31, lower=better (default: 5)" }
                         }
                     },
                     "max_tokens": { "type": "number", "description": "Maximum tokens per file analysis (optional)" }

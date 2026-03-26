@@ -230,7 +230,7 @@ async fn handle_message<S: McpState, H: McpToolHandler>(
 
 pub async fn start_sse_server<S: McpState, H: McpToolHandler>(
     name: &str,
-    mcp_info: &Mutex<Option<McpServerInfo>>,
+    mcp_info: &'static Mutex<Option<McpServerInfo>>,
     state: Arc<S>,
     handler: Arc<H>,
 ) -> Result<u16, String> {
@@ -269,9 +269,6 @@ pub async fn start_sse_server<S: McpState, H: McpToolHandler>(
 
     let shutdown_name = name.to_string();
     let server_err_name = name.to_string();
-    let mcp_info_ptr: &'static Mutex<Option<McpServerInfo>> =
-        // SAFETY: mcp_info is a module-level static, lives for 'static
-        unsafe { &*(mcp_info as *const _) };
 
     tokio::spawn(async move {
         if let Err(e) = axum::serve(listener, app)
@@ -284,7 +281,7 @@ pub async fn start_sse_server<S: McpState, H: McpToolHandler>(
         {
             eprintln!("[{server_err_name}] Server error: {e}");
         }
-        if let Ok(mut info) = mcp_info_ptr.lock() {
+        if let Ok(mut info) = mcp_info.lock() {
             *info = None;
         }
     });
