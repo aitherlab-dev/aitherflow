@@ -37,6 +37,13 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Build MCP image-gen server
+        run: |
+          cargo build --release --manifest-path mcp-image-gen/Cargo.toml
+          mkdir -p src-tauri/binaries
+          TRIPLE=$(rustc -vV | grep host | awk '{print $2}')
+          cp target/release/mcp-image-gen src-tauri/binaries/mcp-image-gen-${TRIPLE}
+
       - run: pnpm tauri build
 
       - name: Collect Linux bundles
@@ -78,6 +85,13 @@ jobs:
         run: brew install protobuf
 
       - run: pnpm install --frozen-lockfile
+
+      - name: Build MCP image-gen server
+        run: |
+          cargo build --release --manifest-path mcp-image-gen/Cargo.toml
+          mkdir -p src-tauri/binaries
+          TRIPLE=$(rustc -vV | grep host | awk '{print $2}')
+          cp target/release/mcp-image-gen src-tauri/binaries/mcp-image-gen-${TRIPLE}
 
       - run: pnpm tauri build
 

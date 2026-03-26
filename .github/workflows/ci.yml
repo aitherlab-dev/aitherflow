@@ -38,6 +38,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libgtk-3-dev libasound2-dev protobuf-compiler
+      - name: Build MCP image-gen server
+        run: |
+          cargo build --release --manifest-path mcp-image-gen/Cargo.toml
+          mkdir -p src-tauri/binaries
+          TRIPLE=$(rustc -vV | grep host | awk '{print $2}')
+          cp target/release/mcp-image-gen src-tauri/binaries/mcp-image-gen-${TRIPLE}
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
 
   check-backend-macos:
@@ -53,4 +59,10 @@ jobs:
           workspaces: src-tauri
       - name: Install system dependencies
         run: brew install protobuf
+      - name: Build MCP image-gen server
+        run: |
+          cargo build --release --manifest-path mcp-image-gen/Cargo.toml
+          mkdir -p src-tauri/binaries
+          TRIPLE=$(rustc -vV | grep host | awk '{print $2}')
+          cp target/release/mcp-image-gen src-tauri/binaries/mcp-image-gen-${TRIPLE}
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
