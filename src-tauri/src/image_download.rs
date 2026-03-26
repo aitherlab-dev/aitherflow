@@ -129,7 +129,7 @@ fn build_definition_from_filename(filename: &str, repo_id: &str) -> ModelDefinit
         .chars()
         .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
         .collect::<String>();
-    let name = stem.replace('-', " ").replace('_', " ");
+    let name = stem.replace(['-', '_'], " ");
 
     let mut def = ModelDefinition {
         id,
@@ -267,7 +267,10 @@ pub async fn download_model_by_url(
         info!(path = %path.display(), "Model downloaded successfully");
 
         // Auto-register in models.json
-        let def = build_definition_from_filename(&filename, &repo_id);
+        let mut def = build_definition_from_filename(&filename, &repo_id);
+        if let Ok(meta) = std::fs::metadata(&path) {
+            def.size_mb = meta.len() / (1024 * 1024);
+        }
         auto_register_model(&def);
 
         Ok(serde_json::json!({
