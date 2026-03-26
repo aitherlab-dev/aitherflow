@@ -475,12 +475,21 @@ pub struct BuiltinMcpStatus {
     pub port: Option<u16>,
 }
 
-/// Get status of all built-in MCP servers (teamwork, models, knowledge).
+/// Get status of all built-in MCP servers.
 #[tauri::command]
 pub async fn get_builtin_mcp_status() -> Vec<BuiltinMcpStatus> {
     let teamwork_port = crate::teamwork::mcp_server::get_mcp_port();
     let models_port = crate::external_models::mcp_server::get_port();
     let knowledge_port = crate::rag::mcp_server::get_port();
+
+    // Image Gen: stdio sidecar, no port — check settings + binary existence
+    let image_gen_running = tokio::task::spawn_blocking(|| {
+        let settings = crate::image_gen::load_settings_sync();
+        settings.image_mcp_enabled
+            && crate::conductor::process::resolve_mcp_image_gen_binary().is_some()
+    })
+    .await
+    .unwrap_or(false);
 
     vec![
         BuiltinMcpStatus {
@@ -497,6 +506,11 @@ pub async fn get_builtin_mcp_status() -> Vec<BuiltinMcpStatus> {
             name: "Knowledge".into(),
             running: knowledge_port.is_some(),
             port: knowledge_port,
+        },
+        BuiltinMcpStatus {
+            name: "Image Gen".into(),
+            running: image_gen_running,
+            port: None,
         },
     ]
 }

@@ -16,7 +16,8 @@ export const McpCard = memo(function McpCard({
   const globalServers = useMcpStore(useShallow((s) => s.global.map((m) => m.name)));
   const projectServers = useMcpStore(useShallow((s) => s.project.map((m) => m.name)));
   const builtin = useMcpStore(useShallow((s) => s.builtin));
-  const total = builtin.length + globalServers.length + projectServers.length;
+  const builtinRunning = builtin.filter((b) => b.running).length;
+  const total = builtinRunning + globalServers.length + projectServers.length;
 
   const handleOpenSettings = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -43,21 +44,24 @@ export const McpCard = memo(function McpCard({
       headerExtra={settingsBtn}
     >
       <div className="dash-card__details">
-        {builtin.length > 0 && (() => {
-          const running = builtin.filter((b) => b.running).length;
-          const allRunning = running === builtin.length;
-          return (
+        {builtin.length > 0 && (
+          <>
             <div className="dash-card__row">
-              <Circle
-                size={8}
-                fill={allRunning ? "var(--status-green)" : running > 0 ? "var(--status-yellow)" : "var(--status-red)"}
-                stroke="none"
-              />
               <span className="dash-card__label">Built-in</span>
-              <span>{running}/{builtin.length}</span>
+              <span>{builtinRunning}/{builtin.length}</span>
             </div>
-          );
-        })()}
+            {builtin.map((b) => (
+              <div key={b.name} className="dash-card__row dash-card__row--sub">
+                <Circle
+                  size={8}
+                  fill={b.running ? "var(--status-green)" : "var(--status-red)"}
+                  stroke="none"
+                />
+                <span className="dash-card__label">{b.name}</span>
+              </div>
+            ))}
+          </>
+        )}
         {globalServers.length > 0 && (
           <>
             <div className="dash-card__row">

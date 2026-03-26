@@ -8,6 +8,7 @@ import { Tooltip } from "../../shared/Tooltip";
 interface ImageGenSettings {
   modelsPath: string;
   selectedModel: string;
+  loraDirectory: string;
 }
 
 interface ImageModel {
@@ -28,6 +29,7 @@ export const ImageGenCard = memo(function ImageGenCard({
 }) {
   const [settings, setSettings] = useState<ImageGenSettings | null>(null);
   const [models, setModels] = useState<ImageModel[]>([]);
+  const [loraFiles, setLoraFiles] = useState<string[]>([]);
 
   const loadData = useCallback(() => {
     invoke<ImageGenSettings>("load_image_gen_settings")
@@ -36,6 +38,13 @@ export const ImageGenCard = memo(function ImageGenCard({
         invoke<ImageModel[]>("list_image_gen_models", { modelsPath: s.modelsPath })
           .then(setModels)
           .catch(console.error);
+        if (s.loraDirectory) {
+          invoke<string[]>("list_lora_files", { directory: s.loraDirectory })
+            .then(setLoraFiles)
+            .catch(console.error);
+        } else {
+          setLoraFiles([]);
+        }
       })
       .catch(console.error);
   }, []);
@@ -76,6 +85,22 @@ export const ImageGenCard = memo(function ImageGenCard({
     },
     [settings],
   );
+
+  const handleLoraChange = useCallback(async (filename: string) => {
+    if (!settings || !selected) return;
+    const fullPath = filename ? `${settings.loraDirectory}/${filename}` : null;
+    try {
+      await invoke("update_image_gen_model_lora", {
+        modelId: selected.id,
+        loraPath: fullPath,
+        loraStrength: selected.loraStrength,
+        enabled: selected.loraEnabled,
+      });
+      loadData();
+    } catch (e) {
+      console.error("Failed to change LoRA:", e);
+    }
+  }, [settings, selected, loadData]);
 
   const handleLoraToggle = useCallback(async () => {
     if (!settings || !selected) return;
@@ -135,23 +160,33 @@ export const ImageGenCard = memo(function ImageGenCard({
           </select>
         </div>
 
-        {/* LoRA status + toggle */}
+        {/* LoRA selector + toggle */}
         <div className="dash-card__row">
           <span className="dash-card__label">LoRA</span>
-          {hasLora ? (
+          {loraFiles.length > 0 ? (
             <>
-              <span>
-                {loraFile} ({selected!.loraStrength.toFixed(1)})
-              </span>
-              <button
-                className={`dash-card__toggle ${selected!.loraEnabled ? "dash-card__toggle--on" : ""}`}
-                onClick={(e) => { e.stopPropagation(); handleLoraToggle(); }}
+              <select
+                className="dash-card__select"
+                value={loraFile ?? ""}
+                onChange={(e) => { e.stopPropagation(); handleLoraChange(e.target.value); }}
+                onClick={(e) => e.stopPropagation()}
               >
-                <span className="dash-card__toggle-knob" />
-              </button>
+                <option value="">None</option>
+                {loraFiles.map((f) => (
+                  <option key={f} value={f}>{f.replace(".safetensors", "")}</option>
+                ))}
+              </select>
+              {hasLora && (
+                <button
+                  className={`dash-card__toggle ${selected!.loraEnabled ? "dash-card__toggle--on" : ""}`}
+                  onClick={(e) => { e.stopPropagation(); handleLoraToggle(); }}
+                >
+                  <span className="dash-card__toggle-knob" />
+                </button>
+              )}
             </>
           ) : (
-            <span className="dash-card__dim">No LoRA</span>
+            <span className="dash-card__dim">No directory set</span>
           )}
         </div>
 

@@ -335,4 +335,7 @@
   color: var(--fg);
   cursor: pointer;
   max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

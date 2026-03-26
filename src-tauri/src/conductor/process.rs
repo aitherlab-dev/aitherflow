@@ -16,7 +16,7 @@ const MAX_STDERR_BYTES: usize = 64 * 1024;
 /// Checks PATH first, then common install locations per platform.
 /// Find the mcp-image-gen binary. Checks next to current exe (workspace dev build
 /// and Tauri sidecar bundle).
-fn resolve_mcp_image_gen_binary() -> Option<std::path::PathBuf> {
+pub fn resolve_mcp_image_gen_binary() -> Option<std::path::PathBuf> {
     let exe = std::env::current_exe().ok()?;
     let dir = exe.parent()?;
 

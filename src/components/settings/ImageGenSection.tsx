@@ -11,6 +11,7 @@ interface ImageGenSettings {
   height: number;
   steps: number;
   selectedModel: string;
+  loraDirectory: string;
 }
 
 interface ImageModel {
@@ -174,6 +175,7 @@ export const ImageGenSection = memo(function ImageGenSection() {
   // LoRA state
   const [loraPath, setLoraPath] = useState<string>("");
   const [loraStrength, setLoraStrength] = useState(1.0);
+  const [loraFiles, setLoraFiles] = useState<string[]>([]);
 
   // Add model form state
   const [showAddForm, setShowAddForm] = useState(false);
@@ -346,13 +348,28 @@ export const ImageGenSection = memo(function ImageGenSection() {
     if (!settings || !settings.selectedModel || models.length === 0) return;
     const modelId = settings.selectedModel;
     const model = models.find((m) => m.id === modelId);
-    // Build a key that changes when model or its LoRA data changes
     const key = `${modelId}:${model?.lora ?? ""}:${model?.loraStrength ?? 1}`;
     if (loraLoadedForRef.current === key) return;
     loraLoadedForRef.current = key;
     setLoraPath(model?.lora ?? "");
     setLoraStrength(model?.loraStrength ?? 1.0);
   }, [settings?.selectedModel, models]);
+
+  // Scan LoRA directory for .safetensors files
+  const refreshLoraFiles = useCallback(async (dir: string) => {
+    if (!dir) { setLoraFiles([]); return; }
+    try {
+      const files = await invoke<string[]>("list_lora_files", { directory: dir });
+      setLoraFiles(files);
+    } catch (e) {
+      console.error("Failed to list LoRA files:", e);
+      setLoraFiles([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (settings?.loraDirectory) refreshLoraFiles(settings.loraDirectory);
+  }, [settings?.loraDirectory, refreshLoraFiles]);
 
   const handleLoraUpdate = useCallback(
     async (path: string | null, strength: number, enabled?: boolean) => {
@@ -389,16 +406,29 @@ export const ImageGenSection = memo(function ImageGenSection() {
     [loraPath, handleLoraUpdate],
   );
 
-  const handleLoraBrowse = useCallback(async () => {
-    const result = await openDialog({
-      title: "Select LoRA file",
-      filters: [{ name: "LoRA files", extensions: ["safetensors"] }],
-    });
-    if (typeof result === "string") {
-      setLoraPath(result);
-      handleLoraUpdate(result, loraStrength);
+  const handleLoraSelect = useCallback(
+    (filename: string) => {
+      if (!settings?.loraDirectory) return;
+      const fullPath = filename ? `${settings.loraDirectory}/${filename}` : "";
+      setLoraPath(fullPath);
+      handleLoraUpdate(fullPath || null, loraStrength);
+    },
+    [settings?.loraDirectory, loraStrength, handleLoraUpdate],
+  );
+
+  const handleLoraDirBrowse = useCallback(async () => {
+    const result = await openDialog({ title: "Select LoRA directory", directory: true });
+    if (typeof result === "string" && settings) {
+      const updated = { ...settings, loraDirectory: result };
+      try {
+        await invoke("save_image_gen_settings", { settings: updated });
+        setSettings(updated);
+        refreshLoraFiles(result);
+      } catch (e) {
+        console.error("Failed to save LoRA directory:", e);
+      }
     }
-  }, [loraStrength, handleLoraUpdate]);
+  }, [settings, refreshLoraFiles]);
 
   const handleLoraClear = useCallback(() => {
     setLoraPath("");
@@ -567,6 +597,32 @@ export const ImageGenSection = memo(function ImageGenSection() {
       {/* LoRA section — only for known models */}
       {!isCustom && selected && (
         <>
+          {/* LoRA directory */}
+          <div className="settings-toggle-row">
+            <div className="settings-toggle-info">
+              <span className="settings-toggle-label">LoRA directory</span>
+              <span className="settings-toggle-desc">
+                Folder with .safetensors LoRA files
+              </span>
+            </div>
+            <div className="settings-input-row">
+              <input
+                type="text"
+                className="settings-input"
+                value={settings.loraDirectory}
+                placeholder="Not set"
+                spellCheck={false}
+                readOnly
+              />
+              <Tooltip text="Browse">
+                <button className="settings-input-toggle" onClick={handleLoraDirBrowse}>
+                  <FolderOpen size={14} />
+                </button>
+              </Tooltip>
+            </div>
+          </div>
+
+          {/* LoRA select */}
           <div className="settings-toggle-row">
             <div className="settings-toggle-info">
               <span className="settings-toggle-label">
@@ -574,24 +630,25 @@ export const ImageGenSection = memo(function ImageGenSection() {
                 {loraPath && <span className="imggen-lora-badge">Active</span>}
               </span>
               <span className="settings-toggle-desc">
-                Optional .safetensors LoRA file for style transfer
+                {loraFiles.length > 0
+                  ? `${loraFiles.length} file${loraFiles.length > 1 ? "s" : ""} found`
+                  : settings.loraDirectory
+                    ? "No .safetensors files found"
+                    : "Set LoRA directory first"}
               </span>
             </div>
             <div className="settings-input-row">
-              <input
-                type="text"
+              <select
                 className="settings-input"
-                value={loraPath}
-                onChange={(e) => setLoraPath(e.target.value)}
-                placeholder="No LoRA selected"
-                spellCheck={false}
-                readOnly
-              />
-              <Tooltip text="Browse">
-                <button className="settings-input-toggle" onClick={handleLoraBrowse}>
-                  <FileSearch size={14} />
-                </button>
-              </Tooltip>
+                value={loraPath ? loraPath.split("/").pop() ?? "" : ""}
+                onChange={(e) => handleLoraSelect(e.target.value)}
+                disabled={loraFiles.length === 0}
+              >
+                <option value="">None</option>
+                {loraFiles.map((f) => (
+                  <option key={f} value={f}>{f.replace(".safetensors", "")}</option>
+                ))}
+              </select>
               {loraPath && (
                 <Tooltip text="Clear LoRA">
                   <button className="settings-input-toggle" onClick={handleLoraClear}>

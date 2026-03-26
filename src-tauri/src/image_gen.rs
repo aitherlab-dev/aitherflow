@@ -104,6 +104,8 @@ pub struct ImageGenSettings {
     pub selected_model: String,
     #[serde(default = "default_true")]
     pub image_mcp_enabled: bool,
+    #[serde(default)]
+    pub lora_directory: String,
 }
 
 fn default_true() -> bool {
@@ -121,6 +123,7 @@ impl Default for ImageGenSettings {
             steps: default_steps(),
             selected_model: default_selected_model(),
             image_mcp_enabled: true,
+            lora_directory: String::new(),
         }
     }
 }
@@ -381,6 +384,36 @@ pub async fn update_image_gen_model_lora(
         model.lora_strength = lora_strength;
         model.lora_enabled = enabled;
         save_model_definitions(&models_json_path(), &models)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+#[tauri::command]
+pub async fn list_lora_files(directory: String) -> Result<Vec<String>, String> {
+    tokio::task::spawn_blocking(move || {
+        if directory.is_empty() {
+            return Ok(Vec::new());
+        }
+        let dir = PathBuf::from(&directory);
+        validate_path_safe(&dir)?;
+        if !dir.is_dir() {
+            return Ok(Vec::new());
+        }
+        let mut files: Vec<String> = Vec::new();
+        let entries = std::fs::read_dir(&dir)
+            .map_err(|e| format!("Failed to read {}: {e}", dir.display()))?;
+        for entry in entries.flatten() {
+            let ft = entry.file_type();
+            if ft.map(|t| t.is_file()).unwrap_or(false) {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if name.ends_with(".safetensors") {
+                    files.push(name);
+                }
+            }
+        }
+        files.sort();
+        Ok(files)
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?

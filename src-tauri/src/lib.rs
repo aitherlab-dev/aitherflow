@@ -101,6 +101,7 @@ pub fn run() {
             image_gen::add_image_gen_model,
             image_gen::remove_image_gen_model,
             image_gen::update_image_gen_model_lora,
+            image_gen::list_lora_files,
             image_download::download_image_gen_model,
             image_download::download_model_by_url,
             attachments::process_file,
