@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use tracing::{error, info, warn};
 
 use crate::files::validate_path_safe;
-use crate::image_gen::load_model_definitions;
+use crate::image_gen::{load_model_definitions, RepoFile};
 
 /// Parse a HuggingFace URL into (repo_id, filename).
 /// Supports: https://huggingface.co/{org}/{repo}/resolve/main/{filename}
@@ -59,7 +59,7 @@ pub async fn download_image_gen_model(
             model_id = %model.id,
             repo = %model.diffusion.repo,
             file = %model.diffusion.file,
-            "Downloading model from HuggingFace"
+            "Downloading model and all components from HuggingFace"
         );
 
         let api = ApiBuilder::new()
@@ -67,22 +67,46 @@ pub async fn download_image_gen_model(
             .build()
             .map_err(|e| format!("Failed to init HF API: {e}"))?;
 
-        let repo = api.model(model.diffusion.repo.clone());
-        let path = repo.get(&model.diffusion.file).map_err(|e| {
-            error!(model_id = %model.id, "Download failed: {e}");
-            format!("Failed to download {}: {e}", model.name)
-        })?;
+        // Helper: download a single component, skip if already cached
+        let download_component = |rf: &RepoFile, label: &str| -> Result<(), String> {
+            info!(component = label, repo = %rf.repo, file = %rf.file, "Downloading component");
+            let repo_api = api.model(rf.repo.clone());
+            repo_api.get(&rf.file).map_err(|e| {
+                error!(component = label, repo = %rf.repo, file = %rf.file, "Download failed: {e}");
+                format!("Failed to download {label} ({}/{}): {e}", rf.repo, rf.file)
+            })?;
+            info!(component = label, "Component ready");
+            Ok(())
+        };
 
-        info!(
-            model_id = %model.id,
-            path = %path.display(),
-            "Model downloaded successfully"
-        );
+        // 1. Diffusion model (main)
+        download_component(&model.diffusion, "diffusion")?;
+
+        // 2. VAE
+        if let Some(ref vae) = model.vae {
+            download_component(vae, "vae")?;
+        }
+
+        // 3. LLM encoder
+        if let Some(ref llm) = model.llm {
+            download_component(llm, "llm")?;
+        }
+
+        // 4. CLIP-L
+        if let Some(ref clip_l) = model.clip_l {
+            download_component(clip_l, "clip_l")?;
+        }
+
+        // 5. T5-XXL
+        if let Some(ref t5xxl) = model.t5xxl {
+            download_component(t5xxl, "t5xxl")?;
+        }
+
+        info!(model_id = %model.id, "All components downloaded successfully");
 
         Ok(serde_json::json!({
             "status": "ok",
-            "modelId": model.id,
-            "path": path.to_string_lossy()
+            "modelId": model.id
         }))
     })
     .await
