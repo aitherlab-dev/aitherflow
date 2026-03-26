@@ -653,7 +653,7 @@ async fn execute_tool(
                 agent_id, target_id
             );
             let ndjson =
-                crate::conductor::process::build_stdin_message(&prompt, &[])?;
+                crate::conductor::message::build_stdin_message(&prompt, &[])?;
             let writer = state
                 .session_manager
                 .get_writer(&target_id)

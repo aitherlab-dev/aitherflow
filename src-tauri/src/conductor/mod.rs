@@ -1,5 +1,7 @@
+pub mod message;
 pub mod parser;
 pub mod process;
+pub mod resolve;
 pub mod session;
 pub mod stats;
 pub mod types;
@@ -114,7 +116,7 @@ pub async fn send_message(
     let agent_id = options
         .agent_id
         .unwrap_or_else(|| DEFAULT_AGENT_ID.to_string());
-    let ndjson = process::build_stdin_message(&options.prompt, &options.attachments)?;
+    let ndjson = message::build_stdin_message(&options.prompt, &options.attachments)?;
     write_stdin(&sessions, &agent_id, &ndjson).await
 }
 
@@ -131,7 +133,7 @@ pub async fn respond_to_tool(
     response: serde_json::Value,
 ) -> Result<(), String> {
     let agent_id = agent_id.unwrap_or_else(|| DEFAULT_AGENT_ID.to_string());
-    let ndjson = process::build_control_response(&request_id, &response)?;
+    let ndjson = message::build_control_response(&request_id, &response)?;
     write_stdin(&sessions, &agent_id, &ndjson).await
 }
 

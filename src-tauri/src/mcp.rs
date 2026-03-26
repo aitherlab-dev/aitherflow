@@ -486,7 +486,7 @@ pub async fn get_builtin_mcp_status() -> Vec<BuiltinMcpStatus> {
     let image_gen_running = tokio::task::spawn_blocking(|| {
         let settings = crate::image_gen::load_settings_sync();
         settings.image_mcp_enabled
-            && crate::conductor::process::resolve_mcp_image_gen_binary().is_some()
+            && crate::conductor::resolve::resolve_mcp_image_gen_binary().is_some()
     })
     .await
     .unwrap_or(false);
