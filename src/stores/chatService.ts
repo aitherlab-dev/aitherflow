@@ -564,7 +564,14 @@ export function switchAgent(
   projectName: string,
   savedChatId: string | null,
 ) {
-  return enqueueSession(() => switchAgentInner(agentId, projectPath, projectName, savedChatId));
+  return enqueueSession(async () => {
+    try {
+      await switchAgentInner(agentId, projectPath, projectName, savedChatId);
+    } catch (e) {
+      console.error("[switchAgent] Failed:", e);
+      throw e;
+    }
+  });
 }
 
 async function switchAgentInner(
@@ -580,9 +587,10 @@ async function switchAgentInner(
   cancelStreamRaf();
 
   // Snapshot BEFORE any async work to prevent race with event handlers
+  const fresh = useChatStore.getState();
   agentStates.set(state.agentId, {
-    messages: useChatStore.getState().messages,
-    streamingMessage: useChatStore.getState().streamingMessage,
+    messages: fresh.messages,
+    streamingMessage: fresh.streamingMessage,
     chatId: state.currentChatId,
     hasSession: state.hasSession,
     isThinking: state.isThinking,
