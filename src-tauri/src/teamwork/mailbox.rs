@@ -147,19 +147,16 @@ fn append_to_inbox(team: &str, msg: &TeamMessage) -> Result<(), String> {
         serde_json::to_string(msg).map_err(|e| format!("Failed to serialize message: {e}"))?;
     line.push('\n');
 
-    let mut file = fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&path)
-        .map_err(|e| format!("Failed to open inbox {}: {e}", path.display()))?;
-
+    let mut opts = fs::OpenOptions::new();
+    opts.create(true).append(true);
     #[cfg(unix)]
     {
-        use std::os::unix::fs::PermissionsExt;
-        if let Err(e) = file.set_permissions(fs::Permissions::from_mode(0o600)) {
-            eprintln!("[teamwork] Failed to set inbox permissions: {e}");
-        }
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
     }
+    let mut file = opts
+        .open(&path)
+        .map_err(|e| format!("Failed to open inbox {}: {e}", path.display()))?;
 
     file.write_all(line.as_bytes())
         .map_err(|e| format!("Failed to write to inbox: {e}"))?;
@@ -191,19 +188,16 @@ fn append_to_feed(team: &str, msg: &TeamMessage) -> Result<(), String> {
         serde_json::to_string(msg).map_err(|e| format!("Failed to serialize message: {e}"))?;
     line.push('\n');
 
-    let mut file = fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&path)
-        .map_err(|e| format!("Failed to open feed {}: {e}", path.display()))?;
-
+    let mut opts = fs::OpenOptions::new();
+    opts.create(true).append(true);
     #[cfg(unix)]
     {
-        use std::os::unix::fs::PermissionsExt;
-        if let Err(e) = file.set_permissions(fs::Permissions::from_mode(0o600)) {
-            eprintln!("[teamwork] Failed to set feed permissions: {e}");
-        }
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
     }
+    let mut file = opts
+        .open(&path)
+        .map_err(|e| format!("Failed to open feed {}: {e}", path.display()))?;
 
     file.write_all(line.as_bytes())
         .map_err(|e| format!("Failed to write to feed: {e}"))?;

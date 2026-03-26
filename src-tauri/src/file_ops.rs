@@ -47,18 +47,22 @@ fn is_binary(data: &[u8]) -> bool {
 
 /// Atomic write: write to temp file, then rename
 pub fn atomic_write(path: &Path, data: &[u8]) -> Result<(), String> {
-    use std::sync::atomic::{AtomicU64, Ordering};
-    static COUNTER: AtomicU64 = AtomicU64::new(0);
-
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
             .map_err(|e| format!("Failed to create dir {}: {e}", parent.display()))?;
     }
-    let seq = COUNTER.fetch_add(1, Ordering::Relaxed);
-    let pid = std::process::id();
-    let tmp = path.with_extension(format!("aither_tmp_{pid}_{seq}"));
+    let random = uuid::Uuid::new_v4();
+    let tmp = path.with_extension(format!("aither_tmp_{random}"));
     let mut file =
         fs::File::create(&tmp).map_err(|e| format!("Failed to create temp file: {e}"))?;
+
+    // Verify the temp file is a regular file, not a symlink
+    let meta = fs::symlink_metadata(&tmp)
+        .map_err(|e| format!("Failed to stat temp file: {e}"))?;
+    if meta.file_type().is_symlink() {
+        let _ = fs::remove_file(&tmp);
+        return Err("Temp file is a symlink, aborting".into());
+    }
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;

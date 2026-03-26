@@ -292,39 +292,48 @@ pub fn ocr_pdf(path: &Path) -> Result<String, String> {
     }
 
     let mut all_text = String::new();
+    const BATCH_SIZE: usize = 10;
 
-    // Process one page at a time to keep memory bounded
-    for page_num in 1..=pages_to_process {
-        eprintln!("[rag/ocr] Page {page_num}/{pages_to_process}...");
-        let img = match render_single_page(path, page_num) {
-            Ok(img) => {
-                let (w, h) = img.dimensions();
-                eprintln!("[rag/ocr] Page {page_num} rendered: {w}x{h}");
-                img
-            }
+    // Process pages in batches to reduce process spawns while keeping memory bounded
+    let mut first = 1;
+    while first <= pages_to_process {
+        let last = (first + BATCH_SIZE - 1).min(pages_to_process);
+        eprintln!("[rag/ocr] Rendering pages {first}-{last}/{pages_to_process}...");
+
+        let images = match render_page_batch(path, first, last) {
+            Ok(imgs) => imgs,
             Err(e) => {
-                eprintln!("[rag/ocr] Page {page_num} render failed: {e}");
+                eprintln!("[rag/ocr] Batch {first}-{last} render failed: {e}");
+                first = last + 1;
                 continue;
             }
         };
 
-        let result = with_engine(|engine| ocr_image(engine, &img));
-        match result {
-            Ok(text) => {
-                let trimmed = text.trim();
-                eprintln!("[rag/ocr] Page {page_num}: {} chars extracted", trimmed.len());
-                if !trimmed.is_empty() {
-                    if !all_text.is_empty() {
-                        all_text.push_str("\n\n");
+        for (i, img) in images.into_iter().enumerate() {
+            let page_num = first + i;
+            let (w, h) = img.dimensions();
+            eprintln!("[rag/ocr] Page {page_num} rendered: {w}x{h}");
+
+            let result = with_engine(|engine| ocr_image(engine, &img));
+            match result {
+                Ok(text) => {
+                    let trimmed = text.trim();
+                    eprintln!("[rag/ocr] Page {page_num}: {} chars extracted", trimmed.len());
+                    if !trimmed.is_empty() {
+                        if !all_text.is_empty() {
+                            all_text.push_str("\n\n");
+                        }
+                        all_text.push_str(trimmed);
                     }
-                    all_text.push_str(trimmed);
+                }
+                Err(e) => {
+                    eprintln!("[rag/ocr] Page {page_num} OCR failed: {e}");
                 }
             }
-            Err(e) => {
-                eprintln!("[rag/ocr] Page {page_num} OCR failed: {e}");
-            }
+            // img is dropped here — memory for this page is freed before next page
         }
-        // img is dropped here — memory for this page is freed before next page
+
+        first = last + 1;
     }
 
     if all_text.trim().is_empty() {
@@ -365,23 +374,21 @@ fn get_page_count(path: &Path) -> Result<usize, String> {
 
 /// Render a single PDF page to an image using pdftoppm.
 /// Uses -f/-l to select page and -singlefile to produce exactly one output.
-fn render_single_page(path: &Path, page_num: usize) -> Result<DynamicImage, String> {
+/// Render a range of pages [first, last] in a single pdftoppm invocation.
+fn render_page_batch(path: &Path, first: usize, last: usize) -> Result<Vec<DynamicImage>, String> {
     let path_str = path.to_str().ok_or("Invalid path encoding")?;
     let tmp_dir =
         tempfile::tempdir().map_err(|e| format!("Failed to create temp dir: {e}"))?;
     let prefix = tmp_dir.path().join("page");
     let prefix_str = prefix.to_str().ok_or("Invalid temp path")?;
 
-    let page_str = page_num.to_string();
+    let first_str = first.to_string();
+    let last_str = last.to_string();
     let output = Command::new("pdftoppm")
         .args([
-            "-f",
-            &page_str,
-            "-l",
-            &page_str,
-            "-singlefile",
-            "-r",
-            "300",
+            "-f", &first_str,
+            "-l", &last_str,
+            "-r", "300",
             "-png",
             path_str,
             prefix_str,
@@ -391,12 +398,30 @@ fn render_single_page(path: &Path, page_num: usize) -> Result<DynamicImage, Stri
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("pdftoppm failed for page {page_num}: {stderr}"));
+        return Err(format!("pdftoppm failed for pages {first}-{last}: {stderr}"));
     }
 
-    // -singlefile produces exactly one file: {prefix}.png
-    let png_path = prefix.with_extension("png");
-    image::open(&png_path).map_err(|e| format!("Failed to open page {page_num} image: {e}"))
+    // pdftoppm produces files like page-01.png, page-02.png, etc. (sorted by name = page order)
+    let mut png_paths: Vec<_> = std::fs::read_dir(tmp_dir.path())
+        .map_err(|e| format!("Failed to read temp dir: {e}"))?
+        .filter_map(|entry| entry.ok())
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|ext| ext == "png"))
+        .collect();
+    png_paths.sort();
+
+    let mut images = Vec::with_capacity(png_paths.len());
+    for (i, png_path) in png_paths.into_iter().enumerate() {
+        let page_num = first + i;
+        match image::open(&png_path) {
+            Ok(img) => images.push(img),
+            Err(e) => {
+                eprintln!("[rag/ocr] Failed to open page {page_num} image: {e}");
+            }
+        }
+    }
+
+    Ok(images)
 }
 
 // --- OCR pipeline for a single image ---
