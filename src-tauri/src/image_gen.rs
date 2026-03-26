@@ -26,6 +26,7 @@ pub struct RepoFile {
 
 /// Model definition as stored in ~/.config/aither-flow/image-gen/models.json.
 /// Shared format between MCP server and Tauri app.
+// Keep in sync with mcp-image-gen/src/tools.rs::ModelDefinition
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelDefinition {
     pub id: String,

@@ -104,14 +104,19 @@ struct RepoFile {
 
 /// Model definition as stored in models.json.
 /// Each entry fully describes how to download and configure a model.
+// Keep in sync with src-tauri/src/image_gen.rs::ModelDefinition
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct ModelDefinition {
     id: String,
     name: String,
     diffusion: RepoFile,
+    #[serde(default)]
     vae: Option<RepoFile>,
+    #[serde(default)]
     llm: Option<RepoFile>,
+    #[serde(default)]
     clip_l: Option<RepoFile>,
+    #[serde(default)]
     t5xxl: Option<RepoFile>,
     #[serde(default)]
     single_file: bool,
@@ -582,8 +587,8 @@ fn model_id_from_filename(filename: &str) -> &'static str {
     {
         "sdxl-turbo"
     } else {
-        warn!("Cannot determine model type from filename '{filename}', defaulting to FLUX.1 Schnell");
-        "flux1-schnell"
+        warn!("Cannot determine model type from filename '{filename}', defaulting to FLUX.2 Klein 4B");
+        "flux2-klein-4b"
     }
 }
 
@@ -771,7 +776,7 @@ mod tests {
 
     #[test]
     fn test_model_id_from_filename_fallback() {
-        assert_eq!(model_id_from_filename("totally-unknown-model.gguf"), "flux1-schnell");
+        assert_eq!(model_id_from_filename("totally-unknown-model.gguf"), "flux2-klein-4b");
     }
 
     // ── resolve_model ──
