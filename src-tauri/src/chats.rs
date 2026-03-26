@@ -48,7 +48,25 @@ impl ChatFileMeta {
             pinned: chat.pinned,
         }
     }
+}
 
+/// Flat structure for single-pass serialization (meta + messages).
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ChatFileOut<'a> {
+    id: &'a str,
+    project_path: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    agent_id: &'a Option<String>,
+    title: &'a str,
+    created_at: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    session_id: &'a Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    custom_title: &'a Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pinned: &'a Option<bool>,
+    messages: &'a [ChatMessageStored],
 }
 
 fn cache_meta(chat: &ChatFile) {
@@ -381,15 +399,18 @@ pub async fn save_chat_messages(
             ChatFileMeta::from_chat(&chat)
         };
 
-        // Deserialize meta into a Value, insert messages, serialize back
-        let mut chat_value = serde_json::to_value(&meta)
-            .map_err(|e| format!("Failed to serialize meta: {e}"))?;
-        let msgs_value = serde_json::to_value(&messages)
-            .map_err(|e| format!("Failed to serialize messages: {e}"))?;
-        chat_value.as_object_mut()
-            .ok_or_else(|| "Meta serialized to non-object".to_string())?
-            .insert("messages".to_string(), msgs_value);
-        let data = serde_json::to_string(&chat_value)
+        let out = ChatFileOut {
+            id: &meta.id,
+            project_path: &meta.project_path,
+            agent_id: &meta.agent_id,
+            title: &meta.title,
+            created_at: meta.created_at,
+            session_id: &meta.session_id,
+            custom_title: &meta.custom_title,
+            pinned: &meta.pinned,
+            messages: &messages,
+        };
+        let data = serde_json::to_string(&out)
             .map_err(|e| format!("Failed to serialize chat: {e}"))?;
         atomic_write(&chat_path(&chat_id), data.as_bytes())
     })
