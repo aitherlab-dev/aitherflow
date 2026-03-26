@@ -43,27 +43,21 @@ export const McpCard = memo(function McpCard({
       headerExtra={settingsBtn}
     >
       <div className="dash-card__details">
-        {builtin.length > 0 && (
-          <>
+        {builtin.length > 0 && (() => {
+          const running = builtin.filter((b) => b.running).length;
+          const allRunning = running === builtin.length;
+          return (
             <div className="dash-card__row">
+              <Circle
+                size={8}
+                fill={allRunning ? "var(--status-green)" : running > 0 ? "var(--status-yellow)" : "var(--status-red)"}
+                stroke="none"
+              />
               <span className="dash-card__label">Built-in</span>
-              <span>{builtin.filter((b) => b.running).length}/{builtin.length}</span>
+              <span>{running}/{builtin.length}</span>
             </div>
-            {builtin.map((s) => (
-              <div key={s.name} className="dash-card__row dash-card__row--sub">
-                <Circle
-                  size={8}
-                  fill={s.running ? "var(--status-green)" : "var(--status-red)"}
-                  stroke="none"
-                />
-                <span className="dash-card__label">{s.name}</span>
-                {s.running && s.port && (
-                  <span className="dash-card__dim">:{s.port}</span>
-                )}
-              </div>
-            ))}
-          </>
-        )}
+          );
+        })()}
         {globalServers.length > 0 && (
           <>
             <div className="dash-card__row">

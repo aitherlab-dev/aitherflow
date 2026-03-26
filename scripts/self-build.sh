@@ -56,6 +56,16 @@ if pnpm tauri build --no-bundle; then
         echo "=== Self-Build: WARNING: aither-flow-memory not found, session memory won't work ==="
     fi
 
+    # Install image generation MCP sidecar
+    IMGGEN_BIN="$PROJECT_DIR/target/release/mcp-image-gen"
+    if [ -f "$IMGGEN_BIN" ]; then
+        cp "$IMGGEN_BIN" "$HOME/.local/bin/mcp-image-gen"
+        chmod +x "$HOME/.local/bin/mcp-image-gen"
+        echo "=== Self-Build: installed mcp-image-gen to ~/.local/bin/ ==="
+    else
+        echo "=== Self-Build: WARNING: mcp-image-gen not found, image generation won't work ==="
+    fi
+
     # Save project dir so production binary can find us next time
     mkdir -p "$HOME/.config/aither-flow"
     echo "$PROJECT_DIR" > "$HOME/.config/aither-flow/project_dir.txt"

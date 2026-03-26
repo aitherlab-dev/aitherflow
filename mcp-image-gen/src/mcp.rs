@@ -52,25 +52,6 @@ impl JsonRpcResponse {
         )
     }
 
-    pub fn tool_result_with_image(id: Value, image_base64: String, mime_type: &str, text: String) -> Self {
-        Self::success(
-            id,
-            serde_json::json!({
-                "content": [
-                    {
-                        "type": "image",
-                        "data": image_base64,
-                        "mimeType": mime_type
-                    },
-                    {
-                        "type": "text",
-                        "text": text
-                    }
-                ]
-            }),
-        )
-    }
-
     pub fn tool_error(id: Value, text: String) -> Self {
         Self::success(
             id,
