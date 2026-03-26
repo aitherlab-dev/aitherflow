@@ -220,12 +220,8 @@ pub async fn start_mcp_server(
 /// Check Authorization: Bearer <token> header against the server's shared secret.
 /// Returns Some(response) if auth fails, None if ok.
 fn check_auth(headers: &HeaderMap, expected: &str) -> Option<Response> {
-    let auth = headers
-        .get("authorization")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-    let token = auth.strip_prefix("Bearer ").unwrap_or("");
-    if token != expected {
+    // Re-use shared auth check, but add error body for teamwork clients
+    if crate::mcp_transport::check_auth(headers, expected).is_some() {
         return Some((StatusCode::UNAUTHORIZED, "Invalid or missing auth token").into_response());
     }
     None
