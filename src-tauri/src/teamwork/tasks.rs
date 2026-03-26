@@ -1,42 +1,26 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, LazyLock, Mutex};
 
 use crate::config;
 use crate::file_ops::{read_json, write_json};
+use crate::named_mutex_pool::NamedMutexPool;
 
 use super::validate_name;
 
 /// Per-task lock to prevent concurrent claim races.
-static TASK_LOCKS: LazyLock<Mutex<HashMap<String, Arc<Mutex<()>>>>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
+static TASK_LOCKS: LazyLock<NamedMutexPool> =
+    LazyLock::new(|| NamedMutexPool::new("teamwork/tasks"));
 
 fn task_lock(key: &str) -> Arc<Mutex<()>> {
-    let mut map = TASK_LOCKS.lock().unwrap_or_else(|e| {
-        eprintln!("[teamwork] WARNING: TASK_LOCKS mutex poisoned, recovering");
-        e.into_inner()
-    });
-    // Evict stale entries (no one else holds the lock)
-    map.retain(|_, arc| Arc::strong_count(arc) > 1);
-    map.entry(key.to_string())
-        .or_insert_with(|| Arc::new(Mutex::new(())))
-        .clone()
+    TASK_LOCKS.lock(key)
 }
 
 /// Remove lock entries for a given team prefix (called on team deletion).
 #[allow(dead_code)] // reserved for team lifecycle management
 pub(crate) fn remove_task_locks(team: &str) {
-    let prefix = format!("{team}/");
-    let mut map = TASK_LOCKS.lock().unwrap_or_else(|e| e.into_inner());
-    map.retain(|key, arc| {
-        if key.starts_with(&prefix) {
-            Arc::strong_count(arc) > 1
-        } else {
-            true
-        }
-    });
+    TASK_LOCKS.remove_by_prefix(&format!("{team}/"));
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq)]

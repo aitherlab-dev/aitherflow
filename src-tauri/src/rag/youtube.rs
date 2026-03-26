@@ -111,12 +111,16 @@ pub fn fetch_youtube_transcript(url: &str) -> Result<String, String> {
     if !output.status.success() && vtt_result.is_err() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         // Cleanup before returning error
-        let _ = std::fs::remove_dir_all(&temp_dir);
+        if let Err(e) = std::fs::remove_dir_all(&temp_dir) {
+            eprintln!("[rag] Failed to cleanup temp dir: {e}");
+        }
         return Err(format!("yt-dlp failed: {stderr}"));
     }
 
     let vtt_content = vtt_result.inspect_err(|_| {
-        let _ = std::fs::remove_dir_all(&temp_dir);
+        if let Err(e) = std::fs::remove_dir_all(&temp_dir) {
+            eprintln!("[rag] Failed to cleanup temp dir: {e}");
+        }
     })?;
 
     // Cleanup temp files

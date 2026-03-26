@@ -6,10 +6,12 @@ use std::sync::{Arc, LazyLock, Mutex};
 
 use crate::config;
 use crate::file_ops::{atomic_write, read_json, write_json};
+use crate::files::validate_path_safe;
+use crate::named_mutex_pool::NamedMutexPool;
 
 /// Per-chat-id lock to prevent concurrent read-modify-write races.
-static CHAT_LOCKS: LazyLock<Mutex<HashMap<String, Arc<Mutex<()>>>>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
+static CHAT_LOCKS: LazyLock<NamedMutexPool> =
+    LazyLock::new(|| NamedMutexPool::new("chats"));
 
 /// Global lock for index.json to prevent concurrent read-modify-write races
 /// when multiple chats are created/updated simultaneously.
@@ -46,7 +48,25 @@ impl ChatFileMeta {
             pinned: chat.pinned,
         }
     }
+}
 
+/// Flat structure for single-pass serialization (meta + messages).
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ChatFileOut<'a> {
+    id: &'a str,
+    project_path: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    agent_id: &'a Option<String>,
+    title: &'a str,
+    created_at: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    session_id: &'a Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    custom_title: &'a Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pinned: &'a Option<bool>,
+    messages: &'a [ChatMessageStored],
 }
 
 fn cache_meta(chat: &ChatFile) {
@@ -62,9 +82,7 @@ fn get_cached_meta(chat_id: &str) -> Option<ChatFileMeta> {
 
 /// Remove entries from CHAT_LOCKS and META_CACHE that are not in the index.
 fn purge_stale_caches(live_ids: &std::collections::HashSet<String>) {
-    if let Ok(mut map) = CHAT_LOCKS.lock() {
-        map.retain(|id, _| live_ids.contains(id));
-    }
+    CHAT_LOCKS.retain_keys(live_ids);
     if let Ok(mut map) = META_CACHE.lock() {
         map.retain(|id, _| live_ids.contains(id));
     }
@@ -160,13 +178,7 @@ fn remove_index_entry(chat_id: &str) -> Result<(), String> {
 }
 
 fn chat_lock(chat_id: &str) -> Arc<Mutex<()>> {
-    let mut map = CHAT_LOCKS.lock().unwrap_or_else(|e| {
-        eprintln!("[chats] WARNING: CHAT_LOCKS mutex was poisoned, recovering");
-        e.into_inner()
-    });
-    map.entry(chat_id.to_string())
-        .or_insert_with(|| Arc::new(Mutex::new(())))
-        .clone()
+    CHAT_LOCKS.lock(chat_id)
 }
 
 /// Stored tool activity (mirrors frontend ToolActivity)
@@ -316,6 +328,9 @@ pub async fn create_chat(
     title: String,
 ) -> Result<ChatFile, String> {
     tokio::task::spawn_blocking(move || {
+        validate_path_safe(std::path::Path::new(&project_path))?;
+        let title = if title.chars().count() > 500 { title.chars().take(500).collect::<String>() } else { title };
+
         let id = uuid::Uuid::new_v4().to_string();
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -384,15 +399,18 @@ pub async fn save_chat_messages(
             ChatFileMeta::from_chat(&chat)
         };
 
-        // Deserialize meta into a Value, insert messages, serialize back
-        let mut chat_value = serde_json::to_value(&meta)
-            .map_err(|e| format!("Failed to serialize meta: {e}"))?;
-        let msgs_value = serde_json::to_value(&messages)
-            .map_err(|e| format!("Failed to serialize messages: {e}"))?;
-        chat_value.as_object_mut()
-            .ok_or_else(|| "Meta serialized to non-object".to_string())?
-            .insert("messages".to_string(), msgs_value);
-        let data = serde_json::to_string(&chat_value)
+        let out = ChatFileOut {
+            id: &meta.id,
+            project_path: &meta.project_path,
+            agent_id: &meta.agent_id,
+            title: &meta.title,
+            created_at: meta.created_at,
+            session_id: &meta.session_id,
+            custom_title: &meta.custom_title,
+            pinned: &meta.pinned,
+            messages: &messages,
+        };
+        let data = serde_json::to_string(&out)
             .map_err(|e| format!("Failed to serialize chat: {e}"))?;
         atomic_write(&chat_path(&chat_id), data.as_bytes())
     })
@@ -450,9 +468,7 @@ pub async fn delete_chat(chat_id: String) -> Result<(), String> {
 
         // Drop guard before cleaning up CHAT_LOCKS entry
         drop(_guard);
-        if let Ok(mut map) = CHAT_LOCKS.lock() {
-            map.remove(&chat_id);
-        }
+        CHAT_LOCKS.remove(&chat_id);
         Ok(())
     })
     .await

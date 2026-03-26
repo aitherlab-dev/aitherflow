@@ -47,24 +47,22 @@ fn is_binary(data: &[u8]) -> bool {
 
 /// Atomic write: write to temp file, then rename
 pub fn atomic_write(path: &Path, data: &[u8]) -> Result<(), String> {
-    use std::sync::atomic::{AtomicU64, Ordering};
-    static COUNTER: AtomicU64 = AtomicU64::new(0);
-
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
             .map_err(|e| format!("Failed to create dir {}: {e}", parent.display()))?;
     }
-    let seq = COUNTER.fetch_add(1, Ordering::Relaxed);
-    let pid = std::process::id();
-    let tmp = path.with_extension(format!("aither_tmp_{pid}_{seq}"));
-    let mut file =
-        fs::File::create(&tmp).map_err(|e| format!("Failed to create temp file: {e}"))?;
+    let random = uuid::Uuid::new_v4();
+    let tmp = path.with_extension(format!("aither_tmp_{random}"));
+    let mut opts = fs::OpenOptions::new();
+    opts.write(true).create_new(true);
     #[cfg(unix)]
     {
-        use std::os::unix::fs::PermissionsExt;
-        file.set_permissions(fs::Permissions::from_mode(0o600))
-            .map_err(|e| format!("Failed to set temp file permissions: {e}"))?;
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
     }
+    let mut file = opts
+        .open(&tmp)
+        .map_err(|e| format!("Failed to create temp file: {e}"))?;
     file.write_all(data)
         .map_err(|e| {
             if let Err(re) = fs::remove_file(&tmp) {

@@ -38,7 +38,7 @@ export const TokensCard = memo(function TokensCard({
     const fetchBalance = () => {
       invoke<OpenRouterBalance>("external_models_openrouter_balance")
         .then(setOrBalance)
-        .catch(() => {});
+        .catch(console.error);
     };
     fetchBalance();
     const timer = setInterval(fetchBalance, 30_000);

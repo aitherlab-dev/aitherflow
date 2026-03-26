@@ -1,22 +1,13 @@
-use axum::extract::{Query, State};
-use axum::http::{HeaderMap, StatusCode};
-use axum::response::sse::{Event, KeepAlive, Sse};
-use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
-use axum::{Json, Router};
+//! External Models MCP server — call external AI models (OpenRouter, Google, Ollama).
+
 use base64::Engine;
-use futures_util::stream::Stream;
-use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use std::convert::Infallible;
 use std::path::Path;
-use std::pin::Pin;
 use std::sync::{Arc, Mutex};
-use std::task::{Context, Poll};
-use std::time::Duration;
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::RwLock;
 
+use crate::mcp_transport::{self, McpServerInfo, McpState, McpToolHandler};
 use super::client;
 use super::config;
 use super::types::{
@@ -24,148 +15,60 @@ use super::types::{
 };
 use super::vision;
 
-// ---------------------------------------------------------------------------
-// Global state
-// ---------------------------------------------------------------------------
+// ── State ──
 
-// NOTE: std::sync::Mutex intentional — lock held briefly, no .await inside
-static MCP_INFO: Mutex<Option<McpInfo>> = Mutex::new(None);
-
-struct McpInfo {
-    port: u16,
-    /// Kept for potential re-registration on reconnect.
-    #[allow(dead_code)]
-    auth_token: String,
-    shutdown_tx: tokio::sync::watch::Sender<bool>,
-}
+static MCP_INFO: Mutex<Option<McpServerInfo>> = Mutex::new(None);
 
 struct ModelsMcpState {
     auth_token: String,
-    sessions: RwLock<HashMap<String, mpsc::Sender<String>>>,
+    sessions: RwLock<HashMap<String, tokio::sync::mpsc::Sender<String>>>,
 }
 
-// ---------------------------------------------------------------------------
-// SSE stream
-// ---------------------------------------------------------------------------
-
-struct McpSseStream {
-    rx: mpsc::Receiver<String>,
-    initial_event: Option<String>,
-    session_id: String,
-    state: Arc<ModelsMcpState>,
-}
-
-impl Stream for McpSseStream {
-    type Item = Result<Event, Infallible>;
-
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let this = self.get_mut();
-        if let Some(endpoint) = this.initial_event.take() {
-            return Poll::Ready(Some(Ok(
-                Event::default().event("endpoint").data(endpoint),
-            )));
-        }
-        match this.rx.poll_recv(cx) {
-            Poll::Ready(Some(msg)) => {
-                Poll::Ready(Some(Ok(Event::default().event("message").data(msg))))
-            }
-            Poll::Ready(None) => Poll::Ready(None),
-            Poll::Pending => Poll::Pending,
-        }
+impl McpState for ModelsMcpState {
+    fn sessions(&self) -> &RwLock<HashMap<String, tokio::sync::mpsc::Sender<String>>> {
+        &self.sessions
+    }
+    fn auth_token(&self) -> &str {
+        &self.auth_token
     }
 }
 
-impl Drop for McpSseStream {
-    fn drop(&mut self) {
-        let session_id = self.session_id.clone();
-        let state = self.state.clone();
-        tokio::spawn(async move {
-            state.sessions.write().await.remove(&session_id);
-        });
+struct ModelsToolHandler;
+
+#[axum::async_trait]
+impl McpToolHandler for ModelsToolHandler {
+    fn server_name(&self) -> &str { "aitherflow-models" }
+    fn tool_definitions(&self) -> Value { tool_definitions() }
+    fn max_sessions(&self) -> usize { 100 }
+    async fn execute_tool(&self, name: &str, args: &Value) -> Result<String, String> {
+        execute_tool(name, args).await
     }
 }
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
+// ── Public API ──
 
-/// Get the MCP server port, or None if not running.
 pub fn get_port() -> Option<u16> {
-    MCP_INFO.lock().ok().and_then(|info| info.as_ref().map(|i| i.port))
+    mcp_transport::get_port(&MCP_INFO)
 }
 
-/// Get the MCP server auth token, or None if not running.
 pub fn get_token() -> Option<String> {
-    MCP_INFO.lock().ok().and_then(|info| info.as_ref().map(|i| i.auth_token.clone()))
+    mcp_transport::get_token(&MCP_INFO)
 }
 
-/// Check if the MCP server is running.
-pub fn is_running() -> bool {
-    get_port().is_some()
-}
-
-/// Start the external models MCP server on a random free port.
 pub async fn start_server() -> Result<u16, String> {
-    {
-        let info = MCP_INFO.lock().map_err(|e| format!("Lock error: {e}"))?;
-        if info.is_some() {
-            return Err("External models MCP server already running".into());
-        }
-    }
-
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-        .await
-        .map_err(|e| format!("Failed to bind: {e}"))?;
-
-    let port = listener
-        .local_addr()
-        .map_err(|e| format!("Failed to get local addr: {e}"))?
-        .port();
-
-    let (shutdown_tx, mut shutdown_rx) = tokio::sync::watch::channel(false);
     let auth_token = uuid::Uuid::new_v4().to_string();
-
-    {
-        let mut info = MCP_INFO.lock().map_err(|e| format!("Lock error: {e}"))?;
-        *info = Some(McpInfo {
-            port,
-            auth_token: auth_token.clone(),
-            shutdown_tx,
-        });
-    }
-
     let state = Arc::new(ModelsMcpState {
         auth_token,
         sessions: RwLock::new(HashMap::new()),
     });
-
-    let app = Router::new()
-        .route("/sse", get(handle_sse))
-        .route("/message", post(handle_message))
-        .with_state(state);
-
-    tokio::spawn(async move {
-        if let Err(e) = axum::serve(listener, app)
-            .with_graceful_shutdown(async move {
-                if let Err(e) = shutdown_rx.wait_for(|&v| v).await {
-                    eprintln!("[ext-models-mcp] Shutdown watch error: {e}");
-                }
-            })
-            .await
-        {
-            eprintln!("[ext-models-mcp] Server error: {e}");
-        }
-        // Clear state on shutdown
-        if let Ok(mut info) = MCP_INFO.lock() {
-            *info = None;
-        }
-    });
-
-    eprintln!("[ext-models-mcp] Listening on 127.0.0.1:{port}");
-    Ok(port)
+    let handler = Arc::new(ModelsToolHandler);
+    mcp_transport::start_sse_server("ext-models-mcp", &MCP_INFO, state, handler).await
 }
 
-/// Stop the external models MCP server.
+pub fn is_running() -> bool {
+    get_port().is_some()
+}
+
 pub async fn stop_server() -> Result<(), String> {
     let shutdown_tx = {
         let mut info = MCP_INFO.lock().map_err(|e| format!("Lock error: {e}"))?;
@@ -174,203 +77,16 @@ pub async fn stop_server() -> Result<(), String> {
             None => return Err("MCP server is not running".into()),
         }
     };
-
-    shutdown_tx
-        .send(true)
-        .map_err(|e| format!("Failed to send shutdown: {e}"))?;
-
+    shutdown_tx.send(true).map_err(|e| format!("Failed to send shutdown: {e}"))?;
     eprintln!("[ext-models-mcp] Server stopped");
     Ok(())
 }
 
-/// Synchronous shutdown for use in app exit handler.
 pub fn stop_server_sync() {
-    if let Ok(mut info) = MCP_INFO.lock() {
-        if let Some(i) = info.take() {
-            if let Err(e) = i.shutdown_tx.send(true) {
-                eprintln!("[ext-models-mcp] Failed to send shutdown: {e}");
-            }
-        }
-    }
+    mcp_transport::stop_server_sync("ext-models-mcp", &MCP_INFO);
 }
 
-// ---------------------------------------------------------------------------
-// Auth
-// ---------------------------------------------------------------------------
-
-/// Check Authorization: Bearer <token> header against the server's shared secret.
-/// Returns Some(response) if auth fails, None if ok.
-fn check_auth(headers: &HeaderMap, expected: &str) -> Option<Response> {
-    let auth = headers
-        .get("authorization")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-    let token = auth.strip_prefix("Bearer ").unwrap_or("");
-    if token != expected {
-        return Some(StatusCode::UNAUTHORIZED.into_response());
-    }
-    None
-}
-
-// ---------------------------------------------------------------------------
-// SSE handler
-// ---------------------------------------------------------------------------
-
-const MAX_SSE_SESSIONS: usize = 100;
-
-async fn handle_sse(
-    State(state): State<Arc<ModelsMcpState>>,
-    headers: HeaderMap,
-) -> Response {
-    if let Some(resp) = check_auth(&headers, &state.auth_token) {
-        return resp;
-    }
-    {
-        let sessions = state.sessions.read().await;
-        if sessions.len() >= MAX_SSE_SESSIONS {
-            return StatusCode::SERVICE_UNAVAILABLE.into_response();
-        }
-    }
-
-    let session_id = uuid::Uuid::new_v4().to_string();
-    let (tx, rx) = mpsc::channel(32);
-
-    state
-        .sessions
-        .write()
-        .await
-        .insert(session_id.clone(), tx);
-
-    let stream = McpSseStream {
-        rx,
-        initial_event: Some(format!("/message?sessionId={session_id}")),
-        session_id,
-        state,
-    };
-
-    Sse::new(stream)
-        .keep_alive(KeepAlive::new().interval(Duration::from_secs(30)))
-        .into_response()
-}
-
-// ---------------------------------------------------------------------------
-// Message handler
-// ---------------------------------------------------------------------------
-
-#[derive(Deserialize)]
-struct MessageQuery {
-    #[serde(rename = "sessionId")]
-    session_id: String,
-}
-
-async fn handle_message(
-    State(state): State<Arc<ModelsMcpState>>,
-    headers: HeaderMap,
-    Query(query): Query<MessageQuery>,
-    Json(msg): Json<Value>,
-) -> Response {
-    if let Some(resp) = check_auth(&headers, &state.auth_token) {
-        return resp;
-    }
-
-    let session_id = query.session_id;
-    let method = msg
-        .get("method")
-        .and_then(|m| m.as_str())
-        .unwrap_or("")
-        .to_string();
-    let id = msg.get("id").cloned();
-
-    // Notifications — no response needed
-    if id.is_none() || method == "notifications/initialized" {
-        return StatusCode::ACCEPTED.into_response();
-    }
-
-    // Spawn processing and return 202 immediately (SSE transport)
-    tokio::spawn(async move {
-        let response_json = match method.as_str() {
-            "initialize" => handle_initialize(id),
-            "tools/list" => handle_tools_list(id),
-            "tools/call" => handle_tools_call(id, &msg).await,
-            _ => jsonrpc_error(id, -32601, &format!("Method not found: {method}")),
-        };
-
-        let sessions = state.sessions.read().await;
-        if let Some(tx) = sessions.get(&session_id) {
-            let response_str = serde_json::to_string(&response_json).unwrap_or_default();
-            if let Err(e) = tx.send(response_str).await {
-                eprintln!("[ext-models-mcp] Failed to send SSE response: {e}");
-            }
-        }
-    });
-
-    StatusCode::ACCEPTED.into_response()
-}
-
-// ---------------------------------------------------------------------------
-// MCP protocol handlers
-// ---------------------------------------------------------------------------
-
-fn handle_initialize(id: Option<Value>) -> Value {
-    json!({
-        "jsonrpc": "2.0",
-        "id": id,
-        "result": {
-            "protocolVersion": "2024-11-05",
-            "capabilities": {
-                "tools": {}
-            },
-            "serverInfo": {
-                "name": "aitherflow-models",
-                "version": "0.1.0"
-            }
-        }
-    })
-}
-
-fn handle_tools_list(id: Option<Value>) -> Value {
-    json!({
-        "jsonrpc": "2.0",
-        "id": id,
-        "result": {
-            "tools": tool_definitions()
-        }
-    })
-}
-
-async fn handle_tools_call(id: Option<Value>, msg: &Value) -> Value {
-    let tool_name = msg
-        .pointer("/params/name")
-        .and_then(|n| n.as_str())
-        .unwrap_or("");
-    let args = msg
-        .pointer("/params/arguments")
-        .cloned()
-        .unwrap_or(json!({}));
-
-    match execute_tool(tool_name, &args).await {
-        Ok(text) => json!({
-            "jsonrpc": "2.0",
-            "id": id,
-            "result": {
-                "content": [{ "type": "text", "text": text }],
-                "isError": false
-            }
-        }),
-        Err(e) => json!({
-            "jsonrpc": "2.0",
-            "id": id,
-            "result": {
-                "content": [{ "type": "text", "text": e }],
-                "isError": true
-            }
-        }),
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Tool execution
-// ---------------------------------------------------------------------------
+// ── Tool execution ──
 
 async fn execute_tool(name: &str, args: &Value) -> Result<String, String> {
     match name {
@@ -384,12 +100,8 @@ async fn execute_tool(name: &str, args: &Value) -> Result<String, String> {
 
 async fn tool_call_model(args: &Value) -> Result<String, String> {
     let provider = parse_provider(args)?;
-    let model = args["model"]
-        .as_str()
-        .ok_or("Missing 'model' parameter")?;
-    let prompt = args["prompt"]
-        .as_str()
-        .ok_or("Missing 'prompt' parameter")?;
+    let model = args["model"].as_str().ok_or("Missing 'model' parameter")?;
+    let prompt = args["prompt"].as_str().ok_or("Missing 'prompt' parameter")?;
     let system_prompt = args["system_prompt"].as_str();
     let max_tokens = args["max_tokens"].as_u64().map(|n| n as u32);
 
@@ -397,54 +109,30 @@ async fn tool_call_model(args: &Value) -> Result<String, String> {
 
     let mut messages = Vec::new();
     if let Some(sys) = system_prompt {
-        messages.push(ChatMessage {
-            role: Role::System,
-            content: MessageContent::Text(sys.to_string()),
-        });
+        messages.push(ChatMessage { role: Role::System, content: MessageContent::Text(sys.to_string()) });
     }
-    messages.push(ChatMessage {
-        role: Role::User,
-        content: MessageContent::Text(prompt.to_string()),
-    });
+    messages.push(ChatMessage { role: Role::User, content: MessageContent::Text(prompt.to_string()) });
 
     let response = client::call_model(&provider, &ctx.api_key, model, messages, max_tokens, ctx.base_url.as_deref()).await?;
-
-    let text = response
-        .choices
-        .first()
-        .and_then(|c| c.message.content.as_ref())
-        .cloned()
-        .unwrap_or_default();
-
+    let text = response.choices.first().and_then(|c| c.message.content.as_ref()).cloned().unwrap_or_default();
     Ok(text)
 }
 
 async fn tool_call_vision(args: &Value) -> Result<String, String> {
     let provider = parse_provider(args)?;
-    let model = args["model"]
-        .as_str()
-        .ok_or("Missing 'model' parameter")?;
-    let prompt = args["prompt"]
-        .as_str()
-        .ok_or("Missing 'prompt' parameter")?;
-    let file_paths = args["file_paths"]
-        .as_array()
-        .ok_or("Missing 'file_paths' parameter")?;
+    let model = args["model"].as_str().ok_or("Missing 'model' parameter")?;
+    let prompt = args["prompt"].as_str().ok_or("Missing 'prompt' parameter")?;
+    let file_paths = args["file_paths"].as_array().ok_or("Missing 'file_paths' parameter")?;
     let max_tokens = args["max_tokens"].as_u64().map(|n| n as u32);
 
     if file_paths.is_empty() {
         return Err("file_paths must not be empty".into());
     }
 
-    let paths: Vec<String> = file_paths
-        .iter()
-        .filter_map(|p| p.as_str().map(String::from))
-        .collect();
-
+    let paths: Vec<String> = file_paths.iter().filter_map(|p| p.as_str().map(String::from)).collect();
     let profile = parse_vision_profile_with_config(args).await;
     let strategy = vision::resolve_strategy(&profile, model);
 
-    // Process each file based on strategy
     let mut all_parts = Vec::new();
     for path in &paths {
         if vision::is_video_file(path) {
@@ -460,9 +148,7 @@ async fn tool_call_vision(args: &Value) -> Result<String, String> {
                         let frames = vision::extract_frames(path, &profile, None).await?;
                         for frame in frames {
                             all_parts.push(ContentPart::ImageUrl {
-                                image_url: ImageUrlData {
-                                    url: format!("data:image/jpeg;base64,{}", frame.base64),
-                                },
+                                image_url: ImageUrlData { url: format!("data:image/jpeg;base64,{}", frame.base64) },
                             });
                         }
                     }
@@ -471,9 +157,7 @@ async fn tool_call_vision(args: &Value) -> Result<String, String> {
                 let frames = vision::extract_frames(path, &profile, None).await?;
                 for frame in frames {
                     all_parts.push(ContentPart::ImageUrl {
-                        image_url: ImageUrlData {
-                            url: format!("data:image/jpeg;base64,{}", frame.base64),
-                        },
+                        image_url: ImageUrlData { url: format!("data:image/jpeg;base64,{}", frame.base64) },
                     });
                 }
             }
@@ -491,48 +175,22 @@ async fn tool_call_vision(args: &Value) -> Result<String, String> {
     }
 
     let ctx = get_provider_context(&provider).await?;
-
-    // Build multimodal message: images/frames first, then text prompt
-    all_parts.push(ContentPart::Text {
-        text: prompt.to_string(),
-    });
-
-    let messages = vec![ChatMessage {
-        role: Role::User,
-        content: MessageContent::Parts(all_parts),
-    }];
-
+    all_parts.push(ContentPart::Text { text: prompt.to_string() });
+    let messages = vec![ChatMessage { role: Role::User, content: MessageContent::Parts(all_parts) }];
     let response = client::call_model(&provider, &ctx.api_key, model, messages, max_tokens, ctx.base_url.as_deref()).await?;
-
-    let text = response
-        .choices
-        .first()
-        .and_then(|c| c.message.content.as_ref())
-        .cloned()
-        .unwrap_or_default();
-
+    let text = response.choices.first().and_then(|c| c.message.content.as_ref()).cloned().unwrap_or_default();
     Ok(text)
 }
 
 async fn tool_analyze_directory(args: &Value) -> Result<String, String> {
     let provider = parse_provider(args)?;
-    let model = args["model"]
-        .as_str()
-        .ok_or("Missing 'model' parameter")?;
-    let prompt = args["prompt"]
-        .as_str()
-        .ok_or("Missing 'prompt' parameter")?;
-    let directory = args["directory"]
-        .as_str()
-        .ok_or("Missing 'directory' parameter")?;
+    let model = args["model"].as_str().ok_or("Missing 'model' parameter")?;
+    let prompt = args["prompt"].as_str().ok_or("Missing 'prompt' parameter")?;
+    let directory = args["directory"].as_str().ok_or("Missing 'directory' parameter")?;
     let max_tokens = args["max_tokens"].as_u64().map(|n| n as u32);
     let profile = parse_vision_profile_with_config(args).await;
 
-    let results = vision::analyze_directory(
-        directory, &profile, &provider, model, prompt, max_tokens,
-    )
-    .await?;
-
+    let results = vision::analyze_directory(directory, &profile, &provider, model, prompt, max_tokens).await?;
     serde_json::to_string_pretty(&results).map_err(|e| format!("Serialize error: {e}"))
 }
 
@@ -543,52 +201,34 @@ async fn tool_list_models(args: &Value) -> Result<String, String> {
     serde_json::to_string_pretty(&models).map_err(|e| format!("Serialize error: {e}"))
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+// ── Helpers ──
 
 fn parse_provider(args: &Value) -> Result<Provider, String> {
-    let s = args["provider"]
-        .as_str()
-        .ok_or("Missing 'provider' parameter")?;
+    let s = args["provider"].as_str().ok_or("Missing 'provider' parameter")?;
     match s {
         "openrouter" => Ok(Provider::OpenRouter),
         "google" => Ok(Provider::Google),
         "ollama" => Ok(Provider::Ollama),
-        _ => Err(format!(
-            "Unknown provider: {s}. Use 'openrouter', 'google', or 'ollama'"
-        )),
+        _ => Err(format!("Unknown provider: {s}. Use 'openrouter', 'google', or 'ollama'")),
     }
 }
 
-/// Parse VisionProfile from args. If not provided, load from saved config.
-/// Falls back to default if neither is available.
 async fn parse_vision_profile_with_config(args: &Value) -> vision::VisionProfile {
-    if let Some(profile) = args
-        .get("profile")
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-    {
+    if let Some(profile) = args.get("profile").and_then(|v| serde_json::from_value(v.clone()).ok()) {
         return profile;
     }
-
-    // Try loading saved profile from config
     tokio::task::spawn_blocking(|| {
-        config::load_config()
-            .ok()
-            .and_then(|c| c.vision_profile)
-            .unwrap_or_default()
+        config::load_config().ok().and_then(|c| c.vision_profile).unwrap_or_default()
     })
     .await
     .unwrap_or_default()
 }
 
-/// Provider credentials: API key + optional custom base URL.
 struct ProviderContext {
     api_key: String,
     base_url: Option<String>,
 }
 
-/// Load API key and base_url for a provider in a single blocking config read.
 async fn get_provider_context(provider: &Provider) -> Result<ProviderContext, String> {
     let provider = provider.clone();
     tokio::task::spawn_blocking(move || {
@@ -599,16 +239,9 @@ async fn get_provider_context(provider: &Provider) -> Result<ProviderContext, St
         } else {
             String::new()
         };
-
-        let base_url = config::load_config()
-            .ok()
-            .and_then(|c| {
-                c.providers
-                    .iter()
-                    .find(|p| p.provider == provider)
-                    .and_then(|p| p.base_url.clone())
-            });
-
+        let base_url = config::load_config().ok().and_then(|c| {
+            c.providers.iter().find(|p| p.provider == provider).and_then(|p| p.base_url.clone())
+        });
         Ok(ProviderContext { api_key, base_url })
     })
     .await
@@ -617,31 +250,17 @@ async fn get_provider_context(provider: &Provider) -> Result<ProviderContext, St
 
 const MAX_IMAGE_SIZE: u64 = 20 * 1024 * 1024; // 20 MB
 
-/// Read an image file and encode it as a base64 data URL content part.
-/// Blocking I/O — must be called from spawn_blocking.
 pub fn encode_image_file(path: &str) -> Result<ContentPart, String> {
     let p = Path::new(path);
     crate::files::validate_path_safe(p)?;
 
-    let meta = std::fs::metadata(p)
-        .map_err(|e| format!("Cannot read {path}: {e}"))?;
+    let meta = std::fs::metadata(p).map_err(|e| format!("Cannot read {path}: {e}"))?;
     if meta.len() > MAX_IMAGE_SIZE {
-        return Err(format!(
-            "File too large: {} ({} bytes, max {})",
-            path,
-            meta.len(),
-            MAX_IMAGE_SIZE
-        ));
+        return Err(format!("File too large: {} ({} bytes, max {})", path, meta.len(), MAX_IMAGE_SIZE));
     }
 
     let data = std::fs::read(p).map_err(|e| format!("Failed to read {path}: {e}"))?;
-
-    let mime = match p
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(|e| e.to_lowercase())
-        .as_deref()
-    {
+    let mime = match p.extension().and_then(|e| e.to_str()).map(|e| e.to_lowercase()).as_deref() {
         Some("png") => "image/png",
         Some("jpg" | "jpeg") => "image/jpeg",
         Some("gif") => "image/gif",
@@ -649,19 +268,11 @@ pub fn encode_image_file(path: &str) -> Result<ContentPart, String> {
         Some("bmp") => "image/bmp",
         _ => return Err(format!("Unsupported image format: {path}")),
     };
-
     let b64 = base64::engine::general_purpose::STANDARD.encode(&data);
-
-    Ok(ContentPart::ImageUrl {
-        image_url: ImageUrlData {
-            url: format!("data:{mime};base64,{b64}"),
-        },
-    })
+    Ok(ContentPart::ImageUrl { image_url: ImageUrlData { url: format!("data:{mime};base64,{b64}") } })
 }
 
-// ---------------------------------------------------------------------------
-// Tool definitions
-// ---------------------------------------------------------------------------
+// ── Tool definitions ──
 
 fn tool_definitions() -> Value {
     json!([
@@ -671,27 +282,11 @@ fn tool_definitions() -> Value {
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "provider": {
-                        "type": "string",
-                        "enum": ["openrouter", "google", "ollama"],
-                        "description": "The model provider to use"
-                    },
-                    "model": {
-                        "type": "string",
-                        "description": "Model ID (e.g. 'openai/gpt-4o', 'llama-3.1-70b-versatile')"
-                    },
-                    "prompt": {
-                        "type": "string",
-                        "description": "The prompt text to send to the model"
-                    },
-                    "system_prompt": {
-                        "type": "string",
-                        "description": "Optional system prompt to set context"
-                    },
-                    "max_tokens": {
-                        "type": "number",
-                        "description": "Maximum tokens in response (optional, model default if omitted)"
-                    }
+                    "provider": { "type": "string", "enum": ["openrouter", "google", "ollama"], "description": "The model provider to use" },
+                    "model": { "type": "string", "description": "Model ID (e.g. 'openai/gpt-4o', 'llama-3.1-70b-versatile')" },
+                    "prompt": { "type": "string", "description": "The prompt text to send to the model" },
+                    "system_prompt": { "type": "string", "description": "Optional system prompt to set context" },
+                    "max_tokens": { "type": "number", "description": "Maximum tokens in response (optional, model default if omitted)" }
                 },
                 "required": ["provider", "model", "prompt"]
             }
@@ -702,27 +297,12 @@ fn tool_definitions() -> Value {
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "provider": {
-                        "type": "string",
-                        "enum": ["openrouter", "google", "ollama"],
-                        "description": "The model provider to use"
-                    },
-                    "model": {
-                        "type": "string",
-                        "description": "Vision-capable model ID (e.g. 'openai/gpt-4o', 'google/gemini-2.0-flash-001')"
-                    },
-                    "prompt": {
-                        "type": "string",
-                        "description": "What to analyze or look for in the images/video"
-                    },
-                    "file_paths": {
-                        "type": "array",
-                        "items": { "type": "string" },
-                        "description": "Absolute paths to image or video files"
-                    },
+                    "provider": { "type": "string", "enum": ["openrouter", "google", "ollama"], "description": "The model provider to use" },
+                    "model": { "type": "string", "description": "Vision-capable model ID (e.g. 'openai/gpt-4o', 'google/gemini-2.0-flash-001')" },
+                    "prompt": { "type": "string", "description": "What to analyze or look for in the images/video" },
+                    "file_paths": { "type": "array", "items": { "type": "string" }, "description": "Absolute paths to image or video files" },
                     "profile": {
-                        "type": "object",
-                        "description": "Video processing profile (optional, defaults used if omitted)",
+                        "type": "object", "description": "Video processing profile (optional, defaults used if omitted)",
                         "properties": {
                             "strategy": { "type": "string", "enum": ["auto", "native_video", "extract_frames"], "description": "Video processing strategy. Auto sends native video to Gemini, extracts frames for others (default: auto)" },
                             "framesPerClip": { "type": "number", "description": "Extract exactly N frames evenly spaced (default: 5)" },
@@ -733,10 +313,7 @@ fn tool_definitions() -> Value {
                             "jpegQuality": { "type": "number", "description": "JPEG quality 2-31, lower=better (default: 5)" }
                         }
                     },
-                    "max_tokens": {
-                        "type": "number",
-                        "description": "Maximum tokens in response (optional, model default if omitted)"
-                    }
+                    "max_tokens": { "type": "number", "description": "Maximum tokens in response (optional, model default if omitted)" }
                 },
                 "required": ["provider", "model", "prompt", "file_paths"]
             }
@@ -747,40 +324,23 @@ fn tool_definitions() -> Value {
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "provider": {
-                        "type": "string",
-                        "enum": ["openrouter", "google", "ollama"],
-                        "description": "The model provider to use"
-                    },
-                    "model": {
-                        "type": "string",
-                        "description": "Vision-capable model ID"
-                    },
-                    "prompt": {
-                        "type": "string",
-                        "description": "What to analyze or look for in each file"
-                    },
-                    "directory": {
-                        "type": "string",
-                        "description": "Absolute path to the directory containing video/image files"
-                    },
+                    "provider": { "type": "string", "enum": ["openrouter", "google", "ollama"], "description": "The model provider to use" },
+                    "model": { "type": "string", "description": "Vision-capable model ID" },
+                    "prompt": { "type": "string", "description": "What to analyze or look for in each file" },
+                    "directory": { "type": "string", "description": "Absolute path to the directory containing video/image files" },
                     "profile": {
-                        "type": "object",
-                        "description": "Video processing profile (optional)",
+                        "type": "object", "description": "Video processing profile (optional)",
                         "properties": {
-                            "strategy": { "type": "string", "enum": ["auto", "native_video", "extract_frames"] },
-                            "framesPerClip": { "type": "number" },
-                            "fps": { "type": "number" },
-                            "sceneDetection": { "type": "boolean" },
-                            "sceneThreshold": { "type": "number" },
-                            "resolution": { "type": "number" },
-                            "jpegQuality": { "type": "number" }
+                            "strategy": { "type": "string", "enum": ["auto", "native_video", "extract_frames"], "description": "Video processing strategy" },
+                            "framesPerClip": { "type": "number", "description": "Extract exactly N frames evenly spaced (default: 5)" },
+                            "fps": { "type": "number", "description": "Frames per second (alternative to framesPerClip)" },
+                            "sceneDetection": { "type": "boolean", "description": "Use ffmpeg scene detection" },
+                            "sceneThreshold": { "type": "number", "description": "Scene change threshold 0.0-1.0 (default: 0.3)" },
+                            "resolution": { "type": "number", "description": "Frame width in pixels (default: 720)" },
+                            "jpegQuality": { "type": "number", "description": "JPEG quality 2-31, lower=better (default: 5)" }
                         }
                     },
-                    "max_tokens": {
-                        "type": "number",
-                        "description": "Maximum tokens per file analysis (optional)"
-                    }
+                    "max_tokens": { "type": "number", "description": "Maximum tokens per file analysis (optional)" }
                 },
                 "required": ["provider", "model", "prompt", "directory"]
             }
@@ -791,29 +351,10 @@ fn tool_definitions() -> Value {
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "provider": {
-                        "type": "string",
-                        "enum": ["openrouter", "google", "ollama"],
-                        "description": "The provider to list models for"
-                    }
+                    "provider": { "type": "string", "enum": ["openrouter", "google", "ollama"], "description": "The provider to list models for" }
                 },
                 "required": ["provider"]
             }
         }
     ])
-}
-
-// ---------------------------------------------------------------------------
-// JSON-RPC helpers
-// ---------------------------------------------------------------------------
-
-fn jsonrpc_error(id: Option<Value>, code: i32, message: &str) -> Value {
-    json!({
-        "jsonrpc": "2.0",
-        "id": id,
-        "error": {
-            "code": code,
-            "message": message
-        }
-    })
 }
