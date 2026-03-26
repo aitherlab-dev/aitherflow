@@ -8,12 +8,13 @@ use tokio::sync::Notify;
 
 use crate::config;
 use crate::file_ops::atomic_write;
+use crate::named_mutex_pool::NamedMutexPool;
 
 use super::validate_name;
 
 /// Per-inbox lock to prevent concurrent write races.
-static INBOX_LOCKS: LazyLock<Mutex<HashMap<String, Arc<Mutex<()>>>>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
+static INBOX_LOCKS: LazyLock<NamedMutexPool> =
+    LazyLock::new(|| NamedMutexPool::new("teamwork/inbox"));
 
 /// Push-notification registry: when a message lands in an inbox,
 /// the corresponding Notify is triggered so the polling task wakes immediately.
@@ -45,29 +46,14 @@ fn notify_inbox(team: &str, agent_id: &str) {
 }
 
 fn inbox_lock(key: &str) -> Arc<Mutex<()>> {
-    let mut map = INBOX_LOCKS.lock().unwrap_or_else(|e| {
-        eprintln!("[teamwork] WARNING: INBOX_LOCKS mutex poisoned, recovering");
-        e.into_inner()
-    });
-    // Evict stale entries (no one else holds the lock)
-    map.retain(|_, arc| Arc::strong_count(arc) > 1);
-    map.entry(key.to_string())
-        .or_insert_with(|| Arc::new(Mutex::new(())))
-        .clone()
+    INBOX_LOCKS.lock(key)
 }
 
 /// Remove lock and notifier entries for a given team prefix (called on team deletion).
 #[allow(dead_code)] // reserved for team lifecycle management
 pub(crate) fn remove_inbox_locks(team: &str) {
     let prefix = format!("{team}/");
-    let mut map = INBOX_LOCKS.lock().unwrap_or_else(|e| e.into_inner());
-    map.retain(|key, arc| {
-        if key.starts_with(&prefix) {
-            Arc::strong_count(arc) > 1 // keep if someone holds it
-        } else {
-            true
-        }
-    });
+    INBOX_LOCKS.remove_by_prefix(&prefix);
 
     // Also clean up push-notification subscriptions for this team
     let mut notifiers = INBOX_NOTIFIERS.lock().unwrap_or_else(|e| e.into_inner());

@@ -13,6 +13,7 @@ mod hooks;
 mod image_download;
 mod image_gen;
 mod mcp;
+mod named_mutex_pool;
 mod plugins;
 mod projects;
 mod rag;

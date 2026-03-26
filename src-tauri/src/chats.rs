@@ -7,10 +7,11 @@ use std::sync::{Arc, LazyLock, Mutex};
 use crate::config;
 use crate::file_ops::{atomic_write, read_json, write_json};
 use crate::files::validate_path_safe;
+use crate::named_mutex_pool::NamedMutexPool;
 
 /// Per-chat-id lock to prevent concurrent read-modify-write races.
-static CHAT_LOCKS: LazyLock<Mutex<HashMap<String, Arc<Mutex<()>>>>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
+static CHAT_LOCKS: LazyLock<NamedMutexPool> =
+    LazyLock::new(|| NamedMutexPool::new("chats"));
 
 /// Global lock for index.json to prevent concurrent read-modify-write races
 /// when multiple chats are created/updated simultaneously.
@@ -63,9 +64,7 @@ fn get_cached_meta(chat_id: &str) -> Option<ChatFileMeta> {
 
 /// Remove entries from CHAT_LOCKS and META_CACHE that are not in the index.
 fn purge_stale_caches(live_ids: &std::collections::HashSet<String>) {
-    if let Ok(mut map) = CHAT_LOCKS.lock() {
-        map.retain(|id, _| live_ids.contains(id));
-    }
+    CHAT_LOCKS.retain_keys(live_ids);
     if let Ok(mut map) = META_CACHE.lock() {
         map.retain(|id, _| live_ids.contains(id));
     }
@@ -161,13 +160,7 @@ fn remove_index_entry(chat_id: &str) -> Result<(), String> {
 }
 
 fn chat_lock(chat_id: &str) -> Arc<Mutex<()>> {
-    let mut map = CHAT_LOCKS.lock().unwrap_or_else(|e| {
-        eprintln!("[chats] WARNING: CHAT_LOCKS mutex was poisoned, recovering");
-        e.into_inner()
-    });
-    map.entry(chat_id.to_string())
-        .or_insert_with(|| Arc::new(Mutex::new(())))
-        .clone()
+    CHAT_LOCKS.lock(chat_id)
 }
 
 /// Stored tool activity (mirrors frontend ToolActivity)
@@ -454,9 +447,7 @@ pub async fn delete_chat(chat_id: String) -> Result<(), String> {
 
         // Drop guard before cleaning up CHAT_LOCKS entry
         drop(_guard);
-        if let Ok(mut map) = CHAT_LOCKS.lock() {
-            map.remove(&chat_id);
-        }
+        CHAT_LOCKS.remove(&chat_id);
         Ok(())
     })
     .await
