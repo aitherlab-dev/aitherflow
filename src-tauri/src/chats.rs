@@ -6,6 +6,7 @@ use std::sync::{Arc, LazyLock, Mutex};
 
 use crate::config;
 use crate::file_ops::{atomic_write, read_json, write_json};
+use crate::files::validate_path_safe;
 
 /// Per-chat-id lock to prevent concurrent read-modify-write races.
 static CHAT_LOCKS: LazyLock<Mutex<HashMap<String, Arc<Mutex<()>>>>> =
@@ -316,6 +317,9 @@ pub async fn create_chat(
     title: String,
 ) -> Result<ChatFile, String> {
     tokio::task::spawn_blocking(move || {
+        validate_path_safe(std::path::Path::new(&project_path))?;
+        let title = if title.len() > 500 { title[..500].to_string() } else { title };
+
         let id = uuid::Uuid::new_v4().to_string();
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

@@ -434,8 +434,9 @@ fn normalize_plugin_skills(install_dir: &Path, plugin_name: &str) {
     for dir_name in &["references", "prompts", "examples", "templates"] {
         let src = install_dir.join(dir_name);
         if src.is_dir() {
-            let _ = crate::file_ops::copy_dir_recursive(&src, &target_dir.join(dir_name))
-                .map_err(|e| eprintln!("[plugins] Failed to copy {dir_name}/: {e}"));
+            if let Err(e) = crate::file_ops::copy_dir_recursive(&src, &target_dir.join(dir_name)) {
+                eprintln!("[plugins] Failed to copy {dir_name}/: {e}");
+            }
         }
     }
 }

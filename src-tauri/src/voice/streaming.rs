@@ -16,6 +16,7 @@ pub struct AnthropicAuthStatus {
 }
 
 /// Read OAuth credentials from CLI's credentials file.
+#[cfg(unix)]
 fn read_oauth_token() -> Result<(String, u64), String> {
     use std::os::unix::fs::MetadataExt;
 

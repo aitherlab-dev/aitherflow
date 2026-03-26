@@ -460,13 +460,17 @@ pub async fn enrich_results(
         .await
         .map_err(|e| format!("Task join error: {e}"))??;
 
+    let doc_map: std::collections::HashMap<&str, &str> = docs
+        .iter()
+        .map(|d| (d.id.as_str(), d.filename.as_str()))
+        .collect();
+
     Ok(raw_results
         .into_iter()
         .map(|r| {
-            let doc_name = docs
-                .iter()
-                .find(|d| d.id == r.document_id)
-                .map(|d| d.filename.clone())
+            let doc_name = doc_map
+                .get(r.document_id.as_str())
+                .map(|s| (*s).to_owned())
                 .unwrap_or_else(|| "unknown".into());
             index::SearchResult {
                 chunk_text: r.chunk_text,

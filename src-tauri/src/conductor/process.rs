@@ -353,10 +353,12 @@ pub async fn run_cli_session(
                 });
                 // Pass HF token so gated models can be downloaded
                 if let Some(token) = read_hf_token() {
-                    env.as_object_mut().unwrap().insert(
-                        "HF_TOKEN".into(),
-                        serde_json::Value::String(token),
-                    );
+                    if let Some(obj) = env.as_object_mut() {
+                        obj.insert(
+                            "HF_TOKEN".into(),
+                            serde_json::Value::String(token),
+                        );
+                    }
                 }
                 mcp_servers.insert("aitherflow-image-gen".into(), serde_json::json!({
                     "type": "stdio",
