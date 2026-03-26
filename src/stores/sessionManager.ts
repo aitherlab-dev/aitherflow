@@ -47,7 +47,7 @@ export function enqueueSession<T>(fn: () => Promise<T>): Promise<T> {
 
 /** Wait for hasSession to become false (processExited), max 5s.
  *  Subscribe BEFORE checking current value to avoid TOCTOU race. */
-export function waitForSessionExit(): Promise<void> {
+function waitForSessionExit(): Promise<void> {
   return new Promise<void>((resolve) => {
     const timeout = setTimeout(() => {
       unsub();
