@@ -209,7 +209,9 @@ export const ImageGenSection = memo(function ImageGenSection() {
     clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       pendingSettingsRef.current = null;
-      invoke("save_image_gen_settings", { settings: updated }).catch(console.error);
+      invoke("save_image_gen_settings", { settings: updated })
+        .then(() => window.dispatchEvent(new Event("imagegen-updated")))
+        .catch(console.error);
     }, 400);
   }, []);
 
@@ -365,6 +367,7 @@ export const ImageGenSection = memo(function ImageGenSection() {
           loraStrength: strength,
           enabled: enabled ?? model?.loraEnabled ?? true,
         });
+        window.dispatchEvent(new Event("imagegen-updated"));
       } catch (e) {
         console.error("LoRA update failed:", e);
       }

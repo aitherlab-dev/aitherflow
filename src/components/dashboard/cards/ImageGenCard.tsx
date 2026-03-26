@@ -44,6 +44,12 @@ export const ImageGenCard = memo(function ImageGenCard({
     if (expanded) loadData();
   }, [expanded, loadData]);
 
+  useEffect(() => {
+    const handler = () => loadData();
+    window.addEventListener("imagegen-updated", handler);
+    return () => window.removeEventListener("imagegen-updated", handler);
+  }, [loadData]);
+
   const selected = models.find((m) => m.id === settings?.selectedModel);
   const isReady = selected?.downloaded ?? false;
   const hasLora = !!selected?.lora;
