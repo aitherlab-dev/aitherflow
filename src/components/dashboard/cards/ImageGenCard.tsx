@@ -4,21 +4,7 @@ import { invoke } from "../../../lib/transport";
 import { useLayoutStore } from "../../../stores/layoutStore";
 import { DashboardCard } from "../DashboardCard";
 import { Tooltip } from "../../shared/Tooltip";
-
-interface ImageGenSettings {
-  modelsPath: string;
-  selectedModel: string;
-  loraDirectory: string;
-}
-
-interface ImageModel {
-  id: string;
-  name: string;
-  downloaded: boolean;
-  lora: string | null;
-  loraStrength: number;
-  loraEnabled: boolean;
-}
+import type { ImageGenSettings, ImageModel } from "../../../hooks/useImageGenSettings";
 
 export const ImageGenCard = memo(function ImageGenCard({
   expanded,
