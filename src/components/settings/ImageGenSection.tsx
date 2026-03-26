@@ -337,14 +337,16 @@ export const ImageGenSection = memo(function ImageGenSection() {
     }
   }, [settings, addName, addType, addDiffusionUrl, addLlmUrl, refreshModels]);
 
-  // Load LoRA state from model list when selected model changes
+  // Load LoRA state from model list when selected model changes or models finish loading
   const loraLoadedForRef = useRef<string>("");
   useEffect(() => {
-    if (!settings || !settings.selectedModel) return;
+    if (!settings || !settings.selectedModel || models.length === 0) return;
     const modelId = settings.selectedModel;
-    if (loraLoadedForRef.current === modelId) return;
-    loraLoadedForRef.current = modelId;
     const model = models.find((m) => m.id === modelId);
+    // Build a key that changes when model or its LoRA data changes
+    const key = `${modelId}:${model?.lora ?? ""}:${model?.loraStrength ?? 1}`;
+    if (loraLoadedForRef.current === key) return;
+    loraLoadedForRef.current = key;
     setLoraPath(model?.lora ?? "");
     setLoraStrength(model?.loraStrength ?? 1.0);
   }, [settings?.selectedModel, models]);
@@ -561,7 +563,10 @@ export const ImageGenSection = memo(function ImageGenSection() {
         <>
           <div className="settings-toggle-row">
             <div className="settings-toggle-info">
-              <span className="settings-toggle-label">LoRA adapter</span>
+              <span className="settings-toggle-label">
+                LoRA adapter
+                {loraPath && <span className="imggen-lora-badge">Active</span>}
+              </span>
               <span className="settings-toggle-desc">
                 Optional .safetensors LoRA file for style transfer
               </span>

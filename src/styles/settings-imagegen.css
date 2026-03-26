@@ -138,6 +138,19 @@
   text-align: center;
 }
 
+.imggen-lora-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--status-green);
+  background: color-mix(in srgb, var(--status-green) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--status-green) 30%, transparent);
+  border-radius: 4px;
+  vertical-align: middle;
+}
+
 .imggen-add-form {
   padding: 8px 12px;
   background: var(--bg-card);
