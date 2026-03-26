@@ -318,7 +318,7 @@ pub async fn create_chat(
 ) -> Result<ChatFile, String> {
     tokio::task::spawn_blocking(move || {
         validate_path_safe(std::path::Path::new(&project_path))?;
-        let title = if title.len() > 500 { title[..500].to_string() } else { title };
+        let title = if title.chars().count() > 500 { title.chars().take(500).collect::<String>() } else { title };
 
         let id = uuid::Uuid::new_v4().to_string();
         let now = std::time::SystemTime::now()
