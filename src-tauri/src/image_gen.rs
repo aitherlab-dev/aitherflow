@@ -77,6 +77,8 @@ pub struct ImageModel {
     pub repo_id: String,
     pub size_mb: u64,
     pub downloaded: bool,
+    pub lora: Option<String>,
+    pub lora_strength: f32,
 }
 
 /// Image generation settings stored on disk
@@ -295,6 +297,8 @@ pub async fn list_image_gen_models(models_path: String) -> Result<Vec<ImageModel
                 repo_id: m.diffusion.repo.clone(),
                 size_mb: m.size_mb,
                 downloaded: is_model_downloaded(&dir, &m.diffusion.repo, &m.diffusion.file),
+                lora: m.lora.clone(),
+                lora_strength: m.lora_strength,
             })
             .collect();
         Ok(models)
@@ -337,7 +341,7 @@ pub async fn add_image_gen_model(model: ModelDefinition) -> Result<(), String> {
 #[tauri::command]
 pub async fn remove_image_gen_model(model_id: String) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
-        if model_id == "flux2-klein-4b" {
+        if model_id == default_model_definition().id {
             return Err("Cannot remove the default model".into());
         }
         let mut models = load_model_definitions()?;
@@ -359,6 +363,9 @@ pub async fn update_image_gen_model_lora(
     lora_strength: f32,
 ) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
+        if let Some(ref p) = lora_path {
+            validate_path_safe(Path::new(p))?;
+        }
         let mut models = load_model_definitions()?;
         let model = models
             .iter_mut()
@@ -550,6 +557,8 @@ mod tests {
             repo_id: "org/repo".into(),
             size_mb: 1000,
             downloaded: true,
+            lora: Some("/path/to/lora.safetensors".into()),
+            lora_strength: 0.8,
         };
         let json = serde_json::to_string(&m).unwrap();
         assert!(json.contains("repoId")); // camelCase

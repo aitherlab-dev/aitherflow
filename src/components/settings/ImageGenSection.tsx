@@ -19,6 +19,8 @@ interface ImageModel {
   repoId: string;
   sizeMb: number;
   downloaded: boolean;
+  lora: string | null;
+  loraStrength: number;
 }
 
 interface RepoFile {
@@ -322,19 +324,17 @@ export const ImageGenSection = memo(function ImageGenSection() {
     }
   }, [settings, addName, addType, addDiffusionUrl, addLlmUrl, refreshModels]);
 
-  // Load LoRA state when selected model changes
+  // Load LoRA state from model list when selected model changes
   const loraLoadedForRef = useRef<string>("");
   useEffect(() => {
     if (!settings || !settings.selectedModel) return;
     const modelId = settings.selectedModel;
     if (loraLoadedForRef.current === modelId) return;
-    // Load from models.json via list — we don't have a direct "get model" command,
-    // but LoRA is stored in models.json. We'll just reset to defaults.
-    // The actual LoRA data comes from update_image_gen_model_lora.
     loraLoadedForRef.current = modelId;
-    setLoraPath("");
-    setLoraStrength(1.0);
-  }, [settings?.selectedModel]);
+    const model = models.find((m) => m.id === modelId);
+    setLoraPath(model?.lora ?? "");
+    setLoraStrength(model?.loraStrength ?? 1.0);
+  }, [settings?.selectedModel, models]);
 
   const handleLoraUpdate = useCallback(
     async (path: string | null, strength: number) => {
