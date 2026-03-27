@@ -297,8 +297,16 @@ export const useFileViewerStore = create<FileViewerState>((set, get) => ({
     set((s) => ({ diffs: [...s.diffs, diff] }));
     notifyHasContent(true);
 
-    // Auto-open file in preview tab
-    get().openPreview(filePath).catch(console.error);
+    // Open diff in preview tab, but don't steal focus from user's pinned tab
+    const currentTab = get().tabs.find((t) => t.id === get().activeTabId);
+    const userHasPinnedFocus = currentTab && !currentTab.isPreview;
+
+    await get().openPreview(filePath);
+
+    // If user had a pinned tab focused, restore focus to it
+    if (userHasPinnedFocus && currentTab) {
+      set({ activeTabId: currentTab.id });
+    }
   },
 
   refreshAfterToolResult: async (toolUseId: string) => {

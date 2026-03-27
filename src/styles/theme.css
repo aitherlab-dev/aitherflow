@@ -64,10 +64,10 @@
   --overlay-bg: rgba(0, 0, 0, 0.4);
 
   /* Diff highlights */
-  --diff-add-bg: rgba(184, 187, 38, 0.15);
-  --diff-add-line: rgba(184, 187, 38, 0.12);
-  --diff-remove-bg: rgba(251, 73, 52, 0.15);
-  --diff-remove-line: rgba(251, 73, 52, 0.12);
+  --diff-add-bg: rgba(184, 187, 38, 0.35);
+  --diff-add-line: rgba(184, 187, 38, 0.25);
+  --diff-remove-bg: rgba(251, 73, 52, 0.35);
+  --diff-remove-line: rgba(251, 73, 52, 0.25);
 
   /* Test results */
   --test-ok-bg: rgba(80, 160, 80, 0.12);
@@ -146,10 +146,10 @@
   --overlay-bg: rgba(0, 0, 0, 0.4);
 
   /* Diff highlights */
-  --diff-add-bg: rgba(184, 187, 38, 0.15);
-  --diff-add-line: rgba(184, 187, 38, 0.12);
-  --diff-remove-bg: rgba(251, 73, 52, 0.15);
-  --diff-remove-line: rgba(251, 73, 52, 0.12);
+  --diff-add-bg: rgba(184, 187, 38, 0.35);
+  --diff-add-line: rgba(184, 187, 38, 0.25);
+  --diff-remove-bg: rgba(251, 73, 52, 0.35);
+  --diff-remove-line: rgba(251, 73, 52, 0.25);
 
   /* Test results */
   --test-ok-bg: rgba(80, 160, 80, 0.12);

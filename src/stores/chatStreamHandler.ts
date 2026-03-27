@@ -329,23 +329,7 @@ function handleCliEvent(e: CliEvent) {
             .catch(console.error);
         }).catch(console.error);
       }
-      // Open preview for Read tool
-      if (e.tool_name === "Read") {
-        const filePath =
-          typeof e.tool_input.file_path === "string"
-            ? e.tool_input.file_path
-            : typeof e.tool_input.path === "string"
-              ? e.tool_input.path
-              : null;
-        if (filePath) {
-          import("./fileViewerStore").then(({ useFileViewerStore }) => {
-            useFileViewerStore
-              .getState()
-              .openPreview(filePath)
-              .catch(console.error);
-          }).catch(console.error);
-        }
-      }
+      // Agent Read ops no longer open preview — too noisy, interrupts user
 
       // Track plan mode in conductor
       if (e.tool_name === "EnterPlanMode") {

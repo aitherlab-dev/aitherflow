@@ -152,8 +152,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     await persist(projects, lastOpenedProject, lastOpenedChatId, updated);
   },
 
-  reorderWelcomeCards: async (fromIndex, toIndex) => {
+  reorderWelcomeCards: async (fromIndex: number, toIndex: number) => {
     const { projects, lastOpenedProject, lastOpenedChatId, welcomeCards } = get();
+    if (fromIndex === toIndex) return;
+    if (fromIndex < 0 || fromIndex >= welcomeCards.length) return;
+    if (toIndex < 0 || toIndex >= welcomeCards.length) return;
     const updated = [...welcomeCards];
     const [moved] = updated.splice(fromIndex, 1);
     updated.splice(toIndex, 0, moved);

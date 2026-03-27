@@ -159,6 +159,17 @@
   outline-offset: 2px;
 }
 
+/* Drag-and-drop reorder (Shift+drag) */
+.welcome-card--dragging {
+  opacity: 0.4;
+}
+
+.welcome-card--drag-over {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+  transform: translateY(-2px);
+}
+
 /* Small action button (just an icon, e.g. [+]) */
 .welcome-card--action-sm {
   border-style: dashed;
