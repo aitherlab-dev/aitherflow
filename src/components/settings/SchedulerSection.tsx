@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Plus, Play, Trash2, X, Save } from "lucide-react";
-import { invoke } from "../../lib/transport";
+import { invoke, listen } from "../../lib/transport";
 import { Tooltip } from "../shared/Tooltip";
 import type { ScheduledTask, TaskSchedule } from "../../types/scheduler";
 import type { ProjectBookmark } from "../../types/projects";
@@ -330,6 +330,12 @@ export function SchedulerSection() {
     invoke<{ projects: ProjectBookmark[] }>("load_projects")
       .then((cfg) => setProjects(cfg.projects))
       .catch(console.error);
+  }, [loadTasks]);
+
+  // Reload tasks when a scheduled task starts (auto or manual)
+  useEffect(() => {
+    const unlisten = listen("scheduler:task-started", () => loadTasks());
+    return () => { unlisten.then((fn) => fn()).catch(console.error); };
   }, [loadTasks]);
 
   const handleToggle = useCallback(

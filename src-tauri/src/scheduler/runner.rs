@@ -169,6 +169,8 @@ pub async fn run_task_now(app_handle: &tauri::AppHandle, task: &ScheduledTask) {
     let teamwork_project_path = Some(project_path.clone());
 
     let task_id_for_spawn = task.id.clone();
+    let task_name_for_spawn = task.name.clone();
+    let task_notify_tg = task.notify_telegram;
     tokio::spawn(async move {
         let result = crate::conductor::process::run_cli_session(
             EventSink::new(app_clone.clone()),
@@ -209,6 +211,20 @@ pub async fn run_task_now(app_handle: &tauri::AppHandle, task: &ScheduledTask) {
                 TaskRunStatus::Error
             }
         };
+
+        // Send Telegram notification if enabled
+        if task_notify_tg && final_status == TaskRunStatus::Success {
+            let tg_name = task_name_for_spawn;
+            if let Err(e) = tokio::task::spawn_blocking(move || {
+                crate::telegram::commands::send_to_telegram(
+                    format!("\u{2705} Scheduled task '{tg_name}' completed successfully"),
+                )
+            })
+            .await
+            {
+                eprintln!("[scheduler] Failed to send telegram notification: {e}");
+            }
+        }
 
         // Update last_status after completion
         let tid = task_id_for_spawn;

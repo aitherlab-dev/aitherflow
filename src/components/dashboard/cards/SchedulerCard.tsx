@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useState } from "react";
 import { Clock, Settings } from "lucide-react";
 import { useLayoutStore } from "../../../stores/layoutStore";
-import { invoke } from "../../../lib/transport";
+import { invoke, listen } from "../../../lib/transport";
 import type { ScheduledTask } from "../../../types/scheduler";
 import { DashboardCard } from "../DashboardCard";
 import { Tooltip } from "../../shared/Tooltip";
@@ -15,13 +15,22 @@ export const SchedulerCard = memo(function SchedulerCard({
 }) {
   const [tasks, setTasks] = useState<ScheduledTask[]>([]);
 
+  const loadTasks = useCallback(() => {
+    invoke<ScheduledTask[]>("scheduler_list_tasks")
+      .then(setTasks)
+      .catch(console.error);
+  }, []);
+
   useEffect(() => {
-    if (expanded) {
-      invoke<ScheduledTask[]>("scheduler_list_tasks")
-        .then(setTasks)
-        .catch(console.error);
-    }
-  }, [expanded]);
+    if (expanded) loadTasks();
+  }, [expanded, loadTasks]);
+
+  // Reload when a scheduled task starts
+  useEffect(() => {
+    if (!expanded) return;
+    const unlisten = listen("scheduler:task-started", () => loadTasks());
+    return () => { unlisten.then((fn) => fn()).catch(console.error); };
+  }, [expanded, loadTasks]);
 
   const enabledCount = tasks.filter((t) => t.enabled).length;
 
