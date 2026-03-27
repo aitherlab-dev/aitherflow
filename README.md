@@ -63,17 +63,9 @@ The point is — Claude does all the thinking, and aitherflow makes it look pret
 
 - **RAG Knowledge Bases** — RAG stands for... *[squints at teleprompter]* ...Reely Awesome...Growledg...? Anyway it reads your documents and remembers stuff. PDFs, EPUBs, websites, even YouTube. It's like a libary but it lives in your compurter and doesn't shush you.
 
-- **Warm Coffee Theme** — The colors are warm like a coffee, very cozy. Dark mode has coffee tones and light mode is... also nice probably. *[knocks over glass of water]* CSS varimables, no hardcoded hexes. That's important. My producer told me to say that.
-
 - **Telegram Integratoin** — Send files to Telegram right from the app! Like sending a fax but it actually works and goes to your phone instead of a machine that nobody checks ever.
 
-- **MCP Servers** — MCP stands for... Model... Contexual... Prortocol. It's how the compurter talks to other compurters. Like a telephone but for robots. We have TWO of them, which is one more than one.
-
 - **Image Generashion** — Your compurter can draw pitchers now. Like an artist but without the beret and the sad backstory. It uses your **GPU** *(that's the expensieve card inside your compurter that gamers yell about)* to make images LOCALLY. No cloud. The pitchers never leave your house. *[accidentally knocks a model off the desk]* You pick a model — FLUCKS... FLUX? And SDXL which I think is a skateboard trick — download it from HuggingFace *(aww that's a nice name for a website)* and then just ask Claude to draw stuff and BAM, pitcher shows up right in the chat. **[BRULE holds up a crayon drawing]** It's like this but better. Way better. Don't tell my mom I said that.
-
-- **Right-Click Atatch** — You can right-click a file and go "attach to messige" and it just... goes in there. Into the message. No more dragging files around like some kind of cavemann. *[drags mouse across screen aggressively]* We live in the FUTURE now. Act like it.
-
-- **System Trey** — When you click the X button it doesn't actually close. It goes and hides in your trey. *[points at screen tray area]* Like a little compurter gopher. Click the icon — it pops back up. Right-click — you get a menu. "Show" and "Quit". If Claude is still working and you hit Quit, it asks you real nice "hey buddy you sure?" Because you don't want to interrupt a smart man while he's thinking. That's just rude.
 
 - **Schedulled Tasks** — Now your compurter can do stuff WHILE YOU SLEEP. *[leans into camera]* Set up a task — like "send me the news at 6am" — pick a schedule (every day, every hour, whatever you want) and aitherflow will run a whole Claude agent automaticly. There's a nice little builder where you pick minutes and hours and days with buttons, no need to learn that cron thing that looks like a phone number from the future. When the task runs, a chat tab appears so you can see what Claude did. It even sends you a Telegram messige when it's done. *[holds up phone proudly]* Look ma, I automated!
 
