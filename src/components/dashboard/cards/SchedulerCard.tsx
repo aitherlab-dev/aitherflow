@@ -6,12 +6,6 @@ import type { ScheduledTask } from "../../../types/scheduler";
 import { DashboardCard } from "../DashboardCard";
 import { Tooltip } from "../../shared/Tooltip";
 
-const STATUS_COLORS: Record<string, string> = {
-  success: "var(--accent)",
-  error: "var(--red, #e55)",
-  running: "var(--orange, #f90)",
-};
-
 export const SchedulerCard = memo(function SchedulerCard({
   expanded,
   onToggle,
@@ -69,14 +63,7 @@ export const SchedulerCard = memo(function SchedulerCard({
                 </span>
                 <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <span
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: "50%",
-                      background: t.last_status
-                        ? STATUS_COLORS[t.last_status] ?? "var(--fg-muted)"
-                        : "var(--fg-muted)",
-                    }}
+                    className={`scheduler-status-dot${t.last_status ? ` scheduler-status-dot--${t.last_status}` : ""}`}
                   />
                   <span style={{ fontSize: "0.78rem", color: "var(--fg-muted)" }}>
                     {formatSchedule(t.schedule)}

@@ -67,7 +67,7 @@
 }
 
 .scheduler-status-dot--running {
-  background: var(--orange, #f90);
+  background: var(--yellow);
   animation: scheduler-pulse 1.5s ease-in-out infinite;
 }
 
