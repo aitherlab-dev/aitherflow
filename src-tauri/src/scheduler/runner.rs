@@ -154,6 +154,18 @@ pub async fn run_task_now(app_handle: &tauri::AppHandle, task: &ScheduledTask) {
         eprintln!("[scheduler] Failed to emit task-started: {e}");
     }
 
+    // Emit event so frontend creates agent tab before CLI starts
+    let create_agent_info = serde_json::json!({
+        "agentId": agent_id,
+        "projectPath": task.project_path,
+        "taskName": task.name,
+    });
+    if let Err(e) = tauri::Emitter::emit(app_handle, "scheduler:create-agent", &create_agent_info) {
+        eprintln!("[scheduler] Failed to emit create-agent: {e}");
+    }
+    // Give frontend time to register agent before CLI starts sending events
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+
     // Get additional dirs for the project
     let project_path = task.project_path.clone();
     let additional_dirs = {

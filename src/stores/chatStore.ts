@@ -8,6 +8,8 @@ import type { ChatMessage, ToolActivity } from "../types/chat";
 
 // Side-effect: registers the "cli-event" listener
 import "./chatStreamHandler";
+// Side-effect: registers the "scheduler:create-agent" listener
+import "./schedulerListener";
 
 // ── Constants (shared with streamHandler) ──
 
