@@ -227,14 +227,16 @@ pub async fn run_task_now(app_handle: &tauri::AppHandle, task: &ScheduledTask) {
         // Send Telegram notification if enabled
         if task_notify_tg && final_status == TaskRunStatus::Success {
             let tg_name = task_name_for_spawn;
-            if let Err(e) = tokio::task::spawn_blocking(move || {
+            match tokio::task::spawn_blocking(move || {
                 crate::telegram::commands::send_to_telegram(
                     format!("\u{2705} Scheduled task '{tg_name}' completed successfully"),
                 )
             })
             .await
             {
-                eprintln!("[scheduler] Failed to send telegram notification: {e}");
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => eprintln!("[scheduler] Telegram send failed: {e}"),
+                Err(e) => eprintln!("[scheduler] Telegram task panicked: {e}"),
             }
         }
 
