@@ -18,6 +18,7 @@ mod named_mutex_pool;
 mod plugins;
 mod projects;
 mod rag;
+mod scheduler;
 mod secrets;
 mod settings;
 mod skills;
@@ -224,6 +225,11 @@ pub fn run() {
             rag::commands::rag_get_available_models,
             rag::commands::rag_load_settings,
             rag::commands::rag_save_settings,
+            scheduler::commands::scheduler_list_tasks,
+            scheduler::commands::scheduler_save_task,
+            scheduler::commands::scheduler_delete_task,
+            scheduler::commands::scheduler_toggle_task,
+            scheduler::commands::scheduler_run_now,
         ])
         .setup(move |app| {
             // --- System tray ---
@@ -283,6 +289,10 @@ pub fn run() {
                     }
                 })
                 .build(app)?;
+
+            // Start scheduler
+            let scheduler_handle = app.handle().clone();
+            tauri::async_runtime::spawn(scheduler::runner::start_scheduler(scheduler_handle));
 
             let sessions_for_mcp = sessions;
             tauri::async_runtime::spawn(async move {
