@@ -99,6 +99,11 @@ impl AgentWriter {
         self.inner.lock().await.stdin = None;
     }
 
+    /// Best-effort synchronous status check (no async runtime needed).
+    pub fn try_get_status(&self) -> Option<SessionStatus> {
+        self.inner.try_lock().ok().map(|inner| inner.status.clone())
+    }
+
     /// Best-effort synchronous close (for app exit when async runtime may be shutting down).
     pub fn try_close(&self) {
         if let Ok(mut inner) = self.inner.try_lock() {
@@ -217,6 +222,20 @@ impl SessionManager {
         }
     }
 
+
+    /// Check if any session is currently in Thinking state.
+    /// Uses `try_lock` — safe to call from sync context.
+    pub fn has_active_sessions(&self) -> bool {
+        let Ok(map) = self.sessions.try_lock() else {
+            return false;
+        };
+        for session in map.values() {
+            if session.writer.try_get_status() == Some(SessionStatus::Thinking) {
+                return true;
+            }
+        }
+        false
+    }
 
     /// Kill all sessions synchronously (called on app exit).
     /// Uses `try_lock` + `start_kill` to avoid async runtime dependency.

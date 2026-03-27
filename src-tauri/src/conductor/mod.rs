@@ -149,6 +149,12 @@ pub async fn stop_session(
 }
 
 
+/// Check if any agent is actively thinking (for tray quit confirmation).
+#[tauri::command]
+pub async fn has_active_agents(sessions: State<'_, SessionManager>) -> Result<bool, String> {
+    Ok(sessions.has_active_sessions())
+}
+
 /// Aggregate CLI usage statistics from all JSONL session files.
 #[tauri::command]
 pub async fn get_cli_stats(days: u32) -> Result<stats::AggregatedStats, String> {
