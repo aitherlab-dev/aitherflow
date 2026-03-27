@@ -25,7 +25,6 @@ pub async fn start_scheduler(app_handle: tauri::AppHandle) {
         };
 
         let now = Local::now();
-        let mut updated = false;
 
         for task in &tasks {
             if !task.enabled {
@@ -37,12 +36,6 @@ pub async fn start_scheduler(app_handle: tauri::AppHandle) {
 
             eprintln!("[scheduler] Running task '{}' ({})", task.name, task.id);
             run_task_now(&app_handle, task).await;
-            updated = true;
-        }
-
-        if updated {
-            // Reload to get fresh last_run values (run_task already saved)
-            // No extra save needed here
         }
     }
 }
@@ -110,14 +103,15 @@ fn should_run(task: &ScheduledTask, now: &chrono::DateTime<Local>) -> bool {
                 }
             };
 
+            // cron crate works in UTC internally; convert results to Local for comparison
             let now_utc = now.with_timezone(&chrono::Utc);
-            // Check if there's an upcoming time within the last 30 seconds (our poll interval)
             let window_start = now_utc - chrono::Duration::seconds(30);
-            if let Some(next) = schedule.after(&window_start).next() {
-                if next <= now_utc {
+            if let Some(next_utc) = schedule.after(&window_start).next() {
+                let next_local = next_utc.with_timezone(&Local);
+                if next_local <= *now {
                     // Check we haven't already run for this occurrence
                     match last_run {
-                        Some(last) => (now_utc - last.with_timezone(&chrono::Utc)).num_seconds() > 30,
+                        Some(last) => (*now - last).num_seconds() > 30,
                         None => true,
                     }
                 } else {
@@ -172,8 +166,9 @@ pub async fn run_task_now(app_handle: &tauri::AppHandle, task: &ScheduledTask) {
     let prompt = task.prompt.clone();
     let teamwork_project_path = Some(project_path.clone());
 
+    let task_id_for_spawn = task.id.clone();
     tokio::spawn(async move {
-        if let Err(e) = crate::conductor::process::run_cli_session(
+        let result = crate::conductor::process::run_cli_session(
             EventSink::new(app_clone.clone()),
             sessions,
             CliSessionConfig {
@@ -193,19 +188,38 @@ pub async fn run_task_now(app_handle: &tauri::AppHandle, task: &ScheduledTask) {
                 role_name: None,
             },
         )
+        .await;
+
+        let final_status = match &result {
+            Ok(()) => TaskRunStatus::Success,
+            Err(e) => {
+                eprintln!("[scheduler] Task {agent_id} error: {e}");
+                if let Err(e2) = tauri::Emitter::emit(
+                    &app_clone,
+                    "cli-event",
+                    &crate::conductor::types::CliEvent::Error {
+                        agent_id: agent_id.into(),
+                        message: e.clone(),
+                    },
+                ) {
+                    eprintln!("[scheduler] Failed to emit error: {e2}");
+                }
+                TaskRunStatus::Error
+            }
+        };
+
+        // Update last_status after completion
+        let tid = task_id_for_spawn;
+        if let Err(e) = tokio::task::spawn_blocking(move || {
+            let mut tasks = load_tasks();
+            if let Some(t) = tasks.iter_mut().find(|t| t.id == tid) {
+                t.last_status = Some(final_status);
+            }
+            save_tasks(&tasks)
+        })
         .await
         {
-            eprintln!("[scheduler] Task {agent_id} error: {e}");
-            if let Err(e2) = tauri::Emitter::emit(
-                &app_clone,
-                "cli-event",
-                &crate::conductor::types::CliEvent::Error {
-                    agent_id: agent_id.into(),
-                    message: e,
-                },
-            ) {
-                eprintln!("[scheduler] Failed to emit error: {e2}");
-            }
+            eprintln!("[scheduler] Failed to update final status: {e}");
         }
     });
 }

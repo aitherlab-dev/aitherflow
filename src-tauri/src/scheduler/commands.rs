@@ -1,4 +1,4 @@
-use super::{load_tasks, save_tasks, ScheduledTask};
+use super::{load_tasks, save_tasks, ScheduledTask, TaskRunStatus};
 
 #[tauri::command]
 pub async fn scheduler_list_tasks() -> Result<Vec<ScheduledTask>, String> {
@@ -68,6 +68,10 @@ pub async fn scheduler_run_now(id: String, app: tauri::AppHandle) -> Result<(), 
     })
     .await
     .map_err(|e| format!("Task failed: {e}"))??;
+
+    if task.last_status == Some(TaskRunStatus::Running) {
+        return Err("Task is already running".into());
+    }
 
     super::runner::run_task_now(&app, &task).await;
     Ok(())

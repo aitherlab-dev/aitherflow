@@ -30,7 +30,7 @@ pub enum TaskSchedule {
     Cron { expression: String },
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TaskRunStatus {
     Success,
