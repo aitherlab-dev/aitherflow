@@ -34,6 +34,7 @@ function useDragScroll() {
 
     const onMouseDown = (e: MouseEvent) => {
       if (e.button !== 0) return;
+      if (e.shiftKey) return; // Shift = reorder mode, skip drag-scroll
       dragState.current = { active: true, startX: e.clientX, scrollLeft: el.scrollLeft, moved: false };
       el.classList.add("welcome-row--dragging");
       e.preventDefault(); // prevent text selection
