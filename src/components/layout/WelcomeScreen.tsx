@@ -16,6 +16,7 @@ import { switchChat } from "../../stores/chatService";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useSkillStore } from "../../stores/skillStore";
 import { invoke, openDialog } from "../../lib/transport";
+import { useDragReorder } from "../../hooks/useDragReorder";
 import type { TeamPreset } from "../../types/projects";
 import { PresetManagerModal } from "./PresetManagerModal";
 
@@ -100,10 +101,11 @@ export function WelcomeScreen() {
   const [showPresetManager, setShowPresetManager] = useState(false);
   const [focusedRow, setFocusedRow] = useState(0); // 0 = projects, 1 = team
   const [focusedIndex, setFocusedIndex] = useState(0);
-  const [dragFromIndex, setDragFromIndex] = useState<number | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   const projectsRow = useDragScroll();
+  const projectDrag = useDragReorder<number>("card-idx", (fromIdx, toIdx) => {
+    reorderWelcomeCards(fromIdx, toIdx);
+  });
   const teamRow = useDragScroll();
 
   const focusedCardRef = useRef<HTMLButtonElement | null>(null);
@@ -410,7 +412,7 @@ export function WelcomeScreen() {
         style={{ "--i": 2 } as React.CSSProperties}
       >
         <div className="welcome-section-title">Projects</div>
-        <div className="welcome-row" ref={projectsRow.ref}>
+        <div className="welcome-row" ref={(el) => { projectsRow.ref(el); projectDrag.gridRef.current = el; }}>
           {/* Workspace — always first */}
           {workspace && (
             <button
@@ -429,34 +431,16 @@ export function WelcomeScreen() {
           {welcomeCards.map((card, i) => {
             const cardIndex = (workspace ? 1 : 0) + i;
             const isFocused = focusedRow === 0 && focusedIndex === cardIndex;
-            const isDragOver = dragOverIndex === i && dragFromIndex !== null && dragFromIndex !== i;
+            const isDragOver = projectDrag.dropTargetId === i && projectDrag.dragId !== null && projectDrag.dragId !== i;
             return (
             <button
               key={card.projectPath}
               ref={isFocused ? focusedCardRef : undefined}
-              draggable
-              onDragStart={(e) => {
-                if (!e.shiftKey) { e.preventDefault(); return; }
-                setDragFromIndex(i);
-                e.dataTransfer.effectAllowed = "move";
-              }}
-              onDragOver={(e) => {
-                if (dragFromIndex === null) return;
-                e.preventDefault();
-                e.dataTransfer.dropEffect = "move";
-                setDragOverIndex(i);
-              }}
-              onDragLeave={() => { if (dragOverIndex === i) setDragOverIndex(null); }}
-              onDrop={(e) => {
-                e.preventDefault();
-                if (dragFromIndex !== null && dragFromIndex !== i) {
-                  reorderWelcomeCards(dragFromIndex, i);
-                }
-                setDragFromIndex(null);
-                setDragOverIndex(null);
-              }}
-              onDragEnd={() => { setDragFromIndex(null); setDragOverIndex(null); }}
-              className={`welcome-card${selectedProject === card.projectPath ? " welcome-card--selected" : ""}${isFocused ? " welcome-card--focused" : ""}${isDragOver ? " welcome-card--drag-over" : ""}${dragFromIndex === i ? " welcome-card--dragging" : ""}`}
+              data-card-idx={i}
+              onPointerDown={(e) => projectDrag.handlePointerDown(e, i)}
+              onPointerMove={projectDrag.handlePointerMove}
+              onPointerUp={projectDrag.handlePointerUp}
+              className={`welcome-card${selectedProject === card.projectPath ? " welcome-card--selected" : ""}${isFocused ? " welcome-card--focused" : ""}${isDragOver ? " welcome-card--drag-over" : ""}${projectDrag.dragId === i ? " welcome-card--dragging" : ""}`}
               onClick={() => handleSelectProject(card.projectPath)}
             >
               <div
