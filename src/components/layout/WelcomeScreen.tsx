@@ -108,11 +108,15 @@ export function WelcomeScreen() {
   }>({ active: false, fromIndex: -1, currentOver: null });
   const [dragFromIdx, setDragFromIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const dragCleanupRef = useRef<(() => void) | null>(null);
 
   const projectsRow = useDragScroll();
   const teamRow = useDragScroll();
 
   const focusedCardRef = useRef<HTMLButtonElement | null>(null);
+
+  // Cleanup drag listeners on unmount
+  useEffect(() => () => { dragCleanupRef.current?.(); }, []);
 
   // Workspace is always the first project
   const workspace = projects[0];
@@ -462,6 +466,7 @@ export function WelcomeScreen() {
                 const onUp = () => {
                   document.removeEventListener("pointermove", onMove);
                   document.removeEventListener("pointerup", onUp);
+                  dragCleanupRef.current = null;
                   const { fromIndex, currentOver } = reorderState.current;
                   reorderState.current = { active: false, fromIndex: -1, currentOver: null };
                   setDragFromIdx(null);
@@ -473,6 +478,10 @@ export function WelcomeScreen() {
 
                 document.addEventListener("pointermove", onMove);
                 document.addEventListener("pointerup", onUp);
+                dragCleanupRef.current = () => {
+                  document.removeEventListener("pointermove", onMove);
+                  document.removeEventListener("pointerup", onUp);
+                };
               }}
               className={`welcome-card${selectedProject === card.projectPath ? " welcome-card--selected" : ""}${isFocused ? " welcome-card--focused" : ""}${isDragOver ? " welcome-card--drag-over" : ""}${dragFromIdx === i ? " welcome-card--dragging" : ""}`}
               onClick={() => handleSelectProject(card.projectPath)}
