@@ -173,3 +173,76 @@
   background: var(--bg-hover);
   color: var(--fg);
 }
+
+/* ── Cron builder ── */
+
+.cron-builder {
+  display: flex;
+  flex-direction: column;
+}
+
+.cron-field-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cron-days-row {
+  display: flex;
+  gap: 4px;
+}
+
+.cron-day-btn {
+  width: 36px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-soft);
+  color: var(--fg-muted);
+  font-size: 0.72rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.cron-day-btn:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.cron-day-btn--active {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+}
+
+.cron-day-btn--active:hover {
+  opacity: 0.9;
+}
+
+.cron-preview {
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: var(--bg-soft);
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.78rem;
+  color: var(--fg-muted);
+}
+
+.cron-toggle-mode {
+  margin-top: 6px;
+  align-self: flex-end;
+  background: none;
+  border: none;
+  color: var(--fg-muted);
+  font-size: 0.72rem;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  padding: 2px 0;
+}
+
+.cron-toggle-mode:hover {
+  color: var(--accent);
+}
