@@ -41,7 +41,7 @@ pub async fn start_scheduler(app_handle: tauri::AppHandle) {
 }
 
 /// Check if a task should run based on its schedule and last_run.
-fn should_run(task: &ScheduledTask, now: &chrono::DateTime<Local>) -> bool {
+pub(crate) fn should_run(task: &ScheduledTask, now: &chrono::DateTime<Local>) -> bool {
     let last_run = task
         .last_run
         .as_deref()
@@ -222,4 +222,196 @@ pub async fn run_task_now(app_handle: &tauri::AppHandle, task: &ScheduledTask) {
             eprintln!("[scheduler] Failed to update final status: {e}");
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::TimeZone;
+
+    fn make_task(
+        schedule: TaskSchedule,
+        last_run: Option<&str>,
+        last_status: Option<TaskRunStatus>,
+    ) -> ScheduledTask {
+        ScheduledTask {
+            id: "test".into(),
+            name: "Test".into(),
+            prompt: "do stuff".into(),
+            project_path: "/tmp".into(),
+            schedule,
+            enabled: true,
+            notify_telegram: false,
+            created_at: "2026-01-01T00:00:00+00:00".into(),
+            last_run: last_run.map(String::from),
+            last_status,
+        }
+    }
+
+    // 2026-03-30 is a Monday
+    fn mon(h: u32, m: u32, s: u32) -> chrono::DateTime<Local> {
+        Local.with_ymd_and_hms(2026, 3, 30, h, m, s).unwrap()
+    }
+
+    // ── Interval ──
+
+    #[test]
+    fn interval_never_ran() {
+        let task = make_task(TaskSchedule::Interval { minutes: 30 }, None, None);
+        assert!(should_run(&task, &mon(9, 0, 0)));
+    }
+
+    #[test]
+    fn interval_elapsed() {
+        let last = mon(8, 0, 0).to_rfc3339();
+        let task = make_task(TaskSchedule::Interval { minutes: 30 }, Some(&last), Some(TaskRunStatus::Success));
+        assert!(should_run(&task, &mon(9, 0, 0)));
+    }
+
+    #[test]
+    fn interval_not_elapsed() {
+        let last = mon(8, 55, 0).to_rfc3339();
+        let task = make_task(TaskSchedule::Interval { minutes: 30 }, Some(&last), Some(TaskRunStatus::Success));
+        assert!(!should_run(&task, &mon(9, 0, 0)));
+    }
+
+    #[test]
+    fn interval_exact_boundary() {
+        let last = mon(8, 30, 0).to_rfc3339();
+        let task = make_task(TaskSchedule::Interval { minutes: 30 }, Some(&last), Some(TaskRunStatus::Success));
+        assert!(should_run(&task, &mon(9, 0, 0)));
+    }
+
+    // ── Daily ──
+
+    #[test]
+    fn daily_correct_time_never_ran() {
+        let task = make_task(TaskSchedule::Daily { hour: 6, minute: 0 }, None, None);
+        assert!(should_run(&task, &mon(6, 0, 0)));
+    }
+
+    #[test]
+    fn daily_correct_time_already_ran_today() {
+        let last = mon(6, 0, 0).to_rfc3339();
+        let task = make_task(TaskSchedule::Daily { hour: 6, minute: 0 }, Some(&last), Some(TaskRunStatus::Success));
+        assert!(!should_run(&task, &mon(6, 0, 15)));
+    }
+
+    #[test]
+    fn daily_correct_time_ran_yesterday() {
+        // Yesterday = 2026-03-29 (Sunday)
+        let yesterday = Local.with_ymd_and_hms(2026, 3, 29, 6, 0, 0).unwrap().to_rfc3339();
+        let task = make_task(TaskSchedule::Daily { hour: 6, minute: 0 }, Some(&yesterday), Some(TaskRunStatus::Success));
+        assert!(should_run(&task, &mon(6, 0, 0)));
+    }
+
+    #[test]
+    fn daily_wrong_time() {
+        let task = make_task(TaskSchedule::Daily { hour: 6, minute: 0 }, None, None);
+        assert!(!should_run(&task, &mon(7, 0, 0)));
+    }
+
+    // ── Weekly ──
+
+    #[test]
+    fn weekly_correct_day_and_time_never_ran() {
+        let task = make_task(
+            TaskSchedule::Weekly { day: 0, hour: 9, minute: 0 },
+            None,
+            None,
+        );
+        assert!(should_run(&task, &mon(9, 0, 0)));
+    }
+
+    #[test]
+    fn weekly_correct_day_wrong_time() {
+        let task = make_task(
+            TaskSchedule::Weekly { day: 0, hour: 9, minute: 0 },
+            None,
+            None,
+        );
+        assert!(!should_run(&task, &mon(10, 0, 0)));
+    }
+
+    #[test]
+    fn weekly_wrong_day() {
+        // Tuesday = 2026-03-31
+        let tue = Local.with_ymd_and_hms(2026, 3, 31, 9, 0, 0).unwrap();
+        let task = make_task(
+            TaskSchedule::Weekly { day: 0, hour: 9, minute: 0 },
+            None,
+            None,
+        );
+        assert!(!should_run(&task, &tue));
+    }
+
+    #[test]
+    fn weekly_already_ran_this_week() {
+        let last = mon(0, 1, 0).to_rfc3339();
+        let task = make_task(
+            TaskSchedule::Weekly { day: 0, hour: 9, minute: 0 },
+            Some(&last),
+            Some(TaskRunStatus::Success),
+        );
+        // last_run was today at 00:01, now is 09:00 same day → days_since = 0 < 1
+        assert!(!should_run(&task, &mon(9, 0, 0)));
+    }
+
+    // ── Cron ──
+
+    #[test]
+    fn cron_matches_window() {
+        let task = make_task(
+            TaskSchedule::Cron { expression: "* * * * *".into() },
+            None,
+            None,
+        );
+        assert!(should_run(&task, &mon(12, 0, 0)));
+    }
+
+    #[test]
+    fn cron_invalid_expression() {
+        let task = make_task(
+            TaskSchedule::Cron { expression: "invalid".into() },
+            None,
+            None,
+        );
+        assert!(!should_run(&task, &mon(12, 0, 0)));
+    }
+
+    #[test]
+    fn cron_already_ran() {
+        let last = mon(12, 0, 0).to_rfc3339();
+        let task = make_task(
+            TaskSchedule::Cron { expression: "* * * * *".into() },
+            Some(&last),
+            Some(TaskRunStatus::Success),
+        );
+        // last_run 5 seconds ago
+        let now = mon(12, 0, 5);
+        assert!(!should_run(&task, &now));
+    }
+
+    // ── Running status ──
+
+    #[test]
+    fn skip_if_running() {
+        let task = make_task(
+            TaskSchedule::Interval { minutes: 1 },
+            None,
+            Some(TaskRunStatus::Running),
+        );
+        assert!(!should_run(&task, &mon(9, 0, 0)));
+    }
+
+    #[test]
+    fn run_after_error() {
+        let last = mon(8, 0, 0).to_rfc3339();
+        let task = make_task(
+            TaskSchedule::Interval { minutes: 30 },
+            Some(&last),
+            Some(TaskRunStatus::Error),
+        );
+        assert!(should_run(&task, &mon(9, 0, 0)));
+    }
 }
