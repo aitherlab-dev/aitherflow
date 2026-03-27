@@ -16,7 +16,6 @@ import { switchChat } from "../../stores/chatService";
 import { useLayoutStore } from "../../stores/layoutStore";
 import { useSkillStore } from "../../stores/skillStore";
 import { invoke, openDialog } from "../../lib/transport";
-import { useDragReorder } from "../../hooks/useDragReorder";
 import type { TeamPreset } from "../../types/projects";
 import { PresetManagerModal } from "./PresetManagerModal";
 
@@ -102,10 +101,15 @@ export function WelcomeScreen() {
   const [focusedRow, setFocusedRow] = useState(0); // 0 = projects, 1 = team
   const [focusedIndex, setFocusedIndex] = useState(0);
 
+  const reorderState = useRef<{
+    active: boolean;
+    fromIndex: number;
+    currentOver: number | null;
+  }>({ active: false, fromIndex: -1, currentOver: null });
+  const [dragFromIdx, setDragFromIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+
   const projectsRow = useDragScroll();
-  const projectDrag = useDragReorder<number>("card-idx", (fromIdx, toIdx) => {
-    reorderWelcomeCards(fromIdx, toIdx);
-  });
   const teamRow = useDragScroll();
 
   const focusedCardRef = useRef<HTMLButtonElement | null>(null);
@@ -412,7 +416,7 @@ export function WelcomeScreen() {
         style={{ "--i": 2 } as React.CSSProperties}
       >
         <div className="welcome-section-title">Projects</div>
-        <div className="welcome-row" ref={(el) => { projectsRow.ref(el); projectDrag.gridRef.current = el; }}>
+        <div className="welcome-row" ref={projectsRow.ref}>
           {/* Workspace — always first */}
           {workspace && (
             <button
@@ -431,16 +435,46 @@ export function WelcomeScreen() {
           {welcomeCards.map((card, i) => {
             const cardIndex = (workspace ? 1 : 0) + i;
             const isFocused = focusedRow === 0 && focusedIndex === cardIndex;
-            const isDragOver = projectDrag.dropTargetId === i && projectDrag.dragId !== null && projectDrag.dragId !== i;
+            const isDragOver = dragOverIdx === i && dragFromIdx !== null && dragFromIdx !== i;
             return (
             <button
               key={card.projectPath}
               ref={isFocused ? focusedCardRef : undefined}
               data-card-idx={i}
-              onPointerDown={(e) => projectDrag.handlePointerDown(e, i)}
-              onPointerMove={projectDrag.handlePointerMove}
-              onPointerUp={projectDrag.handlePointerUp}
-              className={`welcome-card${selectedProject === card.projectPath ? " welcome-card--selected" : ""}${isFocused ? " welcome-card--focused" : ""}${isDragOver ? " welcome-card--drag-over" : ""}${projectDrag.dragId === i ? " welcome-card--dragging" : ""}`}
+              onPointerDown={(e) => {
+                if (!e.shiftKey || e.button !== 0) return;
+                e.preventDefault();
+                e.stopPropagation();
+                reorderState.current = { active: true, fromIndex: i, currentOver: null };
+                setDragFromIdx(i);
+
+                const onMove = (me: PointerEvent) => {
+                  if (!reorderState.current.active) return;
+                  const el = document.elementFromPoint(me.clientX, me.clientY);
+                  const card = el?.closest<HTMLElement>("[data-card-idx]");
+                  const idx = card ? Number(card.dataset.cardIdx) : null;
+                  if (idx !== reorderState.current.currentOver) {
+                    reorderState.current.currentOver = idx;
+                    setDragOverIdx(idx);
+                  }
+                };
+
+                const onUp = () => {
+                  document.removeEventListener("pointermove", onMove);
+                  document.removeEventListener("pointerup", onUp);
+                  const { fromIndex, currentOver } = reorderState.current;
+                  reorderState.current = { active: false, fromIndex: -1, currentOver: null };
+                  setDragFromIdx(null);
+                  setDragOverIdx(null);
+                  if (currentOver !== null && currentOver !== fromIndex) {
+                    reorderWelcomeCards(fromIndex, currentOver);
+                  }
+                };
+
+                document.addEventListener("pointermove", onMove);
+                document.addEventListener("pointerup", onUp);
+              }}
+              className={`welcome-card${selectedProject === card.projectPath ? " welcome-card--selected" : ""}${isFocused ? " welcome-card--focused" : ""}${isDragOver ? " welcome-card--drag-over" : ""}${dragFromIdx === i ? " welcome-card--dragging" : ""}`}
               onClick={() => handleSelectProject(card.projectPath)}
             >
               <div
