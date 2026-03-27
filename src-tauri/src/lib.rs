@@ -225,41 +225,41 @@ pub fn run() {
             rag::commands::rag_load_settings,
             rag::commands::rag_save_settings,
         ])
-        .setup(move |_app| {
+        .setup(move |app| {
             // --- System tray ---
-            let show_item = MenuItemBuilder::with_id("show", "Show").build(_app)?;
-            let separator = PredefinedMenuItem::separator(_app)?;
-            let quit_item = MenuItemBuilder::with_id("quit", "Quit").build(_app)?;
-            let tray_menu = MenuBuilder::new(_app)
+            let show_item = MenuItemBuilder::with_id("show", "Show").build(app)?;
+            let separator = PredefinedMenuItem::separator(app)?;
+            let quit_item = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
+            let tray_menu = MenuBuilder::new(app)
                 .items(&[&show_item, &separator, &quit_item])
                 .build()?;
 
             let sessions_for_tray = sessions.clone();
             TrayIconBuilder::new()
-                .icon(_app.default_window_icon().unwrap().clone())
+                .icon(app.default_window_icon().ok_or("No default window icon configured")?.clone())
                 .menu(&tray_menu)
                 .show_menu_on_left_click(false)
-                .on_menu_event(move |app, event| match event.id().as_ref() {
+                .on_menu_event(move |app_handle, event| match event.id().as_ref() {
                     "show" => {
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
+                        if let Some(window) = app_handle.get_webview_window("main") {
+                            window.show().map_err(|e| eprintln!("[tray] Failed to show: {e}")).ok();
+                            window.set_focus().map_err(|e| eprintln!("[tray] Failed to focus: {e}")).ok();
                         }
                     }
                     "quit" => {
                         if sessions_for_tray.has_active_sessions() {
-                            let app_handle = app.clone();
-                            app.dialog()
+                            let handle = app_handle.clone();
+                            app_handle.dialog()
                                 .message("An agent is working, its process will be terminated. Quit?")
                                 .title("aitherflow")
                                 .buttons(tauri_plugin_dialog::MessageDialogButtons::OkCancelCustom("Yes".into(), "No".into()))
                                 .show(move |confirmed| {
                                     if confirmed {
-                                        app_handle.exit(0);
+                                        handle.exit(0);
                                     }
                                 });
                         } else {
-                            app.exit(0);
+                            app_handle.exit(0);
                         }
                     }
                     _ => {}
@@ -271,18 +271,18 @@ pub fn run() {
                         ..
                     } = event
                     {
-                        let app = tray.app_handle();
-                        if let Some(window) = app.get_webview_window("main") {
+                        let app_handle = tray.app_handle();
+                        if let Some(window) = app_handle.get_webview_window("main") {
                             if window.is_visible().unwrap_or(false) {
-                                let _ = window.hide();
+                                window.hide().map_err(|e| eprintln!("[tray] Failed to hide: {e}")).ok();
                             } else {
-                                let _ = window.show();
-                                let _ = window.set_focus();
+                                window.show().map_err(|e| eprintln!("[tray] Failed to show: {e}")).ok();
+                                window.set_focus().map_err(|e| eprintln!("[tray] Failed to focus: {e}")).ok();
                             }
                         }
                     }
                 })
-                .build(_app)?;
+                .build(app)?;
 
             let sessions_for_mcp = sessions;
             tauri::async_runtime::spawn(async move {
@@ -374,7 +374,7 @@ pub fn run() {
             {
                 api.prevent_close();
                 if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.hide();
+                    window.hide().map_err(|e| eprintln!("[tray] Failed to hide: {e}")).ok();
                 }
             }
             if let tauri::RunEvent::Exit = event {
