@@ -103,12 +103,14 @@ pub(crate) fn should_run(task: &ScheduledTask, now: &chrono::DateTime<Local>) ->
                 }
             };
 
-            // cron crate works in UTC internally; convert results to Local for comparison
+            // cron crate parses everything as UTC. To make "0 6 * * *" fire at
+            // 6:00 local, we feed the crate our local time disguised as UTC.
+            let offset_secs = now.offset().local_minus_utc() as i64;
             let now_utc = now.with_timezone(&chrono::Utc);
-            let window_start = now_utc - chrono::Duration::seconds(30);
-            if let Some(next_utc) = schedule.after(&window_start).next() {
-                let next_local = next_utc.with_timezone(&Local);
-                if next_local <= *now {
+            let fake_now = now_utc - chrono::Duration::seconds(offset_secs);
+            let window_start = fake_now - chrono::Duration::seconds(30);
+            if let Some(next) = schedule.after(&window_start).next() {
+                if next <= fake_now {
                     // Check we haven't already run for this occurrence
                     match last_run {
                         Some(last) => (*now - last).num_seconds() > 30,
