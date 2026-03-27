@@ -73,6 +73,10 @@ The point is — Claude does all the thinking, and aitherflow makes it look pret
 
 - **Right-Click Atatch** — You can right-click a file and go "attach to messige" and it just... goes in there. Into the message. No more dragging files around like some kind of cavemann. *[drags mouse across screen aggressively]* We live in the FUTURE now. Act like it.
 
+- **System Trey** — When you click the X button it doesn't actually close. It goes and hides in your trey. *[points at screen tray area]* Like a little compurter gopher. Click the icon — it pops back up. Right-click — you get a menu. "Show" and "Quit". If Claude is still working and you hit Quit, it asks you real nice "hey buddy you sure?" Because you don't want to interrupt a smart man while he's thinking. That's just rude.
+
+- **Schedulled Tasks** — Now your compurter can do stuff WHILE YOU SLEEP. *[leans into camera]* Set up a task — like "send me the news at 6am" — pick a schedule (every day, every hour, whatever you want) and aitherflow will run a whole Claude agent automaticly. There's a nice little builder where you pick minutes and hours and days with buttons, no need to learn that cron thing that looks like a phone number from the future. When the task runs, a chat tab appears so you can see what Claude did. It even sends you a Telegram messige when it's done. *[holds up phone proudly]* Look ma, I automated!
+
 ---
 
 ## Techknical Stack
@@ -87,6 +91,7 @@ The point is — Claude does all the thinking, and aitherflow makes it look pret
 | State | Zustand | It's like Redux but it doesn't make you want to cry. Each store is its own little guy. They don't talk to each other, like my neighbors. |
 | Data | JSON files | Just files. On your disk. No databaise. Simple, like me. |
 | Image Gen | diffusion-rs / FLUX.2, FLUX.1, SDXL, Z-Image | Your video card becomes an artist. FLUX, LoRA, the whole shebang. Add any model from HuggingFace and it just works. Like Picasso but with more VRAM. |
+| Scheduling | Cron + Tokio | Your compurter has an alarm clock now. Very responsible. |
 | Platforms | Linux + macOS | No Windoes, sorry. *[whispers to camera]* we don't talk about Windoes here |
 
 ---
@@ -163,6 +168,7 @@ aitherflow/
 │       ├── conductor/      ← the boss module, runs everything
 │       ├── rag/            ← knowledge base brain stuff
 │       ├── image_gen/      ← picture making factory
+│       ├── scheduler/      ← timed task zone (cron stuff)
 │       ├── telegram/       ← phone messaging thing
 │       ├── plugins/        ← extra bits
 │       └── [many .rs files]← each one does a little job, like ants

@@ -84,7 +84,32 @@ Local AI image generation through a built-in MCP server. No cloud APIs — every
 - Right-click file attachment — attach files to messages from the file browser
 - Telegram bot integration
 - Voice input (Deepgram)
+- System tray — close to tray, tray icon with toggle and context menu, quit guard for active agents
+- Scheduled tasks — run agents on a schedule (interval, daily, weekly, cron), visual builder, live chat tab, Telegram notifications
+- Project card reorder — Shift+drag to rearrange project cards on the welcome screen
 - Dark and light themes (warm palette)
+
+## System Tray
+
+The application minimizes to the system tray instead of closing. The window close button hides the window; the app continues running in the background.
+
+- **Left click** tray icon — toggle window visibility
+- **Right click** — context menu: Show / Quit
+- **Quit guard** — if an agent is actively working, a confirmation dialog appears before exit
+
+## Scheduled Tasks
+
+Run agent tasks automatically on a schedule. Configure via Settings → Scheduler or the Dashboard card.
+
+- **Schedule types:** interval (every N minutes), daily (at HH:MM), weekly (day + time), advanced (visual cron builder)
+- **Visual cron builder** — minute/hour selectors, day-of-week toggle buttons, day-of-month picker. No cron syntax knowledge required
+- **Local timezone** — all schedules fire at local time
+- **Run Now** — test any task immediately
+- **Live agent tab** — scheduled tasks automatically create a chat tab showing the agent's work in real time
+- **Telegram notification** — optional notification on task completion
+- **Dashboard card** — active task count, last run status, quick access to settings
+- **Backend:** Rust module with tokio scheduler loop (30s tick), cron crate for expression parsing, 17 unit tests
+- **Config:** `~/.config/aither-flow/scheduled_tasks.json`
 
 ## Install
 
