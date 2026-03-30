@@ -17,8 +17,8 @@ aitherflow — десктопная GUI-обёртка для Claude Code CLI. C
 - `src/components/` — React: `chat/`, `layout/`, `settings/`, `fileviewer/`, `dashboard/`, `teamwork/`, `knowledge/`, `shared/`
 - `src/hooks/` — React-хуки, `src/stores/` — Zustand-сторы, `src/types/` — TypeScript-типы
 - `src/lib/` — транспорт, `src/services/` — Telegram-сервис, `src/data/` — описания команд
-- `src-tauri/src/` — Tauri-команды + модули: `conductor/` (ядро), `plugins/`, `telegram/`, `teamwork/`, `voice/`, `rag/`, `external_models/`, `worktree.rs`
-  Отдельные модули: `agents.rs`, `chats.rs`, `claude_md.rs`, `config.rs`, `devtools.rs`, `file_ops.rs`, `files.rs`, `file_watcher.rs`, `hooks.rs`, `image_gen.rs`, `image_download.rs`, `mcp.rs`, `projects.rs`, `secrets.rs`, `settings.rs`, `skills.rs`, `attachments.rs`, `translations.rs`
+- `src-tauri/src/` — Tauri-команды + модули: `conductor/` (ядро), `plugins/`, `telegram/`, `teamwork/`, `voice/`, `rag/`, `external_models/`, `scheduler/`, `worktree.rs`
+  Отдельные модули: `agents.rs`, `chats.rs`, `claude_md.rs`, `config.rs`, `devtools.rs`, `file_ops.rs`, `files.rs`, `file_watcher.rs`, `hooks.rs`, `image_gen.rs`, `image_download.rs`, `mcp.rs`, `mcp_transport.rs`, `named_mutex_pool.rs`, `projects.rs`, `secrets.rs`, `settings.rs`, `skills.rs`, `attachments.rs`, `translations.rs`
 
 ## Команды
 
