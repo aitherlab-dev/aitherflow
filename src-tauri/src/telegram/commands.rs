@@ -67,6 +67,7 @@ pub async fn start_telegram_bot() -> Result<TelegramStatus, String> {
             http_client: None,
             stream_message_id: 0,
             callback_registry: Vec::new(),
+            team_builder: None,
         });
 
         if state.task_handle.is_some() {
@@ -129,6 +130,7 @@ pub async fn start_telegram_bot() -> Result<TelegramStatus, String> {
             http_client: None,
             stream_message_id: 0,
             callback_registry: Vec::new(),
+            team_builder: None,
         });
 
         // Guard: if another start/stop happened while we were connecting, abort our task
@@ -264,6 +266,7 @@ pub async fn telegram_send_menu(
     let keyboard = vec![
         vec!["Active".to_string(), "Projects".to_string()],
         vec!["Skills".to_string(), "Stop".to_string()],
+        vec!["Team".to_string()],
     ];
 
     // Build dashboard text
@@ -373,6 +376,36 @@ pub async fn telegram_send_projects(projects: Vec<serde_json::Value>) -> Result<
     })]);
 
     tg_send_inline_keyboard(&client, &token, chat_id, "Start session:", buttons).await
+}
+
+/// Send project list for team assembly (user picks project, then picks roles)
+#[tauri::command]
+pub async fn telegram_send_team_projects(projects: Vec<serde_json::Value>) -> Result<(), String> {
+    let (token, chat_id, client) = get_bot_connection()?;
+
+    if projects.is_empty() {
+        tg_send_message(&client, &token, chat_id, "No projects configured").await?;
+        return Ok(());
+    }
+
+    let payloads: Vec<String> = projects.iter()
+        .map(|p| format!("t_proj:{}", p["path"].as_str().unwrap_or("")))
+        .collect();
+    let cbs = clear_and_register_callbacks(&payloads);
+    let mut buttons: Vec<Vec<serde_json::Value>> = Vec::new();
+    for (project, cb) in projects.iter().zip(cbs) {
+        let name = project["name"].as_str().unwrap_or("Project");
+        buttons.push(vec![serde_json::json!({
+            "text": name,
+            "callback_data": cb,
+        })]);
+    }
+    buttons.push(vec![serde_json::json!({
+        "text": "\u{2715} Cancel",
+        "callback_data": "cancel",
+    })]);
+
+    tg_send_inline_keyboard(&client, &token, chat_id, "Launch team in:", buttons).await
 }
 
 /// Stream via sendMessage + editMessageText.

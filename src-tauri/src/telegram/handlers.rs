@@ -4,7 +4,11 @@ use tokio::sync::mpsc;
 
 use crate::file_ops::atomic_write;
 
-use super::api::{groq_transcribe, tg_delete_message, tg_download_file, tg_send_message};
+use super::api::{
+    groq_transcribe, tg_delete_message, tg_download_file, tg_edit_message_with_inline_keyboard,
+    tg_send_inline_keyboard_returning_id, tg_send_message,
+};
+use super::TeamBuilder;
 use super::TgIncoming;
 
 /// Resolve an indexed callback ("cb:N") to its registered payload.
@@ -23,6 +27,7 @@ pub(super) fn keyboard_button_kind(text: &str) -> Option<&'static str> {
         "Projects" => Some("request_projects"),
         "Skills" => Some("request_skills"),
         "Stop" => Some("request_stop"),
+        "Team" => Some("request_team"),
         _ => None,
     }
 }
@@ -35,19 +40,7 @@ pub(super) async fn handle_callback(
     message_id: Option<i64>,
     incoming_tx: &mpsc::UnboundedSender<TgIncoming>,
 ) {
-    // Delete the inline keyboard message first
-    if let Some(mid) = message_id {
-        if let Err(e) = tg_delete_message(client, token, chat_id, mid).await {
-            eprintln!("[TG] delete callback message: {e}");
-        }
-    }
-
-    // Cancel button — just delete, no action
-    if data == "cancel" {
-        return;
-    }
-
-    // Resolve indexed callback to actual payload
+    // Resolve indexed callback to actual payload first
     let resolved;
     let data = if data.starts_with("cb:") {
         resolved = match resolve_callback(data) {
@@ -61,6 +54,34 @@ pub(super) async fn handle_callback(
     } else {
         data
     };
+
+    // Team project selection: delete picker, show role builder
+    if let Some(path) = data.strip_prefix("t_proj:") {
+        if let Some(mid) = message_id {
+            let _ = tg_delete_message(client, token, chat_id, mid).await;
+        }
+        let name = path.rsplit('/').next().unwrap_or(path);
+        send_team_role_picker(client, token, chat_id, path, name).await;
+        return;
+    }
+
+    // Team builder callbacks: edit in place, don't delete
+    if data.starts_with("t_") {
+        handle_team_callback(client, token, chat_id, data, message_id, incoming_tx).await;
+        return;
+    }
+
+    // Delete the inline keyboard message for non-team callbacks
+    if let Some(mid) = message_id {
+        if let Err(e) = tg_delete_message(client, token, chat_id, mid).await {
+            eprintln!("[TG] delete callback message: {e}");
+        }
+    }
+
+    // Cancel button — just delete, no action
+    if data == "cancel" {
+        return;
+    }
 
     if let Some(agent_id) = data.strip_prefix("agent:") {
         if let Err(e) = incoming_tx.send(TgIncoming {
@@ -321,6 +342,172 @@ pub(super) async fn handle_document_image(
         Err(e) => {
             if let Err(se) = tg_send_message(client, token, chat_id, &format!("File download error: {e}")).await {
                 eprintln!("[TG] send file dl error: {se}");
+            }
+        }
+    }
+}
+
+// ── Team builder ──
+
+const TEAM_ROLES: &[&str] = &["Team Lead", "Coder", "Reviewer", "Researcher"];
+const MAX_ROLE_COUNT: u8 = 3;
+
+fn build_role_picker_buttons(builder: &TeamBuilder) -> Vec<Vec<serde_json::Value>> {
+    let mut buttons: Vec<Vec<serde_json::Value>> = Vec::new();
+    for (name, count) in &builder.roles {
+        buttons.push(vec![
+            serde_json::json!({ "text": "\u{2796}", "callback_data": format!("t_dec:{name}") }),
+            serde_json::json!({ "text": format!("{name}: {count}"), "callback_data": "t_noop" }),
+            serde_json::json!({ "text": "\u{2795}", "callback_data": format!("t_inc:{name}") }),
+        ]);
+    }
+    let total: u8 = builder.roles.iter().map(|(_, c)| c).sum();
+    if total > 0 {
+        buttons.push(vec![
+            serde_json::json!({ "text": "\u{1F680} Launch", "callback_data": "t_launch" }),
+            serde_json::json!({ "text": "\u{2715} Cancel", "callback_data": "t_cancel" }),
+        ]);
+    } else {
+        buttons.push(vec![
+            serde_json::json!({ "text": "\u{2715} Cancel", "callback_data": "t_cancel" }),
+        ]);
+    }
+    buttons
+}
+
+fn role_picker_text(builder: &TeamBuilder) -> String {
+    format!("Team for {}:", builder.project_name)
+}
+
+/// Send the initial role picker message and store its message_id.
+pub(super) async fn send_team_role_picker(
+    client: &reqwest::Client,
+    token: &str,
+    chat_id: i64,
+    project_path: &str,
+    project_name: &str,
+) {
+    let mut builder = TeamBuilder {
+        project_path: project_path.to_string(),
+        project_name: project_name.to_string(),
+        roles: TEAM_ROLES.iter().map(|r| (r.to_string(), 0u8)).collect(),
+        message_id: 0,
+    };
+
+    let text = role_picker_text(&builder);
+    let buttons = build_role_picker_buttons(&builder);
+
+    match tg_send_inline_keyboard_returning_id(client, token, chat_id, &text, buttons).await {
+        Ok(mid) => {
+            builder.message_id = mid;
+            super::with_state(|s| {
+                if let Some(state) = s.as_mut() {
+                    state.team_builder = Some(builder);
+                }
+            });
+        }
+        Err(e) => eprintln!("[TG] send role picker: {e}"),
+    }
+}
+
+async fn handle_team_callback(
+    client: &reqwest::Client,
+    token: &str,
+    chat_id: i64,
+    data: &str,
+    message_id: Option<i64>,
+    incoming_tx: &mpsc::UnboundedSender<TgIncoming>,
+) {
+    if data == "t_cancel" {
+        super::with_state(|s| {
+            if let Some(state) = s.as_mut() {
+                state.team_builder = None;
+            }
+        });
+        if let Some(mid) = message_id {
+            let _ = tg_delete_message(client, token, chat_id, mid).await;
+        }
+        return;
+    }
+
+    if data == "t_noop" {
+        return;
+    }
+
+    if data == "t_launch" {
+        let builder = super::with_state(|s| {
+            s.as_mut().and_then(|state| state.team_builder.take())
+        });
+        let Some(builder) = builder else { return };
+
+        // Delete the picker message
+        if builder.message_id != 0 {
+            let _ = tg_delete_message(client, token, chat_id, builder.message_id).await;
+        }
+
+        // Build roles list: ["Coder", "Coder", "Reviewer", ...]
+        let mut roles: Vec<String> = Vec::new();
+        for (name, count) in &builder.roles {
+            for _ in 0..*count {
+                roles.push(name.clone());
+            }
+        }
+
+        if roles.is_empty() {
+            if let Err(e) = tg_send_message(client, token, chat_id, "No roles selected").await {
+                eprintln!("[TG] send no roles: {e}");
+            }
+            return;
+        }
+
+        let summary = roles.join(", ");
+        if let Err(e) = tg_send_message(client, token, chat_id, &format!("Launching team: {summary}")).await {
+            eprintln!("[TG] send team launch: {e}");
+        }
+
+        if let Err(e) = incoming_tx.send(TgIncoming {
+            kind: "launch_team".into(),
+            text: serde_json::json!({ "roles": roles }).to_string(),
+            project_path: Some(builder.project_path),
+            project_name: Some(builder.project_name),
+            attachment_path: None,
+        }) {
+            eprintln!("[TG] send launch_team: {e}");
+        }
+        return;
+    }
+
+    // t_inc:RoleName or t_dec:RoleName
+    let (is_inc, role_name) = if let Some(name) = data.strip_prefix("t_inc:") {
+        (true, name)
+    } else if let Some(name) = data.strip_prefix("t_dec:") {
+        (false, name)
+    } else {
+        return;
+    };
+
+    let updated = super::with_state(|s| {
+        let state = s.as_mut()?;
+        let builder = state.team_builder.as_mut()?;
+        for (name, count) in &mut builder.roles {
+            if name == role_name {
+                if is_inc {
+                    if *count < MAX_ROLE_COUNT {
+                        *count += 1;
+                    }
+                } else if *count > 0 {
+                    *count -= 1;
+                }
+                break;
+            }
+        }
+        Some((role_picker_text(builder), build_role_picker_buttons(builder), builder.message_id))
+    });
+
+    if let Some((text, buttons, mid)) = updated {
+        if mid != 0 {
+            if let Err(e) = tg_edit_message_with_inline_keyboard(client, token, chat_id, mid, &text, buttons).await {
+                eprintln!("[TG] edit role picker: {e}");
             }
         }
     }

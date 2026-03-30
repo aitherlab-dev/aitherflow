@@ -16,6 +16,7 @@ export type HotkeyAction =
   | "toggleFileViewerLayout"
   | "toggleChatPanel"
   | "toggleTeamMailbox"
+  | "toggleDev"
   | "switchAgent1"
   | "switchAgent2"
   | "switchAgent3"
@@ -42,6 +43,7 @@ export const HOTKEY_LABELS: Record<HotkeyAction, string> = {
   toggleFileViewerLayout: "Toggle File Viewer Layout",
   toggleChatPanel: "Toggle Chat Panel",
   toggleTeamMailbox: "Toggle Team Mailbox",
+  toggleDev: "Toggle Dev Server",
   switchAgent1: "Switch to Agent 1",
   switchAgent2: "Switch to Agent 2",
   switchAgent3: "Switch to Agent 3",
@@ -114,6 +116,7 @@ const DEFAULT_BINDINGS: Record<HotkeyAction, HotkeyBinding> = {
   toggleFileViewerLayout: { ctrl: false, alt: true, shift: false, code: "KeyW" },
   toggleChatPanel: { ctrl: false, alt: true, shift: false, code: "KeyC" },
   toggleTeamMailbox: { ctrl: false, alt: true, shift: false, code: "KeyM" },
+  toggleDev: { ctrl: false, alt: true, shift: false, code: "KeyD" },
   switchAgent1: { ctrl: false, alt: true, shift: false, code: "Digit1" },
   switchAgent2: { ctrl: false, alt: true, shift: false, code: "Digit2" },
   switchAgent3: { ctrl: false, alt: true, shift: false, code: "Digit3" },
@@ -266,6 +269,7 @@ export const HOTKEY_ACTION_ORDER: HotkeyAction[] = [
   "toggleFileViewerLayout",
   "toggleChatPanel",
   "toggleTeamMailbox",
+  "toggleDev",
   "switchAgent1",
   "switchAgent2",
   "switchAgent3",

@@ -358,7 +358,19 @@ pub async fn install_plugin(name: String, marketplace: String) -> Result<(), Str
             .join(&effective_version);
 
         if cache_dir.exists() {
-            // Already installed this version, just update the manifest
+            // Check if cache dir has actual plugin files (not just .git)
+            let has_real_files = fs::read_dir(&cache_dir)
+                .map(|entries| {
+                    entries
+                        .filter_map(|e| e.ok())
+                        .any(|e| e.file_name() != ".git")
+                })
+                .unwrap_or(false);
+            if !has_real_files {
+                // Broken/incomplete install — wipe and re-copy
+                let _ = fs::remove_dir_all(&cache_dir);
+                crate::file_ops::copy_dir_recursive(&marketplace_plugin_dir, &cache_dir)?;
+            }
         } else {
             // Copy plugin files to cache
             crate::file_ops::copy_dir_recursive(&marketplace_plugin_dir, &cache_dir)?;

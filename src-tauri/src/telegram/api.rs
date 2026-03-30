@@ -229,6 +229,66 @@ pub(crate) async fn tg_send_with_reply_keyboard(
 }
 
 
+/// Edit an existing message's text AND inline keyboard in-place.
+pub(crate) async fn tg_edit_message_with_inline_keyboard(
+    client: &reqwest::Client,
+    token: &str,
+    chat_id: i64,
+    message_id: i64,
+    text: &str,
+    buttons: Vec<Vec<serde_json::Value>>,
+) -> Result<(), String> {
+    let url = format!("{TG_API}{token}/editMessageText");
+    let body = serde_json::json!({
+        "chat_id": chat_id,
+        "message_id": message_id,
+        "text": text,
+        "reply_markup": { "inline_keyboard": buttons },
+    });
+    match client.post(&url).json(&body).send().await {
+        Ok(r) if !r.status().is_success() => {
+            let body_text = r.text().await.unwrap_or_default();
+            if !body_text.contains("message is not modified") {
+                eprintln!("[TG] editMessageWithKeyboard error: {}", sanitize_error(&body_text, token));
+            }
+        }
+        Err(e) => {
+            eprintln!("[TG] editMessageWithKeyboard: {}", sanitize_error(&e.to_string(), token));
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+/// Send an inline keyboard and return the message_id (for later edits).
+pub(crate) async fn tg_send_inline_keyboard_returning_id(
+    client: &reqwest::Client,
+    token: &str,
+    chat_id: i64,
+    text: &str,
+    buttons: Vec<Vec<serde_json::Value>>,
+) -> Result<i64, String> {
+    let url = format!("{TG_API}{token}/sendMessage");
+    let body = serde_json::json!({
+        "chat_id": chat_id,
+        "text": text,
+        "reply_markup": { "inline_keyboard": buttons },
+    });
+    let resp = client
+        .post(&url)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| sanitize_error(&format!("sendInlineKeyboard: {e}"), token))?;
+    let json: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| sanitize_error(&format!("sendInlineKeyboard parse: {e}"), token))?;
+    json["result"]["message_id"]
+        .as_i64()
+        .ok_or_else(|| "sendInlineKeyboard: no message_id".into())
+}
+
 pub(crate) async fn tg_delete_message(
     client: &reqwest::Client,
     token: &str,

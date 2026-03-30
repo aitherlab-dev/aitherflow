@@ -139,6 +139,10 @@ function dispatch(action: HotkeyAction) {
       layout.toggleTeamMailbox();
       break;
 
+    case "toggleDev":
+      window.dispatchEvent(new CustomEvent("hotkey:toggleDev"));
+      break;
+
     default: {
       // switchAgent1..9
       const match = action.match(/^switchAgent(\d)$/);

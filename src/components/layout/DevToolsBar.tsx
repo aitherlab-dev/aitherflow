@@ -1,8 +1,9 @@
-import { memo, useCallback, useState } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { invoke } from "../../lib/transport";
 import { useAgentStore } from "../../stores/agentStore";
 import { useChatStore } from "../../stores/chatStore";
+import { useHotkeyStore, bindingToString } from "../../stores/hotkeyStore";
 import { Tooltip } from "../shared/Tooltip";
 
 // ── Build button with confirmation popup ──
@@ -85,6 +86,7 @@ export const DevButton = memo(function DevButton() {
     useShallow((s) => s.agents.find((a) => a.id === s.activeAgentId)?.projectPath ?? ""),
   );
   const isRunning = projectPath ? devServers.has(projectPath) : false;
+  const devBinding = useHotkeyStore((s) => s.bindings.toggleDev);
 
   const handleToggle = useCallback(async () => {
     if (!projectPath) return;
@@ -111,8 +113,16 @@ export const DevButton = memo(function DevButton() {
     }
   }, [projectPath, isRunning]);
 
+  useEffect(() => {
+    const handler = () => handleToggle();
+    window.addEventListener("hotkey:toggleDev", handler);
+    return () => window.removeEventListener("hotkey:toggleDev", handler);
+  }, [handleToggle]);
+
+  const shortcut = bindingToString(devBinding);
+
   return (
-    <Tooltip text={isRunning ? "Stop dev server" : "Start dev server"}>
+    <Tooltip text={`${isRunning ? "Stop dev server" : "Start dev server"} (${shortcut})`}>
       <button
         className={`devtools-btn ${isRunning ? "devtools-btn--dev-active" : ""}`}
         onClick={handleToggle}

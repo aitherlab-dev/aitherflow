@@ -340,6 +340,10 @@ pub fn copy_dir_recursive(src: &Path, dest: &Path) -> Result<(), String> {
             );
             continue;
         }
+        // Skip .git directories — not needed in plugin/skill copies
+        if ft.is_dir() && entry.file_name() == ".git" {
+            continue;
+        }
         let dest_child = dest.join(entry.file_name());
         if ft.is_dir() {
             copy_dir_recursive(&entry.path(), &dest_child)?;

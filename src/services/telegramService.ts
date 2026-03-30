@@ -11,6 +11,7 @@ import { useAgentStore } from "../stores/agentStore";
 import { useProjectStore } from "../stores/projectStore";
 
 import { useSkillStore } from "../stores/skillStore";
+import { launchTeam } from "../stores/agentStore";
 import { sendMessage } from "../stores/chatService";
 import { toFileType } from "../types/chat";
 import type { Attachment } from "../types/chat";
@@ -185,6 +186,12 @@ async function handleIncoming(msg: TgIncoming): Promise<void> {
     case "stop_agent":
       await handleStopAgent(msg.text);
       break;
+    case "request_team":
+      await handleRequestTeam();
+      break;
+    case "launch_team":
+      await handleLaunchTeam(msg.text, msg.project_path, msg.project_name);
+      break;
   }
 }
 
@@ -348,4 +355,38 @@ async function handleNewSession(
 
   // Create agent and switch to it
   await useAgentStore.getState().createAgent(projectPath, projectName);
+}
+
+async function handleRequestTeam(): Promise<void> {
+  const { projects } = useProjectStore.getState();
+  await invoke("telegram_send_team_projects", {
+    projects: projects.map((p) => ({
+      path: p.path,
+      name: p.name,
+    })),
+  }).catch(console.error);
+}
+
+async function handleLaunchTeam(
+  rolesJson: string,
+  projectPath?: string,
+  _projectName?: string,
+): Promise<void> {
+  if (!projectPath) return;
+
+  try {
+    const { roles } = JSON.parse(rolesJson) as { roles: string[] };
+    if (!roles?.length) return;
+
+    await launchTeam(projectPath, roles);
+
+    await invoke("send_to_telegram", {
+      text: `Team launched (${roles.length} agents)`,
+    }).catch(console.error);
+  } catch (e) {
+    console.error("[TG] launch team error:", e);
+    await invoke("send_to_telegram", {
+      text: `Team launch failed: ${e}`,
+    }).catch(console.error);
+  }
 }

@@ -43,7 +43,7 @@ dependencies = [
 
 [[package]]
 name = "aitherflow"
-version = "0.6.3"
+version = "0.6.4"
 dependencies = [
  "arboard",
  "arrow-array",

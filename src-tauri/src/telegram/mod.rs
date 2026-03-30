@@ -129,6 +129,17 @@ pub(crate) struct TgUser {
 
 // ── Bot state ──
 
+/// In-progress team assembly from Telegram: project + role counts.
+#[derive(Default, Clone)]
+pub(crate) struct TeamBuilder {
+    pub project_path: String,
+    pub project_name: String,
+    /// Role name → count (e.g. "Coder" → 2)
+    pub roles: Vec<(String, u8)>,
+    /// Message ID of the role-picker message (for in-place edits)
+    pub message_id: i64,
+}
+
 pub(crate) struct BotState {
     pub config: TelegramConfig,
     pub status: TelegramStatus,
@@ -143,6 +154,8 @@ pub(crate) struct BotState {
     /// Used for inline keyboard callbacks where data might exceed 64 bytes.
     /// Populated when sending inline keyboards, consumed when handling callbacks.
     pub callback_registry: Vec<String>,
+    /// In-progress team assembly via Telegram
+    pub team_builder: Option<TeamBuilder>,
 }
 
 static BOT_STATE: Mutex<Option<BotState>> = Mutex::new(None);
