@@ -14,11 +14,9 @@ aitherflow — десктопная GUI-обёртка для Claude Code CLI. C
 
 ## Структура
 
-- `src/components/` — React: `chat/`, `layout/`, `settings/`, `fileviewer/`, `dashboard/`, `teamwork/`, `knowledge/`, `shared/`
-- `src/hooks/` — React-хуки, `src/stores/` — Zustand-сторы, `src/types/` — TypeScript-типы
-- `src/lib/` — транспорт, `src/services/` — Telegram-сервис, `src/data/` — описания команд
-- `src-tauri/src/` — Tauri-команды + модули: `conductor/` (ядро), `plugins/`, `telegram/`, `teamwork/`, `voice/`, `rag/`, `external_models/`, `scheduler/`, `worktree.rs`
-  Отдельные модули: `agents.rs`, `chats.rs`, `claude_md.rs`, `config.rs`, `devtools.rs`, `file_ops.rs`, `files.rs`, `file_watcher.rs`, `hooks.rs`, `image_gen.rs`, `image_download.rs`, `mcp.rs`, `mcp_transport.rs`, `named_mutex_pool.rs`, `projects.rs`, `secrets.rs`, `settings.rs`, `skills.rs`, `attachments.rs`, `translations.rs`
+- `src/components/` — React-компоненты по доменам
+- `src/hooks/`, `src/stores/` (Zustand), `src/types/`, `src/lib/`, `src/services/`
+- `src-tauri/src/` — Tauri-команды, ядро в `conductor/`, модули по доменам
 
 ## Команды
 
@@ -31,8 +29,7 @@ cargo clippy            # lint Rust (из src-tauri/)
 cargo test              # тесты Rust (из src-tauri/)
 ```
 
-CI (Linux + macOS): `tsc --noEmit` + `eslint` + `cargo clippy -D warnings`
-Release: Linux (deb, rpm, AppImage) + macOS (dmg) — собирается на тег `v*`
+CI: `tsc --noEmit` + `eslint` + `cargo clippy -D warnings`. Release на тег `v*`
 
 ## Как работает
 
@@ -42,11 +39,11 @@ Release: Linux (deb, rpm, AppImage) + macOS (dmg) — собирается на 
 
 **Мультиагенты:** каждый агент — отдельный CLI-процесс. `SessionManager` хранит `HashMap<agent_id, AgentSession>`. На фронте `agentStates: Map<agentId, AgentChatState>`.
 
-**Пути (XDG):** конфиги `~/.config/aither-flow/`, данные `~/.local/share/aither-flow/`, чаты `~/.config/aither-flow/chats/`, RAG-базы `~/.local/share/aither-flow/rag/`, image-gen модели `~/.config/aither-flow/image-gen/models.json`. Использовать `dirs` crate.
+**Пути:** XDG через `dirs` crate. Конфиги `~/.config/aither-flow/`, данные `~/.local/share/aither-flow/`
 
-**RAG (базы знаний):** модуль `src-tauri/src/rag/` — векторный поиск по документам. Эмбеддинги через fastembed (ONNX, локально), хранение в LanceDB. Парсеры: PDF (pdftotext), EPUB, TXT/MD, веб (reqwest+html2text), YouTube (yt-dlp). MCP-сервер `aitherflow-knowledge` даёт агенту 4 инструмента: search, list_bases, get_docs, reindex. Настройки в `rag/settings.json`. Фронт: карточка в дашборде + секция в Settings.
+**RAG:** `src-tauri/src/rag/`, MCP-сервер `aitherflow-knowledge` (search, list, get_docs, reindex)
 
-**Image Generation:** MCP sidecar `mcp-image-gen` — diffusion-rs (stable-diffusion.cpp). Модели в JSON-конфиге (динамические, не хардкод). Архитектуры: FLUX.2, FLUX.1, SDXL, Z-Image. LoRA: путь + strength + enabled toggle. Компоненты (VAE, encoders) качаются автоматически при скачивании модели. CUDA через feature flag. Фронт: карточка в дашборде + секция в Settings.
+**Image Gen:** MCP sidecar `mcp-image-gen` (diffusion-rs). Модели в JSON-конфиге, CUDA через feature flag
 
 ## Подводные камни
 
@@ -77,7 +74,7 @@ Release: Linux (deb, rpm, AppImage) + macOS (dmg) — собирается на 
 
 ## Дизайн-система
 
-CSS-переменные: `:root` (тёмная) и `[data-theme="light"]`. Фон: `--bg` → `--bg-soft`/`--bg-hard` → `--bg-card` → `--bg-hover` → `--input-bg`. Табы: `--tab-bg` → `--tab-bg-hover` → `--tab-bg-active` → `--tab-bg-active-hover`. Карточки: `--card-bg`. Акцент: `--accent`, `--accent-soft`, `--accent-stroke`, `--accent-icon`. НЕ хардкодить цвета. Палитра: `memory/palette.md` (auto-memory)
+CSS-переменные: `:root` (тёмная) и `[data-theme="light"]`. НЕ хардкодить цвета. Палитра: `memory/palette.md`
 
 ## Документация
 
@@ -110,6 +107,6 @@ Rust: `cargo test` из `src-tauri/`. Один тест: `cargo test test_name`.
 
 ## Свои MCP-серверы
 
-- **mcp-telegram-files** — отправка файлов в Telegram. Rust, stdio. Репо: github.com/aitherlab-dev/mcp-telegram-files
-- **aitherflow-knowledge** — RAG-поиск по базам знаний. Встроен в приложение (SSE, автозапуск). Регистрируется в `~/.claude.json`
-- **mcp-image-gen** — локальная генерация картинок. Rust sidecar, stdio. Модели в `~/.config/aither-flow/image-gen/models.json`, файлы моделей отдельно (HF cache). CUDA ускорение
+- **mcp-telegram-files** — отправка файлов в Telegram (Rust, stdio)
+- **aitherflow-knowledge** — RAG-поиск (SSE, автозапуск, `~/.claude.json`)
+- **mcp-image-gen** — генерация картинок (Rust sidecar, stdio, CUDA)

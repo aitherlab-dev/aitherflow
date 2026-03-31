@@ -1,57 +1,44 @@
-use keyring::Entry;
+use std::collections::HashMap;
+use std::path::PathBuf;
 
-const SERVICE: &str = "aitherflow";
+use crate::file_ops::atomic_write;
 
-/// Store a secret in the system keyring. Returns Ok(true) if stored,
-/// Ok(false) if keyring is unavailable (falls back silently).
+fn secrets_file() -> PathBuf {
+    crate::config::config_dir().join("secrets.json")
+}
+
+fn read_all() -> HashMap<String, String> {
+    let path = secrets_file();
+    match std::fs::read_to_string(&path) {
+        Ok(data) => serde_json::from_str(&data).unwrap_or_default(),
+        Err(_) => HashMap::new(),
+    }
+}
+
+fn write_all(map: &HashMap<String, String>) -> Result<(), String> {
+    let json = serde_json::to_string_pretty(map)
+        .map_err(|e| format!("Failed to serialize secrets: {e}"))?;
+    atomic_write(&secrets_file(), json.as_bytes())
+}
+
 pub fn set_secret(key: &str, value: &str) -> Result<bool, String> {
     if value.is_empty() {
         return delete_secret(key).map(|_| true);
     }
-    match Entry::new(SERVICE, key) {
-        Ok(entry) => {
-            entry
-                .set_password(value)
-                .map_err(|e| format!("Failed to store secret '{key}': {e}"))?;
-            Ok(true)
-        }
-        Err(e) => {
-            eprintln!("[secrets] Keyring unavailable for '{key}': {e}");
-            Err(format!("Keyring unavailable for '{key}': {e}"))
-        }
-    }
+    let mut map = read_all();
+    map.insert(key.to_string(), value.to_string());
+    write_all(&map)?;
+    Ok(true)
 }
 
-/// Retrieve a secret from the system keyring. Returns None if not found
-/// or keyring unavailable.
 pub fn get_secret(key: &str) -> Option<String> {
-    match Entry::new(SERVICE, key) {
-        Ok(entry) => match entry.get_password() {
-            Ok(pw) => Some(pw),
-            Err(keyring::Error::NoEntry) => None,
-            Err(e) => {
-                eprintln!("[secrets] Failed to read '{key}': {e}");
-                None
-            }
-        },
-        Err(e) => {
-            eprintln!("[secrets] Keyring unavailable for '{key}': {e}");
-            None
-        }
-    }
+    read_all().get(key).cloned()
 }
 
-/// Delete a secret from the keyring. Ignores "not found" errors.
 pub fn delete_secret(key: &str) -> Result<(), String> {
-    match Entry::new(SERVICE, key) {
-        Ok(entry) => match entry.delete_credential() {
-            Ok(()) => Ok(()),
-            Err(keyring::Error::NoEntry) => Ok(()),
-            Err(e) => Err(format!("Failed to delete secret '{key}': {e}")),
-        },
-        Err(e) => {
-            eprintln!("[secrets] Failed to create keyring entry for '{key}': {e}");
-            Err(format!("Failed to access keyring for '{key}': {e}"))
-        }
+    let mut map = read_all();
+    if map.remove(key).is_some() {
+        write_all(&map)?;
     }
+    Ok(())
 }
