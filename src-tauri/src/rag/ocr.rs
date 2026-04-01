@@ -15,25 +15,25 @@ use super::config as rag_config;
 
 // --- Model configuration ---
 
-const DET_MODEL_FILE: &str = "pp-ocrv4-det.onnx";
+const DET_MODEL_FILE: &str = "ch_PP-OCRv5_mobile_det.onnx";
 
-// Two recognition models: Latin/English (PP-OCRv4) and Cyrillic (EasyOCR CRNN)
-const REC_EN_MODEL_FILE: &str = "en-pp-ocrv4-rec.onnx";
-const REC_EN_DICT_FILE: &str = "en_dict.txt";
-const REC_CYR_MODEL_FILE: &str = "easyocr-cyrillic-g2.onnx";
-const REC_CYR_DICT_FILE: &str = "easyocr_cyrillic_vocab.txt";
+// Two recognition models: Latin (PP-OCRv5) and Cyrillic (PP-OCRv5)
+const REC_LATIN_MODEL_FILE: &str = "latin_PP-OCRv5_rec_mobile_infer.onnx";
+const REC_LATIN_DICT_FILE: &str = "ppocrv5_latin_dict.txt";
+const REC_CYR_MODEL_FILE: &str = "cyrillic_PP-OCRv5_rec_mobile_infer.onnx";
+const REC_CYR_DICT_FILE: &str = "ppocrv5_cyrillic_dict.txt";
 
 // ONNX model URLs
 const DET_MODEL_URL: &str =
-    "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv4/ch_PP-OCRv4_det_infer.onnx";
-const REC_EN_MODEL_URL: &str =
-    "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.7.0/onnx/PP-OCRv4/rec/en_PP-OCRv4_rec_infer.onnx";
-const REC_EN_DICT_URL: &str =
-    "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.7.0/paddle/PP-OCRv4/rec/en_PP-OCRv4_rec_infer/en_dict.txt";
+    "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.7.0/onnx/PP-OCRv5/det/ch_PP-OCRv5_mobile_det.onnx";
+const REC_LATIN_MODEL_URL: &str =
+    "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.7.0/onnx/PP-OCRv5/rec/latin_PP-OCRv5_rec_mobile_infer.onnx";
+const REC_LATIN_DICT_URL: &str =
+    "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/dict/ppocrv5_latin_dict.txt";
 const REC_CYR_MODEL_URL: &str =
-    "https://huggingface.co/afedotov/easyocr-onnx/resolve/main/cyrillic_g2.onnx";
+    "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.7.0/onnx/PP-OCRv5/rec/cyrillic_PP-OCRv5_rec_mobile_infer.onnx";
 const REC_CYR_DICT_URL: &str =
-    "https://huggingface.co/afedotov/easyocr-onnx/resolve/main/vocab.txt";
+    "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/ppocr/utils/dict/ppocrv5_cyrillic_dict.txt";
 
 // Detection normalization (ImageNet stats, BGR order — matches PaddleOCR det preprocessing)
 const DET_MEAN: [f32; 3] = [0.485, 0.456, 0.406];
@@ -70,7 +70,6 @@ struct RecModel {
     input_name: String,
     output_name: String,
     img_height: u32,
-    channels: u32, // 3 for PP-OCR (BGR), 1 for EasyOCR (grayscale)
 }
 
 struct OcrEngine {
@@ -119,17 +118,6 @@ fn load_dictionary(path: PathBuf) -> Result<Vec<String>, String> {
     Ok(dictionary)
 }
 
-/// Load an EasyOCR vocab.txt — line 0 is blank (_), rest are characters.
-fn load_easyocr_dictionary(path: PathBuf) -> Result<Vec<String>, String> {
-    let dict_text = fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read dictionary {}: {e}", path.display()))?;
-    let dictionary: Vec<String> = dict_text
-        .lines()
-        .map(|l| if l == "_" { String::new() } else { l.to_string() })
-        .collect();
-    Ok(dictionary)
-}
-
 fn first_input_name(session: &Session, label: &str) -> Result<String, String> {
     session
         .inputs()
@@ -160,8 +148,8 @@ fn init_engine() -> Result<OcrEngine, String> {
     // Download all models if missing
     let downloads = [
         (DET_MODEL_FILE, DET_MODEL_URL),
-        (REC_EN_MODEL_FILE, REC_EN_MODEL_URL),
-        (REC_EN_DICT_FILE, REC_EN_DICT_URL),
+        (REC_LATIN_MODEL_FILE, REC_LATIN_MODEL_URL),
+        (REC_LATIN_DICT_FILE, REC_LATIN_DICT_URL),
         (REC_CYR_MODEL_FILE, REC_CYR_MODEL_URL),
         (REC_CYR_DICT_FILE, REC_CYR_DICT_URL),
     ];
@@ -169,27 +157,26 @@ fn init_engine() -> Result<OcrEngine, String> {
         download_if_missing(&client, &models_dir.join(file), url)?;
     }
 
-    eprintln!("[rag/ocr] Loading detection model...");
+    eprintln!("[rag/ocr] Loading detection model (PP-OCRv5)...");
     let det_session = load_session(models_dir.join(DET_MODEL_FILE), "det")?;
     let det_output_name = first_output_name(&det_session, "det")?;
     eprintln!("[rag/ocr] Det output name: {det_output_name}");
 
-    eprintln!("[rag/ocr] Loading English/Latin recognition model (PP-OCRv4)...");
-    let en_session = load_session(models_dir.join(REC_EN_MODEL_FILE), "rec-en")?;
-    let en_input_name = first_input_name(&en_session, "rec-en")?;
-    let en_output_name = first_output_name(&en_session, "rec-en")?;
-    let en_dict = load_dictionary(models_dir.join(REC_EN_DICT_FILE))?;
+    eprintln!("[rag/ocr] Loading Latin recognition model (PP-OCRv5)...");
+    let latin_session = load_session(models_dir.join(REC_LATIN_MODEL_FILE), "rec-latin")?;
+    let latin_input_name = first_input_name(&latin_session, "rec-latin")?;
+    let latin_output_name = first_output_name(&latin_session, "rec-latin")?;
+    let latin_dict = load_dictionary(models_dir.join(REC_LATIN_DICT_FILE))?;
 
-    eprintln!("[rag/ocr] Loading Cyrillic recognition model (EasyOCR CRNN)...");
+    eprintln!("[rag/ocr] Loading Cyrillic recognition model (PP-OCRv5)...");
     let cyr_session = load_session(models_dir.join(REC_CYR_MODEL_FILE), "rec-cyr")?;
     let cyr_input_name = first_input_name(&cyr_session, "rec-cyr")?;
     let cyr_output_name = first_output_name(&cyr_session, "rec-cyr")?;
-    let cyr_dict = load_easyocr_dictionary(models_dir.join(REC_CYR_DICT_FILE))?;
-    eprintln!("[rag/ocr] Cyrillic input: {cyr_input_name}, output: {cyr_output_name}");
+    let cyr_dict = load_dictionary(models_dir.join(REC_CYR_DICT_FILE))?;
 
     eprintln!(
-        "[rag/ocr] OCR engine initialized (en dict: {}, cyr dict: {})",
-        en_dict.len(),
+        "[rag/ocr] OCR engine initialized (latin dict: {}, cyr dict: {})",
+        latin_dict.len(),
         cyr_dict.len()
     );
 
@@ -203,17 +190,15 @@ fn init_engine() -> Result<OcrEngine, String> {
                 name: "cyr",
                 input_name: cyr_input_name,
                 output_name: cyr_output_name,
-                img_height: 48,  // ONNX export has fixed height 48
-                channels: 1,     // grayscale
+                img_height: 48,
             },
             RecModel {
-                session: en_session,
-                dictionary: en_dict,
-                name: "en",
-                input_name: en_input_name,
-                output_name: en_output_name,
-                img_height: 48, // PP-OCRv4 uses 48px
-                channels: 3,   // BGR
+                session: latin_session,
+                dictionary: latin_dict,
+                name: "latin",
+                input_name: latin_input_name,
+                output_name: latin_output_name,
+                img_height: 48,
             },
         ],
     })
@@ -272,7 +257,7 @@ fn download_if_missing(
 
 // --- Public API ---
 
-/// Extract text from a scanned PDF using OCR (PP-OCR via ONNX Runtime).
+/// Extract text from a scanned PDF using OCR (PP-OCRv5 via ONNX Runtime).
 /// Uses dual recognition models (Latin + Cyrillic), picks best by confidence.
 /// Called from parser.rs as a third fallback when pdftotext and pdf-extract
 /// both return empty text. Runs in spawn_blocking context.
@@ -478,7 +463,7 @@ fn recognize_best(
     let mut best: Option<(String, f32, &'static str)> = None;
 
     for model in models.iter_mut() {
-        match recognize_text(&mut model.session, &model.input_name, &model.output_name, image, &model.dictionary, model.img_height, model.channels) {
+        match recognize_text(&mut model.session, &model.input_name, &model.output_name, image, &model.dictionary, model.img_height) {
             Ok((text, confidence)) => {
                 if text.trim().is_empty() {
                     continue;
@@ -715,7 +700,6 @@ fn recognize_text(
     image: &DynamicImage,
     dictionary: &[String],
     img_height: u32,
-    channels: u32,
 ) -> Result<(String, f32), String> {
     let (w, h) = image.dimensions();
     if w == 0 || h == 0 {
@@ -728,25 +712,11 @@ fn recognize_text(
     let new_w = new_w.clamp(1, REC_MAX_WIDTH);
     let resized = image.resize_exact(new_w, new_h, image::imageops::FilterType::Lanczos3);
 
-    let input_value = if channels == 1 {
-        // Grayscale: [1, 1, H, W], normalized to [-1, 1]
-        let gray = resized.to_luma8();
-        let mut tensor = Array4::<f32>::zeros((1, 1, new_h as usize, new_w as usize));
-        for y in 0..new_h {
-            for x in 0..new_w {
-                let val = gray.get_pixel(x, y)[0] as f32 / 255.0;
-                tensor[[0, 0, y as usize, x as usize]] = (val - 0.5) / 0.5;
-            }
-        }
-        Value::from_array(tensor)
-            .map_err(|e| format!("Failed to create rec input tensor: {e}"))?
-    } else {
-        // BGR: [1, 3, H, W], normalized to [-1, 1]
-        let rgb = resized.to_rgb8();
-        let tensor = image_to_tensor(&rgb, new_h, new_w, &REC_MEAN, &REC_STD);
-        Value::from_array(tensor)
-            .map_err(|e| format!("Failed to create rec input tensor: {e}"))?
-    };
+    // BGR: [1, 3, H, W], normalized to [-1, 1]
+    let rgb = resized.to_rgb8();
+    let tensor = image_to_tensor(&rgb, new_h, new_w, &REC_MEAN, &REC_STD);
+    let input_value = Value::from_array(tensor)
+        .map_err(|e| format!("Failed to create rec input tensor: {e}"))?;
 
     let outputs = session
         .run(ort::inputs![input_name => input_value])
