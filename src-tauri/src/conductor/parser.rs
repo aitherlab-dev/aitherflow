@@ -328,6 +328,21 @@ pub fn parse_line(
             }
         }
 
+        // Heartbeat — ignore silently (too noisy for logs)
+        "keep_alive" => {}
+
+        "rate_limit_event" => {
+            eprintln!("[conductor] Rate limit event: {line}");
+        }
+
+        "control_cancel_request" => {
+            eprintln!("[conductor] Control cancel request: {line}");
+        }
+
+        "task_started" | "task_progress" | "task_notification" => {
+            eprintln!("[conductor] Subagent event ({event_type}): {line}");
+        }
+
         other => {
             eprintln!("[conductor] Unknown event type: {other}");
         }
