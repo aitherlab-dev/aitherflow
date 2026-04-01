@@ -195,7 +195,6 @@ function processEventCore(
         apply({ isThinking: true });
       }
       if (e.tool_name === "EnterPlanMode") apply({ planMode: true });
-      if (e.tool_name === "ExitPlanMode") apply({ planMode: false });
       apply({ streamingMessage: newSm });
       break;
     }
@@ -213,24 +212,56 @@ function processEventCore(
     }
 
     case "controlRequest": {
+      // Try to attach requestId to an existing tool in streamingMessage
       if (sm?.tools?.some((t) => t.toolUseId === e.tool_use_id)) {
         const tools = sm.tools.map((t) =>
           t.toolUseId === e.tool_use_id ? { ...t, requestId: e.request_id } : t,
         );
-        apply({ streamingMessage: { ...sm, tools } });
-      } else {
-        const msgs = [...messages];
-        for (let i = msgs.length - 1; i >= 0; i--) {
-          const msg = msgs[i];
-          if (msg.role === "assistant" && msg.tools?.some((t) => t.toolUseId === e.tool_use_id)) {
-            const tools = msg.tools.map((t) =>
-              t.toolUseId === e.tool_use_id ? { ...t, requestId: e.request_id } : t,
-            );
-            msgs[i] = { ...msg, tools };
-            apply({ messages: msgs });
-            break;
-          }
+        // Commit streaming message so permission card renders in chat
+        apply({
+          messages: [...messages, { ...sm, tools, isStreaming: false }],
+          streamingMessage: null,
+          isThinking: false,
+        });
+        break;
+      }
+      // Try committed messages
+      let found = false;
+      const msgs = [...messages];
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        const msg = msgs[i];
+        if (msg.role === "assistant" && msg.tools?.some((t) => t.toolUseId === e.tool_use_id)) {
+          const tools = msg.tools.map((t) =>
+            t.toolUseId === e.tool_use_id ? { ...t, requestId: e.request_id } : t,
+          );
+          msgs[i] = { ...msg, tools };
+          apply({ messages: msgs });
+          found = true;
+          break;
         }
+      }
+      // Fallback: tool not tracked (e.g. non-interactive tool in currentToolActivity).
+      // Create a message with the tool so PermissionCard can render.
+      if (!found) {
+        const newTool: ToolActivity = {
+          toolUseId: e.tool_use_id,
+          toolName: e.tool_name,
+          toolInput: e.input ?? {},
+          requestId: e.request_id,
+        };
+        const toolMsg: ChatMessage = {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          text: "",
+          timestamp: Date.now(),
+          isStreaming: false,
+          tools: [newTool],
+        };
+        // Commit any pending streaming message first
+        const updatedMsgs = sm
+          ? [...messages, { ...sm, isStreaming: false }, toolMsg]
+          : [...messages, toolMsg];
+        apply({ messages: updatedMsgs, streamingMessage: null, isThinking: false });
       }
       break;
     }
@@ -331,12 +362,9 @@ function handleCliEvent(e: CliEvent) {
       }
       // Agent Read ops no longer open preview — too noisy, interrupts user
 
-      // Track plan mode in conductor
+      // EnterPlanMode: update conductor immediately (informational, no approval needed)
       if (e.tool_name === "EnterPlanMode") {
         useConductorStore.getState().setSelectedPermissionMode("plan");
-      }
-      if (e.tool_name === "ExitPlanMode") {
-        useConductorStore.getState().setSelectedPermissionMode("default");
       }
 
       // Interactive tools merge into messages so cards render

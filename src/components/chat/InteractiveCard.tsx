@@ -1,5 +1,5 @@
 import { memo, useState, useCallback } from "react";
-import { Check, X, HelpCircle, FileCheck } from "lucide-react";
+import { Check, X, HelpCircle, FileCheck, Send, Shield } from "lucide-react";
 import type {
   ToolActivity,
   AskUserQuestionInput,
@@ -84,6 +84,8 @@ function QuestionBlock({
 }) {
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [freeText, setFreeText] = useState("");
+  const hasOptions = question.options.length > 0;
 
   const handleClick = useCallback(
     (label: string) => {
@@ -108,37 +110,75 @@ function QuestionBlock({
     respondToCard(agentId, toolUseId, response).catch(console.error);
   }, [answered, selected, agentId, toolUseId]);
 
+  const handleSubmitFreeText = useCallback(() => {
+    if (answered || !freeText.trim()) return;
+    respondToCard(agentId, toolUseId, freeText.trim()).catch(console.error);
+  }, [answered, freeText, agentId, toolUseId]);
+
   return (
     <div className="interactive-card-question">
       <p className="interactive-card-question-text">{question.question}</p>
-      <div className="interactive-card-options">
-        {question.options.map((opt) => {
-          const isSelected = answered
-            ? userResponse === opt.label || (userResponse?.includes(opt.label) ?? false)
-            : selected.has(opt.label);
-          return (
+      {hasOptions ? (
+        <>
+          <div className="interactive-card-options">
+            {question.options.map((opt) => {
+              const isSelected = answered
+                ? userResponse === opt.label || (userResponse?.includes(opt.label) ?? false)
+                : selected.has(opt.label);
+              return (
+                <button
+                  key={opt.label}
+                  className={`interactive-card-option ${isSelected ? "interactive-card-option--selected" : ""}`}
+                  onClick={() => handleClick(opt.label)}
+                  disabled={answered}
+                >
+                  <span className="interactive-card-option-label">{opt.label}</span>
+                  {opt.description && (
+                    <span className="interactive-card-option-desc">{opt.description}</span>
+                  )}
+                  {isSelected && answered && <Check size={14} className="interactive-card-option-check" />}
+                </button>
+              );
+            })}
+          </div>
+          {question.multiSelect && !answered && selected.size > 0 && (
             <button
-              key={opt.label}
-              className={`interactive-card-option ${isSelected ? "interactive-card-option--selected" : ""}`}
-              onClick={() => handleClick(opt.label)}
-              disabled={answered}
+              className="interactive-card-submit"
+              onClick={handleSubmitMulti}
             >
-              <span className="interactive-card-option-label">{opt.label}</span>
-              {opt.description && (
-                <span className="interactive-card-option-desc">{opt.description}</span>
-              )}
-              {isSelected && answered && <Check size={14} className="interactive-card-option-check" />}
+              Submit
             </button>
-          );
-        })}
-      </div>
-      {question.multiSelect && !answered && selected.size > 0 && (
-        <button
-          className="interactive-card-submit"
-          onClick={handleSubmitMulti}
-        >
-          Submit
-        </button>
+          )}
+        </>
+      ) : answered ? (
+        <div className="interactive-card-result">
+          <span className="interactive-card-result--approved">{userResponse}</span>
+        </div>
+      ) : (
+        <div className="interactive-card-freetext">
+          <input
+            type="text"
+            className="interactive-card-freetext-input"
+            placeholder="Type your answer..."
+            value={freeText}
+            onChange={(e) => setFreeText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.code === "Enter") {
+                e.preventDefault();
+                handleSubmitFreeText();
+              }
+            }}
+            autoFocus
+          />
+          <button
+            className="interactive-card-submit"
+            onClick={handleSubmitFreeText}
+            disabled={!freeText.trim()}
+          >
+            <Send size={14} />
+            Send
+          </button>
+        </div>
       )}
     </div>
   );
@@ -239,3 +279,63 @@ function ExitPlanModeCard({ tool, agentId }: { tool: ToolActivity; agentId: stri
     </div>
   );
 }
+
+// ── Generic permission request ──
+
+function formatPermissionInput(input: Record<string, unknown>): string | null {
+  const filePath = input.file_path ?? input.command ?? input.path;
+  if (typeof filePath === "string") return filePath;
+  return null;
+}
+
+export const PermissionCard = memo(function PermissionCard({
+  tool,
+  agentId,
+}: InteractiveCardProps) {
+  const answered = !!tool.userResponse;
+
+  const handleAllow = useCallback(() => {
+    if (answered) return;
+    respondToCard(agentId, tool.toolUseId, "allow").catch(console.error);
+  }, [answered, agentId, tool.toolUseId]);
+
+  const handleDeny = useCallback(() => {
+    if (answered) return;
+    respondToCard(agentId, tool.toolUseId, "__deny__User denied").catch(console.error);
+  }, [answered, agentId, tool.toolUseId]);
+
+  const detail = formatPermissionInput(tool.toolInput);
+
+  return (
+    <div className={`permission-card ${answered ? "permission-card--answered" : ""}`}>
+      <div className="permission-card-header">
+        <Shield size={16} className="permission-card-icon" />
+        <span className="permission-card-tool">{tool.toolName}</span>
+        <span className="permission-card-label">requires approval</span>
+      </div>
+      {detail && (
+        <pre className="permission-card-detail">{detail}</pre>
+      )}
+      {answered ? (
+        <div className="interactive-card-result">
+          {tool.userResponse === "allow" ? (
+            <span className="interactive-card-result--approved">Allowed</span>
+          ) : (
+            <span className="interactive-card-result--rejected">Denied</span>
+          )}
+        </div>
+      ) : (
+        <div className="interactive-card-buttons">
+          <button className="interactive-card-approve" onClick={handleAllow}>
+            <Check size={14} />
+            Allow
+          </button>
+          <button className="interactive-card-reject" onClick={handleDeny}>
+            <X size={14} />
+            Deny
+          </button>
+        </div>
+      )}
+    </div>
+  );
+});
