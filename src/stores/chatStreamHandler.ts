@@ -18,6 +18,7 @@ import {
   messagesToStored,
   type AgentChatState,
 } from "./chatStore";
+import { useConductorStore } from "./conductorStore";
 import { removingAgentIds } from "./agentStore";
 
 // ── RAF batching for stream chunks: buffer latest text, flush at ~60fps ──
@@ -193,6 +194,7 @@ function processEventCore(
         };
         apply({ isThinking: true });
       }
+      if (e.tool_name === "EnterPlanMode") apply({ planMode: true });
       apply({ streamingMessage: newSm });
       break;
     }
@@ -327,6 +329,11 @@ function handleCliEvent(e: CliEvent) {
         }).catch(console.error);
       }
       // Agent Read ops no longer open preview — too noisy, interrupts user
+
+      // EnterPlanMode: update conductor immediately (informational, no approval needed)
+      if (e.tool_name === "EnterPlanMode") {
+        useConductorStore.getState().setSelectedPermissionMode("plan");
+      }
 
       // Interactive tools merge into messages so cards render
       if (!isInteractiveTool(e.tool_name)) {
