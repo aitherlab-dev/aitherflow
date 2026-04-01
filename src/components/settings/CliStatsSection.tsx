@@ -1,6 +1,28 @@
 import { memo, useCallback, useEffect, useState } from "react";
 import { invoke } from "../../lib/transport";
 
+interface RateLimit {
+  utilization: number | null;
+  resets_at: string | null;
+}
+
+interface SubscriptionUsage {
+  five_hour: RateLimit | null;
+  seven_day: RateLimit | null;
+  seven_day_sonnet: RateLimit | null;
+  seven_day_opus: RateLimit | null;
+}
+
+function formatResetTime(iso: string | null): string {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  } catch {
+    return "";
+  }
+}
+
 interface DayStats {
   date: string;
   cost: number;
@@ -65,6 +87,13 @@ export const CliStatsSection = memo(function CliStatsSection() {
   const [days, setDays] = useState(30);
   const [stats, setStats] = useState<AggregatedStats | null>(null);
   const [loading, setLoading] = useState(false);
+  const [subUsage, setSubUsage] = useState<SubscriptionUsage | null>(null);
+
+  useEffect(() => {
+    invoke<SubscriptionUsage>("get_subscription_usage")
+      .then(setSubUsage)
+      .catch(() => {});
+  }, []);
 
   const load = useCallback((d: number) => {
     setDays(d);
@@ -98,6 +127,9 @@ export const CliStatsSection = memo(function CliStatsSection() {
           </button>
         ))}
       </div>
+
+      {/* Subscription Limits */}
+      {subUsage && <SubscriptionLimitsBlock usage={subUsage} />}
 
       {/* Summary cards */}
       <div className="cli-stats__summary">
@@ -154,6 +186,58 @@ export const CliStatsSection = memo(function CliStatsSection() {
           </div>
         </div>
       )}
+    </div>
+  );
+});
+
+/** Subscription rate-limit bars */
+const SubscriptionLimitsBlock = memo(function SubscriptionLimitsBlock({
+  usage,
+}: {
+  usage: SubscriptionUsage;
+}) {
+  const limits: { label: string; data: RateLimit | null }[] = [
+    { label: "5-hour Session", data: usage.five_hour },
+    { label: "Weekly (all)", data: usage.seven_day },
+    { label: "Weekly Sonnet", data: usage.seven_day_sonnet },
+    { label: "Weekly Opus", data: usage.seven_day_opus },
+  ];
+
+  const hasAny = limits.some((l) => l.data?.utilization != null);
+  if (!hasAny) return null;
+
+  return (
+    <div className="cli-stats__section">
+      <h3 className="cli-stats__section-title">Subscription Limits</h3>
+      <div className="cli-stats__bars">
+        {limits.map((l) => {
+          if (l.data?.utilization == null) return null;
+          const pct = l.data.utilization;
+          const reset = formatResetTime(l.data.resets_at);
+          return (
+            <div key={l.label} className="cli-stats__bar-row">
+              <span className="cli-stats__bar-label">{l.label}</span>
+              <div className="cli-stats__bar-track">
+                <div
+                  className="cli-stats__bar-fill"
+                  style={{
+                    width: `${Math.min(pct, 100)}%`,
+                    backgroundColor: pct > 80 ? "var(--error)" : undefined,
+                  }}
+                />
+              </div>
+              <span className="cli-stats__bar-value">
+                {Math.round(pct)}%
+                {reset && (
+                  <span style={{ color: "var(--fg-dim)", fontSize: "0.8em", marginLeft: "4px" }}>
+                    resets {reset}
+                  </span>
+                )}
+              </span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 });
