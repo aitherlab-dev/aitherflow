@@ -2,7 +2,9 @@ import { memo, useState, useEffect } from "react";
 import { Coins } from "lucide-react";
 import { useConductorStore } from "../../../stores/conductorStore";
 import { invoke } from "../../../lib/transport";
+import { formatResetTime } from "../../../lib/formatTime";
 import { DashboardCard } from "../DashboardCard";
+import type { SubscriptionUsage } from "../../../types/conductor";
 
 function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -16,27 +18,6 @@ interface OpenRouterBalance {
   remaining: number | null;
 }
 
-interface RateLimit {
-  utilization: number | null;
-  resets_at: string | null;
-}
-
-interface SubscriptionUsage {
-  five_hour: RateLimit | null;
-  seven_day: RateLimit | null;
-  seven_day_sonnet: RateLimit | null;
-  seven_day_opus: RateLimit | null;
-}
-
-function formatResetTime(iso: string | null): string {
-  if (!iso) return "";
-  try {
-    const d = new Date(iso);
-    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  } catch {
-    return "";
-  }
-}
 
 const COLOR_INACTIVE = "var(--fg-dim)";
 
@@ -71,7 +52,7 @@ export const TokensCard = memo(function TokensCard({
   useEffect(() => {
     invoke<SubscriptionUsage>("get_subscription_usage")
       .then(setSubUsage)
-      .catch(() => {});
+      .catch(console.error);
   }, []);
 
   const pct = contextMax > 0 ? (contextUsed / contextMax) * 100 : 0;

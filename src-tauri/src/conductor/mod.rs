@@ -307,6 +307,8 @@ pub async fn get_session_usage(
 
 // ── Subscription usage (OAuth rate limits) ──────────────────────────
 
+const OAUTH_USAGE_URL: &str = "https://api.anthropic.com/api/oauth/usage";
+
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct RateLimit {
     pub utilization: Option<f64>,
@@ -345,7 +347,7 @@ pub async fn get_subscription_usage() -> Result<SubscriptionUsage, String> {
         .map_err(|e| format!("HTTP client error: {e}"))?;
 
     let resp = client
-        .get("https://api.anthropic.com/api/oauth/usage")
+        .get(OAUTH_USAGE_URL)
         .header("Authorization", format!("Bearer {token}"))
         .header("Content-Type", "application/json")
         .send()

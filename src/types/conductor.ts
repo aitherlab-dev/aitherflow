@@ -72,6 +72,20 @@ export interface StartSessionOptions {
   roleAllowedTools?: string[];
 }
 
+/** Rate limit for a single subscription tier */
+export interface RateLimit {
+  utilization: number | null;
+  resets_at: string | null;
+}
+
+/** Claude subscription usage across rate-limit tiers */
+export interface SubscriptionUsage {
+  five_hour: RateLimit | null;
+  seven_day: RateLimit | null;
+  seven_day_sonnet: RateLimit | null;
+  seven_day_opus: RateLimit | null;
+}
+
 /** Options for sending a follow-up message */
 export interface SendMessageOptions {
   agentId?: string;

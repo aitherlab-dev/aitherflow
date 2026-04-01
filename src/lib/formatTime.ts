@@ -13,3 +13,16 @@ export function formatMessageTime(timestamp: number): string {
   if (msgDay.getTime() === yesterday.getTime()) return `Yesterday ${hhmm}`;
   return `${date.getDate()} ${MONTHS[date.getMonth()]} ${hhmm}`;
 }
+
+export function formatResetTime(iso: string | null, long?: boolean): string {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    if (long) {
+      return d.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    }
+    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  } catch {
+    return "";
+  }
+}

@@ -1,27 +1,7 @@
 import { memo, useCallback, useEffect, useState } from "react";
 import { invoke } from "../../lib/transport";
-
-interface RateLimit {
-  utilization: number | null;
-  resets_at: string | null;
-}
-
-interface SubscriptionUsage {
-  five_hour: RateLimit | null;
-  seven_day: RateLimit | null;
-  seven_day_sonnet: RateLimit | null;
-  seven_day_opus: RateLimit | null;
-}
-
-function formatResetTime(iso: string | null): string {
-  if (!iso) return "";
-  try {
-    const d = new Date(iso);
-    return d.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-  } catch {
-    return "";
-  }
-}
+import { formatResetTime } from "../../lib/formatTime";
+import type { RateLimit, SubscriptionUsage } from "../../types/conductor";
 
 interface DayStats {
   date: string;
@@ -92,7 +72,7 @@ export const CliStatsSection = memo(function CliStatsSection() {
   useEffect(() => {
     invoke<SubscriptionUsage>("get_subscription_usage")
       .then(setSubUsage)
-      .catch(() => {});
+      .catch(console.error);
   }, []);
 
   const load = useCallback((d: number) => {
@@ -213,7 +193,7 @@ const SubscriptionLimitsBlock = memo(function SubscriptionLimitsBlock({
         {limits.map((l) => {
           if (l.data?.utilization == null) return null;
           const pct = l.data.utilization;
-          const reset = formatResetTime(l.data.resets_at);
+          const reset = formatResetTime(l.data.resets_at, true);
           return (
             <div key={l.label} className="cli-stats__bar-row">
               <span className="cli-stats__bar-label">{l.label}</span>
