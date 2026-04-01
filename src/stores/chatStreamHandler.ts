@@ -165,8 +165,14 @@ function processEventCore(
     }
 
     case "messageComplete": {
+      // Preserve inline user quotes injected during streaming
+      let finalText = e.text;
+      if (sm?.text) {
+        const quotes = sm.text.match(/\n\n> \*\*User:\*\* .+?\n\n/g);
+        if (quotes) finalText = e.text + quotes.join("");
+      }
       const completed: ChatMessage = sm
-        ? { ...sm, text: e.text, isStreaming: false }
+        ? { ...sm, text: finalText, isStreaming: false }
         : { id: crypto.randomUUID(), role: "assistant", text: e.text, timestamp: Date.now(), isStreaming: false };
       apply({ messages: [...messages, completed], streamingMessage: null });
       break;
