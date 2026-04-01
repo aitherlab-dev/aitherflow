@@ -217,9 +217,10 @@ export async function respondToCard(agentId: string, toolUseId: string, response
     controlResponse = {
       behavior: "allow",
       updatedInput: { ...input, answers },
+      toolUseID: toolUseId,
     };
   } else {
-    controlResponse = { behavior: "allow" };
+    controlResponse = { behavior: "allow", toolUseID: toolUseId };
   }
 
   try {
