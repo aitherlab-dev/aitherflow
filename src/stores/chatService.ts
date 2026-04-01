@@ -229,6 +229,17 @@ export async function respondToCard(agentId: string, toolUseId: string, response
       requestId,
       response: controlResponse,
     });
+
+    // Update plan mode only after user approved
+    if (!response.startsWith("__deny__")) {
+      if (toolName === "ExitPlanMode") {
+        useChatStore.setState({ planMode: false });
+        useConductorStore.getState().setSelectedPermissionMode("default");
+      } else if (toolName === "EnterPlanMode") {
+        useChatStore.setState({ planMode: true });
+        useConductorStore.getState().setSelectedPermissionMode("plan");
+      }
+    }
   } catch (e) {
     console.error("[respondToCard] respond_to_tool failed:", e);
     if (isActive) useChatStore.setState({ error: "Failed to process response.", isThinking: false });

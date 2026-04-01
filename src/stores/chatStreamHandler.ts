@@ -195,7 +195,6 @@ function processEventCore(
         apply({ isThinking: true });
       }
       if (e.tool_name === "EnterPlanMode") apply({ planMode: true });
-      if (e.tool_name === "ExitPlanMode") apply({ planMode: false });
       apply({ streamingMessage: newSm });
       break;
     }
@@ -335,10 +334,6 @@ function handleCliEvent(e: CliEvent) {
       if (e.tool_name === "EnterPlanMode") {
         useConductorStore.getState().setSelectedPermissionMode("plan");
       }
-      if (e.tool_name === "ExitPlanMode") {
-        useConductorStore.getState().setSelectedPermissionMode("default");
-      }
-
       // Interactive tools merge into messages so cards render
       if (!isInteractiveTool(e.tool_name)) {
         if (toolActivityTimer) {
