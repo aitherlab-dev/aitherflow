@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useState } from "react";
+import { RefreshCw } from "lucide-react";
 import { invoke } from "../../lib/transport";
 import { formatResetTime } from "../../lib/formatTime";
 import type { RateLimit, SubscriptionUsage } from "../../types/conductor";
@@ -67,13 +68,6 @@ export const CliStatsSection = memo(function CliStatsSection() {
   const [days, setDays] = useState(30);
   const [stats, setStats] = useState<AggregatedStats | null>(null);
   const [loading, setLoading] = useState(false);
-  const [subUsage, setSubUsage] = useState<SubscriptionUsage | null>(null);
-
-  useEffect(() => {
-    invoke<SubscriptionUsage>("get_subscription_usage")
-      .then(setSubUsage)
-      .catch(console.error);
-  }, []);
 
   const load = useCallback((d: number) => {
     setDays(d);
@@ -109,7 +103,7 @@ export const CliStatsSection = memo(function CliStatsSection() {
       </div>
 
       {/* Subscription Limits */}
-      {subUsage && <SubscriptionLimitsBlock usage={subUsage} />}
+      <SubscriptionLimitsBlock />
 
       {/* Summary cards */}
       <div className="cli-stats__summary">
@@ -170,54 +164,102 @@ export const CliStatsSection = memo(function CliStatsSection() {
   );
 });
 
-/** Subscription rate-limit bars */
-const SubscriptionLimitsBlock = memo(function SubscriptionLimitsBlock({
-  usage,
-}: {
-  usage: SubscriptionUsage;
-}) {
-  const limits: { label: string; data: RateLimit | null }[] = [
-    { label: "5-hour Session", data: usage.five_hour },
-    { label: "Weekly (all)", data: usage.seven_day },
-    { label: "Weekly Sonnet", data: usage.seven_day_sonnet },
-    { label: "Weekly Opus", data: usage.seven_day_opus },
-  ];
+/** Subscription rate-limit bars with refresh */
+const SubscriptionLimitsBlock = memo(function SubscriptionLimitsBlock() {
+  const [usage, setUsage] = useState<SubscriptionUsage | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchUsage = useCallback(() => {
+    setRefreshing(true);
+    setError(null);
+    invoke<SubscriptionUsage>("get_subscription_usage")
+      .then((data) => {
+        setUsage(data);
+        setError(null);
+      })
+      .catch((e) => {
+        console.error(e);
+        setError("Rate limited, try again later");
+      })
+      .finally(() => setRefreshing(false));
+  }, []);
+
+  useEffect(() => {
+    fetchUsage();
+  }, [fetchUsage]);
+
+  const limits: { label: string; data: RateLimit | null }[] = usage
+    ? [
+        { label: "5-hour Session", data: usage.five_hour },
+        { label: "Weekly (all)", data: usage.seven_day },
+        { label: "Weekly Sonnet", data: usage.seven_day_sonnet },
+        { label: "Weekly Opus", data: usage.seven_day_opus },
+      ]
+    : [];
 
   const hasAny = limits.some((l) => l.data?.utilization != null);
-  if (!hasAny) return null;
+
+  if (!hasAny && !error) return null;
 
   return (
     <div className="cli-stats__section">
-      <h3 className="cli-stats__section-title">Subscription Limits</h3>
-      <div className="cli-stats__bars">
-        {limits.map((l) => {
-          if (l.data?.utilization == null) return null;
-          const pct = l.data.utilization;
-          const reset = formatResetTime(l.data.resets_at, true);
-          return (
-            <div key={l.label} className="cli-stats__bar-row">
-              <span className="cli-stats__bar-label">{l.label}</span>
-              <div className="cli-stats__bar-track">
-                <div
-                  className="cli-stats__bar-fill"
-                  style={{
-                    width: `${Math.min(pct, 100)}%`,
-                    backgroundColor: pct > 80 ? "var(--error)" : undefined,
-                  }}
-                />
-              </div>
-              <span className="cli-stats__bar-value">
-                {Math.round(pct)}%
-                {reset && (
-                  <span style={{ color: "var(--fg-dim)", fontSize: "0.8em", marginLeft: "4px" }}>
-                    resets {reset}
-                  </span>
-                )}
-              </span>
-            </div>
-          );
-        })}
+      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+        <h3 className="cli-stats__section-title" style={{ margin: 0 }}>Subscription Limits</h3>
+        <button
+          onClick={fetchUsage}
+          disabled={refreshing}
+          style={{
+            background: "none",
+            border: "none",
+            cursor: refreshing ? "default" : "pointer",
+            padding: "2px",
+            color: "var(--fg-muted)",
+            opacity: refreshing ? 0.4 : 0.7,
+            display: "flex",
+            alignItems: "center",
+          }}
+          title="Refresh"
+        >
+          <RefreshCw size={14} />
+        </button>
       </div>
+      {error && (
+        <div style={{ color: "var(--fg-dim)", fontSize: "0.85em", marginTop: "6px" }}>
+          {error}
+        </div>
+      )}
+      {hasAny && (
+        <div className="cli-stats__bars">
+          {limits.map((l) => {
+            if (l.data?.utilization == null) return null;
+            const pct = l.data.utilization;
+            const reset = formatResetTime(l.data.resets_at, true);
+            return (
+              <div key={l.label} className="cli-stats__bar-row">
+                <span className="cli-stats__bar-label">{l.label}</span>
+                <div className="cli-stats__bar-track">
+                  <div
+                    className="cli-stats__bar-fill"
+                    style={{
+                      width: `${Math.min(pct, 100)}%`,
+                      backgroundColor: pct > 80 ? "var(--error)" : undefined,
+                    }}
+                  />
+                </div>
+                <span className="cli-stats__bar-value">
+                  {Math.round(pct)}%
+                  {reset && (
+                    <span style={{ color: "var(--fg-dim)", fontSize: "0.8em", marginLeft: "4px" }}>
+                      resets {reset}
+                    </span>
+                  )}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 });
