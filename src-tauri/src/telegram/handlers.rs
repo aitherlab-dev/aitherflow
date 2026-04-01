@@ -58,7 +58,9 @@ pub(super) async fn handle_callback(
     // Team project selection: delete picker, show role builder
     if let Some(path) = data.strip_prefix("t_proj:") {
         if let Some(mid) = message_id {
-            let _ = tg_delete_message(client, token, chat_id, mid).await;
+            if let Err(e) = tg_delete_message(client, token, chat_id, mid).await {
+                eprintln!("[telegram] Failed to delete picker message: {e}");
+            }
         }
         let name = path.rsplit('/').next().unwrap_or(path);
         send_team_role_picker(client, token, chat_id, path, name).await;
@@ -425,7 +427,9 @@ async fn handle_team_callback(
             }
         });
         if let Some(mid) = message_id {
-            let _ = tg_delete_message(client, token, chat_id, mid).await;
+            if let Err(e) = tg_delete_message(client, token, chat_id, mid).await {
+                eprintln!("[telegram] Failed to delete message: {e}");
+            }
         }
         return;
     }
@@ -442,7 +446,9 @@ async fn handle_team_callback(
 
         // Delete the picker message
         if builder.message_id != 0 {
-            let _ = tg_delete_message(client, token, chat_id, builder.message_id).await;
+            if let Err(e) = tg_delete_message(client, token, chat_id, builder.message_id).await {
+                eprintln!("[telegram] Failed to delete builder message: {e}");
+            }
         }
 
         // Build roles list: ["Coder", "Coder", "Reviewer", ...]

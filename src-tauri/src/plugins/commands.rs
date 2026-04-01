@@ -305,7 +305,7 @@ pub async fn install_plugin(name: String, marketplace: String) -> Result<(), Str
                         .map_err(|e| format!("Failed to create dir: {e}"))?;
 
                     let output = Command::new("git")
-                        .args(["clone", "--depth", "1", &remote_url, "."])
+                        .args(["clone", "--depth", "1", "--", &remote_url, "."])
                         .current_dir(&clone_dir)
                         .output()
                         .map_err(|e| format!("Failed to run git clone: {e}"))?;
@@ -368,7 +368,9 @@ pub async fn install_plugin(name: String, marketplace: String) -> Result<(), Str
                 .unwrap_or(false);
             if !has_real_files {
                 // Broken/incomplete install — wipe and re-copy
-                let _ = fs::remove_dir_all(&cache_dir);
+                if let Err(e) = fs::remove_dir_all(&cache_dir) {
+                    eprintln!("[plugins] Failed to remove broken cache dir: {e}");
+                }
                 crate::file_ops::copy_dir_recursive(&marketplace_plugin_dir, &cache_dir)?;
             }
         } else {
