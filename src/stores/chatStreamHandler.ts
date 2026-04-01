@@ -212,6 +212,7 @@ function processEventCore(
     }
 
     case "controlRequest": {
+      // Try to attach requestId to an existing tool in streamingMessage
       if (sm?.tools?.some((t) => t.toolUseId === e.tool_use_id)) {
         const tools = sm.tools.map((t) =>
           t.toolUseId === e.tool_use_id ? { ...t, requestId: e.request_id } : t,
@@ -222,19 +223,45 @@ function processEventCore(
           streamingMessage: null,
           isThinking: false,
         });
-      } else {
-        const msgs = [...messages];
-        for (let i = msgs.length - 1; i >= 0; i--) {
-          const msg = msgs[i];
-          if (msg.role === "assistant" && msg.tools?.some((t) => t.toolUseId === e.tool_use_id)) {
-            const tools = msg.tools.map((t) =>
-              t.toolUseId === e.tool_use_id ? { ...t, requestId: e.request_id } : t,
-            );
-            msgs[i] = { ...msg, tools };
-            apply({ messages: msgs });
-            break;
-          }
+        break;
+      }
+      // Try committed messages
+      let found = false;
+      const msgs = [...messages];
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        const msg = msgs[i];
+        if (msg.role === "assistant" && msg.tools?.some((t) => t.toolUseId === e.tool_use_id)) {
+          const tools = msg.tools.map((t) =>
+            t.toolUseId === e.tool_use_id ? { ...t, requestId: e.request_id } : t,
+          );
+          msgs[i] = { ...msg, tools };
+          apply({ messages: msgs });
+          found = true;
+          break;
         }
+      }
+      // Fallback: tool not tracked (e.g. non-interactive tool in currentToolActivity).
+      // Create a message with the tool so PermissionCard can render.
+      if (!found) {
+        const newTool: ToolActivity = {
+          toolUseId: e.tool_use_id,
+          toolName: e.tool_name,
+          toolInput: e.input ?? {},
+          requestId: e.request_id,
+        };
+        const toolMsg: ChatMessage = {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          text: "",
+          timestamp: Date.now(),
+          isStreaming: false,
+          tools: [newTool],
+        };
+        // Commit any pending streaming message first
+        const updatedMsgs = sm
+          ? [...messages, { ...sm, isStreaming: false }, toolMsg]
+          : [...messages, toolMsg];
+        apply({ messages: updatedMsgs, streamingMessage: null, isThinking: false });
       }
       break;
     }
