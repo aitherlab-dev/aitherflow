@@ -332,12 +332,14 @@ pub struct SubscriptionUsage {
 /// Fetch Claude subscription rate-limit usage via OAuth token.
 /// Caches results for 60s; retries once on 429.
 #[tauri::command]
-pub async fn get_subscription_usage() -> Result<SubscriptionUsage, String> {
-    // Check cache
-    if let Ok(guard) = USAGE_CACHE.lock() {
-        if let Some((ts, ref data)) = *guard {
-            if ts.elapsed() < USAGE_CACHE_TTL {
-                return Ok(data.clone());
+pub async fn get_subscription_usage(force: bool) -> Result<SubscriptionUsage, String> {
+    // Check cache (skip if force refresh)
+    if !force {
+        if let Ok(guard) = USAGE_CACHE.lock() {
+            if let Some((ts, ref data)) = *guard {
+                if ts.elapsed() < USAGE_CACHE_TTL {
+                    return Ok(data.clone());
+                }
             }
         }
     }

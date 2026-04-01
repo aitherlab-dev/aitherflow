@@ -50,7 +50,7 @@ export const TokensCard = memo(function TokensCard({
   }, []);
 
   useEffect(() => {
-    invoke<SubscriptionUsage>("get_subscription_usage")
+    invoke<SubscriptionUsage>("get_subscription_usage", { force: false })
       .then(setSubUsage)
       .catch(console.error);
   }, []);

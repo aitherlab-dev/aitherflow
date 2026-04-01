@@ -173,7 +173,7 @@ const SubscriptionLimitsBlock = memo(function SubscriptionLimitsBlock() {
   const fetchUsage = useCallback(() => {
     setRefreshing(true);
     setError(null);
-    invoke<SubscriptionUsage>("get_subscription_usage")
+    invoke<SubscriptionUsage>("get_subscription_usage", { force: true })
       .then((data) => {
         setUsage(data);
         setError(null);
