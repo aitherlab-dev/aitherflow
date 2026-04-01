@@ -163,7 +163,10 @@ function QuestionBlock({
             value={freeText}
             onChange={(e) => setFreeText(e.target.value)}
             onKeyDown={(e) => {
-              if (e.code === "Enter") handleSubmitFreeText();
+              if (e.code === "Enter") {
+                e.preventDefault();
+                handleSubmitFreeText();
+              }
             }}
             autoFocus
           />
