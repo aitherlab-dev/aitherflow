@@ -222,7 +222,8 @@ export async function respondToCard(agentId: string, toolUseId: string, response
 
   let controlResponse: Record<string, unknown>;
   if (response.startsWith("__deny__")) {
-    controlResponse = { behavior: "deny", toolUseID: toolUseId };
+    const reason = response.slice(8).trim() || "User denied";
+    controlResponse = { behavior: "deny", message: reason, toolUseID: toolUseId };
   } else if (toolName === "AskUserQuestion") {
     const input = toolInput as { questions?: Array<{ question: string }> } | undefined;
     const questions = input?.questions ?? [];
@@ -236,7 +237,7 @@ export async function respondToCard(agentId: string, toolUseId: string, response
       toolUseID: toolUseId,
     };
   } else {
-    controlResponse = { behavior: "allow", toolUseID: toolUseId };
+    controlResponse = { behavior: "allow", updatedInput: {}, toolUseID: toolUseId };
   }
 
   try {
