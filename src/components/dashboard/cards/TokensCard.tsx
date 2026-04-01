@@ -2,9 +2,7 @@ import { memo, useState, useEffect } from "react";
 import { Coins } from "lucide-react";
 import { useConductorStore } from "../../../stores/conductorStore";
 import { invoke } from "../../../lib/transport";
-import { formatResetTime } from "../../../lib/formatTime";
 import { DashboardCard } from "../DashboardCard";
-import type { SubscriptionUsage } from "../../../types/conductor";
 
 function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -33,8 +31,6 @@ export const TokensCard = memo(function TokensCard({
   const costUsd = useConductorStore((s) => s.costUsd);
 
   const [orBalance, setOrBalance] = useState<OpenRouterBalance | null>(null);
-  const [subUsage, setSubUsage] = useState<SubscriptionUsage | null>(null);
-
   useEffect(() => {
     const fetchBalance = () => {
       invoke<OpenRouterBalance>("external_models_openrouter_balance")
@@ -44,12 +40,6 @@ export const TokensCard = memo(function TokensCard({
     fetchBalance();
     const timer = setInterval(fetchBalance, 30_000);
     return () => clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    invoke<SubscriptionUsage>("get_subscription_usage", { force: false })
-      .then(setSubUsage)
-      .catch(console.error);
   }, []);
 
   const pct = contextMax > 0 ? (contextUsed / contextMax) * 100 : 0;
@@ -111,60 +101,6 @@ export const TokensCard = memo(function TokensCard({
                 <span>${orBalance.remaining.toFixed(2)}</span>
               </div>
             )}
-          </>
-        )}
-        {subUsage && (subUsage.five_hour || subUsage.seven_day) && (
-          <>
-            <div style={{ marginTop: "4px", borderTop: "1px solid var(--border)", paddingTop: "4px" }}>
-              {subUsage.five_hour?.utilization != null && (
-                <div className="dash-card__row" style={{ alignItems: "center", gap: "6px" }}>
-                  <span className="dash-card__label">Session</span>
-                  <div style={{ flex: 1, display: "flex", alignItems: "center", gap: "6px" }}>
-                    <div className="dash-card__bar-wrap" style={{ flex: 1, height: "4px" }}>
-                      <div
-                        className="dash-card__bar-fill"
-                        style={{
-                          width: `${Math.min(subUsage.five_hour.utilization, 100)}%`,
-                          backgroundColor: subUsage.five_hour.utilization > 80 ? "var(--error)" : "var(--accent)",
-                        }}
-                      />
-                    </div>
-                    <span style={{ whiteSpace: "nowrap" }}>
-                      {Math.round(subUsage.five_hour.utilization)}%
-                      {subUsage.five_hour.resets_at && (
-                        <span style={{ color: "var(--fg-dim)", fontSize: "0.8em", marginLeft: "4px" }}>
-                          resets {formatResetTime(subUsage.five_hour.resets_at)}
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                </div>
-              )}
-              {subUsage.seven_day?.utilization != null && (
-                <div className="dash-card__row" style={{ alignItems: "center", gap: "6px" }}>
-                  <span className="dash-card__label">Weekly</span>
-                  <div style={{ flex: 1, display: "flex", alignItems: "center", gap: "6px" }}>
-                    <div className="dash-card__bar-wrap" style={{ flex: 1, height: "4px" }}>
-                      <div
-                        className="dash-card__bar-fill"
-                        style={{
-                          width: `${Math.min(subUsage.seven_day.utilization, 100)}%`,
-                          backgroundColor: subUsage.seven_day.utilization > 80 ? "var(--error)" : "var(--accent)",
-                        }}
-                      />
-                    </div>
-                    <span style={{ whiteSpace: "nowrap" }}>
-                      {Math.round(subUsage.seven_day.utilization)}%
-                      {subUsage.seven_day.resets_at && (
-                        <span style={{ color: "var(--fg-dim)", fontSize: "0.8em", marginLeft: "4px" }}>
-                          resets {formatResetTime(subUsage.seven_day.resets_at)}
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
           </>
         )}
       </div>

@@ -185,9 +185,7 @@ const SubscriptionLimitsBlock = memo(function SubscriptionLimitsBlock() {
       .finally(() => setRefreshing(false));
   }, []);
 
-  useEffect(() => {
-    fetchUsage();
-  }, [fetchUsage]);
+  // No auto-fetch — only on button click to avoid 429
 
   const limits: { label: string; data: RateLimit | null }[] = usage
     ? [
@@ -199,8 +197,6 @@ const SubscriptionLimitsBlock = memo(function SubscriptionLimitsBlock() {
     : [];
 
   const hasAny = limits.some((l) => l.data?.utilization != null);
-
-  if (!hasAny && !error) return null;
 
   return (
     <div className="cli-stats__section">
