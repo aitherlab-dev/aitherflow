@@ -216,7 +216,12 @@ function processEventCore(
         const tools = sm.tools.map((t) =>
           t.toolUseId === e.tool_use_id ? { ...t, requestId: e.request_id } : t,
         );
-        apply({ streamingMessage: { ...sm, tools } });
+        // Commit streaming message so permission card renders in chat
+        apply({
+          messages: [...messages, { ...sm, tools, isStreaming: false }],
+          streamingMessage: null,
+          isThinking: false,
+        });
       } else {
         const msgs = [...messages];
         for (let i = msgs.length - 1; i >= 0; i--) {

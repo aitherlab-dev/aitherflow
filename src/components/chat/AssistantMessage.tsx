@@ -1,7 +1,7 @@
 import { memo, useMemo, useState, useCallback } from "react";
 import { ChevronRight, Sparkles } from "lucide-react";
 import { StreamdownRenderer } from "./StreamdownRenderer";
-import { InteractiveCard } from "./InteractiveCard";
+import { InteractiveCard, PermissionCard } from "./InteractiveCard";
 import { ImageResult } from "./ImageResult";
 import type { ChatMessage } from "../../types/chat";
 import { isInteractiveTool } from "../../types/chat";
@@ -35,6 +35,10 @@ export const AssistantMessage = memo(function AssistantMessage({
   const toggleThinking = useCallback(() => setThinkingOpen((v) => !v), []);
   const interactiveTools = useMemo(
     () => message.tools?.filter((t) => isInteractiveTool(t.toolName)),
+    [message.tools],
+  );
+  const permissionTools = useMemo(
+    () => message.tools?.filter((t) => t.requestId && !isInteractiveTool(t.toolName)),
     [message.tools],
   );
   // Split text into thinking blocks (intermediate) and final answer
@@ -98,6 +102,10 @@ export const AssistantMessage = memo(function AssistantMessage({
           ))}
         </div>
       )}
+      {permissionTools &&
+        permissionTools.map((tool) => (
+          <PermissionCard key={tool.toolUseId} tool={tool} agentId={agentId} />
+        ))}
       {interactiveTools &&
         interactiveTools.map((tool) => (
           <InteractiveCard key={tool.toolUseId} tool={tool} agentId={agentId} />

@@ -222,8 +222,7 @@ export async function respondToCard(agentId: string, toolUseId: string, response
 
   let controlResponse: Record<string, unknown>;
   if (response.startsWith("__deny__")) {
-    const reason = response.slice(8).trim() || "User declined";
-    controlResponse = { error: reason };
+    controlResponse = { behavior: "deny", toolUseID: toolUseId };
   } else if (toolName === "AskUserQuestion") {
     const input = toolInput as { questions?: Array<{ question: string }> } | undefined;
     const questions = input?.questions ?? [];

@@ -270,3 +270,55 @@
 .interactive-card-result--rejected {
   color: var(--fg-muted);
 }
+
+/* ── Permission Cards ── */
+
+.permission-card {
+  margin-top: 8px;
+  padding: 10px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+}
+
+.permission-card--answered {
+  opacity: 0.85;
+  border-color: var(--border);
+}
+
+.permission-card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  font-size: 0.85rem;
+}
+
+.permission-card-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.permission-card-tool {
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.permission-card-label {
+  color: var(--fg-muted);
+  font-weight: 400;
+}
+
+.permission-card-detail {
+  margin: 0 0 8px;
+  padding: 6px 10px;
+  background: var(--bg-hover);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  color: var(--fg-dim);
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow: hidden;
+  max-height: 120px;
+}

@@ -1,5 +1,5 @@
 import { memo, useState, useCallback } from "react";
-import { Check, X, HelpCircle, FileCheck, Send } from "lucide-react";
+import { Check, X, HelpCircle, FileCheck, Send, Shield } from "lucide-react";
 import type {
   ToolActivity,
   AskUserQuestionInput,
@@ -279,3 +279,63 @@ function ExitPlanModeCard({ tool, agentId }: { tool: ToolActivity; agentId: stri
     </div>
   );
 }
+
+// ── Generic permission request ──
+
+function formatPermissionInput(input: Record<string, unknown>): string | null {
+  const filePath = input.file_path ?? input.command ?? input.path;
+  if (typeof filePath === "string") return filePath;
+  return null;
+}
+
+export const PermissionCard = memo(function PermissionCard({
+  tool,
+  agentId,
+}: InteractiveCardProps) {
+  const answered = !!tool.userResponse;
+
+  const handleAllow = useCallback(() => {
+    if (answered) return;
+    respondToCard(agentId, tool.toolUseId, "allow").catch(console.error);
+  }, [answered, agentId, tool.toolUseId]);
+
+  const handleDeny = useCallback(() => {
+    if (answered) return;
+    respondToCard(agentId, tool.toolUseId, "__deny__User denied").catch(console.error);
+  }, [answered, agentId, tool.toolUseId]);
+
+  const detail = formatPermissionInput(tool.toolInput);
+
+  return (
+    <div className={`permission-card ${answered ? "permission-card--answered" : ""}`}>
+      <div className="permission-card-header">
+        <Shield size={16} className="permission-card-icon" />
+        <span className="permission-card-tool">{tool.toolName}</span>
+        <span className="permission-card-label">requires approval</span>
+      </div>
+      {detail && (
+        <pre className="permission-card-detail">{detail}</pre>
+      )}
+      {answered ? (
+        <div className="interactive-card-result">
+          {tool.userResponse === "allow" ? (
+            <span className="interactive-card-result--approved">Allowed</span>
+          ) : (
+            <span className="interactive-card-result--rejected">Denied</span>
+          )}
+        </div>
+      ) : (
+        <div className="interactive-card-buttons">
+          <button className="interactive-card-approve" onClick={handleAllow}>
+            <Check size={14} />
+            Allow
+          </button>
+          <button className="interactive-card-reject" onClick={handleDeny}>
+            <X size={14} />
+            Deny
+          </button>
+        </div>
+      )}
+    </div>
+  );
+});
