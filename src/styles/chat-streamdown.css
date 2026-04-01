@@ -92,6 +92,9 @@
 [data-streamdown="blockquote"] {
   border-left-color: var(--accent);
   color: var(--fg-muted);
+  background: color-mix(in srgb, var(--bg-hard) 60%, transparent);
+  border-radius: 4px;
+  padding: 0.25em 1em;
 }
 
 /* ── Headings ── */

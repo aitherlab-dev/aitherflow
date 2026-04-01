@@ -3,7 +3,7 @@ import { useShallow } from "zustand/react/shallow";
 import { Plus, Mic, MicOff, ArrowUp, Square, MessageSquarePlus, Loader2, Radio } from "lucide-react";
 import { openDialog, invoke } from "../../lib/transport";
 import { useChatStore, agentStates } from "../../stores/chatStore";
-import { sendMessage, stopGeneration, newChat, switchPermissionMode, switchModel } from "../../stores/chatService";
+import { sendMessage, injectMessage, stopGeneration, newChat, switchPermissionMode, switchModel } from "../../stores/chatService";
 import { useAttachmentStore } from "../../stores/attachmentStore";
 import { useFileAttach } from "../../hooks/useFileAttach";
 import { usePasteHandler } from "../../hooks/usePasteHandler";
@@ -133,11 +133,19 @@ export const InputBar = memo(function InputBar() {
     }
   }, [processFromPaths]);
 
-  // Send message with attachments
+  // Send message with attachments (or inject during streaming)
   const handleSend = useCallback(() => {
     const trimmed = text.trim();
     const hasContent = trimmed || attachments.length > 0;
-    if (!hasContent || isThinking) return;
+    if (!hasContent) return;
+
+    // During streaming — inject as inline quote, don't create a regular message
+    if (isThinking) {
+      setText("");
+      resetStream();
+      injectMessage(trimmed).catch(console.error);
+      return;
+    }
 
     let finalPrompt = "";
     for (const att of attachments) {
@@ -334,15 +342,27 @@ export const InputBar = memo(function InputBar() {
         </div>
         <div className="input-bar-cell input-bar-cell--btns input-bar-cell--end">
           {isThinking && hasSession ? (
-            <Tooltip text={"Stop" + hk("stopGeneration")}>
-              <button
-                className="input-bar-btn input-bar-stop"
-                onClick={handleStop}
-                aria-label="Stop generation"
-              >
-                <Square size={18} />
-              </button>
-            </Tooltip>
+            <>
+              <Tooltip text={"Stop" + hk("stopGeneration")}>
+                <button
+                  className="input-bar-btn input-bar-stop"
+                  onClick={handleStop}
+                  aria-label="Stop generation"
+                >
+                  <Square size={18} />
+                </button>
+              </Tooltip>
+              <Tooltip text="Send during streaming">
+                <button
+                  className="input-bar-btn input-bar-send"
+                  onClick={handleSend}
+                  disabled={!text.trim()}
+                  aria-label="Send message during streaming"
+                >
+                  <ArrowUp size={18} />
+                </button>
+              </Tooltip>
+            </>
           ) : (
             <>
               <Tooltip text={"New chat" + hk("newChat")}>

@@ -25,6 +25,40 @@ export { invalidateSettingsCache, stopGeneration, restartSession, switchPermissi
 export { persistMessages, loadChatList, switchChat, newChat, deleteChat, renameChat, toggleChatPin } from "./chatCrud";
 export { switchAgent, clearAgentState } from "./agentSwitcher";
 
+// ── injectMessage (send during streaming) ──
+
+/** Inject a user message as a blockquote into the current streaming response and forward to CLI. */
+export async function injectMessage(text: string) {
+  const state = useChatStore.getState();
+  if (!state.isThinking || !state.streamingMessage) return;
+
+  // Append quoted user text into the streaming message
+  const quote = `\n\n> **User:** ${text}\n\n`;
+  const updated = {
+    ...state.streamingMessage,
+    text: state.streamingMessage.text + quote,
+  };
+  useChatStore.setState({ streamingMessage: updated });
+
+  // Also update agentStates for background consistency
+  const agentState = agentStates.get(state.agentId);
+  if (agentState) {
+    agentState.streamingMessage = updated;
+  }
+
+  // Send to CLI stdin
+  try {
+    await invoke("send_message", {
+      options: {
+        agentId: state.agentId,
+        prompt: text,
+      } satisfies SendMessageOptions,
+    });
+  } catch (e) {
+    console.error("[injectMessage] Failed to send:", e);
+  }
+}
+
 // ── sendMessage ──
 
 /** Guard to prevent duplicate chat creation on double-click Send */
