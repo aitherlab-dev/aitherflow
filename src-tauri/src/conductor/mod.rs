@@ -308,14 +308,20 @@ pub async fn get_session_usage(
 // ── Subscription usage (OAuth rate limits) ──────────────────────────
 
 const OAUTH_USAGE_URL: &str = "https://api.anthropic.com/api/oauth/usage";
+const USAGE_CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(60);
+const RETRY_DELAY: std::time::Duration = std::time::Duration::from_secs(2);
 
-#[derive(serde::Serialize, serde::Deserialize)]
+static USAGE_CACHE: std::sync::LazyLock<
+    std::sync::Mutex<Option<(std::time::Instant, SubscriptionUsage)>>,
+> = std::sync::LazyLock::new(|| std::sync::Mutex::new(None));
+
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct RateLimit {
     pub utilization: Option<f64>,
     pub resets_at: Option<String>,
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct SubscriptionUsage {
     pub five_hour: Option<RateLimit>,
     pub seven_day: Option<RateLimit>,
@@ -324,8 +330,18 @@ pub struct SubscriptionUsage {
 }
 
 /// Fetch Claude subscription rate-limit usage via OAuth token.
+/// Caches results for 60s; retries once on 429.
 #[tauri::command]
 pub async fn get_subscription_usage() -> Result<SubscriptionUsage, String> {
+    // Check cache
+    if let Ok(guard) = USAGE_CACHE.lock() {
+        if let Some((ts, ref data)) = *guard {
+            if ts.elapsed() < USAGE_CACHE_TTL {
+                return Ok(data.clone());
+            }
+        }
+    }
+
     let token = tokio::task::spawn_blocking(|| {
         let creds_path = crate::config::home_dir().join(".claude/.credentials.json");
         let raw = std::fs::read_to_string(&creds_path)
@@ -346,6 +362,20 @@ pub async fn get_subscription_usage() -> Result<SubscriptionUsage, String> {
         .build()
         .map_err(|e| format!("HTTP client error: {e}"))?;
 
+    let usage = fetch_usage_with_retry(&client, &token).await?;
+
+    // Update cache
+    if let Ok(mut guard) = USAGE_CACHE.lock() {
+        *guard = Some((std::time::Instant::now(), usage.clone()));
+    }
+
+    Ok(usage)
+}
+
+async fn fetch_usage_with_retry(
+    client: &reqwest::Client,
+    token: &str,
+) -> Result<SubscriptionUsage, String> {
     let resp = client
         .get(OAUTH_USAGE_URL)
         .header("Authorization", format!("Bearer {token}"))
@@ -353,6 +383,27 @@ pub async fn get_subscription_usage() -> Result<SubscriptionUsage, String> {
         .send()
         .await
         .map_err(|e| format!("HTTP request failed: {e}"))?;
+
+    if resp.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+        tokio::time::sleep(RETRY_DELAY).await;
+
+        let retry = client
+            .get(OAUTH_USAGE_URL)
+            .header("Authorization", format!("Bearer {token}"))
+            .header("Content-Type", "application/json")
+            .send()
+            .await
+            .map_err(|e| format!("HTTP retry failed: {e}"))?;
+
+        if !retry.status().is_success() {
+            return Err(format!("API returned {} after retry", retry.status()));
+        }
+
+        return retry
+            .json::<SubscriptionUsage>()
+            .await
+            .map_err(|e| format!("Failed to parse usage response: {e}"));
+    }
 
     if !resp.status().is_success() {
         return Err(format!("API returned {}", resp.status()));
