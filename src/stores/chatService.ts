@@ -146,6 +146,21 @@ export async function sendMessage(text: string, allAttachments?: Attachment[]) {
   }
 }
 
+// ── Plan mode helpers ──
+
+/** Update plan mode only after user explicitly approved the tool.
+ *  Called from both the !requestId (fallback) and control_response paths. */
+function updatePlanModeAfterApproval(toolName: string | undefined, response: string) {
+  if (response.startsWith("__deny__")) return;
+  if (toolName === "ExitPlanMode") {
+    useChatStore.setState({ planMode: false });
+    useConductorStore.getState().setSelectedPermissionMode("default");
+  } else if (toolName === "EnterPlanMode") {
+    useChatStore.setState({ planMode: true });
+    useConductorStore.getState().setSelectedPermissionMode("plan");
+  }
+}
+
 // ── respondToCard ──
 
 export async function respondToCard(agentId: string, toolUseId: string, response: string) {
@@ -196,6 +211,8 @@ export async function respondToCard(agentId: string, toolUseId: string, response
       await invoke("send_message", {
         options: { agentId, prompt: response } satisfies SendMessageOptions,
       });
+      // Plan mode changes are tied to user approval (no requestId = auto-approved)
+      updatePlanModeAfterApproval(toolName, response);
     } catch (e) {
       console.error("[respondToCard] send_message failed:", e);
       if (isActive) useChatStore.setState({ error: "Failed to send response.", isThinking: false });
@@ -230,16 +247,8 @@ export async function respondToCard(agentId: string, toolUseId: string, response
       response: controlResponse,
     });
 
-    // Update plan mode only after user approved
-    if (!response.startsWith("__deny__")) {
-      if (toolName === "ExitPlanMode") {
-        useChatStore.setState({ planMode: false });
-        useConductorStore.getState().setSelectedPermissionMode("default");
-      } else if (toolName === "EnterPlanMode") {
-        useChatStore.setState({ planMode: true });
-        useConductorStore.getState().setSelectedPermissionMode("plan");
-      }
-    }
+    // Plan mode changes are tied to user approval
+    updatePlanModeAfterApproval(toolName, response);
   } catch (e) {
     console.error("[respondToCard] respond_to_tool failed:", e);
     if (isActive) useChatStore.setState({ error: "Failed to process response.", isThinking: false });
