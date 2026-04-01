@@ -55,8 +55,8 @@ fn read_settings_json(path: &std::path::Path) -> Result<serde_json::Value, Strin
 
 const MAX_HOOK_COMMAND_LEN: usize = 1024;
 
-/// Shell meta-characters that enable command chaining / injection.
-const SHELL_INJECTION_CHARS: &[char] = &[';', '|', '`', '>', '<', '&'];
+/// Characters that enable command chaining, injection, or unintended expansion.
+const SHELL_INJECTION_CHARS: &[char] = &[';', '|', '`', '>', '<', '&', '\n', '\r', '*', '?'];
 
 fn validate_hook_command(command: &str) -> Result<(), String> {
     let cmd = command.trim();
@@ -69,15 +69,80 @@ fn validate_hook_command(command: &str) -> Result<(), String> {
             cmd.len()
         ));
     }
-    // Block shell injection patterns: $() ${} and meta-chars
-    if cmd.contains("$(") || cmd.contains("${") {
-        return Err("Hook command must not contain subshell expansions ($() or ${})".into());
+    // Block any dollar-sign expansion ($VAR, $(), ${}, etc.)
+    if cmd.contains('$') {
+        return Err("Hook command must not contain variable expansions ($)".into());
     }
     for ch in SHELL_INJECTION_CHARS {
         if cmd.contains(*ch) {
             return Err(format!(
                 "Hook command must not contain shell meta-character '{ch}'"
             ));
+        }
+    }
+    Ok(())
+}
+
+/// Split a command string into program + args without shell interpretation.
+fn parse_command(command: &str) -> Result<(String, Vec<String>), String> {
+    let parts: Vec<String> = shell_split(command.trim());
+    if parts.is_empty() {
+        return Err("Hook command is empty after parsing".into());
+    }
+    let program = parts[0].clone();
+    let args = parts[1..].to_vec();
+    Ok((program, args))
+}
+
+/// Simple shell-like word splitting that respects single and double quotes.
+fn shell_split(s: &str) -> Vec<String> {
+    let mut parts = Vec::new();
+    let mut current = String::new();
+    let mut chars = s.chars().peekable();
+    let mut in_single = false;
+    let mut in_double = false;
+
+    while let Some(ch) = chars.next() {
+        match ch {
+            '\'' if !in_double => in_single = !in_single,
+            '"' if !in_single => in_double = !in_double,
+            ' ' | '\t' if !in_single && !in_double => {
+                if !current.is_empty() {
+                    parts.push(std::mem::take(&mut current));
+                }
+            }
+            '\\' if !in_single => {
+                if let Some(&next) = chars.peek() {
+                    chars.next();
+                    current.push(next);
+                }
+            }
+            _ => current.push(ch),
+        }
+    }
+    if !current.is_empty() {
+        parts.push(current);
+    }
+    parts
+}
+
+/// Validate all hook commands inside a hooks JSON value.
+fn validate_hooks_json(hooks: &serde_json::Value) -> Result<(), String> {
+    if let Some(obj) = hooks.as_object() {
+        for (event_name, event_val) in obj {
+            if let Some(arr) = event_val.as_array() {
+                for group in arr {
+                    if let Some(hook_arr) = group.get("hooks").and_then(|h| h.as_array()) {
+                        for hook in hook_arr {
+                            if let Some(cmd) = hook.get("command").and_then(|c| c.as_str()) {
+                                validate_hook_command(cmd).map_err(|e| {
+                                    format!("Invalid command in {event_name} hook: {e}")
+                                })?;
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
     Ok(())
@@ -106,6 +171,9 @@ pub async fn save_hooks(
     hooks: serde_json::Value,
 ) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
+        // Validate all hook commands before writing to disk
+        validate_hooks_json(&hooks)?;
+
         let path = settings_path(&scope, &project_path)?;
         let mut settings = read_settings_json(&path)?;
         let obj = settings
@@ -125,9 +193,10 @@ pub async fn test_hook_command(
 ) -> Result<HookTestResult, String> {
     tokio::task::spawn_blocking(move || {
         validate_hook_command(&command)?;
+        let (program, args) = parse_command(&command)?;
 
-        let mut cmd = std::process::Command::new("sh");
-        cmd.arg("-c").arg(&command);
+        let mut cmd = std::process::Command::new(&program);
+        cmd.args(&args);
         if let Some(ref dir) = cwd {
             crate::files::validate_path_safe(std::path::Path::new(dir))?;
             cmd.current_dir(dir);
@@ -137,7 +206,7 @@ pub async fn test_hook_command(
 
         let output = cmd
             .output()
-            .map_err(|e| format!("Failed to execute command: {e}"))?;
+            .map_err(|e| format!("Failed to execute command '{program}': {e}"))?;
 
         Ok(HookTestResult {
             exit_code: output.status.code().unwrap_or(-1),
