@@ -30,9 +30,6 @@ export const TokensCard = memo(function TokensCard({
 }) {
   const contextUsed = useConductorStore((s) => s.contextUsed);
   const contextMax = useConductorStore((s) => s.contextMax);
-  const outputTokens = useConductorStore((s) => s.outputTokens);
-  const cacheRead = useConductorStore((s) => s.cacheReadTokens);
-  const cacheCreation = useConductorStore((s) => s.cacheCreationTokens);
   const costUsd = useConductorStore((s) => s.costUsd);
 
   const [orBalance, setOrBalance] = useState<OpenRouterBalance | null>(null);
@@ -56,8 +53,6 @@ export const TokensCard = memo(function TokensCard({
   }, []);
 
   const pct = contextMax > 0 ? (contextUsed / contextMax) * 100 : 0;
-  const cacheTotal = cacheRead + cacheCreation;
-  const cacheHitRate = cacheTotal > 0 ? Math.round((cacheRead / cacheTotal) * 100) : 0;
 
   const statusText = contextMax > 0
     ? `${formatTokens(contextUsed)} / ${formatTokens(contextMax)}`
@@ -98,16 +93,6 @@ export const TokensCard = memo(function TokensCard({
               : "—"}
           </span>
         </div>
-        <div className="dash-card__row">
-          <span className="dash-card__label">Output</span>
-          <span>{formatTokens(outputTokens)}</span>
-        </div>
-        {cacheTotal > 0 && (
-          <div className="dash-card__row">
-            <span className="dash-card__label">Cache Hit</span>
-            <span>{cacheHitRate}%</span>
-          </div>
-        )}
         {costUsd > 0 && (
           <div className="dash-card__row">
             <span className="dash-card__label">Cost</span>
