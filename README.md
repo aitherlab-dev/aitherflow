@@ -57,23 +57,90 @@ The point is — Claude does all the thinking, and aitherflow makes it look pret
 
 ## Featurse
 
-**[VHS tracking artifacts intensify]**
+**[VHS tracking artifacts intensify. BRULE shuffles through index cards]**
 
-- **Multi-Agent Suport** — You can run like, MULTIPLE Claudes at the same time. It's like having a bunch of smart guys but they're all named Claude. *[turns to wrong camera]* Each one gets their own little process, like little apartments for compurter brains.
+Okay so this prorgam does a LOT of stuff. Let me just... *[drops half the cards on the floor]* ...let me tell you about the main things.
 
-- **RAG Knowledge Bases** — RAG stands for... *[squints at teleprompter]* ...Reely Awesome...Growledg...? Anyway it reads your documents and remembers stuff. PDFs, EPUBs, websites, even YouTube. It's like a libary but it lives in your compurter and doesn't shush you.
+### 🧑‍🤝‍🧑 Multi-Agent Suport
 
-- **Telegram Integratoin** — Send files to Telegram right from the app! Like sending a fax but it actually works and goes to your phone instead of a machine that nobody checks ever.
+You can run like, MULTIPLE Claudes at the same time. It's like having a bunch of smart guys but they're all named Claude. *[turns to wrong camera]* Each one gets their own little process, like little apartments for compurter brains. And they TALK to each other! Through messages! Like coworkers but they actually cooperate.
 
-- **Image Generashion** — Your compurter can draw pitchers now. Like an artist but without the beret and the sad backstory. It uses your **GPU** *(that's the expensieve card inside your compurter that gamers yell about)* to make images LOCALLY. No cloud. The pitchers never leave your house. *[accidentally knocks a model off the desk]* You pick a model — FLUCKS... FLUX? And SDXL which I think is a skateboard trick — download it from HuggingFace *(aww that's a nice name for a website)* and then just ask Claude to draw stuff and BAM, pitcher shows up right in the chat. **[BRULE holds up a crayon drawing]** It's like this but better. Way better. Don't tell my mom I said that.
+```
+   CLAUDE #1          CLAUDE #2          CLAUDE #3
+   "the boss"         "the coder"        "the mean one"
+   ┌─────────┐        ┌─────────┐        ┌─────────┐
+   │ plans   │───────→│ writes  │───────→│ reviews │
+   │ stuff   │        │ code    │        │ code    │
+   └─────────┘        └─────────┘        └────┬────┘
+        ↑                                     │
+        └─────────── "you missed a semicolom" ┘
+```
 
-- **Schedulled Tasks** — Now your compurter can do stuff WHILE YOU SLEEP. *[leans into camera]* Set up a task — like "send me the news at 6am" — pick a schedule (every day, every hour, whatever you want) and aitherflow will run a whole Claude agent automaticly. There's a nice little builder where you pick minutes and hours and days with buttons, no need to learn that cron thing that looks like a phone number from the future. When the task runs, a chat tab appears so you can see what Claude did. It even sends you a Telegram messige when it's done. *[holds up phone proudly]* Look ma, I automated!
+### 🧠 RAG Knowledge Bases
 
-- **Send Messages While Claude is Thinking** — You know when someone is talking and you just HAVE to say something? Now you can! While Claude is typing his anser, you can send a message and it shows up RIGHT INSIDE his response as a little quote box. Like passing a note in class but the teacher (Claude) actually reads it and responds. *[whispers]* He doesn't even get mad about it.
+RAG stands for... *[squints at teleprompter]* ...Reely Awesome...Growledg...? Anyway it reads your documents and remembers stuff. PDFs, EPUBs, websites, even YouTube. It's like a libary but it lives in your compurter and doesn't shush you.
 
-- **Subscripshion Limits** — Ever wonder how much of your Claude allowance you've eaten? It's like checking how many minutes you have left on your phone plan. The Tokens card on the dashboard shows your 5-hour session limit and weekly limit with little progress bars. And in Settings under CLI Stats you can see ALL the details — Sonnet, Opus, everything. With a Refresh button for when you're anxchious about running out. *[nervously checks his own usage]*
+### 🎨 Image Generashion
 
-- **Permishion Cards** — When Claude wants to do something dangerosu like edit a file or run a command, you get a nice card in the chat with Allow and Deny buttons. Like when your kid asks to use the car. You can say yes or no. Very parental. There's also a Plan Mode where Claude shows you what he WANTS to do before doing it. Like a bluepront for a house but for code.
+Your compurter can draw pitchers now. Like an artist but without the beret and the sad backstory. It uses your **GPU** *(that's the expensieve card inside your compurter that gamers yell about)* to make images LOCALLY. No cloud. The pitchers never leave your house.
+
+*[accidentally knocks a model off the desk]*
+
+FLUCKS... FLUX? And SDXL which I think is a skateboard trick — download from HuggingFace *(aww that's a nice name)* and BAM, pitcher shows up right in the chat.
+
+### ⏰ Schedulled Tasks
+
+Now your compurter can do stuff WHILE YOU SLEEP. *[leans into camera]*
+
+Set up a task, pick a schedule, and aitherflow runs a whole Claude agent automaticly. There's a nice little builder where you pick minutes and hours and days with buttons — no need to learn that cron thing that looks like a phone number from the future.
+
+When the task runs, a chat tab appears. It even sends you a Telegram messige when it's done. *[holds up phone proudly]* Look ma, I automated!
+
+### 💬 Talk While He's Talking
+
+**[BRULE interrupts his own segment]**
+
+You know when someone is talking and you just HAVE to say something? Now you can! While Claude is typing his anser, just send a message. It shows up RIGHT INSIDE his response — like a little note:
+
+```
+  Claude is writing...
+  ┌──────────────────────────────────┐
+  │ So basically the algorithm works │
+  │ by first parsing the input and   │
+  │                                  │
+  │  ┌─ YOU ──────────────────────┐  │
+  │  │ hey what about edge cases? │  │
+  │  └────────────────────────────┘  │
+  │                                  │
+  │ Right, good point! Edge cases... │
+  └──────────────────────────────────┘
+```
+
+Like passing a note in class but the teacher actually reads it. *[whispers]* He doesn't even get mad about it.
+
+### 📊 Subscripshion Limits
+
+**[BRULE nervously checks his wallet]**
+
+Ever wonder how much of your Claude allowance you've eaten? Like checking how many minutes you have left on your phone plan. Except instead of minutes it's... tokens? I think they're like little coins but for words.
+
+The dashboard shows your **5-hour** and **weekly** limits with little progress bars. Settings has ALL the details — Sonnet, Opus, the whole family. With a Refresh button for when you're anxchious. *[refreshes seventeen times]*
+
+### 🔐 Permishion Cards
+
+**[BRULE puts on a security guard hat]**
+
+When Claude wants to do something dangerosu — edit a file, run a command, delete your... *[gulps]* ...anyway, you get a nice card with **Allow** and **Deny** buttons. Like when your kid asks to use the car.
+
+There's also **Plan Mode** where Claude shows you what he WANTS to do before doing it. Like a bluepront for a house but for code. Very responcible.
+
+### 📱 Telegram
+
+Send files to Telegram right from the app! Like sending a fax but it actually works and goes to your phone instead of a machine that nobody checks ever.
+
+### 🗣️ Voice Input
+
+Talk to Claude with your ACTUAL VOICE. *[taps microphone, causes feedback]* It uses Deepgram to turn your words into text. So you can just... talk. To your compurter. Like a normal person. *[long pause]* Okay maybe not like a NORMAL person but still.
 
 ---
 
