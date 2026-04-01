@@ -16,7 +16,12 @@ aitherflow — десктопная GUI-обёртка для Claude Code CLI. C
 
 - `src/components/` — React-компоненты по доменам
 - `src/hooks/`, `src/stores/` (Zustand), `src/types/`, `src/lib/`, `src/services/`
+- `src/stores/chatStreamHandler.ts` — обработка CLI-событий, стриминг, inline quotes
 - `src-tauri/src/` — Tauri-команды, ядро в `conductor/`, модули по доменам
+- `src-tauri/src/scheduler/` — cron-планировщик задач
+- `src-tauri/src/teamwork/` — мультиагентная работа (mailbox, MCP)
+- `src-tauri/src/voice/` — голосовой ввод (Whisper)
+- `src-tauri/src/external_models/` — OpenRouter и другие провайдеры
 
 ## Команды
 
@@ -45,6 +50,14 @@ CI: `tsc --noEmit` + `eslint` + `cargo clippy -D warnings`. Release на тег 
 
 **Image Gen:** MCP sidecar `mcp-image-gen` (diffusion-rs). Модели в JSON-конфиге, CUDA через feature flag
 
+**Teamwork:** мультиагенты общаются через mailbox (файловая система). `write_if_idle()` для инъекции сообщений только когда агент свободен. MCP-сервер `teamwork` для координации
+
+**Scheduler:** cron-задачи через `src-tauri/src/scheduler/`. Визуальный конструктор расписаний, локальный timezone, Telegram-уведомления
+
+**Inline Quotes:** пользователь может отправить сообщение во время стриминга — оно вставляется как blockquote в текущий ответ ассистента (`> **User:** текст`). CLI ставит в очередь, обрабатывает на следующем ходу
+
+**Subscription Usage:** OAuth-токен из `~/.claude/.credentials.json`, эндпоинт `GET api.anthropic.com/api/oauth/usage`. Кэш 60с, retry при 429
+
 ## Подводные камни
 
 **Rust:**
@@ -67,6 +80,10 @@ CI: `tsc --noEmit` + `eslint` + `cargo clippy -D warnings`. Release на тег 
 - Стриминг: plain text во время стриминга, markdown только после завершения
 - Горячие клавиши через `e.code`. Только Alt+* и Ctrl+*, НЕ Super
 - React хуки ДО любого раннего `return null`
+
+**Стриминг и inline quotes:**
+- При `messageComplete` CLI присылает свой текст, который заменяет `streamingMessage.text`. Если были inline-цитаты — они извлекаются regex и добавляются к финальному тексту
+- `turnComplete` берёт `sm` как есть — цитаты не теряются
 
 **Zustand:**
 - Каждый модуль = свой стор. Модули не знают друг о друге

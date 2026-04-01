@@ -73,21 +73,54 @@ Local AI image generation through a built-in MCP server. No cloud APIs — every
 - Multi-agent tabs with full process isolation
 - Inter-agent messaging and task coordination
 - Chat with streaming markdown responses
+- **Send messages during streaming** — inject user messages as inline blockquotes while the agent is thinking/writing; messages are queued and processed on the next turn
 - Model selector (Sonnet / Opus / Haiku) and reasoning effort control
-- Interactive permission prompts and plan/edit mode toggle
+- **Interactive permission cards** — Allow/Deny cards for tool approvals, AskUserQuestion with free-text and multi-select, ExitPlanMode with approval flow
+- Plan mode toggle with deferred mode switch until user confirms
 - System prompt editor with per-project management
 - Skill browser with favorites, plugin management
 - External model providers (OpenRouter, Google Gemini, Ollama) with MCP server
 - Knowledge base with RAG — PDF, EPUB, web, YouTube, local embeddings
 - Local image generation via MCP server (FLUX.2, FLUX.1, SDXL, Z-Image — GPU-accelerated, LoRA support)
 - Vision analysis — images and video via external models
+- **Subscription limits** — 5-hour session and weekly rate limits displayed in Tokens dashboard card and CLI Stats settings page, with refresh button and smart caching
 - Right-click file attachment — attach files to messages from the file browser
 - Telegram bot integration
 - Voice input (Deepgram)
 - System tray — close to tray, tray icon with toggle and context menu, quit guard for active agents
 - Scheduled tasks — run agents on a schedule (interval, daily, weekly, cron), visual builder, live chat tab, Telegram notifications
+- CLI Stats — cost per day chart, breakdown by model and project, subscription limits with refresh
 - Project card reorder — Shift+drag to rearrange project cards on the welcome screen
 - Dark and light themes (warm palette)
+
+## Send Messages During Streaming
+
+Send messages while the agent is actively generating a response. Instead of waiting for the turn to complete, type and press Enter — your message appears as an inline blockquote inside the assistant's current message.
+
+- **Inline quotes** — user message rendered as `> **User:** text` within the streaming response
+- **No interruption** — the agent continues working; your message is queued by the CLI and processed on the next turn
+- **Send + Stop buttons** — both visible during streaming, so you can either inject a message or stop generation
+- **Quote persistence** — inline quotes are preserved when the message finalizes (messageComplete event)
+
+## Subscription Limits
+
+Monitor your Anthropic subscription usage directly in the app. Data is fetched from the Anthropic OAuth API (`/api/oauth/usage`).
+
+- **Dashboard (Tokens card)** — Session (5-hour) and Weekly limits with mini progress bars, reset time display
+- **Settings (CLI Stats)** — full breakdown: 5-hour session, Weekly (all models), Weekly Sonnet, Weekly Opus
+- **Refresh button** — manual refresh in CLI Stats bypasses cache
+- **Smart caching** — 60-second TTL prevents duplicate API calls; automatic retry on 429 (rate limit)
+- **Graceful degradation** — if API is unavailable, limits section is hidden (dashboard) or shows error with retry (settings)
+- **OAuth token** — read from `~/.claude/.credentials.json` (managed by Claude Code)
+
+## Interactive Permission Cards
+
+When the CLI requests tool approval, interactive cards appear in the chat.
+
+- **Permission cards** — Allow/Deny buttons for tool execution (file edits, bash commands, etc.)
+- **AskUserQuestion** — multi-select options and free-text input for agent questions
+- **ExitPlanMode** — plan approval dialog; mode switch deferred until user confirms
+- **Control protocol** — cards use `control_request`/`control_response` for bidirectional communication with the CLI
 
 ## System Tray
 

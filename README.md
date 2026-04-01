@@ -69,6 +69,12 @@ The point is — Claude does all the thinking, and aitherflow makes it look pret
 
 - **Schedulled Tasks** — Now your compurter can do stuff WHILE YOU SLEEP. *[leans into camera]* Set up a task — like "send me the news at 6am" — pick a schedule (every day, every hour, whatever you want) and aitherflow will run a whole Claude agent automaticly. There's a nice little builder where you pick minutes and hours and days with buttons, no need to learn that cron thing that looks like a phone number from the future. When the task runs, a chat tab appears so you can see what Claude did. It even sends you a Telegram messige when it's done. *[holds up phone proudly]* Look ma, I automated!
 
+- **Send Messages While Claude is Thinking** — You know when someone is talking and you just HAVE to say something? Now you can! While Claude is typing his anser, you can send a message and it shows up RIGHT INSIDE his response as a little quote box. Like passing a note in class but the teacher (Claude) actually reads it and responds. *[whispers]* He doesn't even get mad about it.
+
+- **Subscripshion Limits** — Ever wonder how much of your Claude allowance you've eaten? It's like checking how many minutes you have left on your phone plan. The Tokens card on the dashboard shows your 5-hour session limit and weekly limit with little progress bars. And in Settings under CLI Stats you can see ALL the details — Sonnet, Opus, everything. With a Refresh button for when you're anxchious about running out. *[nervously checks his own usage]*
+
+- **Permishion Cards** — When Claude wants to do something dangerosu like edit a file or run a command, you get a nice card in the chat with Allow and Deny buttons. Like when your kid asks to use the car. You can say yes or no. Very parental. There's also a Plan Mode where Claude shows you what he WANTS to do before doing it. Like a bluepront for a house but for code.
+
 ---
 
 ## Techknical Stack
