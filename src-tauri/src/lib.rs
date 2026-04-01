@@ -86,6 +86,7 @@ pub fn run() {
             conductor::get_session_usage,
             conductor::get_cli_stats,
             conductor::has_active_agents,
+            conductor::get_subscription_usage,
             config::get_workspace_path,
             chats::list_chats,
             chats::create_chat,

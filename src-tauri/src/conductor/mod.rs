@@ -304,3 +304,59 @@ pub async fn get_session_usage(
     .await
     .map_err(|e| format!("Task failed: {e}"))?
 }
+
+// ── Subscription usage (OAuth rate limits) ──────────────────────────
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct RateLimit {
+    pub utilization: Option<f64>,
+    pub resets_at: Option<String>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct SubscriptionUsage {
+    pub five_hour: Option<RateLimit>,
+    pub seven_day: Option<RateLimit>,
+    pub seven_day_sonnet: Option<RateLimit>,
+    pub seven_day_opus: Option<RateLimit>,
+}
+
+/// Fetch Claude subscription rate-limit usage via OAuth token.
+#[tauri::command]
+pub async fn get_subscription_usage() -> Result<SubscriptionUsage, String> {
+    let token = tokio::task::spawn_blocking(|| {
+        let creds_path = crate::config::home_dir().join(".claude/.credentials.json");
+        let raw = std::fs::read_to_string(&creds_path)
+            .map_err(|e| format!("Failed to read credentials: {e}"))?;
+        let parsed: serde_json::Value = serde_json::from_str(&raw)
+            .map_err(|e| format!("Failed to parse credentials: {e}"))?;
+        parsed
+            .pointer("/claudeAiOauth/accessToken")
+            .and_then(|v| v.as_str())
+            .map(String::from)
+            .ok_or_else(|| "No accessToken in credentials".to_string())
+    })
+    .await
+    .map_err(|e| format!("Task failed: {e}"))??;
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .map_err(|e| format!("HTTP client error: {e}"))?;
+
+    let resp = client
+        .get("https://api.anthropic.com/api/oauth/usage")
+        .header("Authorization", format!("Bearer {token}"))
+        .header("Content-Type", "application/json")
+        .send()
+        .await
+        .map_err(|e| format!("HTTP request failed: {e}"))?;
+
+    if !resp.status().is_success() {
+        return Err(format!("API returned {}", resp.status()));
+    }
+
+    resp.json::<SubscriptionUsage>()
+        .await
+        .map_err(|e| format!("Failed to parse usage response: {e}"))
+}
