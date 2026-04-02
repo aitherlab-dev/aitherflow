@@ -199,6 +199,7 @@ pub(crate) async fn tg_send_with_reply_keyboard(
     let reply_markup = serde_json::json!({
         "keyboard": keyboard,
         "resize_keyboard": true,
+        "is_persistent": true,
     });
     let body = serde_json::json!({
         "chat_id": chat_id,

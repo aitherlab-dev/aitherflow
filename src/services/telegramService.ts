@@ -162,9 +162,6 @@ async function handleIncoming(msg: TgIncoming): Promise<void> {
     case "text":
       await handleText(msg);
       break;
-    case "request_workspace":
-      await handleRequestWorkspace();
-      break;
     case "request_menu":
       await handleRequestMenu();
       break;
@@ -244,17 +241,6 @@ function getLastAssistantMessage(): string | null {
   return null;
 }
 
-function getLastUserMessage(): string | null {
-  const { messages } = useChatStore.getState();
-  for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i].role === "user" && messages[i].text) {
-      const text = messages[i].text!;
-      return text.length > 500 ? "..." + text.slice(-500) : text;
-    }
-  }
-  return null;
-}
-
 function getCurrentAgentName(): string | null {
   const { agentId } = useChatStore.getState();
   if (!agentId) return null;
@@ -281,7 +267,6 @@ async function handleRequestMenu(): Promise<void> {
       projectName: a.projectName,
     })),
     currentAgent: getCurrentAgentName(),
-    lastUserMessage: getLastUserMessage(),
     lastMessage: getLastAssistantMessage(),
     isThinking,
   }).catch(console.error);
@@ -369,36 +354,6 @@ async function handleSwitchAgent(agentId: string): Promise<void> {
       }).catch(console.error);
     }
   }
-}
-
-async function handleRequestWorkspace(): Promise<void> {
-  const { projects } = useProjectStore.getState();
-  // Find workspace by path (name may be renamed by user)
-  const workspace = projects.find((p) => p.path.endsWith("/Workspace")) ?? projects[0];
-  if (!workspace) {
-    await invoke("send_to_telegram", {
-      text: "No projects configured",
-    }).catch(console.error);
-    return;
-  }
-
-  // Check if there's already an agent running in Workspace
-  const { agents, setActiveAgent } = useAgentStore.getState();
-  const existingAgent = agents.find((a) => a.projectPath === workspace.path);
-  if (existingAgent) {
-    // Switch to existing workspace agent
-    await setActiveAgent(existingAgent.id);
-    await invoke("send_to_telegram", {
-      text: `Switched to Workspace agent`,
-    }).catch(console.error);
-    return;
-  }
-
-  // Create new agent in Workspace
-  await useAgentStore.getState().createAgent(workspace.path, workspace.name);
-  await invoke("send_to_telegram", {
-    text: `Workspace agent started`,
-  }).catch(console.error);
 }
 
 async function handleNewSession(

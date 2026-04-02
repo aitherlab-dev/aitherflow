@@ -23,7 +23,6 @@ fn resolve_callback(data: &str) -> Option<String> {
 
 pub(super) fn keyboard_button_kind(text: &str) -> Option<&'static str> {
     match text {
-        "Workspace" => Some("request_workspace"),
         "Active" => Some("request_agents"),
         "Projects" => Some("request_projects"),
         "Skills" => Some("request_skills"),
