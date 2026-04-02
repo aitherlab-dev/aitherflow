@@ -390,6 +390,9 @@ async fn fetch_usage_with_retry(
     let resp = client
         .get(OAUTH_USAGE_URL)
         .header("Authorization", format!("Bearer {token}"))
+        .header("anthropic-beta", "oauth-2025-04-20")
+        .header("Content-Type", "application/json")
+        .header("User-Agent", "claude-code/1.0.0")
         .send()
         .await
         .map_err(|e| format!("HTTP request failed: {e}"))?;
@@ -400,6 +403,9 @@ async fn fetch_usage_with_retry(
         let retry = client
             .get(OAUTH_USAGE_URL)
             .header("Authorization", format!("Bearer {token}"))
+            .header("anthropic-beta", "oauth-2025-04-20")
+            .header("Content-Type", "application/json")
+            .header("User-Agent", "claude-code/1.0.0")
             .send()
             .await
             .map_err(|e| format!("HTTP retry failed: {e}"))?;
