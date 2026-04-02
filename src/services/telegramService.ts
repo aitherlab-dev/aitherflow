@@ -199,9 +199,8 @@ async function handleIncoming(msg: TgIncoming): Promise<void> {
 }
 
 async function handleText(msg: TgIncoming): Promise<void> {
-  const state = useChatStore.getState();
-  const anySession = state.hasSession || [...agentStates.values()].some(s => s.hasSession);
-  if (!anySession) {
+  const { agents } = useAgentStore.getState();
+  if (agents.length === 0) {
     await invoke("send_to_telegram", {
       text: "No active agents. Start a session first.",
     }).catch(console.error);
