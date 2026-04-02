@@ -10,7 +10,7 @@ static STATS_CACHE: Mutex<Option<(u32, Instant, AggregatedStats)>> = Mutex::new(
 const CACHE_TTL_SECS: u64 = 300; // 5 minutes
 
 /// Model pricing per million tokens (USD).
-/// Prices as of 2025 for Claude models.
+/// Prices as of 2026-04 for Claude models.
 struct ModelPricing {
     input_per_m: f64,
     output_per_m: f64,
@@ -20,9 +20,9 @@ struct ModelPricing {
 fn pricing_for_model(model: &str) -> ModelPricing {
     if model.contains("opus") {
         ModelPricing {
-            input_per_m: 15.0,
-            output_per_m: 75.0,
-            cache_read_per_m: 1.875,
+            input_per_m: 5.0,
+            output_per_m: 25.0,
+            cache_read_per_m: 0.625,
         }
     } else if model.contains("haiku") {
         ModelPricing {
