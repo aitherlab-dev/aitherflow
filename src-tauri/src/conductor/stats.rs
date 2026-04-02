@@ -15,20 +15,57 @@ struct ModelPricing {
     input_per_m: f64,
     output_per_m: f64,
     cache_read_per_m: f64,
+    cache_write_per_m: f64,
+}
+
+fn is_new_opus(model: &str) -> bool {
+    model.contains("opus-4-5")
+        || model.contains("opus-4-6")
+        || model.contains("opus-4.5")
+        || model.contains("opus-4.6")
+}
+
+fn is_new_haiku(model: &str) -> bool {
+    model.contains("haiku-4-5")
+        || model.contains("haiku-4.5")
 }
 
 fn pricing_for_model(model: &str) -> ModelPricing {
     if model.contains("opus") {
-        ModelPricing {
-            input_per_m: 5.0,
-            output_per_m: 25.0,
-            cache_read_per_m: 0.625,
+        if is_new_opus(model) {
+            // Opus 4.5 / 4.6
+            ModelPricing {
+                input_per_m: 5.0,
+                output_per_m: 25.0,
+                cache_read_per_m: 0.50,
+                cache_write_per_m: 6.25,
+            }
+        } else {
+            // Opus 4.0 / 4.1
+            ModelPricing {
+                input_per_m: 15.0,
+                output_per_m: 75.0,
+                cache_read_per_m: 1.50,
+                cache_write_per_m: 18.75,
+            }
         }
     } else if model.contains("haiku") {
-        ModelPricing {
-            input_per_m: 0.80,
-            output_per_m: 4.0,
-            cache_read_per_m: 0.08,
+        if is_new_haiku(model) {
+            // Haiku 4.5
+            ModelPricing {
+                input_per_m: 1.0,
+                output_per_m: 5.0,
+                cache_read_per_m: 0.10,
+                cache_write_per_m: 1.25,
+            }
+        } else {
+            // Haiku 3.5
+            ModelPricing {
+                input_per_m: 0.80,
+                output_per_m: 4.0,
+                cache_read_per_m: 0.08,
+                cache_write_per_m: 1.0,
+            }
         }
     } else {
         // Sonnet / default
@@ -36,6 +73,7 @@ fn pricing_for_model(model: &str) -> ModelPricing {
             input_per_m: 3.0,
             output_per_m: 15.0,
             cache_read_per_m: 0.30,
+            cache_write_per_m: 3.75,
         }
     }
 }
@@ -43,7 +81,8 @@ fn pricing_for_model(model: &str) -> ModelPricing {
 fn estimate_cost(model: &str, input: u64, cache_creation: u64, cache_read: u64, output: u64) -> f64 {
     let p = pricing_for_model(model);
     let m = 1_000_000.0;
-    ((input + cache_creation) as f64 * p.input_per_m
+    (input as f64 * p.input_per_m
+        + cache_creation as f64 * p.cache_write_per_m
         + cache_read as f64 * p.cache_read_per_m
         + output as f64 * p.output_per_m)
         / m
@@ -114,6 +153,15 @@ struct CachedSession {
 /// Disk cache: path → CachedSession.
 type DiskCache = HashMap<String, CachedSession>;
 
+/// Bump this when pricing formula or CachedSession fields change.
+const DISK_CACHE_VERSION: u32 = 2;
+
+#[derive(Serialize, Deserialize)]
+struct VersionedDiskCache {
+    version: u32,
+    entries: DiskCache,
+}
+
 fn cache_path() -> Option<PathBuf> {
     let cache_dir = dirs::cache_dir()?.join("aither-flow");
     Some(cache_dir.join("cli-stats-cache.json"))
@@ -123,10 +171,17 @@ fn load_disk_cache() -> DiskCache {
     let Some(path) = cache_path() else {
         return HashMap::new();
     };
-    std::fs::read_to_string(&path)
-        .ok()
-        .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_default()
+    let raw = match std::fs::read_to_string(&path) {
+        Ok(s) => s,
+        Err(_) => return HashMap::new(),
+    };
+    if let Ok(versioned) = serde_json::from_str::<VersionedDiskCache>(&raw) {
+        if versioned.version == DISK_CACHE_VERSION {
+            return versioned.entries;
+        }
+        eprintln!("[stats] Cache version mismatch (got {}, expected {DISK_CACHE_VERSION}), resetting", versioned.version);
+    }
+    HashMap::new()
 }
 
 fn save_disk_cache(cache: &DiskCache) {
@@ -137,7 +192,8 @@ fn save_disk_cache(cache: &DiskCache) {
             return;
         }
     }
-    if let Ok(json) = serde_json::to_string(cache) {
+    let versioned = VersionedDiskCache { version: DISK_CACHE_VERSION, entries: cache.clone() };
+    if let Ok(json) = serde_json::to_string(&versioned) {
         if let Err(e) = crate::file_ops::atomic_write(&path, json.as_bytes()) {
             eprintln!("[stats] Failed to write cache: {e}");
         }
