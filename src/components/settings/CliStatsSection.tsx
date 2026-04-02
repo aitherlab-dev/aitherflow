@@ -30,6 +30,8 @@ interface AggregatedStats {
   total_cost: number;
   total_input_tokens: number;
   total_output_tokens: number;
+  total_cache_read_tokens: number;
+  total_cache_creation_tokens: number;
   total_sessions: number;
   by_day: DayStats[];
   by_model: ModelStats[];
@@ -112,8 +114,8 @@ export const CliStatsSection = memo(function CliStatsSection() {
           <span className="cli-stats__card-value">{formatCost(stats.total_cost)}</span>
         </div>
         <div className="cli-stats__card">
-          <span className="cli-stats__card-label">Input Tokens</span>
-          <span className="cli-stats__card-value">{formatTokens(stats.total_input_tokens)}</span>
+          <span className="cli-stats__card-label">Context Tokens</span>
+          <span className="cli-stats__card-value">{formatTokens(stats.total_input_tokens + (stats.total_cache_read_tokens ?? 0) + (stats.total_cache_creation_tokens ?? 0))}</span>
         </div>
         <div className="cli-stats__card">
           <span className="cli-stats__card-label">Output Tokens</span>

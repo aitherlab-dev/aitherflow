@@ -130,6 +130,8 @@ pub struct AggregatedStats {
     pub total_cost: f64,
     pub total_input_tokens: u64,
     pub total_output_tokens: u64,
+    pub total_cache_read_tokens: u64,
+    pub total_cache_creation_tokens: u64,
     pub total_sessions: u32,
     pub by_day: Vec<DayStats>,
     pub by_model: Vec<ModelStats>,
@@ -367,12 +369,16 @@ fn aggregate_cli_stats_inner(days: u32) -> Result<AggregatedStats, String> {
     let total_cost: f64 = by_day_vec.iter().map(|d| d.cost).sum();
     let total_input: u64 = by_day_vec.iter().map(|d| d.input_tokens).sum();
     let total_output: u64 = by_day_vec.iter().map(|d| d.output_tokens).sum();
+    let total_cache_read: u64 = by_day_vec.iter().map(|d| d.cache_read_tokens).sum();
+    let total_cache_creation: u64 = by_day_vec.iter().map(|d| d.cache_creation_tokens).sum();
     let total_sessions: u32 = by_day_vec.iter().map(|d| d.sessions).sum();
 
     Ok(AggregatedStats {
         total_cost,
         total_input_tokens: total_input,
         total_output_tokens: total_output,
+        total_cache_read_tokens: total_cache_read,
+        total_cache_creation_tokens: total_cache_creation,
         total_sessions,
         by_day: by_day_vec,
         by_model: by_model_vec,
@@ -566,6 +572,8 @@ fn empty_stats() -> AggregatedStats {
         total_cost: 0.0,
         total_input_tokens: 0,
         total_output_tokens: 0,
+        total_cache_read_tokens: 0,
+        total_cache_creation_tokens: 0,
         total_sessions: 0,
         by_day: vec![],
         by_model: vec![],
