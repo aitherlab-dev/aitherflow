@@ -180,7 +180,7 @@ const SubscriptionLimitsBlock = memo(function SubscriptionLimitsBlock() {
       })
       .catch((e) => {
         console.error(e);
-        setError("Rate limited, try again later");
+        setError(String(e));
       })
       .finally(() => setRefreshing(false));
   }, []);

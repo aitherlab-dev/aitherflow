@@ -350,6 +350,16 @@ pub async fn get_subscription_usage(force: bool) -> Result<SubscriptionUsage, St
             .map_err(|e| format!("Failed to read credentials: {e}"))?;
         let parsed: serde_json::Value = serde_json::from_str(&raw)
             .map_err(|e| format!("Failed to parse credentials: {e}"))?;
+
+        // Check token expiry if available
+        if let Some(expires_at) = parsed.pointer("/claudeAiOauth/expiresAt").and_then(|v| v.as_str()) {
+            if let Ok(exp) = chrono::DateTime::parse_from_rfc3339(expires_at) {
+                if exp < chrono::Utc::now() {
+                    return Err("OAuth token expired".to_string());
+                }
+            }
+        }
+
         parsed
             .pointer("/claudeAiOauth/accessToken")
             .and_then(|v| v.as_str())
@@ -360,7 +370,7 @@ pub async fn get_subscription_usage(force: bool) -> Result<SubscriptionUsage, St
     .map_err(|e| format!("Task failed: {e}"))??;
 
     let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(5))
+        .timeout(std::time::Duration::from_secs(10))
         .build()
         .map_err(|e| format!("HTTP client error: {e}"))?;
 
@@ -381,7 +391,6 @@ async fn fetch_usage_with_retry(
     let resp = client
         .get(OAUTH_USAGE_URL)
         .header("Authorization", format!("Bearer {token}"))
-        .header("Content-Type", "application/json")
         .send()
         .await
         .map_err(|e| format!("HTTP request failed: {e}"))?;
@@ -392,13 +401,15 @@ async fn fetch_usage_with_retry(
         let retry = client
             .get(OAUTH_USAGE_URL)
             .header("Authorization", format!("Bearer {token}"))
-            .header("Content-Type", "application/json")
             .send()
             .await
             .map_err(|e| format!("HTTP retry failed: {e}"))?;
 
         if !retry.status().is_success() {
-            return Err(format!("API returned {} after retry", retry.status()));
+            let status = retry.status();
+            let body = retry.text().await.unwrap_or_default();
+            eprintln!("[conductor] OAuth usage API error {status}: {body}");
+            return Err(format!("API returned {status} after retry"));
         }
 
         return retry
@@ -408,7 +419,10 @@ async fn fetch_usage_with_retry(
     }
 
     if !resp.status().is_success() {
-        return Err(format!("API returned {}", resp.status()));
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        eprintln!("[conductor] OAuth usage API error {status}: {body}");
+        return Err(format!("API returned {status}"));
     }
 
     resp.json::<SubscriptionUsage>()
