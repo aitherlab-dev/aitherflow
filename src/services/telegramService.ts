@@ -196,6 +196,14 @@ async function handleIncoming(msg: TgIncoming): Promise<void> {
 }
 
 async function handleText(msg: TgIncoming): Promise<void> {
+  const { hasSession } = useChatStore.getState();
+  if (!hasSession) {
+    await invoke("send_to_telegram", {
+      text: "No active agents. Start a session first.",
+    }).catch(console.error);
+    return;
+  }
+
   const attachments: Attachment[] = [];
   if (msg.attachment_path) {
     try {
