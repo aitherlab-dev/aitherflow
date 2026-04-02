@@ -10,6 +10,12 @@ use super::{
     TelegramStatus, TgIncoming, TgOutgoing,
 };
 
+/// Pad text with braille blanks so inline-keyboard bubble stretches full width.
+fn wide(label: &str) -> String {
+    const PAD: &str = "\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}\u{2800}";
+    format!("{label}{PAD}")
+}
+
 // ── Tauri commands ──
 
 #[tauri::command]
@@ -253,20 +259,20 @@ fn clear_and_register_callbacks(payloads: &[String]) -> Vec<String> {
     })
 }
 
-/// Send dashboard: current agent + last message + reply keyboard (2×2 grid)
+/// Send dashboard: current agent + last messages + reply keyboard (3×2 grid)
 #[tauri::command]
 pub async fn telegram_send_menu(
     agents: Vec<serde_json::Value>,
     current_agent: Option<String>,
+    last_user_message: Option<String>,
     last_message: Option<String>,
     is_thinking: bool,
 ) -> Result<(), String> {
     let (token, chat_id, client) = get_bot_connection()?;
 
     let keyboard = vec![
-        vec!["Active".to_string(), "Projects".to_string()],
-        vec!["Skills".to_string(), "Stop".to_string()],
-        vec!["Team".to_string()],
+        vec!["Workspace".to_string(), "Active".to_string(), "Projects".to_string()],
+        vec!["Skills".to_string(), "Stop".to_string(), "Team".to_string()],
     ];
 
     // Build dashboard text
@@ -275,8 +281,11 @@ pub async fn telegram_send_menu(
         let status = if is_thinking { "thinking..." } else { "idle" };
         text.push_str(&format!("*{agent}* — {status}\n\n"));
     }
+    if let Some(user_msg) = &last_user_message {
+        text.push_str(&format!("*You:* {user_msg}\n\n"));
+    }
     if let Some(msg) = &last_message {
-        text.push_str(msg);
+        text.push_str(&format!("*Agent:* {msg}"));
     }
     if text.is_empty() {
         text.push_str("No active session");
@@ -303,7 +312,7 @@ pub async fn telegram_send_menu(
             "text": "\u{2715} Cancel",
             "callback_data": "cancel",
         })]);
-        tg_send_inline_keyboard(&client, &token, chat_id, "Switch agent:", buttons).await?;
+        tg_send_inline_keyboard(&client, &token, chat_id, &wide("Switch agent:"), buttons).await?;
     }
 
     Ok(())
@@ -345,7 +354,7 @@ pub async fn telegram_send_agents(agents: Vec<serde_json::Value>) -> Result<(), 
         "text": "\u{2715} Cancel",
         "callback_data": "cancel",
     })]);
-    tg_send_inline_keyboard(&client, &token, chat_id, "Active agents:", buttons).await
+    tg_send_inline_keyboard(&client, &token, chat_id, &wide("Active agents:"), buttons).await
 }
 
 /// Send projects list with inline keyboard
@@ -375,7 +384,7 @@ pub async fn telegram_send_projects(projects: Vec<serde_json::Value>) -> Result<
         "callback_data": "cancel",
     })]);
 
-    tg_send_inline_keyboard(&client, &token, chat_id, "Start session:", buttons).await
+    tg_send_inline_keyboard(&client, &token, chat_id, &wide("Start session:"), buttons).await
 }
 
 /// Send project list for team assembly (user picks project, then picks roles)
@@ -405,7 +414,7 @@ pub async fn telegram_send_team_projects(projects: Vec<serde_json::Value>) -> Re
         "callback_data": "cancel",
     })]);
 
-    tg_send_inline_keyboard(&client, &token, chat_id, "Launch team in:", buttons).await
+    tg_send_inline_keyboard(&client, &token, chat_id, &wide("Launch team in:"), buttons).await
 }
 
 /// Stream via sendMessage + editMessageText.
@@ -460,7 +469,7 @@ pub async fn telegram_send_skills(skills: Vec<serde_json::Value>) -> Result<(), 
         "callback_data": "cancel",
     })]);
 
-    tg_send_inline_keyboard(&client, &token, chat_id, "Skills:", buttons).await
+    tg_send_inline_keyboard(&client, &token, chat_id, &wide("Skills:"), buttons).await
 }
 
 /// Send stop menu with inline keyboard listing active agents
@@ -490,7 +499,7 @@ pub async fn telegram_send_stop(agents: Vec<serde_json::Value>) -> Result<(), St
         "callback_data": "cancel",
     })]);
 
-    tg_send_inline_keyboard(&client, &token, chat_id, "Stop session:", buttons).await
+    tg_send_inline_keyboard(&client, &token, chat_id, &wide("Stop session:"), buttons).await
 }
 
 /// Reset stream message_id (call after streaming finishes)
