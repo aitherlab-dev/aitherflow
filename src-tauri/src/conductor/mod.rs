@@ -351,12 +351,11 @@ pub async fn get_subscription_usage(force: bool) -> Result<SubscriptionUsage, St
         let parsed: serde_json::Value = serde_json::from_str(&raw)
             .map_err(|e| format!("Failed to parse credentials: {e}"))?;
 
-        // Check token expiry if available
-        if let Some(expires_at) = parsed.pointer("/claudeAiOauth/expiresAt").and_then(|v| v.as_str()) {
-            if let Ok(exp) = chrono::DateTime::parse_from_rfc3339(expires_at) {
-                if exp < chrono::Utc::now() {
-                    return Err("OAuth token expired".to_string());
-                }
+        // Check token expiry if available (expiresAt is Unix timestamp in milliseconds)
+        if let Some(expires_at) = parsed.pointer("/claudeAiOauth/expiresAt").and_then(|v| v.as_i64()) {
+            let now_ms = chrono::Utc::now().timestamp_millis();
+            if expires_at < now_ms {
+                return Err("OAuth token expired".to_string());
             }
         }
 
