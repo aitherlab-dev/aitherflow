@@ -15,7 +15,8 @@ use super::config as rag_config;
 
 // --- Model configuration ---
 
-const DET_MODEL_FILE: &str = "ch_PP-OCRv5_mobile_det.onnx";
+// NOTE: PP-OCRv5 det (opset 14) broken with ort 2.0.0-rc.11 — using v4 (opset 12)
+const DET_MODEL_FILE: &str = "pp-ocrv4-det.onnx";
 
 // Two recognition models: Latin (PP-OCRv5) and Cyrillic (PP-OCRv5)
 const REC_LATIN_MODEL_FILE: &str = "latin_PP-OCRv5_rec_mobile_infer.onnx";
@@ -25,7 +26,7 @@ const REC_CYR_DICT_FILE: &str = "ppocrv5_cyrillic_dict.txt";
 
 // ONNX model URLs
 const DET_MODEL_URL: &str =
-    "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.7.0/onnx/PP-OCRv5/det/ch_PP-OCRv5_mobile_det.onnx";
+    "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.0.0/onnx/PP-OCRv4/det/pp-ocrv4-det.onnx";
 const REC_LATIN_MODEL_URL: &str =
     "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.7.0/onnx/PP-OCRv5/rec/latin_PP-OCRv5_rec_mobile_infer.onnx";
 const REC_LATIN_DICT_URL: &str =

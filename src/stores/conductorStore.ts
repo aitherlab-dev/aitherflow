@@ -82,7 +82,7 @@ export const useConductorStore = create<ConductorState>((set, get) => ({
   // Initial state
   sessionId: null,
   model: null,
-  selectedModel: "opus",
+  selectedModel: "",
   selectedEffort: "high",
   selectedPermissionMode: "default",
   error: null,
