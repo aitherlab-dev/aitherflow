@@ -63,56 +63,9 @@ jobs:
           name: linux-bundles
           path: release-assets/*
 
-  build-macos:
-    name: Build macOS
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-
-      - name: Install system dependencies
-        run: brew install protobuf
-
-      - run: pnpm install --frozen-lockfile
-
-      - name: Build MCP image-gen server
-        run: |
-          cargo build --release --manifest-path mcp-image-gen/Cargo.toml
-          mkdir -p src-tauri/binaries
-          TRIPLE=$(rustc -vV | grep host | awk '{print $2}')
-          cp target/release/mcp-image-gen src-tauri/binaries/mcp-image-gen-${TRIPLE}
-
-      - run: pnpm tauri build
-
-      - name: Collect macOS bundles
-        run: |
-          mkdir -p release-assets
-          cp target/release/bundle/dmg/*.dmg release-assets/ 2>/dev/null || true
-          ls -la release-assets/
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-bundles
-          path: release-assets/*
-
   publish:
     name: Publish Release
-    needs: [build-linux, build-macos]
+    needs: [build-linux]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4

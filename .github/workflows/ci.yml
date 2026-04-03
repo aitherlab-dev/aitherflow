@@ -48,24 +48,3 @@ jobs:
           TRIPLE=$(rustc -vV | grep host | awk '{print $2}')
           cp target/release/mcp-image-gen src-tauri/binaries/mcp-image-gen-${TRIPLE}
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
-
-  check-backend-macos:
-    name: Backend (Rust + Clippy) — macOS
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-      - uses: swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-      - name: Install system dependencies
-        run: brew install protobuf
-      - name: Build MCP image-gen server
-        run: |
-          cargo build --release --manifest-path mcp-image-gen/Cargo.toml
-          mkdir -p src-tauri/binaries
-          TRIPLE=$(rustc -vV | grep host | awk '{print $2}')
-          cp target/release/mcp-image-gen src-tauri/binaries/mcp-image-gen-${TRIPLE}
-      - run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
