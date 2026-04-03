@@ -157,7 +157,7 @@ Talk to Claude with your ACTUAL VOICE. *[taps microphone, causes feedback]* It u
 | Data | JSON files | Just files. On your disk. No databaise. Simple, like me. |
 | Image Gen | diffusion-rs / FLUX.2, FLUX.1, SDXL, Z-Image | Your video card becomes an artist. FLUX, LoRA, the whole shebang. Add any model from HuggingFace and it just works. Like Picasso but with more VRAM. |
 | Scheduling | Cron + Tokio | Your compurter has an alarm clock now. Very responsible. |
-| Platforms | Linux + macOS | No Windoes, sorry. *[whispers to camera]* we don't talk about Windoes here |
+| Platforms | Linux | No Windoes, no Macs, sorry. *[whispers to camera]* we don't talk about those here |
 
 ---
 
@@ -179,7 +179,6 @@ Go to **[Releases](https://github.com/aitherlab-dev/aitherflow/releases)** and g
 | Platform | Format | Notes |
 |----------|--------|-------|
 | **Linux** | `.deb`, `.rpm` | For Ubuntu people and Fedora people. You know who you are. |
-| **macOS** | `.dmg` | Apple Silicon. Right-click → Open → Open because Apple doesn't trust us. Rude. |
 
 ### Bilding from Sorse
 

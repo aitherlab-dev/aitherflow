@@ -158,9 +158,6 @@ Go to [Releases](https://github.com/aitherlab-dev/aitherflow/releases) and downl
 | Platform | Format |
 |----------|--------|
 | **Linux** | `.deb` (Ubuntu/Debian), `.rpm` (Fedora) |
-| **macOS** | `.dmg` (Apple Silicon) |
-
-> **macOS note:** The app is not signed with an Apple Developer certificate. On first launch, right-click the app → Open → Open to bypass Gatekeeper.
 
 ### Build from source
 
@@ -197,7 +194,6 @@ pnpm tauri dev
 ## Platforms
 
 - **Linux** — deb, rpm
-- **macOS** — dmg (Apple Silicon)
 
 ## License
 

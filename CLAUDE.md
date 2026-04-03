@@ -10,7 +10,7 @@ aitherflow — десктопная GUI-обёртка для Claude Code CLI. C
 - **Фронтенд:** React 19 + TypeScript + Vite + Tailwind CSS v4
 - **Тема:** тёплая палитра (dark: кофейные тона, light: aitherlab.org), CSS-переменные
 - **Данные:** JSON (чаты, настройки)
-- **Платформы:** Linux + macOS (два билда в CI и Release)
+- **Платформы:** Linux
 
 ## Структура
 
@@ -65,11 +65,7 @@ CI: `tsc --noEmit` + `eslint` + `cargo clippy -D warnings`. Release на тег 
 - `atomic_write()` для записи файлов, `validate_path_safe()` для пользовательских путей
 - `entry.file_type()` вместо `entry.path().is_dir()` — избегать блокирующий `stat()`
 - Не проглатывать ошибки: НЕ `let _ =`, логировать через `.map_err()`
-- **Кроссплатформенность (Linux + macOS):**
-  - Предпочитать `#[cfg(unix)]` вместо `#[cfg(target_os = "linux")]` — покрывает оба
-  - Если нужен linux-only код — обязательно обработать macOS (хотя бы no-op)
-  - Пути: только `PathBuf` / `dirs` crate, никаких захардкоженных `/`
-  - Не добавлять linux-only зависимости без `#[cfg]` guard в Cargo.toml
+- Пути: только `PathBuf` / `dirs` crate, никаких захардкоженных `/`
 
 **TypeScript/React:**
 - **НЕ добавлять Virtuoso / виртуализацию в MessageList.** Убран осознанно: конфликтует с автоскроллом при стриминге, дёргает layout, ломает UX. Простой div + ResizeObserver + memo работает нормально даже на 500+ сообщениях
