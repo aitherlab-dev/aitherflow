@@ -146,35 +146,33 @@ function ProviderCard({
       {/* Header — always visible */}
       <div className="settings-toggle-row" style={{ cursor: "pointer" }}>
         <div
-          className="settings-toggle-info"
           onClick={onToggleCollapsed}
           style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1 }}
         >
           {state.collapsed ? (
-            <ChevronRight size={16} style={{ flexShrink: 0 }} />
+            <ChevronRight size={16} style={{ flexShrink: 0, color: "var(--text-secondary)" }} />
           ) : (
-            <ChevronDown size={16} style={{ flexShrink: 0 }} />
+            <ChevronDown size={16} style={{ flexShrink: 0, color: "var(--text-secondary)" }} />
           )}
           <span className="settings-toggle-label">
             {state.name || "New Provider"}
           </span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           {state.collapsed && state.defaultModel && (
-            <span
-              className="settings-toggle-desc"
-              style={{ marginLeft: "auto", fontSize: "12px" }}
-            >
+            <span className="settings-toggle-desc" style={{ fontSize: "12px" }}>
               {state.defaultModel}
             </span>
           )}
+          <label className="toggle-switch" onClick={(e) => e.stopPropagation()}>
+            <input
+              type="checkbox"
+              checked={state.enabled}
+              onChange={() => onUpdate({ enabled: !state.enabled })}
+            />
+            <span className="toggle-switch-track" />
+          </label>
         </div>
-        <label className="toggle-switch" onClick={(e) => e.stopPropagation()}>
-          <input
-            type="checkbox"
-            checked={state.enabled}
-            onChange={() => onUpdate({ enabled: !state.enabled })}
-          />
-          <span className="toggle-switch-track" />
-        </label>
       </div>
 
       {/* Expanded content */}
@@ -390,13 +388,12 @@ function VisionSettingsBlock({
         onClick={() => setCollapsed(!collapsed)}
       >
         <div
-          className="settings-toggle-info"
           style={{ display: "flex", alignItems: "center", gap: "8px" }}
         >
           {collapsed ? (
-            <ChevronRight size={16} style={{ flexShrink: 0 }} />
+            <ChevronRight size={16} style={{ flexShrink: 0, color: "var(--text-secondary)" }} />
           ) : (
-            <ChevronDown size={16} style={{ flexShrink: 0 }} />
+            <ChevronDown size={16} style={{ flexShrink: 0, color: "var(--text-secondary)" }} />
           )}
           <span className="settings-toggle-label">Vision Settings</span>
           <span className="settings-toggle-desc">
