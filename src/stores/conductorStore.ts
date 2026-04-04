@@ -64,8 +64,10 @@ interface ConductorState {
   agentRoles: Record<string, AgentRole | null>;
   /** Default role applied when no role explicitly selected */
   defaultRole: AgentRole | null;
-  /** When true, Send button routes to local model (Ollama) instead of Claude */
-  localModelEnabled: boolean;
+  /** Chat IDs where local model mode is enabled (per-chat toggle) */
+  localModelChatIds: Set<string>;
+  /** Pending local model flag for new chats (before chatId exists) */
+  pendingLocalModel: boolean;
 
   // Actions
   setSelectedModel: (model: string) => void;
@@ -74,7 +76,8 @@ interface ConductorState {
   setAgentRole: (agentId: string, role: AgentRole | null) => void;
   getAgentRole: (agentId: string) => AgentRole | null;
   loadDefaultRole: () => Promise<void>;
-  toggleLocalModel: () => void;
+  toggleLocalModel: (chatId: string) => void;
+  isLocalModel: (chatId: string | null) => boolean;
   reset: () => void;
   saveUsageForAgent: (agentId: string) => void;
   restoreUsageForAgent: (agentId: string) => void;
@@ -99,7 +102,8 @@ export const useConductorStore = create<ConductorState>((set, get) => ({
   slashCommands: [],
   agentRoles: {},
   defaultRole: null,
-  localModelEnabled: false,
+  localModelChatIds: new Set<string>(),
+  pendingLocalModel: false,
 
   setSelectedModel: (model: string) => set({ selectedModel: model }),
   setSelectedEffort: (effort: "high" | "medium" | "low") => set({ selectedEffort: effort }),
@@ -123,7 +127,16 @@ export const useConductorStore = create<ConductorState>((set, get) => ({
     }
   },
 
-  toggleLocalModel: () => set((s) => ({ localModelEnabled: !s.localModelEnabled })),
+  toggleLocalModel: (chatId: string) => set((s) => {
+    const next = new Set(s.localModelChatIds);
+    if (next.has(chatId)) next.delete(chatId);
+    else next.add(chatId);
+    return { localModelChatIds: next };
+  }),
+  isLocalModel: (chatId: string | null) => {
+    if (chatId) return get().localModelChatIds.has(chatId);
+    return get().pendingLocalModel;
+  },
 
   reset: () =>
     set({

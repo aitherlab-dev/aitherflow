@@ -5,6 +5,7 @@
 
 import { invoke } from "../lib/transport";
 import { useChatStore } from "./chatStore";
+import { useConductorStore } from "./conductorStore";
 import { persistMessages, loadChatList } from "./chatCrud";
 import { generateTitle } from "./chatCrud";
 import type { ChatMeta } from "./chatStore";
@@ -56,6 +57,12 @@ async function ensureChat(): Promise<string | null> {
     });
     chatId = chat.id;
     useChatStore.setState({ currentChatId: chatId });
+    // Transfer pending local model flag to the new chat
+    const conductor = useConductorStore.getState();
+    if (conductor.pendingLocalModel) {
+      conductor.toggleLocalModel(chatId);
+      useConductorStore.setState({ pendingLocalModel: false });
+    }
     loadChatList().catch(console.error);
     return chatId;
   } finally {
@@ -99,11 +106,24 @@ export async function sendToLocalModel(text: string, allAttachments?: Attachment
     const ollama = config.providers.find((p) => p.provider === "ollama");
     const model = ollama?.defaultModel || "llama3";
 
+    // Build full conversation history so the model has context
+    const currentMessages = useChatStore.getState().messages;
+    const history: Array<{ role: string; content: string | ContentPart[] }> = [];
+    for (const msg of currentMessages) {
+      if (msg.role !== "user" && msg.role !== "assistant") continue;
+      // Last message is the new one — use buildContent for attachments
+      if (msg.id === userMsg.id) {
+        history.push({ role: "user", content: buildContent(text, allAttachments) });
+      } else {
+        history.push({ role: msg.role, content: msg.text });
+      }
+    }
+
     // Call streaming — events handled by localModelStreamHandler
     await invoke("external_models_call_stream", {
       provider: "ollama",
       model,
-      messages: [{ role: "user", content: buildContent(text, allAttachments) }],
+      messages: history,
       maxTokens: null,
     });
   } catch (e) {

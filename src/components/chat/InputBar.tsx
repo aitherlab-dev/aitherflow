@@ -134,7 +134,8 @@ export const InputBar = memo(function InputBar() {
     }
   }, [processFromPaths]);
 
-  const localModelEnabled = useConductorStore((s) => s.localModelEnabled);
+  const currentChatId = useChatStore((s) => s.currentChatId);
+  const localModelEnabled = useConductorStore((s) => s.isLocalModel(currentChatId));
   const toggleLocalModel = useConductorStore((s) => s.toggleLocalModel);
 
   // Send to image generation
@@ -412,7 +413,14 @@ export const InputBar = memo(function InputBar() {
               <Tooltip text={localModelEnabled ? "Local model ON — click to switch to Claude" : "Local model OFF — click to switch to Ollama"}>
                 <button
                   className={`input-bar-btn input-bar-btn--local${localModelEnabled ? " input-bar-btn--local-active" : ""}`}
-                  onClick={toggleLocalModel}
+                  onClick={() => {
+                    if (currentChatId) {
+                      toggleLocalModel(currentChatId);
+                    } else {
+                      // No chat yet — toggle pending flag for when chat is created
+                      useConductorStore.setState((s) => ({ pendingLocalModel: !s.pendingLocalModel }));
+                    }
+                  }}
                   aria-label="Toggle local model"
                 >
                   <Monitor size={18} />
