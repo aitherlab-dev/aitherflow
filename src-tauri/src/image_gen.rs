@@ -436,6 +436,7 @@ struct JsonRpcResponse {
 pub async fn image_gen_generate(prompt: String) -> Result<String, String> {
     use std::io::{BufRead, BufReader, Write};
     use std::process::{Command, Stdio};
+    use std::sync::{Arc, Mutex};
     use std::time::Duration;
 
     tokio::task::spawn_blocking(move || {
@@ -487,9 +488,26 @@ pub async fn image_gen_generate(prompt: String) -> Result<String, String> {
             .stdout
             .take()
             .ok_or("Failed to open stdout of mcp-image-gen")?;
+        let stderr = child
+            .stderr
+            .take()
+            .ok_or("Failed to open stderr of mcp-image-gen")?;
+
+        // Collect stderr in a background thread for diagnostics
+        let stderr_buf = Arc::new(Mutex::new(String::new()));
+        let stderr_buf_writer = Arc::clone(&stderr_buf);
+        std::thread::spawn(move || {
+            let mut reader = BufReader::new(stderr);
+            let mut buf = String::new();
+            while reader.read_line(&mut buf).unwrap_or(0) > 0 {
+                if let Ok(mut locked) = stderr_buf_writer.lock() {
+                    locked.push_str(&buf);
+                }
+                buf.clear();
+            }
+        });
 
         // Reader thread owns stdout and sends lines back via channel.
-        // This avoids unsafe and gives us timeout via recv_timeout.
         let (line_tx, line_rx) = std::sync::mpsc::sync_channel::<Result<String, String>>(4);
         std::thread::spawn(move || {
             let mut reader = BufReader::new(stdout);
@@ -497,22 +515,27 @@ pub async fn image_gen_generate(prompt: String) -> Result<String, String> {
                 let mut line = String::new();
                 match reader.read_line(&mut line) {
                     Ok(0) => {
-                        // EOF
                         let _ = line_tx.send(Err("mcp-image-gen: process closed stdout".into()));
                         break;
                     }
                     Ok(_) => {
                         if line_tx.send(Ok(line)).is_err() {
-                            break; // receiver dropped
+                            break;
                         }
                     }
                     Err(e) => {
-                        let _ = line_tx.send(Err(format!("Failed to read from mcp-image-gen: {e}")));
+                        let _ =
+                            line_tx.send(Err(format!("Failed to read from mcp-image-gen: {e}")));
                         break;
                     }
                 }
             }
         });
+
+        // Helper: read collected stderr for error messages
+        let get_stderr = |buf: &Arc<Mutex<String>>| -> String {
+            buf.lock().ok().map(|s| s.clone()).unwrap_or_default()
+        };
 
         // Helper: send a JSON-RPC message and wait for one line response
         let send_and_recv =
@@ -543,13 +566,40 @@ pub async fn image_gen_generate(prompt: String) -> Result<String, String> {
                     .map_err(|e| format!("Failed to parse mcp-image-gen response: {e}"))
             };
 
-        // Helper: kill child and return error
-        let kill_and_err = |child: &mut std::process::Child, msg: String| -> String {
-            if let Err(kill_err) = child.kill() {
-                eprintln!("Failed to kill mcp-image-gen: {kill_err}");
-            }
-            msg
-        };
+        // Helper: send a JSON-RPC notification (no id, no response expected)
+        let send_notification =
+            |stdin: &mut std::process::ChildStdin,
+             msg: &serde_json::Value|
+             -> Result<(), String> {
+                let mut payload = serde_json::to_string(msg)
+                    .map_err(|e| format!("Failed to serialize notification: {e}"))?;
+                payload.push('\n');
+                stdin
+                    .write_all(payload.as_bytes())
+                    .map_err(|e| format!("Failed to write notification: {e}"))?;
+                stdin
+                    .flush()
+                    .map_err(|e| format!("Failed to flush notification: {e}"))?;
+                Ok(())
+            };
+
+        // Helper: kill child, log stderr, and return error
+        let kill_and_err =
+            |child: &mut std::process::Child,
+             stderr_buf: &Arc<Mutex<String>>,
+             msg: String|
+             -> String {
+                if let Err(kill_err) = child.kill() {
+                    eprintln!("Failed to kill mcp-image-gen: {kill_err}");
+                }
+                let stderr_output = get_stderr(stderr_buf);
+                if !stderr_output.is_empty() {
+                    eprintln!("[mcp-image-gen stderr]: {stderr_output}");
+                    format!("{msg}\nstderr: {stderr_output}")
+                } else {
+                    msg
+                }
+            };
 
         // Step 1: initialize (30s timeout)
         let init_msg = serde_json::json!({
@@ -560,16 +610,34 @@ pub async fn image_gen_generate(prompt: String) -> Result<String, String> {
         });
         let init_resp =
             send_and_recv(&mut stdin, &line_rx, &init_msg, Duration::from_secs(30))
-                .map_err(|e| kill_and_err(&mut child, format!("initialize failed: {e}")))?;
+                .map_err(|e| {
+                    kill_and_err(&mut child, &stderr_buf, format!("initialize failed: {e}"))
+                })?;
 
         if let Some(err) = init_resp.error {
             return Err(kill_and_err(
                 &mut child,
+                &stderr_buf,
                 format!("mcp-image-gen initialize error: {err}"),
             ));
         }
 
-        // Step 2: generate_image (10 min timeout)
+        // Step 2: send initialized notification (MCP protocol requirement)
+        if let Err(e) = send_notification(
+            &mut stdin,
+            &serde_json::json!({
+                "jsonrpc": "2.0",
+                "method": "notifications/initialized"
+            }),
+        ) {
+            return Err(kill_and_err(
+                &mut child,
+                &stderr_buf,
+                format!("Failed to send initialized notification: {e}"),
+            ));
+        }
+
+        // Step 3: generate_image (10 min timeout)
         let gen_msg = serde_json::json!({
             "jsonrpc": "2.0",
             "id": 2,
@@ -596,8 +664,19 @@ pub async fn image_gen_generate(prompt: String) -> Result<String, String> {
         if let Err(kill_err) = child.kill() {
             eprintln!("Failed to kill mcp-image-gen: {kill_err}");
         }
+        // Log stderr regardless of outcome
+        let stderr_output = get_stderr(&stderr_buf);
+        if !stderr_output.is_empty() {
+            eprintln!("[mcp-image-gen stderr]: {stderr_output}");
+        }
 
-        let gen_resp = gen_resp?;
+        let gen_resp = gen_resp.map_err(|e| {
+            if stderr_output.is_empty() {
+                e
+            } else {
+                format!("{e}\nstderr: {stderr_output}")
+            }
+        })?;
         if let Some(err) = gen_resp.error {
             return Err(format!("mcp-image-gen generate error: {err}"));
         }
