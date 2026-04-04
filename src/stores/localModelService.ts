@@ -62,6 +62,8 @@ export async function sendToLocalModel(text: string) {
     return;
   }
 
+  persistMessages().catch(console.error);
+
   try {
     // Load Ollama config to get default model
     const config = await invoke<{ providers: Array<{ provider: string; defaultModel: string; enabled: boolean }> }>(
@@ -107,6 +109,8 @@ export async function sendToImageGen(text: string) {
     useChatStore.setState({ isThinking: false, error: "Failed to create chat" });
     return;
   }
+
+  persistMessages().catch(console.error);
 
   try {
     // Call image gen — returns the file path

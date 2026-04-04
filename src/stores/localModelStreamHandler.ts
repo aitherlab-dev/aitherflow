@@ -36,6 +36,7 @@ type LocalModelEvent = StreamChunk | StreamComplete | StreamError;
 
 let streamBuffer: string | null = null;
 let streamBufferIsNew = false;
+let streamBufferAgentId: string | null = null;
 let rafId: number | null = null;
 
 function flushStreamBuffer() {
@@ -44,10 +45,16 @@ function flushStreamBuffer() {
 
   const text = streamBuffer;
   const isNew = streamBufferIsNew;
+  const bufferedAgentId = streamBufferAgentId;
   streamBuffer = null;
   streamBufferIsNew = false;
+  streamBufferAgentId = null;
 
   const { getState: get, setState: set } = useChatStore;
+
+  // If the active agent changed since buffering, discard the stale buffer
+  if (bufferedAgentId && bufferedAgentId !== get().agentId) return;
+
   const existing = get().streamingMessage;
 
   if (!isNew && existing) {
@@ -76,6 +83,7 @@ function cancelRaf() {
   }
   streamBuffer = null;
   streamBufferIsNew = false;
+  streamBufferAgentId = null;
 }
 
 // ── Event handler ──
@@ -87,6 +95,7 @@ function handleLocalModelEvent(e: LocalModelEvent) {
     case "StreamChunk": {
       const isNew = !get().streamingMessage;
       streamBuffer = (streamBuffer ?? "") + e.text;
+      streamBufferAgentId = get().agentId;
       if (isNew) streamBufferIsNew = true;
       if (rafId === null) {
         rafId = requestAnimationFrame(flushStreamBuffer);

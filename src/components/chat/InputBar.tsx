@@ -410,7 +410,7 @@ export const InputBar = memo(function InputBar() {
                 <button
                   className="input-bar-btn input-bar-btn--local"
                   onClick={handleSendLocal}
-                  disabled={!text.trim()}
+                  disabled={!text.trim() || isThinking}
                   aria-label="Send to local model"
                 >
                   <Monitor size={18} />
@@ -420,7 +420,7 @@ export const InputBar = memo(function InputBar() {
                 <button
                   className="input-bar-btn input-bar-btn--image"
                   onClick={handleSendImage}
-                  disabled={!text.trim()}
+                  disabled={!text.trim() || isThinking}
                   aria-label="Generate image"
                 >
                   <ImageIcon size={18} />
