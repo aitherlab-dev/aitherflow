@@ -13,24 +13,24 @@ import type { ChatMessage } from "../types/chat";
 
 // ── Event types from Rust LocalModelEvent ──
 
-interface StreamChunk {
-  type: "StreamChunk";
+interface ChunkEvent {
+  type: "Chunk";
   text: string;
 }
 
-interface StreamComplete {
-  type: "StreamComplete";
+interface CompleteEvent {
+  type: "Complete";
   full_text: string;
   model: string;
   provider: string;
 }
 
-interface StreamError {
-  type: "StreamError";
+interface ErrorEvent {
+  type: "Error";
   error: string;
 }
 
-type LocalModelEvent = StreamChunk | StreamComplete | StreamError;
+type LocalModelEvent = ChunkEvent | CompleteEvent | ErrorEvent;
 
 // ── RAF batching ──
 
@@ -92,7 +92,7 @@ function handleLocalModelEvent(e: LocalModelEvent) {
   const { getState: get, setState: set } = useChatStore;
 
   switch (e.type) {
-    case "StreamChunk": {
+    case "Chunk": {
       const isNew = !get().streamingMessage;
       streamBuffer = (streamBuffer ?? "") + e.text;
       streamBufferAgentId = get().agentId;
@@ -103,7 +103,7 @@ function handleLocalModelEvent(e: LocalModelEvent) {
       break;
     }
 
-    case "StreamComplete": {
+    case "Complete": {
       cancelRaf();
       const sm = get().streamingMessage;
       const completed: ChatMessage = {
@@ -123,7 +123,7 @@ function handleLocalModelEvent(e: LocalModelEvent) {
       break;
     }
 
-    case "StreamError": {
+    case "Error": {
       cancelRaf();
       const sm = get().streamingMessage;
       // If there was partial text, commit it with an error note
