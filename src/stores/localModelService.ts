@@ -18,9 +18,18 @@ type ContentPart = TextPart | ImageUrlPart;
 
 function buildContent(text: string, attachments?: Attachment[]): string | ContentPart[] {
   const images = attachments?.filter((a) => a.fileType === "image") ?? [];
-  if (images.length === 0) return text;
+  const textFiles = attachments?.filter((a) => a.fileType === "text") ?? [];
 
-  const parts: ContentPart[] = [{ type: "text", text }];
+  // Prepend text file contents to the prompt
+  let fullText = "";
+  for (const tf of textFiles) {
+    fullText += `File: ${tf.name}\n\`\`\`\n${tf.content}\n\`\`\`\n\n`;
+  }
+  fullText += text;
+
+  if (images.length === 0) return fullText;
+
+  const parts: ContentPart[] = [{ type: "text", text: fullText }];
   for (const img of images) {
     parts.push({ type: "image_url", image_url: { url: img.content } });
   }
