@@ -1,6 +1,8 @@
+use futures_util::StreamExt;
 use reqwest::Client;
 use std::sync::OnceLock;
 use std::time::Duration;
+use tauri::Emitter;
 
 use super::types::{
     ApiErrorResponse, ChatRequest, ChatResponse, ModelInfo, ModelsResponse, OllamaTagsResponse,
@@ -201,4 +203,161 @@ async fn list_ollama_models(
             context_length: None,
         })
         .collect())
+}
+
+// ---------------------------------------------------------------------------
+// Streaming
+// ---------------------------------------------------------------------------
+
+/// Chat request with streaming enabled
+#[derive(serde::Serialize)]
+struct StreamChatRequest {
+    model: String,
+    messages: Vec<super::types::ChatMessage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_tokens: Option<u32>,
+    stream: bool,
+}
+
+/// Event emitted to the frontend during streaming
+#[derive(serde::Serialize, Clone)]
+#[serde(tag = "type")]
+pub enum LocalModelEvent {
+    Chunk { text: String },
+    Complete { full_text: String, model: String, provider: String },
+    Error { error: String },
+}
+
+/// SSE delta structure from OpenAI-compatible streaming response
+#[derive(serde::Deserialize)]
+struct StreamDelta {
+    content: Option<String>,
+}
+
+#[derive(serde::Deserialize)]
+struct StreamChoice {
+    delta: StreamDelta,
+}
+
+#[derive(serde::Deserialize)]
+struct StreamChunkResponse {
+    choices: Vec<StreamChoice>,
+}
+
+const STREAM_EVENT_NAME: &str = "local-model-stream";
+
+/// Call a chat completions model with streaming via SSE.
+/// Each chunk is emitted as a Tauri event to the frontend.
+pub async fn call_model_stream(
+    app: &tauri::AppHandle,
+    provider: &Provider,
+    api_key: &str,
+    model: &str,
+    messages: Vec<super::types::ChatMessage>,
+    max_tokens: Option<u32>,
+    base_url_override: Option<&str>,
+) -> Result<(), String> {
+    let client = get_client();
+    let base = effective_base_url(provider, base_url_override);
+    let url = format!("{base}/chat/completions");
+
+    let request = StreamChatRequest {
+        model: model.to_string(),
+        messages,
+        max_tokens,
+        stream: true,
+    };
+
+    let mut req = client.post(&url).json(&request);
+
+    if provider.requires_api_key() {
+        req = req.header("Authorization", format!("Bearer {api_key}"));
+    }
+
+    if *provider == Provider::OpenRouter {
+        req = req
+            .header("HTTP-Referer", APP_URL)
+            .header("X-Title", APP_TITLE);
+    }
+
+    let response = req.send().await.map_err(|e| {
+        if e.is_timeout() {
+            format!("{}: request timed out after {TIMEOUT_SECS}s", provider.display_name())
+        } else if e.is_connect() {
+            if *provider == Provider::Ollama {
+                "Ollama not running — connection refused. Start Ollama first.".to_string()
+            } else {
+                format!("{}: connection failed — check your network", provider.display_name())
+            }
+        } else {
+            format!("{}: request failed: {e}", provider.display_name())
+        }
+    })?;
+
+    let status = response.status();
+    if !status.is_success() {
+        let body = response.text().await.unwrap_or_default();
+        return Err(parse_api_error(provider, status.as_u16(), &body));
+    }
+
+    let mut full_text = String::new();
+    let mut stream = response.bytes_stream();
+    let mut buffer = String::new();
+
+    while let Some(chunk_result) = stream.next().await {
+        let chunk = chunk_result
+            .map_err(|e| format!("{}: stream read error: {e}", provider.display_name()))?;
+
+        buffer.push_str(&String::from_utf8_lossy(&chunk));
+
+        // Process complete SSE lines from buffer
+        while let Some(line_end) = buffer.find('\n') {
+            let line = buffer[..line_end].trim().to_string();
+            buffer = buffer[line_end + 1..].to_string();
+
+            if line.is_empty() || line.starts_with(':') {
+                continue;
+            }
+
+            if let Some(data) = line.strip_prefix("data: ") {
+                let data = data.trim();
+
+                if data == "[DONE]" {
+                    app.emit(STREAM_EVENT_NAME, LocalModelEvent::Complete {
+                        full_text: full_text.clone(),
+                        model: model.to_string(),
+                        provider: provider.display_name().to_string(),
+                    }).map_err(|e| format!("Failed to emit stream complete event: {e}"))?;
+                    return Ok(());
+                }
+
+                match serde_json::from_str::<StreamChunkResponse>(data) {
+                    Ok(parsed) => {
+                        if let Some(content) = parsed.choices.first()
+                            .and_then(|c| c.delta.content.as_deref())
+                        {
+                            if !content.is_empty() {
+                                full_text.push_str(content);
+                                app.emit(STREAM_EVENT_NAME, LocalModelEvent::Chunk {
+                                    text: content.to_string(),
+                                }).map_err(|e| format!("Failed to emit stream chunk event: {e}"))?;
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to parse SSE chunk: {e}, data: {data}");
+                    }
+                }
+            }
+        }
+    }
+
+    // Stream ended without [DONE] — emit complete with what we have
+    app.emit(STREAM_EVENT_NAME, LocalModelEvent::Complete {
+        full_text: full_text.clone(),
+        model: model.to_string(),
+        provider: provider.display_name().to_string(),
+    }).map_err(|e| format!("Failed to emit stream complete event: {e}"))?;
+
+    Ok(())
 }

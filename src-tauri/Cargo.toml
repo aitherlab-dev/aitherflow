@@ -31,7 +31,7 @@ notify = "7"
 notify-debouncer-mini = "0.5"
 cpal = "0.15"
 hound = "3.5"
-reqwest = { version = "0.12", features = ["multipart", "json", "blocking"] }
+reqwest = { version = "0.12", features = ["multipart", "json", "blocking", "stream"] }
 chrono = "0.4"
 tokio-tungstenite = { version = "0.26", features = ["native-tls"] }
 rubato = "0.16"

@@ -4,9 +4,12 @@ pub mod mcp_server;
 pub mod types;
 pub mod vision;
 
+use tauri::Emitter;
 use types::{
     ChatMessage, ChatResponse, ExternalModelsConfig, MessageContent, ModelInfo, Provider, Role,
 };
+
+pub use client::LocalModelEvent;
 
 /// Call an external model via OpenAI-compatible API
 #[tauri::command]
@@ -19,6 +22,35 @@ pub async fn external_models_call(
     let (api_key, base_url) = get_provider_credentials(&provider).await?;
     client::call_model(&provider, &api_key, &model, messages, max_tokens, base_url.as_deref())
         .await
+}
+
+/// Call an external model with streaming — chunks emitted as "local-model-stream" events
+#[tauri::command]
+pub async fn external_models_call_stream(
+    app: tauri::AppHandle,
+    provider: Provider,
+    model: String,
+    messages: Vec<ChatMessage>,
+    max_tokens: Option<u32>,
+) -> Result<(), String> {
+    let (api_key, base_url) = get_provider_credentials(&provider).await?;
+
+    if let Err(e) = client::call_model_stream(
+        &app,
+        &provider,
+        &api_key,
+        &model,
+        messages,
+        max_tokens,
+        base_url.as_deref(),
+    ).await {
+        let _ = app.emit("local-model-stream", LocalModelEvent::Error {
+            error: e.clone(),
+        }).map_err(|emit_err| eprintln!("Failed to emit stream error event: {emit_err}"));
+        return Err(e);
+    }
+
+    Ok(())
 }
 
 /// Test connection to a provider by sending a simple "say hi" request

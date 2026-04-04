@@ -182,6 +182,7 @@ pub fn run() {
             claude_md::read_claude_md,
             claude_md::save_claude_md,
             external_models::external_models_call,
+            external_models::external_models_call_stream,
             external_models::external_models_test_connection,
             external_models::external_models_list_models,
             external_models::external_models_save_config,
