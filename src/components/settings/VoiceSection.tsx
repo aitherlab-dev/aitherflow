@@ -49,7 +49,7 @@ export function VoiceSection() {
       .then((s) => {
         groqKey.setFromLoad(s.groqApiKey || "");
         deepgramKey.setFromLoad(s.deepgramApiKey || "");
-        setSettings(s);
+        setSettings({ ...s, groqApiKey: "", deepgramApiKey: "" });
       })
       .catch(console.error);
     invoke<AnthropicAuthStatus>("voice_check_anthropic_auth")

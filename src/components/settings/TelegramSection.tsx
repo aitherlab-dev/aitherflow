@@ -44,7 +44,7 @@ export function TelegramSection() {
       .then(([cfg, st]) => {
         tokenSecret.setFromLoad(cfg.bot_token || "");
         groqSecret.setFromLoad(cfg.groq_api_key || "");
-        setConfig(cfg);
+        setConfig({ ...cfg, bot_token: null, groq_api_key: null });
         setStatus(st);
         setLoaded(true);
       })

@@ -12,11 +12,9 @@ export function useMaskedSecret(options?: UseMaskedSecretOptions) {
   const clearOnEmpty = options?.clearOnEmpty ?? true;
   const realRef = useRef("");
   const [displayValue, setDisplayValue] = useState("");
-  const [showRaw, setShowRaw] = useState(false);
-
   const setFromLoad = useCallback((realVal: string) => {
     realRef.current = realVal;
-    setDisplayValue(realVal ? `****${realVal.slice(-4)}` : "");
+    setDisplayValue(realVal ? (realVal.length > 4 ? `****${realVal.slice(-4)}` : "****") : "");
   }, []);
 
   const setFromInput = useCallback(
@@ -31,9 +29,7 @@ export function useMaskedSecret(options?: UseMaskedSecretOptions) {
     [clearOnEmpty],
   );
 
-  const toggleShow = useCallback(() => setShowRaw((p) => !p), []);
-
-  return { displayValue, realRef, setFromInput, setFromLoad, showRaw, toggleShow };
+  return { displayValue, realRef, setFromInput, setFromLoad };
 }
 
 /**
