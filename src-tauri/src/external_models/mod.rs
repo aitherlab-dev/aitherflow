@@ -44,9 +44,11 @@ pub async fn external_models_call_stream(
         max_tokens,
         base_url.as_deref(),
     ).await {
-        let _ = app.emit("local-model-stream", LocalModelEvent::Error {
+        if let Err(emit_err) = app.emit("local-model-stream", LocalModelEvent::Error {
             error: e.clone(),
-        }).map_err(|emit_err| eprintln!("Failed to emit stream error event: {emit_err}"));
+        }) {
+            eprintln!("Failed to emit stream error event: {emit_err}");
+        }
         return Err(e);
     }
 
