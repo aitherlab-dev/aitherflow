@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { ChevronRight, FileText, Settings, Sparkles, Star } from "lucide-react";
 import { useSkillStore } from "../../../stores/skillStore";
@@ -30,21 +30,11 @@ const SkillRowMini = memo(function SkillRowMini({
     (s) => s.cache.entries[`skill:${skill.id}`],
   );
   const desc = translated || skill.description || skill.name;
-  const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleFileClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      if (clickTimer.current) {
-        clearTimeout(clickTimer.current);
-        clickTimer.current = null;
-        useFileViewerStore.getState().openPinned(skill.filePath).catch(console.error);
-      } else {
-        clickTimer.current = setTimeout(() => {
-          clickTimer.current = null;
-          useFileViewerStore.getState().openPreview(skill.filePath).catch(console.error);
-        }, 250);
-      }
+      useFileViewerStore.getState().openPreview(skill.filePath).catch(console.error);
     },
     [skill.filePath],
   );
@@ -58,7 +48,7 @@ const SkillRowMini = memo(function SkillRowMini({
         <button
           className="skills-row__file-btn"
           onClick={handleFileClick}
-          title="Click: preview, double-click: open"
+          title="Preview skill file"
         >
           <FileText size={13} />
         </button>
