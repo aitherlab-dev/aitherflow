@@ -1,52 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::fmt;
-
-/// Supported external model providers
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "lowercase")]
-pub enum Provider {
-    OpenRouter,
-    Google,
-    Ollama,
-}
-
-impl Provider {
-    pub fn display_name(&self) -> &'static str {
-        match self {
-            Provider::OpenRouter => "OpenRouter",
-            Provider::Google => "Google Gemini",
-            Provider::Ollama => "Ollama",
-        }
-    }
-
-    pub fn base_url(&self) -> &'static str {
-        match self {
-            Provider::OpenRouter => "https://openrouter.ai/api/v1",
-            Provider::Google => "https://generativelanguage.googleapis.com/v1beta/openai",
-            Provider::Ollama => "http://localhost:11434/v1",
-        }
-    }
-
-    /// Keyring key for storing the API key
-    pub fn secret_key(&self) -> &'static str {
-        match self {
-            Provider::OpenRouter => "external-openrouter-api-key",
-            Provider::Google => "external-google-api-key",
-            Provider::Ollama => "ollama-api-key",
-        }
-    }
-
-    /// Whether this provider requires an API key
-    pub fn requires_api_key(&self) -> bool {
-        !matches!(self, Provider::Ollama)
-    }
-}
-
-impl fmt::Display for Provider {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.display_name())
-    }
-}
 
 /// Role in a chat message
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -156,17 +108,43 @@ pub struct OllamaModel {
     pub name: String,
 }
 
-/// Per-provider configuration (stored on disk, API key in keyring)
+/// Per-provider configuration — dynamic, user-defined providers
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderConfig {
-    pub provider: Provider,
-    pub enabled: bool,
+    pub id: String,
+    pub name: String,
+    /// "openai_compatible" or "ollama"
+    pub provider_type: String,
+    pub base_url: String,
     #[serde(default)]
     pub default_model: String,
-    /// Custom base URL (used by Ollama for non-default ports)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub base_url: Option<String>,
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub requires_api_key: bool,
+}
+
+impl ProviderConfig {
+    /// Whether this is an Ollama-type provider
+    pub fn is_ollama(&self) -> bool {
+        self.provider_type == "ollama"
+    }
+
+    /// Effective base URL for API calls (append /v1 for Ollama if needed)
+    pub fn effective_base_url(&self) -> String {
+        if self.is_ollama() && !self.base_url.contains("/v1") {
+            format!("{}/v1", self.base_url.trim_end_matches('/'))
+        } else {
+            self.base_url.trim_end_matches('/').to_string()
+        }
+    }
+
+    /// Ollama server root (without /v1) for /api/tags
+    pub fn ollama_server_url(&self) -> String {
+        let url = self.base_url.trim_end_matches('/');
+        url.trim_end_matches("/v1").to_string()
+    }
 }
 
 /// Top-level config file structure

@@ -188,6 +188,8 @@ pub fn run() {
             external_models::external_models_list_models,
             external_models::external_models_save_config,
             external_models::external_models_load_config,
+            external_models::external_models_add_provider,
+            external_models::external_models_remove_provider,
             external_models::external_models_start_mcp,
             external_models::external_models_stop_mcp,
             external_models::external_models_mcp_status,

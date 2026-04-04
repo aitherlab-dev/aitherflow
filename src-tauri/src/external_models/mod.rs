@@ -4,9 +4,10 @@ pub mod mcp_server;
 pub mod types;
 pub mod vision;
 
+use std::collections::HashMap;
 use tauri::Emitter;
 use types::{
-    ChatMessage, ChatResponse, ExternalModelsConfig, MessageContent, ModelInfo, Provider, Role,
+    ChatMessage, ChatResponse, ExternalModelsConfig, MessageContent, ModelInfo, ProviderConfig, Role,
 };
 
 pub use client::LocalModelEvent;
@@ -14,35 +15,28 @@ pub use client::LocalModelEvent;
 /// Call an external model via OpenAI-compatible API
 #[tauri::command]
 pub async fn external_models_call(
-    provider: Provider,
+    provider_id: String,
     model: String,
     messages: Vec<ChatMessage>,
     max_tokens: Option<u32>,
 ) -> Result<ChatResponse, String> {
-    let (api_key, base_url) = get_provider_credentials(&provider).await?;
-    client::call_model(&provider, &api_key, &model, messages, max_tokens, base_url.as_deref())
-        .await
+    let (pc, api_key) = get_provider_credentials(&provider_id).await?;
+    client::call_model(&pc, &api_key, &model, messages, max_tokens).await
 }
 
 /// Call an external model with streaming — chunks emitted as "local-model-stream" events
 #[tauri::command]
 pub async fn external_models_call_stream(
     app: tauri::AppHandle,
-    provider: Provider,
+    provider_id: String,
     model: String,
     messages: Vec<ChatMessage>,
     max_tokens: Option<u32>,
 ) -> Result<(), String> {
-    let (api_key, base_url) = get_provider_credentials(&provider).await?;
+    let (pc, api_key) = get_provider_credentials(&provider_id).await?;
 
     if let Err(e) = client::call_model_stream(
-        &app,
-        &provider,
-        &api_key,
-        &model,
-        messages,
-        max_tokens,
-        base_url.as_deref(),
+        &app, &pc, &api_key, &model, messages, max_tokens,
     ).await {
         if let Err(emit_err) = app.emit("local-model-stream", LocalModelEvent::Error {
             error: e.clone(),
@@ -57,18 +51,16 @@ pub async fn external_models_call_stream(
 
 /// Test connection to a provider by sending a simple "say hi" request
 #[tauri::command]
-pub async fn external_models_test_connection(provider: Provider) -> Result<String, String> {
-    let (api_key, base_url) = get_provider_credentials(&provider).await?;
+pub async fn external_models_test_connection(provider_id: String) -> Result<String, String> {
+    let (pc, api_key) = get_provider_credentials(&provider_id).await?;
 
-    let test_model = get_test_model(&provider, base_url.as_deref()).await?;
+    let test_model = get_test_model(&pc, &api_key).await?;
     let messages = vec![ChatMessage {
         role: Role::User,
         content: MessageContent::Text("Say hi in one word.".to_string()),
     }];
 
-    let response =
-        client::call_model(&provider, &api_key, &test_model, messages, Some(10), base_url.as_deref())
-            .await?;
+    let response = client::call_model(&pc, &api_key, &test_model, messages, Some(10)).await?;
 
     let reply = response
         .choices
@@ -83,42 +75,27 @@ pub async fn external_models_test_connection(provider: Provider) -> Result<Strin
 /// List available models from a provider
 #[tauri::command]
 pub async fn external_models_list_models(
-    provider: Provider,
+    provider_id: String,
 ) -> Result<Vec<ModelInfo>, String> {
-    let (api_key, base_url) = get_provider_credentials(&provider).await?;
-    client::list_models(&provider, &api_key, base_url.as_deref()).await
+    let (pc, api_key) = get_provider_credentials(&provider_id).await?;
+    client::list_models(&pc, &api_key).await
 }
 
 /// Save external models configuration (provider settings + API keys)
 #[tauri::command]
 pub async fn external_models_save_config(
     providers_config: ExternalModelsConfig,
-    openrouter_api_key: Option<String>,
-    openrouter_mgmt_key: Option<String>,
-    google_api_key: Option<String>,
+    api_keys: HashMap<String, String>,
 ) -> Result<(), String> {
     tokio::task::spawn_blocking(move || {
         // Store API keys in keyring (only if provided and not masked)
-        if let Some(key) = openrouter_api_key {
+        for (id, key) in &api_keys {
             if !key.is_empty() && !key.starts_with("****") {
-                config::set_api_key(&Provider::OpenRouter, &key)
-                    .map_err(|e| format!("Failed to store OpenRouter API key: {e}"))?;
-            }
-        }
-        if let Some(key) = openrouter_mgmt_key {
-            if !key.is_empty() && !key.starts_with("****") {
-                crate::secrets::set_secret(OR_MGMT_KEY, &key)
-                    .map_err(|e| format!("Failed to store OpenRouter management key: {e}"))?;
-            }
-        }
-        if let Some(key) = google_api_key {
-            if !key.is_empty() && !key.starts_with("****") {
-                config::set_api_key(&Provider::Google, &key)
-                    .map_err(|e| format!("Failed to store Google API key: {e}"))?;
+                config::set_api_key(id, key)
+                    .map_err(|e| format!("Failed to store API key for {id}: {e}"))?;
             }
         }
 
-        // Save config to disk (no API keys in the file)
         config::save_config(&providers_config)
     })
     .await
@@ -131,24 +108,59 @@ pub async fn external_models_load_config() -> Result<ExternalModelsConfigWithKey
     tokio::task::spawn_blocking(move || {
         let cfg = config::load_config()?;
 
-        // Return masked API keys so the frontend knows if keys are set
-        let openrouter_key = config::get_api_key(&Provider::OpenRouter)
-            .map(|k| mask_key(&k))
-            .unwrap_or_default();
-        let google_key = config::get_api_key(&Provider::Google)
-            .map(|k| mask_key(&k))
-            .unwrap_or_default();
-
-        let mgmt_key = crate::secrets::get_secret(OR_MGMT_KEY)
-            .map(|k| mask_key(&k))
-            .unwrap_or_default();
+        // Return masked API keys for each provider
+        let mut keys = HashMap::new();
+        for p in &cfg.providers {
+            if p.requires_api_key {
+                let masked = config::get_api_key(&p.id)
+                    .map(|k| mask_key(&k))
+                    .unwrap_or_default();
+                keys.insert(p.id.clone(), masked);
+            }
+        }
 
         Ok(ExternalModelsConfigWithKeys {
             config: cfg,
-            openrouter_api_key: openrouter_key,
-            openrouter_mgmt_key: mgmt_key,
-            google_api_key: google_key,
+            keys,
         })
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// Add a new provider to the config
+#[tauri::command]
+pub async fn external_models_add_provider(
+    provider: ProviderConfig,
+) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let mut cfg = config::load_config()?;
+        if cfg.providers.iter().any(|p| p.id == provider.id) {
+            return Err(format!("Provider with id '{}' already exists", provider.id));
+        }
+        cfg.providers.push(provider);
+        config::save_config(&cfg)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// Remove a provider from the config
+#[tauri::command]
+pub async fn external_models_remove_provider(
+    provider_id: String,
+) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let mut cfg = config::load_config()?;
+        let before = cfg.providers.len();
+        cfg.providers.retain(|p| p.id != provider_id);
+        if cfg.providers.len() == before {
+            return Err(format!("Provider not found: {provider_id}"));
+        }
+        // Remove API key from keyring
+        let secret_key = format!("external-{provider_id}-api-key");
+        let _ = crate::secrets::delete_secret(&secret_key);
+        config::save_config(&cfg)
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
@@ -160,38 +172,28 @@ pub async fn external_models_load_config() -> Result<ExternalModelsConfigWithKey
 pub struct ExternalModelsConfigWithKeys {
     #[serde(flatten)]
     pub config: ExternalModelsConfig,
-    pub openrouter_api_key: String,
-    pub openrouter_mgmt_key: String,
-    pub google_api_key: String,
+    pub keys: HashMap<String, String>,
 }
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Get API key and base URL for a provider (single config read in blocking context).
+/// Get provider config and API key by string id.
 async fn get_provider_credentials(
-    provider: &Provider,
-) -> Result<(String, Option<String>), String> {
-    let provider = provider.clone();
+    provider_id: &str,
+) -> Result<(ProviderConfig, String), String> {
+    let id = provider_id.to_string();
     tokio::task::spawn_blocking(move || {
-        let api_key = if provider.requires_api_key() {
-            config::get_api_key(&provider).ok_or_else(|| {
-                format!("No API key configured for {}", provider.display_name())
+        let pc = config::find_provider(&id)?;
+        let api_key = if pc.requires_api_key {
+            config::get_api_key(&id).ok_or_else(|| {
+                format!("No API key configured for {}", pc.name)
             })?
         } else {
             String::new()
         };
-        // Single config read for base_url
-        let base_url = config::load_config()
-            .ok()
-            .and_then(|c| {
-                c.providers
-                    .iter()
-                    .find(|p| p.provider == provider)
-                    .and_then(|p| p.base_url.clone())
-            });
-        Ok((api_key, base_url))
+        Ok((pc, api_key))
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))?
@@ -218,21 +220,21 @@ fn mask_key(key: &str) -> String {
 }
 
 /// Pick a model for connection testing.
-/// For Ollama: pick the first installed model.
 async fn get_test_model(
-    provider: &Provider,
-    base_url: Option<&str>,
+    pc: &ProviderConfig,
+    api_key: &str,
 ) -> Result<String, String> {
-    match provider {
-        Provider::OpenRouter => Ok("openrouter/auto".to_string()),
-        Provider::Google => Ok("gemini-2.5-flash".to_string()),
-        Provider::Ollama => {
-            let models = client::list_models(provider, "", base_url).await?;
-            models
-                .first()
-                .map(|m| m.id.clone())
-                .ok_or_else(|| "No models installed in Ollama. Run: ollama pull <model>".into())
-        }
+    if pc.is_ollama() {
+        let models = client::list_models(pc, api_key).await?;
+        models
+            .first()
+            .map(|m| m.id.clone())
+            .ok_or_else(|| "No models installed in Ollama. Run: ollama pull <model>".into())
+    } else if !pc.default_model.is_empty() {
+        Ok(pc.default_model.clone())
+    } else {
+        // Use a generic test model
+        Ok("openrouter/auto".to_string())
     }
 }
 
@@ -251,11 +253,10 @@ pub struct OpenRouterBalance {
 }
 
 /// Fetch OpenRouter account balance.
-/// Uses management key (/api/v1/credits) if available, otherwise API key (/api/v1/key).
 #[tauri::command]
 pub async fn external_models_openrouter_balance() -> Result<OpenRouterBalance, String> {
     let (api_key, mgmt_key) = tokio::task::spawn_blocking(|| {
-        let api = config::get_api_key(&Provider::OpenRouter);
+        let api = config::get_api_key("openrouter");
         let mgmt = crate::secrets::get_secret(OR_MGMT_KEY);
         (api, mgmt)
     })
@@ -353,4 +354,3 @@ pub async fn external_models_mcp_status() -> Result<McpStatus, String> {
         port: mcp_server::get_port(),
     })
 }
-

@@ -1,4 +1,4 @@
-//! External Models MCP server — call external AI models (OpenRouter, Google, Ollama).
+//! External Models MCP server — call external AI models via dynamic providers.
 
 use base64::Engine;
 use serde_json::{json, Value};
@@ -11,7 +11,7 @@ use crate::mcp_transport::{self, McpServerInfo, McpState, McpToolHandler};
 use super::client;
 use super::config;
 use super::types::{
-    ChatMessage, ContentPart, ImageUrlData, MessageContent, Provider, Role,
+    ChatMessage, ContentPart, ImageUrlData, MessageContent, ProviderConfig, Role,
 };
 use super::vision;
 
@@ -99,13 +99,13 @@ async fn execute_tool(name: &str, args: &Value) -> Result<String, String> {
 }
 
 async fn tool_call_model(args: &Value) -> Result<String, String> {
-    let provider = parse_provider(args)?;
+    let pc = resolve_provider(args).await?;
     let model = args["model"].as_str().ok_or("Missing 'model' parameter")?;
     let prompt = args["prompt"].as_str().ok_or("Missing 'prompt' parameter")?;
     let system_prompt = args["system_prompt"].as_str();
     let max_tokens = args["max_tokens"].as_u64().map(|n| n as u32);
 
-    let ctx = get_provider_context(&provider).await?;
+    let api_key = get_api_key_for(&pc)?;
 
     let mut messages = Vec::new();
     if let Some(sys) = system_prompt {
@@ -113,13 +113,13 @@ async fn tool_call_model(args: &Value) -> Result<String, String> {
     }
     messages.push(ChatMessage { role: Role::User, content: MessageContent::Text(prompt.to_string()) });
 
-    let response = client::call_model(&provider, &ctx.api_key, model, messages, max_tokens, ctx.base_url.as_deref()).await?;
+    let response = client::call_model(&pc, &api_key, model, messages, max_tokens).await?;
     let text = response.choices.first().and_then(|c| c.message.content.as_ref()).cloned().unwrap_or_default();
     Ok(text)
 }
 
 async fn tool_call_vision(args: &Value) -> Result<String, String> {
-    let provider = parse_provider(args)?;
+    let pc = resolve_provider(args).await?;
     let model = args["model"].as_str().ok_or("Missing 'model' parameter")?;
     let prompt = args["prompt"].as_str().ok_or("Missing 'prompt' parameter")?;
     let file_paths = args["file_paths"].as_array().ok_or("Missing 'file_paths' parameter")?;
@@ -174,42 +174,51 @@ async fn tool_call_vision(args: &Value) -> Result<String, String> {
         return Err("No frames or images could be extracted".into());
     }
 
-    let ctx = get_provider_context(&provider).await?;
+    let api_key = get_api_key_for(&pc)?;
     all_parts.push(ContentPart::Text { text: prompt.to_string() });
     let messages = vec![ChatMessage { role: Role::User, content: MessageContent::Parts(all_parts) }];
-    let response = client::call_model(&provider, &ctx.api_key, model, messages, max_tokens, ctx.base_url.as_deref()).await?;
+    let response = client::call_model(&pc, &api_key, model, messages, max_tokens).await?;
     let text = response.choices.first().and_then(|c| c.message.content.as_ref()).cloned().unwrap_or_default();
     Ok(text)
 }
 
 async fn tool_analyze_directory(args: &Value) -> Result<String, String> {
-    let provider = parse_provider(args)?;
+    let pc = resolve_provider(args).await?;
     let model = args["model"].as_str().ok_or("Missing 'model' parameter")?;
     let prompt = args["prompt"].as_str().ok_or("Missing 'prompt' parameter")?;
     let directory = args["directory"].as_str().ok_or("Missing 'directory' parameter")?;
     let max_tokens = args["max_tokens"].as_u64().map(|n| n as u32);
     let profile = parse_vision_profile_with_config(args).await;
 
-    let results = vision::analyze_directory(directory, &profile, &provider, model, prompt, max_tokens).await?;
+    let results = vision::analyze_directory(directory, &profile, &pc, model, prompt, max_tokens).await?;
     serde_json::to_string_pretty(&results).map_err(|e| format!("Serialize error: {e}"))
 }
 
 async fn tool_list_models(args: &Value) -> Result<String, String> {
-    let provider = parse_provider(args)?;
-    let ctx = get_provider_context(&provider).await?;
-    let models = client::list_models(&provider, &ctx.api_key, ctx.base_url.as_deref()).await?;
+    let pc = resolve_provider(args).await?;
+    let api_key = get_api_key_for(&pc)?;
+    let models = client::list_models(&pc, &api_key).await?;
     serde_json::to_string_pretty(&models).map_err(|e| format!("Serialize error: {e}"))
 }
 
 // ── Helpers ──
 
-fn parse_provider(args: &Value) -> Result<Provider, String> {
-    let s = args["provider"].as_str().ok_or("Missing 'provider' parameter")?;
-    match s {
-        "openrouter" => Ok(Provider::OpenRouter),
-        "google" => Ok(Provider::Google),
-        "ollama" => Ok(Provider::Ollama),
-        _ => Err(format!("Unknown provider: {s}. Use 'openrouter', 'google', or 'ollama'")),
+/// Resolve provider config by id from args. Reads config in blocking context.
+async fn resolve_provider(args: &Value) -> Result<ProviderConfig, String> {
+    let id = args["provider"].as_str().ok_or("Missing 'provider' parameter")?.to_string();
+    tokio::task::spawn_blocking(move || config::find_provider(&id))
+        .await
+        .map_err(|e| format!("Task join error: {e}"))?
+}
+
+/// Get API key for a provider (synchronous, for use in already-async context after resolve_provider).
+fn get_api_key_for(pc: &ProviderConfig) -> Result<String, String> {
+    if pc.requires_api_key {
+        config::get_api_key(&pc.id).ok_or_else(|| {
+            format!("No API key configured for {}", pc.name)
+        })
+    } else {
+        Ok(String::new())
     }
 }
 
@@ -222,30 +231,6 @@ async fn parse_vision_profile_with_config(args: &Value) -> vision::VisionProfile
     })
     .await
     .unwrap_or_default()
-}
-
-struct ProviderContext {
-    api_key: String,
-    base_url: Option<String>,
-}
-
-async fn get_provider_context(provider: &Provider) -> Result<ProviderContext, String> {
-    let provider = provider.clone();
-    tokio::task::spawn_blocking(move || {
-        let api_key = if provider.requires_api_key() {
-            config::get_api_key(&provider).ok_or_else(|| {
-                format!("No API key configured for {}", provider.display_name())
-            })?
-        } else {
-            String::new()
-        };
-        let base_url = config::load_config().ok().and_then(|c| {
-            c.providers.iter().find(|p| p.provider == provider).and_then(|p| p.base_url.clone())
-        });
-        Ok(ProviderContext { api_key, base_url })
-    })
-    .await
-    .map_err(|e| format!("Task join error: {e}"))?
 }
 
 const MAX_IMAGE_SIZE: u64 = 20 * 1024 * 1024; // 20 MB
@@ -278,12 +263,12 @@ fn tool_definitions() -> Value {
     json!([
         {
             "name": "call_model",
-            "description": "Call an external AI model (OpenRouter/Google Gemini) with a prompt. Use this to get responses from models like GPT-4o, Gemini, Llama, etc.",
+            "description": "Call an external AI model with a prompt. Provider ID must match a configured provider.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "provider": { "type": "string", "enum": ["openrouter", "google", "ollama"], "description": "The model provider to use" },
-                    "model": { "type": "string", "description": "Model ID (e.g. 'openai/gpt-4o', 'llama-3.1-70b-versatile')" },
+                    "provider": { "type": "string", "description": "The provider ID (e.g. 'openrouter', 'google', 'ollama', or any custom provider ID)" },
+                    "model": { "type": "string", "description": "Model ID (e.g. 'openai/gpt-4o', 'gemini-2.5-flash')" },
                     "prompt": { "type": "string", "description": "The prompt text to send to the model" },
                     "system_prompt": { "type": "string", "description": "Optional system prompt to set context" },
                     "max_tokens": { "type": "number", "description": "Maximum tokens in response (optional, model default if omitted)" }
@@ -297,14 +282,14 @@ fn tool_definitions() -> Value {
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "provider": { "type": "string", "enum": ["openrouter", "google", "ollama"], "description": "The model provider to use" },
-                    "model": { "type": "string", "description": "Vision-capable model ID (e.g. 'openai/gpt-4o', 'google/gemini-2.0-flash-001')" },
+                    "provider": { "type": "string", "description": "The provider ID" },
+                    "model": { "type": "string", "description": "Vision-capable model ID" },
                     "prompt": { "type": "string", "description": "What to analyze or look for in the images/video" },
                     "file_paths": { "type": "array", "items": { "type": "string" }, "description": "Absolute paths to image or video files" },
                     "profile": {
                         "type": "object", "description": "Video processing profile (optional, defaults used if omitted)",
                         "properties": {
-                            "strategy": { "type": "string", "enum": ["auto", "native_video", "extract_frames"], "description": "Video processing strategy. Auto sends native video to Gemini, extracts frames for others (default: auto)" },
+                            "strategy": { "type": "string", "enum": ["auto", "native_video", "extract_frames"], "description": "Video processing strategy (default: auto)" },
                             "framesPerClip": { "type": "number", "description": "Extract exactly N frames evenly spaced (default: 5)" },
                             "fps": { "type": "number", "description": "Frames per second (alternative to framesPerClip)" },
                             "sceneDetection": { "type": "boolean", "description": "Use ffmpeg scene detection" },
@@ -313,31 +298,31 @@ fn tool_definitions() -> Value {
                             "jpegQuality": { "type": "number", "description": "JPEG quality 2-31, lower=better (default: 5)" }
                         }
                     },
-                    "max_tokens": { "type": "number", "description": "Maximum tokens in response (optional, model default if omitted)" }
+                    "max_tokens": { "type": "number", "description": "Maximum tokens in response (optional)" }
                 },
                 "required": ["provider", "model", "prompt", "file_paths"]
             }
         },
         {
             "name": "analyze_directory",
-            "description": "Analyze all video and image files in a directory using a vision model. Processes files sequentially, extracts frames from videos via ffmpeg, and returns per-file analysis.",
+            "description": "Analyze all video and image files in a directory using a vision model.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "provider": { "type": "string", "enum": ["openrouter", "google", "ollama"], "description": "The model provider to use" },
+                    "provider": { "type": "string", "description": "The provider ID" },
                     "model": { "type": "string", "description": "Vision-capable model ID" },
                     "prompt": { "type": "string", "description": "What to analyze or look for in each file" },
                     "directory": { "type": "string", "description": "Absolute path to the directory containing video/image files" },
                     "profile": {
                         "type": "object", "description": "Video processing profile (optional)",
                         "properties": {
-                            "strategy": { "type": "string", "enum": ["auto", "native_video", "extract_frames"], "description": "Video processing strategy" },
-                            "framesPerClip": { "type": "number", "description": "Extract exactly N frames evenly spaced (default: 5)" },
-                            "fps": { "type": "number", "description": "Frames per second (alternative to framesPerClip)" },
-                            "sceneDetection": { "type": "boolean", "description": "Use ffmpeg scene detection" },
-                            "sceneThreshold": { "type": "number", "description": "Scene change threshold 0.0-1.0 (default: 0.3)" },
-                            "resolution": { "type": "number", "description": "Frame width in pixels (default: 720)" },
-                            "jpegQuality": { "type": "number", "description": "JPEG quality 2-31, lower=better (default: 5)" }
+                            "strategy": { "type": "string", "enum": ["auto", "native_video", "extract_frames"] },
+                            "framesPerClip": { "type": "number" },
+                            "fps": { "type": "number" },
+                            "sceneDetection": { "type": "boolean" },
+                            "sceneThreshold": { "type": "number" },
+                            "resolution": { "type": "number" },
+                            "jpegQuality": { "type": "number" }
                         }
                     },
                     "max_tokens": { "type": "number", "description": "Maximum tokens per file analysis (optional)" }
@@ -351,7 +336,7 @@ fn tool_definitions() -> Value {
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "provider": { "type": "string", "enum": ["openrouter", "google", "ollama"], "description": "The provider to list models for" }
+                    "provider": { "type": "string", "description": "The provider ID to list models for" }
                 },
                 "required": ["provider"]
             }
