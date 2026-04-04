@@ -17,6 +17,13 @@ enum Event {
     StdinClosed,
 }
 
+fn set_file_permissions_0600(path: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    if let Err(e) = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)) {
+        warn!("Failed to set permissions on {}: {e}", path.display());
+    }
+}
+
 /// Ensure HF token is available under HF_HOME.
 /// Priority: HF_TOKEN env → copy ~/.cache/huggingface/token → models_path/token
 fn ensure_hf_token(models_path: &Path) {
@@ -29,6 +36,8 @@ fn ensure_hf_token(models_path: &Path) {
             if !dest.exists() {
                 if let Err(e) = std::fs::write(&dest, &token) {
                     warn!("Failed to write HF token to {}: {e}", dest.display());
+                } else {
+                    set_file_permissions_0600(&dest);
                 }
             }
             return;
@@ -50,6 +59,7 @@ fn ensure_hf_token(models_path: &Path) {
                     if let Err(e) = std::fs::write(&dest, token) {
                         warn!("Failed to write HF token to {}: {e}", dest.display());
                     } else {
+                        set_file_permissions_0600(&dest);
                         info!("HF token copied to {}", dest.display());
                     }
                 }
