@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "../lib/transport";
 import type {
-  Provider,
+  ProviderConfig,
   ExternalModelsConfigWithKeys,
   McpStatus,
   ModelInfo,
@@ -9,12 +9,6 @@ import type {
 } from "../types/external-models";
 
 // --- Constants ---
-
-export const PROVIDERS: { id: Provider; label: string }[] = [
-  { id: "openrouter", label: "OpenRouter" },
-  { id: "google", label: "Google Gemini" },
-  { id: "ollama", label: "Ollama" },
-];
 
 export const DEFAULT_VISION_PROFILE: VisionProfile = {
   strategy: "auto",
@@ -28,38 +22,37 @@ export const DEFAULT_VISION_PROFILE: VisionProfile = {
 
 // --- Types ---
 
-export interface ProviderState {
-  enabled: boolean;
+export interface ProviderState extends ProviderConfig {
   apiKey: string;
-  defaultModel: string;
-  baseUrl: string;
   models: ModelInfo[];
   modelsLoading: boolean;
   testResult: { ok: boolean; message: string } | null;
   testing: boolean;
+  collapsed: boolean;
 }
 
-function defaultProviderState(): ProviderState {
+function makeProviderState(pc: ProviderConfig, apiKey: string): ProviderState {
   return {
-    enabled: false,
-    apiKey: "",
-    defaultModel: "",
-    baseUrl: "",
+    ...pc,
+    apiKey,
     models: [],
     modelsLoading: false,
     testResult: null,
     testing: false,
+    collapsed: true,
   };
+}
+
+let nextTempId = 1;
+
+export function generateProviderId(): string {
+  return `provider-${Date.now()}-${nextTempId++}`;
 }
 
 // --- Hook ---
 
 export function useExternalModelsSettings() {
-  const [providers, setProviders] = useState<Record<Provider, ProviderState>>({
-    openrouter: defaultProviderState(),
-    google: defaultProviderState(),
-    ollama: defaultProviderState(),
-  });
+  const [providers, setProviders] = useState<ProviderState[]>([]);
   const [visionProfile, setVisionProfile] = useState<VisionProfile>(
     DEFAULT_VISION_PROFILE,
   );
@@ -69,20 +62,9 @@ export function useExternalModelsSettings() {
   });
   const [mcpLoading, setMcpLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const [mgmtKey, setMgmtKey] = useState("");
-  const [showMgmtKey, setShowMgmtKey] = useState(false);
-  const realMgmtKeyRef = useRef("");
-  const [showKeys, setShowKeys] = useState<Record<Provider, boolean>>({
-    openrouter: false,
-    google: false,
-    ollama: false,
-  });
+  const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
 
-  const realKeysRef = useRef<Record<Provider, string>>({
-    openrouter: "",
-    google: "",
-    ollama: "",
-  });
+  const realKeysRef = useRef<Record<string, string>>({});
 
   // Load config and MCP status
   useEffect(() => {
@@ -91,33 +73,13 @@ export function useExternalModelsSettings() {
       invoke<McpStatus>("external_models_mcp_status"),
     ])
       .then(([cfg, status]) => {
-        realKeysRef.current = {
-          openrouter: cfg.openrouterApiKey,
-          google: cfg.googleApiKey,
-          ollama: "",
-        };
-        realMgmtKeyRef.current = cfg.openrouterMgmtKey;
-        setMgmtKey(cfg.openrouterMgmtKey ? `****${cfg.openrouterMgmtKey.slice(-4)}` : "");
+        const states: ProviderState[] = cfg.providers.map((p) => {
+          const maskedKey = cfg.keys[p.id] || "";
+          realKeysRef.current[p.id] = maskedKey;
+          return makeProviderState(p, maskedKey);
+        });
 
-        const updated: Record<Provider, ProviderState> = {
-          openrouter: defaultProviderState(),
-          google: defaultProviderState(),
-          ollama: defaultProviderState(),
-        };
-
-        for (const p of cfg.providers) {
-          const id = p.provider as Provider;
-          if (updated[id]) {
-            updated[id].enabled = p.enabled;
-            updated[id].defaultModel = p.defaultModel;
-            updated[id].baseUrl = p.baseUrl || "";
-          }
-        }
-
-        updated.openrouter.apiKey = cfg.openrouterApiKey ? `****${cfg.openrouterApiKey.slice(-4)}` : "";
-        updated.google.apiKey = cfg.googleApiKey ? `****${cfg.googleApiKey.slice(-4)}` : "";
-
-        setProviders(updated);
+        setProviders(states);
         if (cfg.visionProfile) {
           setVisionProfile(cfg.visionProfile);
         }
@@ -137,39 +99,46 @@ export function useExternalModelsSettings() {
   const providersRef = useRef(providers);
   providersRef.current = providers;
 
-  const save = useCallback((updated: Record<Provider, ProviderState>) => {
+  const save = useCallback((updated: ProviderState[]) => {
     setProviders(updated);
     clearTimeout(saveTimerRef.current);
 
-    for (const id of ["openrouter", "google", "ollama"] as Provider[]) {
-      const key = updated[id].apiKey;
-      if (key && !key.startsWith("****")) {
-        realKeysRef.current[id] = key;
-      } else if (!key) {
-        realKeysRef.current[id] = "";
+    // Track real keys
+    for (const p of updated) {
+      if (p.apiKey && !p.apiKey.startsWith("****")) {
+        realKeysRef.current[p.id] = p.apiKey;
+      } else if (!p.apiKey) {
+        realKeysRef.current[p.id] = "";
       }
     }
 
     saveTimerRef.current = setTimeout(() => {
-      const providersConfig = PROVIDERS.map(({ id }) => ({
-        provider: id,
-        enabled: updated[id].enabled,
-        defaultModel: updated[id].defaultModel,
-        baseUrl: updated[id].baseUrl || null,
+      const providersConfig = updated.map((p) => ({
+        id: p.id,
+        name: p.name,
+        providerType: p.providerType,
+        baseUrl: p.baseUrl,
+        defaultModel: p.defaultModel,
+        enabled: p.enabled,
+        requiresApiKey: p.requiresApiKey,
       }));
 
-      const orKey = realKeysRef.current.openrouter;
-      const mgmt = realMgmtKeyRef.current;
-      const gKey = realKeysRef.current.google;
+      const apiKeys: Record<string, string> = {};
+      for (const p of updated) {
+        if (p.requiresApiKey) {
+          const key = realKeysRef.current[p.id] || "";
+          if (key) {
+            apiKeys[p.id] = key;
+          }
+        }
+      }
 
       invoke("external_models_save_config", {
         providersConfig: {
           providers: providersConfig,
           visionProfile: visionProfileRef.current,
         },
-        openrouterApiKey: orKey || null,
-        openrouterMgmtKey: mgmt || null,
-        googleApiKey: gKey || null,
+        apiKeys,
       }).catch(console.error);
     }, 400);
   }, []);
@@ -178,70 +147,100 @@ export function useExternalModelsSettings() {
     (profile: VisionProfile) => {
       setVisionProfile(profile);
       visionProfileRef.current = profile;
-      save({ ...providersRef.current });
+      save([...providersRef.current]);
     },
     [save],
   );
 
   const updateProvider = useCallback(
-    (id: Provider, patch: Partial<ProviderState>) => {
-      const updated = {
-        ...providers,
-        [id]: { ...providers[id], ...patch },
-      };
+    (id: string, patch: Partial<ProviderState>) => {
+      const updated = providersRef.current.map((p) =>
+        p.id === id ? { ...p, ...patch } : p,
+      );
       save(updated);
     },
-    [providers, save],
+    [save],
   );
 
-  const testConnection = useCallback((id: Provider) => {
-    setProviders((prev) => ({
-      ...prev,
-      [id]: { ...prev[id], testing: true, testResult: null },
-    }));
+  const addProvider = useCallback(() => {
+    const id = generateProviderId();
+    const newProvider: ProviderState = {
+      id,
+      name: "",
+      providerType: "openai_compatible",
+      baseUrl: "",
+      defaultModel: "",
+      enabled: true,
+      requiresApiKey: true,
+      apiKey: "",
+      models: [],
+      modelsLoading: false,
+      testResult: null,
+      testing: false,
+      collapsed: false,
+    };
+    const updated = [...providersRef.current, newProvider];
+    save(updated);
+  }, [save]);
 
-    invoke<string>("external_models_test_connection", { provider: id })
+  const removeProvider = useCallback(
+    (id: string) => {
+      const updated = providersRef.current.filter((p) => p.id !== id);
+      delete realKeysRef.current[id];
+      save(updated);
+      invoke("external_models_remove_provider", { providerId: id }).catch(
+        console.error,
+      );
+    },
+    [save],
+  );
+
+  const testConnection = useCallback((id: string) => {
+    setProviders((prev) =>
+      prev.map((p) =>
+        p.id === id ? { ...p, testing: true, testResult: null } : p,
+      ),
+    );
+
+    invoke<string>("external_models_test_connection", { providerId: id })
       .then((reply) => {
-        setProviders((prev) => ({
-          ...prev,
-          [id]: {
-            ...prev[id],
-            testing: false,
-            testResult: { ok: true, message: reply },
-          },
-        }));
+        setProviders((prev) =>
+          prev.map((p) =>
+            p.id === id
+              ? { ...p, testing: false, testResult: { ok: true, message: reply } }
+              : p,
+          ),
+        );
       })
       .catch((e) => {
-        setProviders((prev) => ({
-          ...prev,
-          [id]: {
-            ...prev[id],
-            testing: false,
-            testResult: { ok: false, message: String(e) },
-          },
-        }));
+        setProviders((prev) =>
+          prev.map((p) =>
+            p.id === id
+              ? { ...p, testing: false, testResult: { ok: false, message: String(e) } }
+              : p,
+          ),
+        );
       });
   }, []);
 
-  const loadModels = useCallback((id: Provider) => {
-    setProviders((prev) => ({
-      ...prev,
-      [id]: { ...prev[id], modelsLoading: true },
-    }));
+  const loadModels = useCallback((id: string) => {
+    setProviders((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, modelsLoading: true } : p)),
+    );
 
-    invoke<ModelInfo[]>("external_models_list_models", { provider: id })
+    invoke<ModelInfo[]>("external_models_list_models", { providerId: id })
       .then((models) => {
-        setProviders((prev) => ({
-          ...prev,
-          [id]: { ...prev[id], models, modelsLoading: false },
-        }));
+        setProviders((prev) =>
+          prev.map((p) =>
+            p.id === id ? { ...p, models, modelsLoading: false } : p,
+          ),
+        );
       })
       .catch((e) => {
         console.error(`Failed to load models for ${id}:`, e);
-        setProviders((prev) => ({
-          ...prev,
-          [id]: { ...prev[id], modelsLoading: false },
-        }));
+        setProviders((prev) =>
+          prev.map((p) => (p.id === id ? { ...p, modelsLoading: false } : p)),
+        );
       });
   }, []);
 
@@ -260,19 +259,17 @@ export function useExternalModelsSettings() {
     }
   }, [mcpStatus]);
 
-  const toggleShowKey = useCallback((id: Provider) => {
+  const toggleShowKey = useCallback((id: string) => {
     setShowKeys((prev) => ({ ...prev, [id]: !prev[id] }));
   }, []);
 
-  const handleMgmtKeyChange = useCallback((val: string) => {
-    setMgmtKey(val);
-    if (val && !val.startsWith("****")) {
-      realMgmtKeyRef.current = val;
-    } else if (!val) {
-      realMgmtKeyRef.current = "";
-    }
-    save({ ...providersRef.current });
-  }, [save]);
+  const toggleCollapsed = useCallback((id: string) => {
+    setProviders((prev) =>
+      prev.map((p) =>
+        p.id === id ? { ...p, collapsed: !p.collapsed } : p,
+      ),
+    );
+  }, []);
 
   return {
     providers,
@@ -280,19 +277,17 @@ export function useExternalModelsSettings() {
     mcpStatus,
     mcpLoading,
     loaded,
-    mgmtKey,
-    showMgmtKey,
     showKeys,
     actions: {
       updateProvider,
+      addProvider,
+      removeProvider,
       testConnection,
       loadModels,
       toggleMcp,
       saveVisionProfile,
       toggleShowKey,
-      setShowMgmtKey,
-      handleMgmtKeyChange,
-      save,
+      toggleCollapsed,
     },
   };
 }

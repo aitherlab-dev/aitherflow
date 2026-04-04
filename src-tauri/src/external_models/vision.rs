@@ -7,7 +7,7 @@ use tokio::process::Command;
 use super::client;
 use super::config;
 use super::types::{
-    ChatMessage, ContentPart, ImageUrlData, MessageContent, Provider, Role,
+    ChatMessage, ContentPart, ImageUrlData, MessageContent, ProviderConfig, Role,
 };
 
 // ---------------------------------------------------------------------------
@@ -257,7 +257,7 @@ pub async fn extract_frames(
 pub async fn analyze_directory(
     dir_path: &str,
     profile: &VisionProfile,
-    provider: &Provider,
+    pc: &ProviderConfig,
     model: &str,
     prompt: &str,
     max_tokens: Option<u32>,
@@ -265,19 +265,19 @@ pub async fn analyze_directory(
     let p = Path::new(dir_path);
     crate::files::validate_path_safe(p)?;
 
-    // Get API key and base_url in blocking context (single config read)
-    let (api_key, base_url) = {
-        let prov = provider.clone();
+    // Get API key in blocking context
+    let api_key = {
+        let provider_id = pc.id.clone();
+        let requires_key = pc.requires_api_key;
+        let provider_name = pc.name.clone();
         tokio::task::spawn_blocking(move || {
-            let api_key = if prov.requires_api_key() {
-                config::get_api_key(&prov).ok_or_else(|| {
-                    format!("No API key configured for {}", prov.display_name())
-                })?
+            if requires_key {
+                config::get_api_key(&provider_id).ok_or_else(|| {
+                    format!("No API key configured for {provider_name}")
+                })
             } else {
-                String::new()
-            };
-            let base_url = config::get_provider_base_url(&prov);
-            Ok::<_, String>((api_key, base_url))
+                Ok(String::new())
+            }
         })
         .await
         .map_err(|e| format!("Task join error: {e}"))??
@@ -304,7 +304,7 @@ pub async fn analyze_directory(
             file_path
         );
 
-        match analyze_single_file(file_path, profile, provider, model, prompt, &api_key, max_tokens, base_url.as_deref())
+        match analyze_single_file(file_path, profile, pc, model, prompt, &api_key, max_tokens)
             .await
         {
             Ok(analysis) => results.push(analysis),
@@ -543,16 +543,14 @@ fn frames_to_parts(frames: Vec<FrameData>) -> Vec<ContentPart> {
 }
 
 /// Analyze a single file (video or image).
-#[allow(clippy::too_many_arguments)]
 async fn analyze_single_file(
     file_path: &str,
     profile: &VisionProfile,
-    provider: &Provider,
+    pc: &ProviderConfig,
     model: &str,
     prompt: &str,
     api_key: &str,
     max_tokens: Option<u32>,
-    base_url: Option<&str>,
 ) -> Result<ClipAnalysis, String> {
     let file_name = Path::new(file_path)
         .file_name()
@@ -616,7 +614,7 @@ async fn analyze_single_file(
         content: MessageContent::Parts(parts),
     }];
 
-    let response = client::call_model(provider, api_key, model, messages, max_tokens, base_url).await?;
+    let response = client::call_model(pc, api_key, model, messages, max_tokens).await?;
 
     let analysis = response
         .choices

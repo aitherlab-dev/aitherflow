@@ -100,11 +100,12 @@ export async function sendToLocalModel(text: string, allAttachments?: Attachment
 
   try {
     // Load Ollama config to get default model
-    const config = await invoke<{ providers: Array<{ provider: string; defaultModel: string; enabled: boolean }> }>(
+    const config = await invoke<{ providers: Array<{ id: string; providerType: string; defaultModel: string; enabled: boolean }> }>(
       "external_models_load_config",
     );
-    const ollama = config.providers.find((p) => p.provider === "ollama");
+    const ollama = config.providers.find((p) => p.providerType === "ollama");
     const model = ollama?.defaultModel || "llama3";
+    const providerId = ollama?.id || "ollama";
 
     // Build full conversation history so the model has context
     const currentMessages = useChatStore.getState().messages;
@@ -121,7 +122,7 @@ export async function sendToLocalModel(text: string, allAttachments?: Attachment
 
     // Call streaming — events handled by localModelStreamHandler
     await invoke("external_models_call_stream", {
-      provider: "ollama",
+      providerId,
       model,
       messages: history,
       maxTokens: null,

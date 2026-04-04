@@ -1,12 +1,13 @@
-export type Provider = "openrouter" | "google" | "ollama";
-
 export type VisionStrategy = "auto" | "native_video" | "extract_frames";
 
 export interface ProviderConfig {
-  provider: Provider;
-  enabled: boolean;
+  id: string;
+  name: string;
+  providerType: string; // "openai_compatible" | "ollama"
+  baseUrl: string;
   defaultModel: string;
-  baseUrl?: string | null;
+  enabled: boolean;
+  requiresApiKey: boolean;
 }
 
 export interface VisionProfile {
@@ -22,9 +23,7 @@ export interface VisionProfile {
 export interface ExternalModelsConfigWithKeys {
   providers: ProviderConfig[];
   visionProfile: VisionProfile | null;
-  openrouterApiKey: string;
-  openrouterMgmtKey: string;
-  googleApiKey: string;
+  keys: Record<string, string>; // provider id → masked key
 }
 
 export interface McpStatus {
