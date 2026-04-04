@@ -242,11 +242,14 @@ pub async fn extract_frames(
 
     if !status.success() && frames.is_empty() {
         let mut stderr_buf = Vec::new();
-        if let Some(mut stderr) = child.stderr.take() {
-            stderr.read_to_end(&mut stderr_buf).await
-                .map_err(|e| eprintln!("[ext-models-vision] Failed to read stderr: {e}")).ok();
-        }
-        let stderr_str = String::from_utf8_lossy(&stderr_buf);
+        let stderr_str = if let Some(mut stderr) = child.stderr.take() {
+            match stderr.read_to_end(&mut stderr_buf).await {
+                Ok(_) => String::from_utf8_lossy(&stderr_buf).to_string(),
+                Err(e) => format!("(failed to read stderr: {e})"),
+            }
+        } else {
+            String::new()
+        };
         return Err(format!("ffmpeg failed ({}): {}", status, stderr_str));
     }
 

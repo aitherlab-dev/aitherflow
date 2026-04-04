@@ -226,10 +226,11 @@ pub async fn create_file(path: String, name: String) -> Result<String, String> {
             return Err(format!("Invalid name: '{}'", name));
         }
         let target = parent.join(&name);
-        if target.exists() {
-            return Err(format!("'{}' already exists", name));
-        }
-        fs::File::create(&target).map_err(|e| format!("Failed to create file: {e}"))?;
+        std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&target)
+            .map_err(|e| format!("Failed to create file: {e}"))?;
         Ok(target.to_string_lossy().into_owned())
     })
     .await

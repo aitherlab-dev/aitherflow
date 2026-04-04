@@ -431,6 +431,10 @@ fn test_http(config: &McpServerConfig) -> Result<McpTestResult, String> {
 
     if let Some(headers) = &config.headers {
         for (k, v) in headers {
+            if k.contains(['\r', '\n', '\0']) || v.contains(['\r', '\n', '\0']) {
+                eprintln!("[mcp] Skipping header with control characters: {k}");
+                continue;
+            }
             cmd.args(["-H", &format!("{k}: {v}")]);
         }
     }

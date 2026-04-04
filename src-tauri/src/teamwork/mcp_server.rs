@@ -642,8 +642,11 @@ async fn execute_tool(
             }
             let prompt = args["prompt"]
                 .as_str()
-                .ok_or("Missing 'prompt' parameter")?
-                .to_string();
+                .ok_or("Missing 'prompt' parameter")?;
+            if prompt.len() > 1_000_000 {
+                return Err("Prompt too large (max 1MB)".to_string());
+            }
+            let prompt = prompt.to_string();
             eprintln!(
                 "[mcp-server] Agent {} sending prompt to agent {}",
                 agent_id, target_id
