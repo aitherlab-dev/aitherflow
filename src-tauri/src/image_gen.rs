@@ -419,6 +419,215 @@ pub async fn list_lora_files(directory: String) -> Result<Vec<String>, String> {
     .map_err(|e| format!("Task join error: {e}"))?
 }
 
+// ---------------------------------------------------------------------------
+// Direct generation via mcp-image-gen sidecar (JSON-RPC over stdio)
+// ---------------------------------------------------------------------------
+
+/// JSON-RPC response wrapper
+#[derive(Deserialize)]
+struct JsonRpcResponse {
+    result: Option<serde_json::Value>,
+    error: Option<serde_json::Value>,
+}
+
+/// Generate an image by calling mcp-image-gen directly (no Claude).
+/// Returns the file path of the generated image.
+#[tauri::command]
+pub async fn image_gen_generate(prompt: String) -> Result<String, String> {
+    use std::io::{BufRead, BufReader, Write};
+    use std::process::{Command, Stdio};
+    use std::time::Duration;
+
+    tokio::task::spawn_blocking(move || {
+        let settings = load_settings_sync();
+        let bin_path = crate::conductor::resolve::resolve_mcp_image_gen_binary()
+            .ok_or("mcp-image-gen binary not found")?;
+
+        // Look up model definition to get per-model defaults
+        let models = load_model_definitions().unwrap_or_default();
+        let model_def = models.iter().find(|m| m.id == settings.selected_model);
+        let width = if settings.resolution_preset == ResolutionPreset::Custom
+            || settings.width != default_size()
+        {
+            settings.width
+        } else {
+            model_def.map_or(settings.width, |m| m.width)
+        };
+        let height = if settings.resolution_preset == ResolutionPreset::Custom
+            || settings.height != default_size()
+        {
+            settings.height
+        } else {
+            model_def.map_or(settings.height, |m| m.height)
+        };
+        let steps = settings.steps;
+
+        let mut cmd = Command::new(&bin_path);
+        cmd.stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .env("HF_HOME", &settings.models_path)
+            .env("AITHERFLOW_MODELS_PATH", &settings.models_path)
+            .env("AITHERFLOW_IMAGES_PATH", &settings.images_path)
+            .env("AITHERFLOW_SELECTED_MODEL", &settings.selected_model);
+
+        if let Some(token) = crate::conductor::resolve::read_hf_token() {
+            cmd.env("HF_TOKEN", &token);
+        }
+
+        let mut child = cmd
+            .spawn()
+            .map_err(|e| format!("Failed to spawn mcp-image-gen: {e}"))?;
+
+        let mut stdin = child
+            .stdin
+            .take()
+            .ok_or("Failed to open stdin of mcp-image-gen")?;
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or("Failed to open stdout of mcp-image-gen")?;
+
+        // Reader thread owns stdout and sends lines back via channel.
+        // This avoids unsafe and gives us timeout via recv_timeout.
+        let (line_tx, line_rx) = std::sync::mpsc::sync_channel::<Result<String, String>>(4);
+        std::thread::spawn(move || {
+            let mut reader = BufReader::new(stdout);
+            loop {
+                let mut line = String::new();
+                match reader.read_line(&mut line) {
+                    Ok(0) => {
+                        // EOF
+                        let _ = line_tx.send(Err("mcp-image-gen: process closed stdout".into()));
+                        break;
+                    }
+                    Ok(_) => {
+                        if line_tx.send(Ok(line)).is_err() {
+                            break; // receiver dropped
+                        }
+                    }
+                    Err(e) => {
+                        let _ = line_tx.send(Err(format!("Failed to read from mcp-image-gen: {e}")));
+                        break;
+                    }
+                }
+            }
+        });
+
+        // Helper: send a JSON-RPC message and wait for one line response
+        let send_and_recv =
+            |stdin: &mut std::process::ChildStdin,
+             rx: &std::sync::mpsc::Receiver<Result<String, String>>,
+             msg: &serde_json::Value,
+             timeout: Duration|
+             -> Result<JsonRpcResponse, String> {
+                let mut payload = serde_json::to_string(msg)
+                    .map_err(|e| format!("Failed to serialize JSON-RPC: {e}"))?;
+                payload.push('\n');
+                stdin
+                    .write_all(payload.as_bytes())
+                    .map_err(|e| format!("Failed to write to mcp-image-gen stdin: {e}"))?;
+                stdin
+                    .flush()
+                    .map_err(|e| format!("Failed to flush mcp-image-gen stdin: {e}"))?;
+
+                let line = rx
+                    .recv_timeout(timeout)
+                    .map_err(|_| "mcp-image-gen: response timed out".to_string())??;
+
+                if line.trim().is_empty() {
+                    return Err("mcp-image-gen returned empty response".into());
+                }
+
+                serde_json::from_str::<JsonRpcResponse>(line.trim())
+                    .map_err(|e| format!("Failed to parse mcp-image-gen response: {e}"))
+            };
+
+        // Helper: kill child and return error
+        let kill_and_err = |child: &mut std::process::Child, msg: String| -> String {
+            if let Err(kill_err) = child.kill() {
+                eprintln!("Failed to kill mcp-image-gen: {kill_err}");
+            }
+            msg
+        };
+
+        // Step 1: initialize (30s timeout)
+        let init_msg = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {}
+        });
+        let init_resp =
+            send_and_recv(&mut stdin, &line_rx, &init_msg, Duration::from_secs(30))
+                .map_err(|e| kill_and_err(&mut child, format!("initialize failed: {e}")))?;
+
+        if let Some(err) = init_resp.error {
+            return Err(kill_and_err(
+                &mut child,
+                format!("mcp-image-gen initialize error: {err}"),
+            ));
+        }
+
+        // Step 2: generate_image (10 min timeout)
+        let gen_msg = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/call",
+            "params": {
+                "name": "generate_image",
+                "arguments": {
+                    "prompt": prompt,
+                    "width": width,
+                    "height": height,
+                    "steps": steps,
+                    "seed": -1
+                }
+            }
+        });
+        let gen_resp = send_and_recv(
+            &mut stdin,
+            &line_rx,
+            &gen_msg,
+            Duration::from_secs(600),
+        );
+
+        // Always kill the child process
+        if let Err(kill_err) = child.kill() {
+            eprintln!("Failed to kill mcp-image-gen: {kill_err}");
+        }
+
+        let gen_resp = gen_resp?;
+        if let Some(err) = gen_resp.error {
+            return Err(format!("mcp-image-gen generate error: {err}"));
+        }
+
+        // Parse result.content[0].text → JSON with "path"
+        let result = gen_resp
+            .result
+            .ok_or("mcp-image-gen returned no result")?;
+        let text = result
+            .get("content")
+            .and_then(|c| c.as_array())
+            .and_then(|arr| arr.first())
+            .and_then(|item| item.get("text"))
+            .and_then(|t| t.as_str())
+            .ok_or("mcp-image-gen: unexpected result format — missing content[0].text")?;
+
+        // text is either a path directly or JSON with a "path" field
+        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(text) {
+            if let Some(path) = parsed.get("path").and_then(|p| p.as_str()) {
+                return Ok(path.to_string());
+            }
+        }
+
+        // Fallback: treat text as the path itself
+        Ok(text.to_string())
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

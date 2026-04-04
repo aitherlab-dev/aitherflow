@@ -31,7 +31,7 @@ pub fn resolve_mcp_image_gen_binary() -> Option<std::path::PathBuf> {
 }
 
 /// Read HuggingFace token from ~/.cache/huggingface/token (if it exists).
-pub(super) fn read_hf_token() -> Option<String> {
+pub fn read_hf_token() -> Option<String> {
     let path = dirs::home_dir()?.join(".cache/huggingface/token");
     std::fs::read_to_string(path).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
 }
