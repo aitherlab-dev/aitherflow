@@ -21,7 +21,7 @@ aitherflow — десктопная GUI-обёртка для Claude Code CLI. C
 - `src-tauri/src/scheduler/` — cron-планировщик задач
 - `src-tauri/src/teamwork/` — мультиагентная работа (mailbox, MCP)
 - `src-tauri/src/voice/` — голосовой ввод (Whisper)
-- `src-tauri/src/external_models/` — OpenRouter и другие провайдеры
+- `src-tauri/src/external_models/` — динамические OpenAI-совместимые провайдеры (пользователь добавляет сам)
 
 ## Команды
 
@@ -57,6 +57,10 @@ CI: `tsc --noEmit` + `eslint` + `cargo clippy -D warnings`. Release на тег 
 **Inline Quotes:** пользователь может отправить сообщение во время стриминга — оно вставляется как blockquote в текущий ответ ассистента (`> **User:** текст`). CLI ставит в очередь, обрабатывает на следующем ходу
 
 **Subscription Usage:** OAuth-токен из `~/.claude/.credentials.json`, эндпоинт `GET api.anthropic.com/api/oauth/usage`. Кэш 60с, retry при 429
+
+**External Models:** провайдеры динамические — строковый id, без enum. Конфиг `external_models.json`, ключи в системном keyring (`external-{id}-api-key`). Добавление/удаление через UI. Ollama и OpenAI-совместимые — один и тот же `ProviderConfig`
+
+**Local Model:** режим per-chat, не глобальный. `conductorStore.localModelChatIds: Set<string>`. Pending flag для новых чатов до создания chatId
 
 ## Подводные камни
 
