@@ -105,8 +105,8 @@ export function usePasteHandler(
           }
           return;
         }
-      } catch {
-        // No text — try image below
+      } catch (e) {
+        console.warn("[usePasteHandler] Failed to read text from clipboard:", e);
       }
 
       // Try image
@@ -124,8 +124,8 @@ export function usePasteHandler(
           size: result.size,
           fileType: "image",
         });
-      } catch {
-        // No image in clipboard either — nothing to paste
+      } catch (e) {
+        console.warn("[usePasteHandler] Failed to read image from clipboard:", e);
       }
       return;
     }

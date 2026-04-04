@@ -81,8 +81,8 @@ function loadFileViewerPrefs(): {
         fileViewerPosition: parsed.position ?? "right",
       };
     }
-  } catch {
-    // ignore
+  } catch (e) {
+    console.warn("[layoutStore] Failed to load file viewer settings:", e);
   }
   return { fileViewerVisible: true, fileViewerPosition: "right" };
 }
@@ -94,8 +94,8 @@ function saveFileViewerPrefs(visible: boolean, position: FileViewerPosition) {
       "aitherflow:fileviewer",
       JSON.stringify({ visible, position }),
     );
-  } catch {
-    // ignore
+  } catch (e) {
+    console.warn("[layoutStore] Failed to save file viewer settings:", e);
   }
 }
 
@@ -104,8 +104,8 @@ function loadChatPanelVisible(): boolean {
   try {
     const raw = localStorage.getItem("aitherflow:chatpanel");
     if (raw !== null) return JSON.parse(raw) as boolean;
-  } catch {
-    // ignore
+  } catch (e) {
+    console.warn("[layoutStore] Failed to load chat panel visibility:", e);
   }
   return true;
 }
@@ -156,7 +156,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   toggleChatPanel: () => {
     const next = !get().chatPanelVisible;
     set({ chatPanelVisible: next });
-    try { localStorage.setItem("aitherflow:chatpanel", JSON.stringify(next)); } catch { /* ignore */ }
+    try { localStorage.setItem("aitherflow:chatpanel", JSON.stringify(next)); } catch (e) { console.warn("[layoutStore] Failed to save chat panel visibility:", e); }
   },
 
   toggleFileViewer: () => {

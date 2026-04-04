@@ -31,7 +31,7 @@ function loadExpandedCards(): Set<string> {
   try {
     const raw = localStorage.getItem(EXPANDED_KEY);
     if (raw) return new Set(JSON.parse(raw));
-  } catch { /* ignore */ }
+  } catch (e) { console.warn("[DashboardPanel] Failed to load expanded cards:", e); }
   return new Set();
 }
 
@@ -47,7 +47,7 @@ function loadOrder(): string[] {
       const missing = DEFAULT_ORDER.filter((id) => !order.includes(id));
       return [...order.filter((id) => DEFAULT_ORDER.includes(id)), ...missing];
     }
-  } catch { /* ignore */ }
+  } catch (e) { console.warn("[DashboardPanel] Failed to restore card order:", e); }
   return [...DEFAULT_ORDER];
 }
 

@@ -141,8 +141,8 @@ function loadBindings(): Record<HotkeyAction, HotkeyBinding> {
       const parsed = JSON.parse(raw) as SerializedBindings;
       return { ...DEFAULT_BINDINGS, ...parsed };
     }
-  } catch {
-    // ignore
+  } catch (e) {
+    console.warn("[hotkeyStore] Failed to load key bindings:", e);
   }
   return { ...DEFAULT_BINDINGS };
 }
