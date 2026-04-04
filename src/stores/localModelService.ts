@@ -8,7 +8,24 @@ import { useChatStore } from "./chatStore";
 import { persistMessages, loadChatList } from "./chatCrud";
 import { generateTitle } from "./chatCrud";
 import type { ChatMeta } from "./chatStore";
-import type { ChatMessage } from "../types/chat";
+import type { ChatMessage, Attachment } from "../types/chat";
+
+// ── Build message content: plain text or multimodal parts ──
+
+type TextPart = { type: "text"; text: string };
+type ImageUrlPart = { type: "image_url"; image_url: { url: string } };
+type ContentPart = TextPart | ImageUrlPart;
+
+function buildContent(text: string, attachments?: Attachment[]): string | ContentPart[] {
+  const images = attachments?.filter((a) => a.fileType === "image") ?? [];
+  if (images.length === 0) return text;
+
+  const parts: ContentPart[] = [{ type: "text", text }];
+  for (const img of images) {
+    parts.push({ type: "image_url", image_url: { url: img.content } });
+  }
+  return parts;
+}
 
 // ── Ensure chat exists (lazy creation like sendMessage) ──
 
@@ -39,7 +56,7 @@ async function ensureChat(): Promise<string | null> {
 
 // ── Send prompt to local model (Ollama) with streaming ──
 
-export async function sendToLocalModel(text: string) {
+export async function sendToLocalModel(text: string, allAttachments?: Attachment[]) {
   const state = useChatStore.getState();
   if (state.isThinking) return;
 
@@ -49,6 +66,7 @@ export async function sendToLocalModel(text: string) {
     role: "user",
     text,
     timestamp: Date.now(),
+    attachments: allAttachments && allAttachments.length > 0 ? allAttachments : undefined,
   };
   useChatStore.setState((prev) => ({
     messages: [...prev.messages, userMsg],
@@ -76,7 +94,7 @@ export async function sendToLocalModel(text: string) {
     await invoke("external_models_call_stream", {
       provider: "ollama",
       model,
-      messages: [{ role: "user", content: text }],
+      messages: [{ role: "user", content: buildContent(text, allAttachments) }],
       maxTokens: null,
     });
   } catch (e) {

@@ -165,7 +165,7 @@ export const InputBar = memo(function InputBar() {
       setText("");
       clearAttachments();
       resetStream();
-      sendToLocalModel(trimmed).catch(console.error);
+      sendToLocalModel(trimmed, attachments.length > 0 ? [...attachments] : undefined).catch(console.error);
       return;
     }
 
