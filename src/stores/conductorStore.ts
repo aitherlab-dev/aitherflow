@@ -64,6 +64,8 @@ interface ConductorState {
   agentRoles: Record<string, AgentRole | null>;
   /** Default role applied when no role explicitly selected */
   defaultRole: AgentRole | null;
+  /** When true, Send button routes to local model (Ollama) instead of Claude */
+  localModelEnabled: boolean;
 
   // Actions
   setSelectedModel: (model: string) => void;
@@ -72,6 +74,7 @@ interface ConductorState {
   setAgentRole: (agentId: string, role: AgentRole | null) => void;
   getAgentRole: (agentId: string) => AgentRole | null;
   loadDefaultRole: () => Promise<void>;
+  toggleLocalModel: () => void;
   reset: () => void;
   saveUsageForAgent: (agentId: string) => void;
   restoreUsageForAgent: (agentId: string) => void;
@@ -96,6 +99,7 @@ export const useConductorStore = create<ConductorState>((set, get) => ({
   slashCommands: [],
   agentRoles: {},
   defaultRole: null,
+  localModelEnabled: false,
 
   setSelectedModel: (model: string) => set({ selectedModel: model }),
   setSelectedEffort: (effort: "high" | "medium" | "low") => set({ selectedEffort: effort }),
@@ -118,6 +122,8 @@ export const useConductorStore = create<ConductorState>((set, get) => ({
       console.error("Failed to load default role:", e);
     }
   },
+
+  toggleLocalModel: () => set((s) => ({ localModelEnabled: !s.localModelEnabled })),
 
   reset: () =>
     set({

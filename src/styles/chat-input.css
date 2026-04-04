@@ -237,13 +237,19 @@
 }
 
 .input-bar-btn--local {
-  color: var(--accent-icon);
-  border-color: var(--fg-dim);
+  color: var(--fg-dim);
+  border-color: var(--border);
 }
 
 .input-bar-btn--local:hover {
   background: var(--bg-hover);
-  color: var(--accent);
+  color: var(--fg);
+}
+
+.input-bar-btn--local-active {
+  color: var(--fg);
+  border-color: var(--accent);
+  background: var(--bg-hover);
 }
 
 .input-bar-btn--image {
@@ -270,6 +276,10 @@
   background: var(--bg-hover);
   color: var(--fg-dim);
   opacity: 0.5;
+}
+
+.input-bar-send--local {
+  border-color: var(--accent);
 }
 
 .input-bar-stop {

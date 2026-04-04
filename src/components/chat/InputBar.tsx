@@ -134,14 +134,8 @@ export const InputBar = memo(function InputBar() {
     }
   }, [processFromPaths]);
 
-  // Send to local model (Ollama)
-  const handleSendLocal = useCallback(() => {
-    const trimmed = text.trim();
-    if (!trimmed || isThinking) return;
-    setText("");
-    resetStream();
-    sendToLocalModel(trimmed).catch(console.error);
-  }, [text, isThinking, resetStream]);
+  const localModelEnabled = useConductorStore((s) => s.localModelEnabled);
+  const toggleLocalModel = useConductorStore((s) => s.toggleLocalModel);
 
   // Send to image generation
   const handleSendImage = useCallback(() => {
@@ -166,6 +160,15 @@ export const InputBar = memo(function InputBar() {
       return;
     }
 
+    // Local model toggle: route to Ollama instead of Claude
+    if (localModelEnabled) {
+      setText("");
+      clearAttachments();
+      resetStream();
+      sendToLocalModel(trimmed).catch(console.error);
+      return;
+    }
+
     let finalPrompt = "";
     for (const att of attachments) {
       if (att.fileType === "text") {
@@ -178,7 +181,7 @@ export const InputBar = memo(function InputBar() {
     clearAttachments();
     resetStream();
     sendMessage(finalPrompt.trim(), attachments.length > 0 ? [...attachments] : undefined).catch(console.error);
-  }, [text, attachments, isThinking, clearAttachments, resetStream]);
+  }, [text, attachments, isThinking, localModelEnabled, clearAttachments, resetStream]);
 
   // Broadcast message to team mailbox (Ctrl+Enter)
   const handleBroadcast = useCallback(async () => {
@@ -406,12 +409,11 @@ export const InputBar = memo(function InputBar() {
                   </button>
                 </Tooltip>
               )}
-              <Tooltip text="Send to local model (Ollama)">
+              <Tooltip text={localModelEnabled ? "Local model ON — click to switch to Claude" : "Local model OFF — click to switch to Ollama"}>
                 <button
-                  className="input-bar-btn input-bar-btn--local"
-                  onClick={handleSendLocal}
-                  disabled={!text.trim() || isThinking}
-                  aria-label="Send to local model"
+                  className={`input-bar-btn input-bar-btn--local${localModelEnabled ? " input-bar-btn--local-active" : ""}`}
+                  onClick={toggleLocalModel}
+                  aria-label="Toggle local model"
                 >
                   <Monitor size={18} />
                 </button>
@@ -426,12 +428,12 @@ export const InputBar = memo(function InputBar() {
                   <ImageIcon size={18} />
                 </button>
               </Tooltip>
-              <Tooltip text="Send">
+              <Tooltip text={localModelEnabled ? "Send to local model" : "Send"}>
                 <button
-                  className="input-bar-btn input-bar-send"
+                  className={`input-bar-btn input-bar-send${localModelEnabled ? " input-bar-send--local" : ""}`}
                   onClick={handleSend}
                   disabled={!text.trim() && attachments.length === 0}
-                  aria-label="Send message"
+                  aria-label={localModelEnabled ? "Send to local model" : "Send message"}
                 >
                   <ArrowUp size={18} />
                 </button>
