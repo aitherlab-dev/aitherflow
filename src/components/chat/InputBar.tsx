@@ -1,9 +1,10 @@
 import { memo, useState, useRef, useCallback, useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { Plus, Mic, MicOff, ArrowUp, Square, MessageSquarePlus, Loader2, Radio } from "lucide-react";
+import { Plus, Mic, MicOff, ArrowUp, Square, MessageSquarePlus, Loader2, Radio, Monitor, ImageIcon } from "lucide-react";
 import { openDialog, invoke } from "../../lib/transport";
 import { useChatStore, agentStates } from "../../stores/chatStore";
 import { sendMessage, injectMessage, stopGeneration, newChat, switchPermissionMode, switchModel } from "../../stores/chatService";
+import { sendToLocalModel, sendToImageGen } from "../../stores/localModelService";
 import { useAttachmentStore } from "../../stores/attachmentStore";
 import { useFileAttach } from "../../hooks/useFileAttach";
 import { usePasteHandler } from "../../hooks/usePasteHandler";
@@ -132,6 +133,24 @@ export const InputBar = memo(function InputBar() {
       console.error("File dialog error:", e);
     }
   }, [processFromPaths]);
+
+  // Send to local model (Ollama)
+  const handleSendLocal = useCallback(() => {
+    const trimmed = text.trim();
+    if (!trimmed || isThinking) return;
+    setText("");
+    resetStream();
+    sendToLocalModel(trimmed).catch(console.error);
+  }, [text, isThinking, resetStream]);
+
+  // Send to image generation
+  const handleSendImage = useCallback(() => {
+    const trimmed = text.trim();
+    if (!trimmed || isThinking) return;
+    setText("");
+    resetStream();
+    sendToImageGen(trimmed).catch(console.error);
+  }, [text, isThinking, resetStream]);
 
   // Send message with attachments (or inject during streaming)
   const handleSend = useCallback(() => {
@@ -387,6 +406,26 @@ export const InputBar = memo(function InputBar() {
                   </button>
                 </Tooltip>
               )}
+              <Tooltip text="Send to local model (Ollama)">
+                <button
+                  className="input-bar-btn input-bar-btn--local"
+                  onClick={handleSendLocal}
+                  disabled={!text.trim()}
+                  aria-label="Send to local model"
+                >
+                  <Monitor size={18} />
+                </button>
+              </Tooltip>
+              <Tooltip text="Generate image">
+                <button
+                  className="input-bar-btn input-bar-btn--image"
+                  onClick={handleSendImage}
+                  disabled={!text.trim()}
+                  aria-label="Generate image"
+                >
+                  <ImageIcon size={18} />
+                </button>
+              </Tooltip>
               <Tooltip text="Send">
                 <button
                   className="input-bar-btn input-bar-send"

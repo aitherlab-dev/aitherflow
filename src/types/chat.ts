@@ -41,6 +41,8 @@ export interface ChatMessage {
   isStreaming?: boolean;
   tools?: ToolActivity[];
   attachments?: Attachment[];
+  /** Label shown as a badge (e.g. "llama3" for local model responses) */
+  modelLabel?: string;
 }
 
 // ── Interactive tool input shapes ──

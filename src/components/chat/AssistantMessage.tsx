@@ -82,7 +82,12 @@ export const AssistantMessage = memo(function AssistantMessage({
   // Finished — show collapsible thinking + final text
   return (
     <div className="chat-message chat-message-assistant">
-      <span className="chat-message-time">{formatMessageTime(message.timestamp)}</span>
+      <span className="chat-message-time">
+        {formatMessageTime(message.timestamp)}
+        {message.modelLabel && (
+          <span className="chat-model-badge">{message.modelLabel}</span>
+        )}
+      </span>
       {thinking.length > 0 && (
         <ThinkingToggle
           thinking={thinking}

@@ -236,6 +236,26 @@
   to { transform: rotate(360deg); }
 }
 
+.input-bar-btn--local {
+  color: var(--accent-icon);
+  border-color: var(--fg-dim);
+}
+
+.input-bar-btn--local:hover {
+  background: var(--bg-hover);
+  color: var(--accent);
+}
+
+.input-bar-btn--image {
+  color: var(--accent-icon);
+  border-color: var(--fg-dim);
+}
+
+.input-bar-btn--image:hover {
+  background: var(--bg-hover);
+  color: var(--accent);
+}
+
 .input-bar-send {
   background: var(--bg-hover);
   color: var(--fg-muted);

@@ -56,6 +56,20 @@
   font-weight: 400;
 }
 
+.chat-model-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  color: var(--fg-dim);
+  font-size: 0.6rem;
+  font-weight: 600;
+  vertical-align: middle;
+  font-family: "Inter", system-ui, sans-serif;
+}
+
 .chat-message-content {
   overflow: hidden;
 }
