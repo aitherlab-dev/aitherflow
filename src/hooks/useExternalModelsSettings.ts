@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "../lib/transport";
+import { useMaskedSecrets } from "./useMaskedSecret";
 import type {
   ProviderConfig,
   ExternalModelsConfigWithKeys,
@@ -62,9 +63,7 @@ export function useExternalModelsSettings() {
   });
   const [mcpLoading, setMcpLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
-
-  const realKeysRef = useRef<Record<string, string>>({});
+  const secrets = useMaskedSecrets();
 
   // Load config and MCP status
   useEffect(() => {
@@ -74,9 +73,9 @@ export function useExternalModelsSettings() {
     ])
       .then(([cfg, status]) => {
         const states: ProviderState[] = cfg.providers.map((p) => {
-          const maskedKey = cfg.keys[p.id] || "";
-          realKeysRef.current[p.id] = maskedKey;
-          return makeProviderState(p, maskedKey);
+          const apiKey = cfg.keys[p.id] || "";
+          secrets.setFromLoad(p.id, apiKey);
+          return makeProviderState(p, apiKey);
         });
 
         setProviders(states);
@@ -103,13 +102,8 @@ export function useExternalModelsSettings() {
     setProviders(updated);
     clearTimeout(saveTimerRef.current);
 
-    // Track real keys
     for (const p of updated) {
-      if (p.apiKey && !p.apiKey.startsWith("****")) {
-        realKeysRef.current[p.id] = p.apiKey;
-      } else if (!p.apiKey) {
-        realKeysRef.current[p.id] = "";
-      }
+      secrets.resolveFromInput(p.id, p.apiKey);
     }
 
     saveTimerRef.current = setTimeout(() => {
@@ -126,7 +120,7 @@ export function useExternalModelsSettings() {
       const apiKeys: Record<string, string> = {};
       for (const p of updated) {
         if (p.requiresApiKey) {
-          const key = realKeysRef.current[p.id] || "";
+          const key = secrets.realKeysRef.current[p.id] || "";
           if (key) {
             apiKeys[p.id] = key;
           }
@@ -186,7 +180,7 @@ export function useExternalModelsSettings() {
   const removeProvider = useCallback(
     (id: string) => {
       const updated = providersRef.current.filter((p) => p.id !== id);
-      delete realKeysRef.current[id];
+      secrets.remove(id);
       save(updated);
       invoke("external_models_remove_provider", { providerId: id }).catch(
         console.error,
@@ -259,10 +253,6 @@ export function useExternalModelsSettings() {
     }
   }, [mcpStatus]);
 
-  const toggleShowKey = useCallback((id: string) => {
-    setShowKeys((prev) => ({ ...prev, [id]: !prev[id] }));
-  }, []);
-
   const toggleCollapsed = useCallback((id: string) => {
     setProviders((prev) =>
       prev.map((p) =>
@@ -277,7 +267,7 @@ export function useExternalModelsSettings() {
     mcpStatus,
     mcpLoading,
     loaded,
-    showKeys,
+    showKeys: secrets.showKeys,
     actions: {
       updateProvider,
       addProvider,
@@ -286,7 +276,7 @@ export function useExternalModelsSettings() {
       loadModels,
       toggleMcp,
       saveVisionProfile,
-      toggleShowKey,
+      toggleShowKey: secrets.toggleShowKey,
       toggleCollapsed,
     },
   };

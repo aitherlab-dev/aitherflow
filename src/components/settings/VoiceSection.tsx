@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "../../lib/transport";
 import { invalidateSettingsCache } from "../../stores/chatService";
+import { useMaskedSecret } from "../../hooks/useMaskedSecret";
 import { Tooltip } from "../shared/Tooltip";
 
 import type { AppSettings } from "../../types/settings";
@@ -40,18 +41,15 @@ export function VoiceSection() {
   const [settings, setSettings] = useState<VoiceSettings | null>(null);
   const [showKey, setShowKey] = useState(false);
   const [authStatus, setAuthStatus] = useState<AnthropicAuthStatus | null>(null);
-  /** Real API keys kept out of React state (not visible in DevTools) */
-  const realGroqKeyRef = useRef<string>("");
-  const realDeepgramKeyRef = useRef<string>("");
+  const groqKey = useMaskedSecret();
+  const deepgramKey = useMaskedSecret();
 
   useEffect(() => {
     invoke<VoiceSettings>("load_settings")
       .then((s) => {
-        realGroqKeyRef.current = s.groqApiKey || "";
-        realDeepgramKeyRef.current = s.deepgramApiKey || "";
-        const maskedGroq = s.groqApiKey ? `****${s.groqApiKey.slice(-4)}` : "";
-        const maskedDeepgram = s.deepgramApiKey ? `****${s.deepgramApiKey.slice(-4)}` : "";
-        setSettings({ ...s, groqApiKey: maskedGroq, deepgramApiKey: maskedDeepgram });
+        groqKey.setFromLoad(s.groqApiKey || "");
+        deepgramKey.setFromLoad(s.deepgramApiKey || "");
+        setSettings(s);
       })
       .catch(console.error);
     invoke<AnthropicAuthStatus>("voice_check_anthropic_auth")
@@ -64,22 +62,9 @@ export function VoiceSection() {
   const save = useCallback((updated: VoiceSettings) => {
     setSettings(updated);
     invalidateSettingsCache();
-    // Resolve real keys: if user entered a new value (not masked), use it; otherwise keep existing
-    const groqKey = updated.groqApiKey;
-    if (groqKey && !groqKey.startsWith("****")) {
-      realGroqKeyRef.current = groqKey;
-    } else if (!groqKey) {
-      realGroqKeyRef.current = "";
-    }
-    const dgKey = updated.deepgramApiKey;
-    if (dgKey && !dgKey.startsWith("****")) {
-      realDeepgramKeyRef.current = dgKey;
-    } else if (!dgKey) {
-      realDeepgramKeyRef.current = "";
-    }
-    const toSave = { ...updated, groqApiKey: realGroqKeyRef.current, deepgramApiKey: realDeepgramKeyRef.current };
     clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
+      const toSave = { ...updated, groqApiKey: groqKey.realRef.current, deepgramApiKey: deepgramKey.realRef.current };
       invoke("save_settings", { settings: toSave }).catch(console.error);
     }, 400);
   }, []);
@@ -126,8 +111,11 @@ export function VoiceSection() {
               <input
                 type={showKey ? "text" : "password"}
                 className="settings-input"
-                value={settings.groqApiKey}
-                onChange={(e) => save({ ...settings, groqApiKey: e.target.value })}
+                value={groqKey.displayValue}
+                onChange={(e) => {
+                  groqKey.setFromInput(e.target.value);
+                  save(settings);
+                }}
                 placeholder="gsk_..."
                 spellCheck={false}
                 autoComplete="off"
@@ -197,8 +185,11 @@ export function VoiceSection() {
             <input
               type={showKey ? "text" : "password"}
               className="settings-input"
-              value={settings.deepgramApiKey}
-              onChange={(e) => save({ ...settings, deepgramApiKey: e.target.value })}
+              value={deepgramKey.displayValue}
+              onChange={(e) => {
+                deepgramKey.setFromInput(e.target.value);
+                save(settings);
+              }}
               placeholder="..."
               spellCheck={false}
               autoComplete="off"

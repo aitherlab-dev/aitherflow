@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { invoke, openUrl } from "../../lib/transport";
+import { useMaskedSecret } from "../../hooks/useMaskedSecret";
 
 interface TelegramConfig {
   bot_token: string | null;
@@ -32,9 +33,8 @@ export function TelegramSection() {
   });
   const [loaded, setLoaded] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
-  /** Real bot token kept out of React state (not visible in DevTools) */
-  const realTokenRef = useRef<string | null>(null);
-  const realGroqKeyRef = useRef<string | null>(null);
+  const tokenSecret = useMaskedSecret({ clearOnEmpty: false });
+  const groqSecret = useMaskedSecret();
 
   useEffect(() => {
     Promise.all([
@@ -42,15 +42,9 @@ export function TelegramSection() {
       invoke<TelegramStatus>("get_telegram_status"),
     ])
       .then(([cfg, st]) => {
-        realTokenRef.current = cfg.bot_token;
-        realGroqKeyRef.current = cfg.groq_api_key ?? null;
-        const maskedToken = cfg.bot_token
-          ? `****${cfg.bot_token.slice(-4)}`
-          : null;
-        const maskedGroq = cfg.groq_api_key
-          ? `****${cfg.groq_api_key.slice(-4)}`
-          : null;
-        setConfig({ ...cfg, bot_token: maskedToken, groq_api_key: maskedGroq });
+        tokenSecret.setFromLoad(cfg.bot_token || "");
+        groqSecret.setFromLoad(cfg.groq_api_key || "");
+        setConfig(cfg);
         setStatus(st);
         setLoaded(true);
       })
@@ -61,20 +55,13 @@ export function TelegramSection() {
   useEffect(() => () => clearTimeout(saveTimerRef.current), []);
   const save = useCallback((updated: TelegramConfig) => {
     setConfig(updated);
-    // Resolve real token: if user entered a new value (not masked), use it; otherwise keep existing
-    const token = updated.bot_token;
-    if (token && !token.startsWith("****")) {
-      realTokenRef.current = token;
-    }
-    const groqKey = updated.groq_api_key;
-    if (groqKey && !groqKey.startsWith("****")) {
-      realGroqKeyRef.current = groqKey;
-    } else if (!groqKey) {
-      realGroqKeyRef.current = null;
-    }
-    const toSave = { ...updated, bot_token: realTokenRef.current, groq_api_key: realGroqKeyRef.current };
     clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
+      const toSave = {
+        ...updated,
+        bot_token: tokenSecret.realRef.current || null,
+        groq_api_key: groqSecret.realRef.current || null,
+      };
       invoke("save_telegram_config", { config: toSave }).catch(console.error);
     }, 400);
   }, []);
@@ -142,10 +129,11 @@ export function TelegramSection() {
         <input
           type="password"
           className="webserver-input"
-          value={config.bot_token ?? ""}
-          onChange={(e) =>
-            handleFieldChange("bot_token", e.target.value || null)
-          }
+          value={tokenSecret.displayValue}
+          onChange={(e) => {
+            tokenSecret.setFromInput(e.target.value);
+            save(config);
+          }}
           placeholder="123456:ABC-DEF..."
           autoComplete="off"
         />
@@ -177,10 +165,11 @@ export function TelegramSection() {
         <input
           type="password"
           className="webserver-input"
-          value={config.groq_api_key ?? ""}
-          onChange={(e) =>
-            handleFieldChange("groq_api_key", e.target.value || null)
-          }
+          value={groqSecret.displayValue}
+          onChange={(e) => {
+            groqSecret.setFromInput(e.target.value);
+            save(config);
+          }}
           placeholder="gsk_..."
           autoComplete="off"
         />
