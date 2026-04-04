@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { invoke } from "../../lib/transport";
 import { invalidateSettingsCache } from "../../stores/chatService";
 import { Loader, RefreshCw, Languages } from "lucide-react";
@@ -26,7 +27,7 @@ export function LanguageSection() {
 
   const translating = useTranslationStore((s) => s.translating);
   const translationError = useTranslationStore((s) => s.error);
-  const cacheEntries = useTranslationStore((s) => s.cache.entries);
+  const cacheEntries = useTranslationStore(useShallow((s) => s.cache.entries));
   const translateAll = useTranslationStore((s) => s.translateAll);
   const updateTranslations = useTranslationStore((s) => s.updateTranslations);
 

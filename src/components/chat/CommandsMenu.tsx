@@ -23,7 +23,7 @@ export const CommandsMenu = memo(function CommandsMenu({
 }: CommandsMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const allCommands = useConductorStore(useShallow((s) => s.slashCommands));
-  const translations = useTranslationStore((s) => s.cache.entries);
+  const translations = useTranslationStore(useShallow((s) => s.cache.entries));
 
   // Filter out skills — keep only built-in CLI commands
   const commands = useMemo(() => {

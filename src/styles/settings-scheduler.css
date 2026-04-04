@@ -63,7 +63,7 @@
 }
 
 .scheduler-status-dot--error {
-  background: var(--red, #e55);
+  background: var(--error);
 }
 
 .scheduler-status-dot--running {

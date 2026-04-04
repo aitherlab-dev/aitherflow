@@ -475,7 +475,7 @@
 }
 
 .branches-card__remove:hover {
-  color: var(--danger, #e53935);
+  color: var(--error);
 }
 
 .branches-card__create {
