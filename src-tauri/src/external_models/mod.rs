@@ -159,7 +159,9 @@ pub async fn external_models_remove_provider(
         }
         // Remove API key from keyring
         let secret_key = format!("external-{provider_id}-api-key");
-        let _ = crate::secrets::delete_secret(&secret_key);
+        if let Err(e) = crate::secrets::delete_secret(&secret_key) {
+            eprintln!("[external_models] Failed to delete secret for {provider_id}: {e}");
+        }
         config::save_config(&cfg)
     })
     .await
@@ -233,8 +235,7 @@ async fn get_test_model(
     } else if !pc.default_model.is_empty() {
         Ok(pc.default_model.clone())
     } else {
-        // Use a generic test model
-        Ok("openrouter/auto".to_string())
+        Err(format!("No default model configured for {}", pc.name))
     }
 }
 

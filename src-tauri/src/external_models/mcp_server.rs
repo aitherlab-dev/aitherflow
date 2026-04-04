@@ -99,13 +99,11 @@ async fn execute_tool(name: &str, args: &Value) -> Result<String, String> {
 }
 
 async fn tool_call_model(args: &Value) -> Result<String, String> {
-    let pc = resolve_provider(args).await?;
+    let (pc, api_key) = resolve_provider_with_key(args).await?;
     let model = args["model"].as_str().ok_or("Missing 'model' parameter")?;
     let prompt = args["prompt"].as_str().ok_or("Missing 'prompt' parameter")?;
     let system_prompt = args["system_prompt"].as_str();
     let max_tokens = args["max_tokens"].as_u64().map(|n| n as u32);
-
-    let api_key = get_api_key_for(&pc)?;
 
     let mut messages = Vec::new();
     if let Some(sys) = system_prompt {
@@ -119,7 +117,7 @@ async fn tool_call_model(args: &Value) -> Result<String, String> {
 }
 
 async fn tool_call_vision(args: &Value) -> Result<String, String> {
-    let pc = resolve_provider(args).await?;
+    let (pc, api_key) = resolve_provider_with_key(args).await?;
     let model = args["model"].as_str().ok_or("Missing 'model' parameter")?;
     let prompt = args["prompt"].as_str().ok_or("Missing 'prompt' parameter")?;
     let file_paths = args["file_paths"].as_array().ok_or("Missing 'file_paths' parameter")?;
@@ -174,7 +172,6 @@ async fn tool_call_vision(args: &Value) -> Result<String, String> {
         return Err("No frames or images could be extracted".into());
     }
 
-    let api_key = get_api_key_for(&pc)?;
     all_parts.push(ContentPart::Text { text: prompt.to_string() });
     let messages = vec![ChatMessage { role: Role::User, content: MessageContent::Parts(all_parts) }];
     let response = client::call_model(&pc, &api_key, model, messages, max_tokens).await?;
@@ -183,7 +180,7 @@ async fn tool_call_vision(args: &Value) -> Result<String, String> {
 }
 
 async fn tool_analyze_directory(args: &Value) -> Result<String, String> {
-    let pc = resolve_provider(args).await?;
+    let (pc, _api_key) = resolve_provider_with_key(args).await?;
     let model = args["model"].as_str().ok_or("Missing 'model' parameter")?;
     let prompt = args["prompt"].as_str().ok_or("Missing 'prompt' parameter")?;
     let directory = args["directory"].as_str().ok_or("Missing 'directory' parameter")?;
@@ -195,31 +192,30 @@ async fn tool_analyze_directory(args: &Value) -> Result<String, String> {
 }
 
 async fn tool_list_models(args: &Value) -> Result<String, String> {
-    let pc = resolve_provider(args).await?;
-    let api_key = get_api_key_for(&pc)?;
+    let (pc, api_key) = resolve_provider_with_key(args).await?;
     let models = client::list_models(&pc, &api_key).await?;
     serde_json::to_string_pretty(&models).map_err(|e| format!("Serialize error: {e}"))
 }
 
 // ── Helpers ──
 
-/// Resolve provider config by id from args. Reads config in blocking context.
-async fn resolve_provider(args: &Value) -> Result<ProviderConfig, String> {
+/// Resolve provider config and API key by id from args. Both config and keyring
+/// reads happen in a single spawn_blocking to avoid blocking the async runtime.
+async fn resolve_provider_with_key(args: &Value) -> Result<(ProviderConfig, String), String> {
     let id = args["provider"].as_str().ok_or("Missing 'provider' parameter")?.to_string();
-    tokio::task::spawn_blocking(move || config::find_provider(&id))
-        .await
-        .map_err(|e| format!("Task join error: {e}"))?
-}
-
-/// Get API key for a provider (synchronous, for use in already-async context after resolve_provider).
-fn get_api_key_for(pc: &ProviderConfig) -> Result<String, String> {
-    if pc.requires_api_key {
-        config::get_api_key(&pc.id).ok_or_else(|| {
-            format!("No API key configured for {}", pc.name)
-        })
-    } else {
-        Ok(String::new())
-    }
+    tokio::task::spawn_blocking(move || {
+        let pc = config::find_provider(&id)?;
+        let api_key = if pc.requires_api_key {
+            config::get_api_key(&pc.id).ok_or_else(|| {
+                format!("No API key configured for {}", pc.name)
+            })?
+        } else {
+            String::new()
+        };
+        Ok((pc, api_key))
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
 }
 
 async fn parse_vision_profile_with_config(args: &Value) -> vision::VisionProfile {
