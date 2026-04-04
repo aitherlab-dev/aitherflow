@@ -16,9 +16,15 @@ fn read_all() -> HashMap<String, String> {
 }
 
 fn write_all(map: &HashMap<String, String>) -> Result<(), String> {
+    let path = secrets_file();
     let json = serde_json::to_string_pretty(map)
         .map_err(|e| format!("Failed to serialize secrets: {e}"))?;
-    atomic_write(&secrets_file(), json.as_bytes())
+    atomic_write(&path, json.as_bytes())?;
+    use std::os::unix::fs::PermissionsExt;
+    if let Err(e) = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)) {
+        eprintln!("[secrets] Failed to set permissions on {}: {e}", path.display());
+    }
+    Ok(())
 }
 
 pub fn set_secret(key: &str, value: &str) -> Result<bool, String> {
