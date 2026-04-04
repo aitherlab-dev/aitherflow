@@ -1,10 +1,11 @@
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { ChevronRight, Settings, Sparkles, Star } from "lucide-react";
+import { ChevronRight, FileText, Settings, Sparkles, Star } from "lucide-react";
 import { useSkillStore } from "../../../stores/skillStore";
 import { useAgentStore } from "../../../stores/agentStore";
 import { sendMessage } from "../../../stores/chatService";
 import { useLayoutStore } from "../../../stores/layoutStore";
+import { useFileViewerStore } from "../../../stores/fileViewerStore";
 import { useTranslationStore } from "../../../stores/translationStore";
 import { DashboardCard } from "../DashboardCard";
 import { Tooltip } from "../../shared/Tooltip";
@@ -29,6 +30,24 @@ const SkillRowMini = memo(function SkillRowMini({
     (s) => s.cache.entries[`skill:${skill.id}`],
   );
   const desc = translated || skill.description || skill.name;
+  const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleFileClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (clickTimer.current) {
+        clearTimeout(clickTimer.current);
+        clickTimer.current = null;
+        useFileViewerStore.getState().openPinned(skill.filePath).catch(console.error);
+      } else {
+        clickTimer.current = setTimeout(() => {
+          clickTimer.current = null;
+          useFileViewerStore.getState().openPreview(skill.filePath).catch(console.error);
+        }, 250);
+      }
+    },
+    [skill.filePath],
+  );
 
   return (
     <Tooltip text={disabled ? "" : desc}>
@@ -36,6 +55,13 @@ const SkillRowMini = memo(function SkillRowMini({
         className={`skills-row ${disabled ? "skills-row--disabled" : ""}`}
         onClick={() => { if (!disabled) onInvoke(skill.command); }}
       >
+        <button
+          className="skills-row__file-btn"
+          onClick={handleFileClick}
+          title="Click: preview, double-click: open"
+        >
+          <FileText size={13} />
+        </button>
         <span className="skills-row__name">{skill.name}</span>
         <span className="skills-row__command">{skill.command}</span>
         <Tooltip text={isFavorite ? "Remove from favorites" : "Add to favorites"}>

@@ -124,6 +124,23 @@
   background: var(--bg-hover);
 }
 
+.skills-row__file-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--fg-dim);
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: color 0.12s;
+}
+
+.skills-row__file-btn:hover {
+  color: var(--fg-muted);
+}
+
 .skills-row__name {
   flex: 1;
   font-size: 0.8rem;
