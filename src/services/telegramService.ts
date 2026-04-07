@@ -28,6 +28,7 @@ interface TgIncoming {
 interface TelegramStatus {
   running: boolean;
   connected: boolean;
+  reconnecting: boolean;
   error: string | null;
   bot_username: string | null;
 }

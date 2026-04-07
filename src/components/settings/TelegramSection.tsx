@@ -13,6 +13,7 @@ interface TelegramConfig {
 interface TelegramStatus {
   running: boolean;
   connected: boolean;
+  reconnecting: boolean;
   error: string | null;
   bot_username: string | null;
 }
@@ -28,6 +29,7 @@ export function TelegramSection() {
   const [status, setStatus] = useState<TelegramStatus>({
     running: false,
     connected: false,
+    reconnecting: false,
     error: null,
     bot_username: null,
   });
@@ -78,12 +80,12 @@ export function TelegramSection() {
           console.error("Failed to start Telegram bot:", e);
           const msg = "Failed to start bot. Check console for details.";
           setStartError(msg);
-          setStatus({ running: false, connected: false, error: msg, bot_username: null });
+          setStatus({ running: false, connected: false, reconnecting: false, error: msg, bot_username: null });
         });
     } else {
       invoke("stop_telegram_bot")
         .then(() => {
-          setStatus({ running: false, connected: false, error: null, bot_username: null });
+          setStatus({ running: false, connected: false, reconnecting: false, error: null, bot_username: null });
           save({ ...config, enabled: false });
         })
         .catch(console.error);
@@ -97,6 +99,17 @@ export function TelegramSection() {
     [config, save],
   );
 
+  // Poll status while bot is running to detect reconnecting/disconnected states
+  useEffect(() => {
+    if (!status.running) return;
+    const interval = setInterval(() => {
+      invoke<TelegramStatus>("get_telegram_status")
+        .then(setStatus)
+        .catch(console.error);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [status.running]);
+
   if (!loaded) return null;
 
   return (
@@ -107,8 +120,10 @@ export function TelegramSection() {
           <span className="settings-toggle-label">Enable Telegram bot</span>
           <span className="settings-toggle-desc">
             Send messages to the agent via Telegram.
-            {status.running && status.bot_username && ` Connected as @${status.bot_username}.`}
-            {status.running && !status.bot_username && " Bot is running."}
+            {status.running && status.connected && status.bot_username && ` Connected as @${status.bot_username}.`}
+            {status.running && status.connected && !status.bot_username && " Bot is running."}
+            {status.running && status.reconnecting && " Reconnecting..."}
+            {status.running && !status.connected && !status.reconnecting && " Disconnected."}
           </span>
         </div>
         <label className="toggle-switch">
@@ -120,6 +135,12 @@ export function TelegramSection() {
       {startError && (
         <div className="webserver-note" style={{ color: "var(--error)" }}>
           {startError}
+        </div>
+      )}
+
+      {status.reconnecting && status.error && (
+        <div className="webserver-note" style={{ color: "var(--warning)" }}>
+          {status.error}
         </div>
       )}
 
