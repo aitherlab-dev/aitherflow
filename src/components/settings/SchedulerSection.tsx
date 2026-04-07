@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Plus, Play, Trash2, X, Save } from "lucide-react";
+import { useShallow } from "zustand/react/shallow";
 import { invoke, listen } from "../../lib/transport";
 import { Tooltip } from "../shared/Tooltip";
+import { useSkillStore } from "../../stores/skillStore";
+import type { SkillEntry } from "../../types/skills";
 import type { ScheduledTask, TaskSchedule } from "../../types/scheduler";
 import type { ProjectBookmark } from "../../types/projects";
 
@@ -310,11 +313,56 @@ function emptyTask(): ScheduledTask {
   };
 }
 
+/** Find the skill whose /command matches the start of a prompt string */
+function detectSkillFromPrompt(prompt: string, skills: SkillEntry[]): SkillEntry | null {
+  if (!prompt.startsWith("/")) return null;
+  // Match longest command first to avoid partial matches
+  const sorted = [...skills].sort((a, b) => b.command.length - a.command.length);
+  for (const skill of sorted) {
+    if (prompt === skill.command || prompt.startsWith(skill.command + " ")) {
+      return skill;
+    }
+  }
+  return null;
+}
+
+/** Replace or insert a /command prefix in the prompt */
+function setSkillPrefix(prompt: string, oldSkill: SkillEntry | null, newSkill: SkillEntry | null): string {
+  let base = prompt;
+  if (oldSkill) {
+    if (base === oldSkill.command) {
+      base = "";
+    } else if (base.startsWith(oldSkill.command + " ")) {
+      base = base.slice(oldSkill.command.length + 1);
+    }
+  }
+  if (!newSkill) return base;
+  return base ? `${newSkill.command} ${base}` : newSkill.command;
+}
+
 export function SchedulerSection() {
   const [tasks, setTasks] = useState<ScheduledTask[]>([]);
   const [projects, setProjects] = useState<ProjectBookmark[]>([]);
   const [editing, setEditing] = useState<ScheduledTask | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
+
+  const allSkills = useSkillStore(useShallow((s) => [
+    ...s.global,
+    ...s.projects.flatMap((p) => p.skills),
+    ...s.plugins.flatMap((p) => p.skills),
+  ]));
+  const skillsLoaded = useSkillStore((s) => s.loaded);
+
+  // Filter skills: global + plugins always, project only for the selected project
+  const availableSkills = useMemo(() => {
+    if (!editing) return [];
+    return allSkills.filter((s) => {
+      if (s.source.type === "global" || s.source.type === "plugin") return true;
+      if (s.source.type === "project") return s.source.projectPath === editing.project_path;
+      return false;
+    });
+  }, [allSkills, editing?.project_path]);
 
   const loadTasks = useCallback(() => {
     invoke<ScheduledTask[]>("scheduler_list_tasks")
@@ -376,11 +424,19 @@ export function SchedulerSection() {
       .catch(console.error);
   }, [editing, loadTasks]);
 
+  // When opening editor, detect skill from prompt
+  const openEditor = useCallback((task: ScheduledTask) => {
+    const detected = detectSkillFromPrompt(task.prompt, allSkills);
+    setSelectedSkillId(detected?.id ?? null);
+    setEditing(task);
+  }, [allSkills]);
+
   const handleAdd = useCallback(() => {
     const task = emptyTask();
     if (projects.length > 0) {
       task.project_path = projects[0].path;
     }
+    setSelectedSkillId(null);
     setEditing(task);
   }, [projects]);
 
@@ -395,7 +451,7 @@ export function SchedulerSection() {
 
       {tasks.map((task) => (
         <div key={task.id} className="scheduler-task-row">
-          <div className="scheduler-task-info" onClick={() => setEditing({ ...task })}>
+          <div className="scheduler-task-info" onClick={() => openEditor({ ...task })}>
             <div className="scheduler-task-name" style={{ opacity: task.enabled ? 1 : 0.5 }}>
               {task.name}
               {task.last_status && (
@@ -463,6 +519,62 @@ export function SchedulerSection() {
             />
           </div>
 
+          {/* Skill */}
+          {skillsLoaded && availableSkills.length > 0 && (
+            <div className="settings-toggle-row">
+              <div className="settings-toggle-info">
+                <span className="settings-toggle-label">Skill</span>
+                <span className="settings-toggle-desc">Prepend /command to prompt</span>
+              </div>
+              <select
+                className="settings-select"
+                value={selectedSkillId ?? ""}
+                onChange={(e) => {
+                  const skillId = e.target.value || null;
+                  const oldSkill = availableSkills.find((s) => s.id === selectedSkillId) ?? null;
+                  const newSkill = skillId ? availableSkills.find((s) => s.id === skillId) ?? null : null;
+                  setSelectedSkillId(skillId);
+                  setEditing({
+                    ...editing,
+                    prompt: setSkillPrefix(editing.prompt, oldSkill, newSkill),
+                  });
+                }}
+              >
+                <option value="">None</option>
+                {(() => {
+                  const global = availableSkills.filter((s) => s.source.type === "global");
+                  const plugins = availableSkills.filter((s) => s.source.type === "plugin");
+                  const project = availableSkills.filter((s) => s.source.type === "project");
+                  return (
+                    <>
+                      {global.length > 0 && (
+                        <optgroup label="Global">
+                          {global.map((s) => (
+                            <option key={s.id} value={s.id}>{s.name}</option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {plugins.length > 0 && (
+                        <optgroup label="Plugins">
+                          {plugins.map((s) => (
+                            <option key={s.id} value={s.id}>{s.name}</option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {project.length > 0 && (
+                        <optgroup label="Project">
+                          {project.map((s) => (
+                            <option key={s.id} value={s.id}>{s.name}</option>
+                          ))}
+                        </optgroup>
+                      )}
+                    </>
+                  );
+                })()}
+              </select>
+            </div>
+          )}
+
           {/* Prompt */}
           <div className="settings-toggle-row" style={{ alignItems: "flex-start" }}>
             <div className="settings-toggle-info">
@@ -485,7 +597,18 @@ export function SchedulerSection() {
             <select
               className="settings-select"
               value={editing.project_path}
-              onChange={(e) => setEditing({ ...editing, project_path: e.target.value })}
+              onChange={(e) => {
+                const newPath = e.target.value;
+                // If selected skill is project-scoped and from a different project, reset it
+                const currentSkill = availableSkills.find((s) => s.id === selectedSkillId);
+                if (currentSkill?.source.type === "project" && currentSkill.source.projectPath !== newPath) {
+                  const newPrompt = setSkillPrefix(editing.prompt, currentSkill, null);
+                  setSelectedSkillId(null);
+                  setEditing({ ...editing, project_path: newPath, prompt: newPrompt });
+                } else {
+                  setEditing({ ...editing, project_path: newPath });
+                }
+              }}
             >
               {projects.map((p) => (
                 <option key={p.path} value={p.path}>
