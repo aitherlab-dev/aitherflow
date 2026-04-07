@@ -43,6 +43,31 @@ pub async fn save_telegram_config(config: TelegramConfig) -> Result<(), String> 
 #[tauri::command]
 pub fn get_telegram_status() -> Result<TelegramStatus, String> {
     Ok(with_state(|s| {
+        // Check if the bot task has died unexpectedly
+        let task_dead = s
+            .as_ref()
+            .and_then(|st| st.task_handle.as_ref())
+            .is_some_and(|h| h.is_finished());
+
+        if task_dead {
+            if let Some(state) = s.as_mut() {
+                // Clean up dead task resources
+                state.task_handle = None;
+                state.outgoing_tx = None;
+                state.incoming_tx = None;
+                state.incoming_rx = None;
+                // Preserve bot_username for UI display
+                let bot_username = state.status.bot_username.take();
+                state.status = TelegramStatus {
+                    running: false,
+                    connected: false,
+                    reconnecting: false,
+                    error: Some("Bot stopped unexpectedly".into()),
+                    bot_username,
+                };
+            }
+        }
+
         s.as_ref()
             .map(|st| st.status.clone())
             .unwrap_or_default()
