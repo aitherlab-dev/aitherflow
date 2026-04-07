@@ -202,7 +202,11 @@
 
 [data-theme="light"] .sidebar-tab,
 [data-theme="light"] .sidebar-project,
-[data-theme="light"] .dash-card,
+[data-theme="light"] .dash-card {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  border-color: var(--border);
+}
+
 [data-theme="light"] .welcome-card,
 [data-theme="light"] .welcome-new-project,
 [data-theme="light"] .input-bar,
@@ -231,6 +235,26 @@
 
 [data-theme="light"] .chat-message {
   font-weight: 500;
+}
+
+[data-theme="light"] .dash-card--home {
+  background: var(--tab-bg);
+  border-color: var(--border);
+}
+
+[data-theme="light"] .dash-card--home:hover {
+  background: var(--tab-bg-hover);
+  border-color: var(--accent);
+}
+
+[data-theme="light"] .sidebar-project--active {
+  background: var(--tab-bg);
+  border-color: var(--accent);
+  border-left: 3px solid var(--accent);
+}
+
+[data-theme="light"] .sidebar-project--active:hover {
+  background: var(--tab-bg-hover);
 }
 
 [data-theme="light"] .file-viewer-panel {

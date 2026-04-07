@@ -279,13 +279,13 @@ pub async fn telegram_send_menu(
     let mut text = String::new();
     if let Some(agent) = &current_agent {
         let status = if is_thinking { "thinking..." } else { "idle" };
-        text.push_str(&format!("*{agent}* — {status}\n\n"));
+        text.push_str(&format!("<b>{}</b> — {status}\n\n", super::api::escape_html(agent)));
     }
     if let Some(user_msg) = &last_user_message {
-        text.push_str(&format!("*You:* {user_msg}\n\n"));
+        text.push_str(&format!("<b>You:</b> {}\n\n", super::api::escape_html(user_msg)));
     }
     if let Some(msg) = &last_message {
-        text.push_str(&format!("*Agent:* {msg}"));
+        text.push_str(&format!("<b>Agent:</b> {}", super::api::escape_html(msg)));
     }
     if text.is_empty() {
         text.push_str("No active session");
@@ -306,11 +306,13 @@ pub async fn telegram_send_menu(
             buttons.push(vec![serde_json::json!({
                 "text": format!("-> {name}"),
                 "callback_data": cb,
+                "style": "primary",
             })]);
         }
         buttons.push(vec![serde_json::json!({
             "text": "\u{2715} Cancel",
             "callback_data": "cancel",
+            "style": "danger",
         })]);
         tg_send_inline_keyboard(&client, &token, chat_id, &wide("Switch agent:"), buttons).await?;
     }
@@ -348,11 +350,13 @@ pub async fn telegram_send_agents(agents: Vec<serde_json::Value>) -> Result<(), 
         buttons.push(vec![serde_json::json!({
             "text": format!("{prefix}{name}"),
             "callback_data": cb,
+            "style": "primary",
         })]);
     }
     buttons.push(vec![serde_json::json!({
         "text": "\u{2715} Cancel",
         "callback_data": "cancel",
+        "style": "danger",
     })]);
     tg_send_inline_keyboard(&client, &token, chat_id, &wide("Active agents:"), buttons).await
 }
@@ -377,11 +381,13 @@ pub async fn telegram_send_projects(projects: Vec<serde_json::Value>) -> Result<
         buttons.push(vec![serde_json::json!({
             "text": name,
             "callback_data": cb,
+            "style": "primary",
         })]);
     }
     buttons.push(vec![serde_json::json!({
         "text": "\u{2715} Cancel",
         "callback_data": "cancel",
+        "style": "danger",
     })]);
 
     tg_send_inline_keyboard(&client, &token, chat_id, &wide("Start session:"), buttons).await
@@ -407,11 +413,13 @@ pub async fn telegram_send_team_projects(projects: Vec<serde_json::Value>) -> Re
         buttons.push(vec![serde_json::json!({
             "text": name,
             "callback_data": cb,
+            "style": "primary",
         })]);
     }
     buttons.push(vec![serde_json::json!({
         "text": "\u{2715} Cancel",
         "callback_data": "cancel",
+        "style": "danger",
     })]);
 
     tg_send_inline_keyboard(&client, &token, chat_id, &wide("Launch team in:"), buttons).await
@@ -462,11 +470,13 @@ pub async fn telegram_send_skills(skills: Vec<serde_json::Value>) -> Result<(), 
         buttons.push(vec![serde_json::json!({
             "text": name,
             "callback_data": cb,
+            "style": "primary",
         })]);
     }
     buttons.push(vec![serde_json::json!({
         "text": "\u{2715} Cancel",
         "callback_data": "cancel",
+        "style": "danger",
     })]);
 
     tg_send_inline_keyboard(&client, &token, chat_id, &wide("Skills:"), buttons).await
@@ -492,11 +502,13 @@ pub async fn telegram_send_stop(agents: Vec<serde_json::Value>) -> Result<(), St
         buttons.push(vec![serde_json::json!({
             "text": format!("Stop {name}"),
             "callback_data": cb,
+            "style": "danger",
         })]);
     }
     buttons.push(vec![serde_json::json!({
         "text": "\u{2715} Cancel",
         "callback_data": "cancel",
+        "style": "danger",
     })]);
 
     tg_send_inline_keyboard(&client, &token, chat_id, &wide("Stop session:"), buttons).await

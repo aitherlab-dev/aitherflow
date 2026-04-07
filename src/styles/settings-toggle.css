@@ -70,3 +70,51 @@
   background: var(--fg-on-accent);
 }
 
+/* ── Env variables section ── */
+
+.settings-env-section {
+  padding: 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-env-textarea {
+  width: 100%;
+  min-height: 80px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-hard);
+  color: var(--fg);
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.settings-env-textarea::placeholder {
+  color: var(--fg-dim);
+}
+
+.settings-env-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.settings-env-save {
+  align-self: flex-end;
+  padding: 4px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--fg-on-accent);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.settings-env-save:hover {
+  opacity: 0.85;
+}
+

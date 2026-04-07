@@ -11,6 +11,13 @@ pub(crate) fn sanitize_error(err: &str, token: &str) -> String {
     err.replace(token, "<TOKEN>")
 }
 
+/// Escape special HTML characters so user-supplied text doesn't break parse_mode=HTML.
+pub(crate) fn escape_html(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
 pub(crate) async fn tg_get_me(
     client: &reqwest::Client,
     token: &str,
@@ -67,26 +74,13 @@ pub(crate) async fn tg_send_message(
         let body = serde_json::json!({
             "chat_id": chat_id,
             "text": chunk,
-            "parse_mode": "Markdown",
+            "parse_mode": "HTML",
             "disable_web_page_preview": true,
         });
-        let resp = client.post(&url).json(&body).send().await;
-        match resp {
-            Ok(r) => {
-                if !r.status().is_success() {
-                    // Fallback without parse_mode if markdown fails
-                    let body_plain = serde_json::json!({
-                        "chat_id": chat_id,
-                        "text": chunk,
-                        "disable_web_page_preview": true,
-                    });
-                    if let Err(e) = client.post(&url).json(&body_plain).send().await {
-                        eprintln!(
-                            "[TG] sendMessage fallback error: {}",
-                            sanitize_error(&e.to_string(), token)
-                        );
-                    }
-                }
+        match client.post(&url).json(&body).send().await {
+            Ok(r) if !r.status().is_success() => {
+                let resp_text = r.text().await.unwrap_or_default();
+                eprintln!("[TG] sendMessage error: {}", sanitize_error(&resp_text, token));
             }
             Err(e) => {
                 eprintln!(
@@ -94,6 +88,7 @@ pub(crate) async fn tg_send_message(
                     sanitize_error(&e.to_string(), token)
                 );
             }
+            _ => {}
         }
     }
     Ok(())
@@ -203,21 +198,14 @@ pub(crate) async fn tg_send_with_reply_keyboard(
     let body = serde_json::json!({
         "chat_id": chat_id,
         "text": text,
-        "parse_mode": "Markdown",
+        "parse_mode": "HTML",
         "disable_web_page_preview": true,
         "reply_markup": reply_markup,
     });
-    let resp = client.post(&url).json(&body).send().await;
-    match resp {
+    match client.post(&url).json(&body).send().await {
         Ok(r) if !r.status().is_success() => {
-            let body_plain = serde_json::json!({
-                "chat_id": chat_id,
-                "text": text,
-                "disable_web_page_preview": true,
-                "reply_markup": reply_markup,
-            });
-            client.post(&url).json(&body_plain).send().await
-                .map_err(|e| sanitize_error(&format!("sendReplyKeyboard fallback: {e}"), token))?;
+            let resp_text = r.text().await.unwrap_or_default();
+            eprintln!("[TG] sendReplyKeyboard error: {}", sanitize_error(&resp_text, token));
         }
         Err(e) => {
             return Err(sanitize_error(&format!("sendReplyKeyboard: {e}"), token));

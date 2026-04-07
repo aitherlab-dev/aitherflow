@@ -7,4 +7,5 @@ export interface AppSettings {
   voicePostModel: string;
   voiceProvider: string;
   defaultRoleName: string;
+  cliEnv: Record<string, string>;
 }

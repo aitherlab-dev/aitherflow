@@ -33,8 +33,9 @@
 }
 
 [data-theme="light"] [data-streamdown="code-block"] {
-  background: var(--code-bg) !important;
-  border-color: var(--code-border) !important;
+  background: var(--bg-hard) !important;
+  border-color: var(--border) !important;
+  color: var(--fg) !important;
 }
 
 /* ── Code block copy button ── */
@@ -55,6 +56,14 @@
 [data-streamdown="code-block-actions"] button:hover {
   color: var(--fg) !important;
   opacity: 1;
+}
+
+[data-theme="light"] [data-streamdown="code-block-actions"] button {
+  color: var(--fg-dim) !important;
+}
+
+[data-theme="light"] [data-streamdown="code-block-actions"] button:hover {
+  color: var(--fg) !important;
 }
 
 /* ── Shiki: transparent background, theme colors via inline styles ── */

@@ -10,7 +10,7 @@ interface StreamdownRendererProps {
 }
 
 const codePlugin = createCodePlugin({
-  themes: ["gruvbox-dark-medium", "gruvbox-dark-medium"],
+  themes: ["gruvbox-dark-medium", "gruvbox-light-medium"],
 });
 
 const plugins = { code: codePlugin };

@@ -321,6 +321,21 @@ pub async fn run_cli_session(
     // Enable 1M context window for Opus
     cmd.env("ANTHROPIC_DEFAULT_OPUS_MODEL", "claude-opus-4-6[1m]");
 
+    // Apply custom environment variables from settings
+    {
+        let cli_env = tokio::task::spawn_blocking(|| {
+            let path = crate::settings::settings_path();
+            crate::file_ops::read_json::<crate::settings::AppSettings>(&path)
+                .map(|s| s.cli_env)
+                .unwrap_or_default()
+        })
+        .await
+        .unwrap_or_default();
+        for (key, value) in &cli_env {
+            cmd.env(key, value);
+        }
+    }
+
     cmd.args(&args)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())

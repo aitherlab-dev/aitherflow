@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use crate::config;
@@ -55,6 +56,9 @@ pub struct AppSettings {
     /// Name of the default role applied when no role is explicitly selected
     #[serde(default)]
     pub default_role_name: String,
+    /// Custom environment variables passed to CLI process (KEY → VALUE)
+    #[serde(default)]
+    pub cli_env: HashMap<String, String>,
 }
 
 fn default_voice_provider() -> String {
@@ -231,6 +235,7 @@ mod tests {
             default_role_name: "coder".into(),
             groq_api_key: String::new(),
             deepgram_api_key: String::new(),
+            cli_env: HashMap::from([("FOO".into(), "bar".into())]),
         };
         let json = serde_json::to_string(&s).unwrap();
         let restored: AppSettings = serde_json::from_str(&json).unwrap();

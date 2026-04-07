@@ -359,20 +359,20 @@ fn build_role_picker_buttons(builder: &TeamBuilder) -> Vec<Vec<serde_json::Value
     let mut buttons: Vec<Vec<serde_json::Value>> = Vec::new();
     for (name, count) in &builder.roles {
         buttons.push(vec![
-            serde_json::json!({ "text": "\u{2796}", "callback_data": format!("t_dec:{name}") }),
-            serde_json::json!({ "text": format!("{name}: {count}"), "callback_data": "t_noop" }),
-            serde_json::json!({ "text": "\u{2795}", "callback_data": format!("t_inc:{name}") }),
+            serde_json::json!({ "text": "\u{2796}", "callback_data": format!("t_dec:{name}"), "style": "primary" }),
+            serde_json::json!({ "text": format!("{name}: {count}"), "callback_data": "t_noop", "style": "primary" }),
+            serde_json::json!({ "text": "\u{2795}", "callback_data": format!("t_inc:{name}"), "style": "primary" }),
         ]);
     }
     let total: u8 = builder.roles.iter().map(|(_, c)| c).sum();
     if total > 0 {
         buttons.push(vec![
-            serde_json::json!({ "text": "\u{1F680} Launch", "callback_data": "t_launch" }),
-            serde_json::json!({ "text": "\u{2715} Cancel", "callback_data": "t_cancel" }),
+            serde_json::json!({ "text": "\u{1F680} Launch", "callback_data": "t_launch", "style": "success" }),
+            serde_json::json!({ "text": "\u{2715} Cancel", "callback_data": "t_cancel", "style": "danger" }),
         ]);
     } else {
         buttons.push(vec![
-            serde_json::json!({ "text": "\u{2715} Cancel", "callback_data": "t_cancel" }),
+            serde_json::json!({ "text": "\u{2715} Cancel", "callback_data": "t_cancel", "style": "danger" }),
         ]);
     }
     buttons
