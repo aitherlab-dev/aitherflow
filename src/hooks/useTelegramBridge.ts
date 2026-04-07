@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useRef } from "react";
+import { invoke } from "../lib/transport";
 import { useChatStore } from "../stores/chatStore";
 import {
   pollAndHandle,
@@ -24,6 +25,7 @@ export function useTelegramBridge() {
     abortRef.current = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let botActive = false;
+    let wasRunning = false;
 
     const servicePromise = import("../services/telegramService");
 
@@ -33,6 +35,20 @@ export function useTelegramBridge() {
         const { isBotRunning } = await servicePromise;
         const running = await isBotRunning();
         botActive = running;
+
+        // Auto-restart if bot died unexpectedly
+        if (wasRunning && !running) {
+          console.warn("[TG] Bot stopped unexpectedly, attempting restart");
+          wasRunning = false;
+          try {
+            await invoke("start_telegram_bot");
+            botActive = true;
+          } catch (e) {
+            console.error("[TG] Auto-restart failed:", e);
+          }
+        }
+
+        wasRunning = running;
         if (running) await pollAndHandle();
       } catch (e) {
         console.error("[TG] poll:", e);
