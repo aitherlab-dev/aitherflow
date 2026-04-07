@@ -30,6 +30,7 @@ pub struct TelegramConfig {
 pub struct TelegramStatus {
     pub running: bool,
     pub connected: bool,
+    pub reconnecting: bool,
     pub error: Option<String>,
     pub bot_username: Option<String>,
 }
@@ -156,6 +157,10 @@ pub(crate) struct BotState {
     pub callback_registry: Vec<String>,
     /// In-progress team assembly via Telegram
     pub team_builder: Option<TeamBuilder>,
+    /// Consecutive poll failures (reset on success)
+    pub consecutive_errors: u32,
+    /// Last error message from bot loop
+    pub last_error: Option<String>,
 }
 
 static BOT_STATE: Mutex<Option<BotState>> = Mutex::new(None);
@@ -179,6 +184,28 @@ where
         e.into_inner()
     });
     f(&mut guard)
+}
+
+/// Update bot health state after poll success/failure.
+/// Called from bot_loop — closure is fast (no I/O).
+pub(crate) fn report_bot_health(consecutive_errors: u32, error: Option<&str>) {
+    with_state(|s| {
+        if let Some(state) = s.as_mut() {
+            state.consecutive_errors = consecutive_errors;
+            state.last_error = error.map(|e| e.to_string());
+            if consecutive_errors == 0 {
+                // Healthy: connected, not reconnecting
+                state.status.connected = true;
+                state.status.reconnecting = false;
+                state.status.error = None;
+            } else {
+                // Failing: mark reconnecting, surface error
+                state.status.connected = false;
+                state.status.reconnecting = true;
+                state.status.error = error.map(|e| e.to_string());
+            }
+        }
+    });
 }
 
 // ── Config persistence ──

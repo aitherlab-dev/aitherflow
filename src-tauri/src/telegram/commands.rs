@@ -74,6 +74,8 @@ pub async fn start_telegram_bot() -> Result<TelegramStatus, String> {
             stream_message_id: 0,
             callback_registry: Vec::new(),
             team_builder: None,
+            consecutive_errors: 0,
+            last_error: None,
         });
 
         if state.task_handle.is_some() {
@@ -121,6 +123,7 @@ pub async fn start_telegram_bot() -> Result<TelegramStatus, String> {
     let status = TelegramStatus {
         running: true,
         connected: true,
+        reconnecting: false,
         error: None,
         bot_username: me.username,
     };
@@ -137,6 +140,8 @@ pub async fn start_telegram_bot() -> Result<TelegramStatus, String> {
             stream_message_id: 0,
             callback_registry: Vec::new(),
             team_builder: None,
+            consecutive_errors: 0,
+            last_error: None,
         });
 
         // Guard: if another start/stop happened while we were connecting, abort our task
