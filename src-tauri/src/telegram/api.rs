@@ -69,7 +69,7 @@ pub(crate) async fn tg_send_message(
     text: &str,
 ) -> Result<(), String> {
     let chunks = split_message(text, 4000);
-    for chunk in chunks {
+    for chunk in &chunks {
         let url = format!("{TG_API}{token}/sendMessage");
         let body = serde_json::json!({
             "chat_id": chat_id,
@@ -80,13 +80,38 @@ pub(crate) async fn tg_send_message(
         match client.post(&url).json(&body).send().await {
             Ok(r) if !r.status().is_success() => {
                 let resp_text = r.text().await.unwrap_or_default();
-                eprintln!("[TG] sendMessage error: {}", sanitize_error(&resp_text, token));
+                // Fallback: if HTML parse failed, retry without parse_mode
+                if resp_text.contains("can't parse entities") {
+                    eprintln!("[TG] HTML parse failed, retrying without parse_mode");
+                    let plain_body = serde_json::json!({
+                        "chat_id": chat_id,
+                        "text": chunk,
+                        "disable_web_page_preview": true,
+                    });
+                    match client.post(&url).json(&plain_body).send().await {
+                        Ok(r2) if !r2.status().is_success() => {
+                            let err = r2.text().await.unwrap_or_default();
+                            let msg = sanitize_error(&format!("sendMessage fallback failed: {err}"), token);
+                            eprintln!("[TG] {msg}");
+                            return Err(msg);
+                        }
+                        Err(e) => {
+                            let msg = sanitize_error(&format!("sendMessage fallback error: {e}"), token);
+                            eprintln!("[TG] {msg}");
+                            return Err(msg);
+                        }
+                        _ => {} // fallback succeeded
+                    }
+                } else {
+                    let msg = sanitize_error(&format!("sendMessage error: {resp_text}"), token);
+                    eprintln!("[TG] {msg}");
+                    return Err(msg);
+                }
             }
             Err(e) => {
-                eprintln!(
-                    "[TG] sendMessage error: {}",
-                    sanitize_error(&e.to_string(), token)
-                );
+                let msg = sanitize_error(&format!("sendMessage error: {e}"), token);
+                eprintln!("[TG] {msg}");
+                return Err(msg);
             }
             _ => {}
         }

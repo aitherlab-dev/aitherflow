@@ -33,6 +33,7 @@ pub(super) async fn bot_loop(
     let client = super::HTTP_CLIENT.clone();
     let mut update_offset: i64 = 0;
     let mut error_backoff_secs: u64 = 0;
+    let mut consecutive_errors: u32 = 0;
 
     if let Err(e) = tg_set_my_commands(&client, &token).await {
         eprintln!("[TG] setMyCommands failed: {e}");
@@ -44,6 +45,11 @@ pub(super) async fn bot_loop(
                 match updates_result {
                     Ok(updates) => {
                         error_backoff_secs = 0; // reset on success
+                        if consecutive_errors > 0 {
+                            consecutive_errors = 0;
+                            super::report_bot_health(0, None);
+                            eprintln!("[TG] Connection restored");
+                        }
                         for update in updates {
                             update_offset = update.update_id + 1;
 
@@ -122,8 +128,11 @@ pub(super) async fn bot_loop(
                         }
                     }
                     Err(e) => {
+                        consecutive_errors = consecutive_errors.saturating_add(1);
                         error_backoff_secs = (error_backoff_secs.max(5) * 2).min(60);
-                        eprintln!("[TG] getUpdates error (retry in {error_backoff_secs}s): {e}");
+                        let msg = format!("getUpdates error (retry in {error_backoff_secs}s): {e}");
+                        eprintln!("[TG] {msg}");
+                        super::report_bot_health(consecutive_errors, Some(&msg));
                         tokio::time::sleep(std::time::Duration::from_secs(error_backoff_secs)).await;
                     }
                 }
@@ -132,8 +141,23 @@ pub(super) async fn bot_loop(
             outgoing = outgoing_rx.recv() => {
                 match outgoing {
                     Some(msg) => {
-                        if let Err(e) = tg_send_message(&client, &token, msg.chat_id, &msg.text).await {
-                            eprintln!("[TG] send outgoing: {e}");
+                        let mut sent = false;
+                        for attempt in 1..=3u32 {
+                            match tg_send_message(&client, &token, msg.chat_id, &msg.text).await {
+                                Ok(()) => {
+                                    sent = true;
+                                    break;
+                                }
+                                Err(e) => {
+                                    eprintln!("[TG] send outgoing attempt {attempt}/3: {e}");
+                                    if attempt < 3 {
+                                        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                                    }
+                                }
+                            }
+                        }
+                        if !sent {
+                            eprintln!("[TG] Dropping outgoing message after 3 failed attempts");
                         }
                     }
                     None => {
