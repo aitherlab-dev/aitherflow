@@ -84,7 +84,7 @@ export const TeamMailboxPanel = memo(function TeamMailboxPanel() {
       const info = agentNameMap.get(msg.from);
       return {
         id: msg.id,
-        sender: isUser ? "You" : (info?.name ?? "Agent"),
+        sender: isUser ? "You" : (info?.name ?? msg.from),
         fromId: msg.from,
         text: msg.text,
         timestamp: new Date(msg.timestamp).getTime(),

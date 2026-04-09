@@ -90,10 +90,6 @@ impl AgentWriter {
         self.inner.lock().await.status = status;
     }
 
-    pub async fn get_status(&self) -> SessionStatus {
-        self.inner.lock().await.status.clone()
-    }
-
     /// Close stdin pipe (async).
     pub async fn close(&self) {
         self.inner.lock().await.stdin = None;

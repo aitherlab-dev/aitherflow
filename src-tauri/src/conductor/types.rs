@@ -104,6 +104,15 @@ pub enum CliEvent {
         exit_code: Option<i32>,
     },
 
+    /// A team message was routed from one agent to another
+    #[serde(rename = "teamMessage")]
+    TeamMessage {
+        agent_id: Arc<str>,
+        from_name: String,
+        to_name: String,
+        text: String,
+    },
+
     /// Error: CLI stderr, parse failure, or spawn failure
     #[serde(rename = "error")]
     Error { agent_id: Arc<str>, message: String },
@@ -150,6 +159,12 @@ pub struct StartSessionOptions {
     pub role_allowed_tools: Option<Vec<String>>,
     /// Role name (passed to teamwork MCP for agent registration)
     pub role_name: Option<String>,
+    /// Human-readable team name for @mention routing (e.g. "coder-1")
+    #[serde(default)]
+    pub team_agent_name: Option<String>,
+    /// Team roster suffix to append to system prompt (team member list)
+    #[serde(default)]
+    pub team_roster_prompt: Option<String>,
 }
 
 /// Options for sending a follow-up message to an existing session.

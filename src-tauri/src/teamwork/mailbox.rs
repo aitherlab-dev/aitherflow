@@ -23,6 +23,7 @@ static INBOX_NOTIFIERS: LazyLock<Mutex<HashMap<String, Arc<Notify>>>> =
 
 /// Subscribe to push notifications for a specific agent's inbox.
 /// Returns an `Arc<Notify>` that will be notified on every new message.
+#[allow(dead_code)] // reserved for direct inbox polling
 pub(crate) fn subscribe_inbox(team: &str, agent_id: &str) -> Arc<Notify> {
     let key = inbox_lock_key(team, agent_id);
     let mut map = INBOX_NOTIFIERS.lock().unwrap_or_else(|e| e.into_inner());
@@ -30,6 +31,7 @@ pub(crate) fn subscribe_inbox(team: &str, agent_id: &str) -> Arc<Notify> {
 }
 
 /// Unsubscribe from push notifications (cleanup on agent shutdown).
+#[allow(dead_code)] // reserved for direct inbox polling
 pub(crate) fn unsubscribe_inbox(team: &str, agent_id: &str) {
     let key = inbox_lock_key(team, agent_id);
     let mut map = INBOX_NOTIFIERS.lock().unwrap_or_else(|e| e.into_inner());
@@ -157,7 +159,7 @@ fn append_to_inbox(team: &str, msg: &TeamMessage) -> Result<(), String> {
 
 /// Append a message to the persistent feed log (for UI display).
 /// The feed is append-only; messages are never removed except by team_clear_messages.
-fn append_to_feed(team: &str, msg: &TeamMessage) -> Result<(), String> {
+pub fn append_to_feed_sync(team: &str, msg: &TeamMessage) -> Result<(), String> {
     let path = feed_path(team);
     let key = format!("{team}/__feed__");
     let lock = inbox_lock(&key);
@@ -194,6 +196,7 @@ fn append_to_feed(team: &str, msg: &TeamMessage) -> Result<(), String> {
 }
 
 /// Send a message (sync, for use inside spawn_blocking).
+#[allow(dead_code)] // available for direct mailbox messaging
 pub(crate) fn send_message_sync(
     team: &str,
     from: &str,
@@ -205,11 +208,12 @@ pub(crate) fn send_message_sync(
     validate_name(to, "to")?;
     let msg = new_message(from, to, text, None);
     append_to_inbox(team, &msg)?;
-    append_to_feed(team, &msg)?;
+    append_to_feed_sync(team, &msg)?;
     Ok(())
 }
 
 /// Broadcast a message to specified agents except sender (sync).
+#[allow(dead_code)] // available for direct mailbox messaging
 pub(crate) fn broadcast_sync(
     team: &str,
     from: &str,
@@ -221,7 +225,7 @@ pub(crate) fn broadcast_sync(
     let bid = uuid::Uuid::new_v4().to_string();
     // Write one copy to the persistent feed for UI display
     let feed_msg = new_message(from, "broadcast", text, Some(bid.clone()));
-    append_to_feed(team, &feed_msg)?;
+    append_to_feed_sync(team, &feed_msg)?;
     // Write to each agent's inbox (consumed by MCP read_inbox)
     for agent_id in agent_ids {
         validate_name(agent_id, "agent_id")?;
@@ -250,7 +254,7 @@ pub async fn team_send_message(
         let msg = new_message(&from, &to, &text, None);
         let id = msg.id.clone();
         append_to_inbox(&team, &msg)?;
-        append_to_feed(&team, &msg)?;
+        append_to_feed_sync(&team, &msg)?;
         Ok(id)
     })
     .await
@@ -273,7 +277,7 @@ pub async fn team_broadcast(
         let bid = uuid::Uuid::new_v4().to_string();
         // Write one copy to the persistent feed for UI display
         let feed_msg = new_message(&from, "broadcast", &text, Some(bid.clone()));
-        append_to_feed(&team, &feed_msg)?;
+        append_to_feed_sync(&team, &feed_msg)?;
         // Write to each agent's inbox
         let mut ids = HashMap::new();
         for agent_id in &agent_ids {

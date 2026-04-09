@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use tauri::Manager;
 use uuid::Uuid;
 
+use std::collections::HashMap;
+
 use crate::conductor::session::SessionManager;
 use crate::conductor::types::StartSessionOptions;
 use crate::config;
@@ -9,6 +11,7 @@ use crate::file_ops::{read_json, write_json};
 use std::path::PathBuf;
 
 use super::roles::{default_roles, AgentRole, DEFAULT_START_MESSAGE};
+use super::router::get_router;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct TeamPreset {
@@ -123,6 +126,65 @@ fn find_role_by_name(name: &str) -> Option<AgentRole> {
     default_roles().into_iter().find(|r| r.name.eq_ignore_ascii_case(name))
 }
 
+/// Extract a 4-char project tag from project path.
+/// "/home/user/WORK/AITHEFLOW" → "aith"
+fn project_tag(project_path: &str) -> String {
+    let folder = std::path::Path::new(project_path)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("proj");
+    folder
+        .to_lowercase()
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .take(4)
+        .collect::<String>()
+}
+
+/// Generate a human-readable team name from a role name + project tag.
+/// "Coder" in AITHEFLOW → "coder-1-aith"
+fn generate_team_name(role_name: &str, counter: &mut HashMap<String, usize>, tag: &str) -> String {
+    let slug = role_name
+        .to_lowercase()
+        .replace(' ', "-")
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
+        .collect::<String>();
+
+    let count = counter.entry(slug.clone()).or_insert(0);
+    *count += 1;
+
+    if *count == 1 && slug == "team-lead" {
+        format!("{slug}-{tag}")
+    } else {
+        format!("{slug}-{count}-{tag}")
+    }
+}
+
+/// Build the roster suffix for an agent's system prompt.
+/// Lists all team members with their roles.
+fn build_roster_suffix(
+    my_name: &str,
+    roster: &[(String, String)], // (team_name, role_name)
+) -> String {
+    let mut lines = vec![
+        format!("Ты: {my_name}"),
+        "Команда:".to_string(),
+    ];
+    for (name, role) in roster {
+        if name == my_name {
+            lines.push(format!("- {name} ({role}) — это ты"));
+        } else {
+            lines.push(format!("- {name} ({role})"));
+        }
+    }
+    lines.push(String::new());
+    lines.push("Для общения с агентом: @имя-агента сообщение".to_string());
+    lines.push("Для сообщения всем: @all сообщение".to_string());
+    lines.push("Без @ — ответ пользователю.".to_string());
+    lines.join("\n")
+}
+
 #[tauri::command]
 pub async fn launch_team(
     app: tauri::AppHandle,
@@ -137,25 +199,41 @@ pub async fn launch_team(
 
     let models_vec = models.unwrap_or_default();
 
-    let roles_to_launch: Vec<(String, AgentRole)> = tokio::task::spawn_blocking(move || {
+    // Resolve roles and generate human-readable names
+    let tag = project_tag(&project_path);
+    let roles_to_launch: Vec<(String, String, AgentRole)> = tokio::task::spawn_blocking(move || {
         let mut resolved = Vec::new();
+        let mut name_counter: HashMap<String, usize> = HashMap::new();
         for role_name in &roles {
             let role = find_role_by_name(role_name)
                 .ok_or_else(|| format!("Role '{}' not found", role_name))?;
             let agent_id = Uuid::new_v4().to_string();
-            resolved.push((agent_id, role));
+            let team_name = generate_team_name(&role.name, &mut name_counter, &tag);
+            resolved.push((agent_id, team_name, role));
         }
         Ok::<_, String>(resolved)
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))??;
 
+    // Build roster for system prompts
+    let roster: Vec<(String, String)> = roles_to_launch
+        .iter()
+        .map(|(_, team_name, role)| (team_name.clone(), role.name.clone()))
+        .collect();
+
+    // Set up the router
+    let router = get_router().ok_or("Team router not initialized")?;
+    let slug = crate::projects::project_teamwork_slug(&project_path);
+    router.set_feed_team(&slug).await;
+
     let mut launched_ids: Vec<String> = Vec::new();
 
-    for (i, (agent_id, role)) in roles_to_launch.into_iter().enumerate() {
+    for (i, (agent_id, team_name, role)) in roles_to_launch.into_iter().enumerate() {
         let prompt = role.start_message.clone().unwrap_or_else(|| DEFAULT_START_MESSAGE.to_string());
         let role_name_str = role.name.clone();
         let per_role_model = models_vec.get(i).cloned().filter(|m| !m.is_empty());
+        let roster_prompt = build_roster_suffix(&team_name, &roster);
         let options = StartSessionOptions {
             agent_id: Some(agent_id.clone()),
             prompt,
@@ -169,6 +247,8 @@ pub async fn launch_team(
             role_system_prompt: Some(role.system_prompt),
             role_allowed_tools: Some(role.allowed_tools),
             role_name: Some(role_name_str),
+            team_agent_name: Some(team_name.clone()),
+            team_roster_prompt: Some(roster_prompt),
         };
 
         let sessions = app.state::<SessionManager>();
@@ -177,8 +257,12 @@ pub async fn launch_team(
             for id in &launched_ids {
                 sm.kill(id).await;
             }
+            router.clear().await;
             return Err(format!("Failed to start agent '{}': {e}", agent_id));
         }
+
+        // Note: agent registration in router happens inside process.rs
+        // when the CLI session actually starts and writer is available.
 
         launched_ids.push(agent_id);
     }
@@ -204,25 +288,40 @@ pub async fn presets_launch(
     .await
     .map_err(|e| format!("Task join error: {e}"))??;
 
-    // Resolve roles (sync file I/O for custom roles)
-    let roles_to_launch: Vec<(String, AgentRole)> = tokio::task::spawn_blocking(move || {
+    // Resolve roles with human-readable names
+    let tag = project_tag(&project_path);
+    let roles_to_launch: Vec<(String, String, AgentRole)> = tokio::task::spawn_blocking(move || {
         let mut resolved = Vec::new();
+        let mut name_counter: HashMap<String, usize> = HashMap::new();
         for role_name in &preset.roles {
             let role = find_role_by_name(role_name)
                 .ok_or_else(|| format!("Role '{}' not found", role_name))?;
             let agent_id = Uuid::new_v4().to_string();
-            resolved.push((agent_id, role));
+            let team_name = generate_team_name(&role.name, &mut name_counter, &tag);
+            resolved.push((agent_id, team_name, role));
         }
         Ok::<_, String>(resolved)
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))??;
 
+    // Build roster for system prompts
+    let roster: Vec<(String, String)> = roles_to_launch
+        .iter()
+        .map(|(_, team_name, role)| (team_name.clone(), role.name.clone()))
+        .collect();
+
+    // Set up the router
+    let router = get_router().ok_or("Team router not initialized")?;
+    let slug = crate::projects::project_teamwork_slug(&project_path);
+    router.set_feed_team(&slug).await;
+
     let mut launched_ids: Vec<String> = Vec::new();
 
-    for (agent_id, role) in roles_to_launch {
+    for (agent_id, team_name, role) in roles_to_launch {
         let prompt = role.start_message.clone().unwrap_or_else(|| DEFAULT_START_MESSAGE.to_string());
         let role_name_str = role.name.clone();
+        let roster_prompt = build_roster_suffix(&team_name, &roster);
         let options = StartSessionOptions {
             agent_id: Some(agent_id.clone()),
             prompt,
@@ -236,16 +335,24 @@ pub async fn presets_launch(
             role_system_prompt: Some(role.system_prompt),
             role_allowed_tools: Some(role.allowed_tools),
             role_name: Some(role_name_str),
+            team_agent_name: Some(team_name.clone()),
+            team_roster_prompt: Some(roster_prompt),
         };
 
         let sessions = app.state::<SessionManager>();
         if let Err(e) = crate::conductor::start_session(app.clone(), sessions, options).await {
-            // Roll back: kill already launched sessions
             let sm = app.state::<SessionManager>().inner().clone();
             for id in &launched_ids {
                 sm.kill(id).await;
             }
+            router.clear().await;
             return Err(format!("Failed to start agent '{}': {e}", agent_id));
+        }
+
+        // Register agent in router
+        let sessions = app.state::<SessionManager>();
+        if let Some(writer) = sessions.get_writer(&agent_id).await {
+            router.register(&agent_id, &team_name, &role.name, writer).await;
         }
 
         launched_ids.push(agent_id);

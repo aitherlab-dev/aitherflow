@@ -202,6 +202,8 @@ pub async fn run_task_now(app_handle: &tauri::AppHandle, task: &ScheduledTask) {
                 role_system_prompt: None,
                 role_allowed_tools: None,
                 role_name: None,
+                team_agent_name: None,
+                team_roster_prompt: None,
             },
         )
         .await;

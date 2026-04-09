@@ -1,8 +1,8 @@
 pub mod mailbox;
-pub mod mcp_server;
+pub mod mention_parser;
 pub mod presets;
 pub mod roles;
-pub mod tasks;
+pub mod router;
 
 /// Validate that a name (team, agent_id, task_id) is safe for use in file paths.
 /// Rejects path separators, traversal components, and empty strings.

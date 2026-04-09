@@ -213,7 +213,6 @@ pub fn run() {
             teamwork::mailbox::team_read_all_messages,
             teamwork::mailbox::team_clear_messages,
             teamwork::mailbox::team_broadcast,
-            teamwork::mcp_server::team_list_agents,
             projects::get_teamwork_slug,
             rag::commands::rag_list_bases,
             rag::commands::rag_create_base,
@@ -237,6 +236,11 @@ pub fn run() {
             scheduler::commands::scheduler_run_now,
         ])
         .setup(move |app| {
+            // Initialize global team router
+            teamwork::router::init_global_router(std::sync::Arc::new(
+                teamwork::router::TeamRouter::new(),
+            ));
+
             // --- System tray ---
             let show_item = MenuItemBuilder::with_id("show", "Show").build(app)?;
             let separator = PredefinedMenuItem::separator(app)?;
@@ -299,13 +303,7 @@ pub fn run() {
             let scheduler_handle = app.handle().clone();
             tauri::async_runtime::spawn(scheduler::runner::start_scheduler(scheduler_handle));
 
-            let sessions_for_mcp = sessions;
             tauri::async_runtime::spawn(async move {
-                // Start MCP server for team agent communication
-                if let Err(e) = teamwork::mcp_server::start_mcp_server(sessions_for_mcp).await {
-                    eprintln!("[aitherflow] Failed to start MCP server: {e}");
-                }
-
                 let tg_enabled = tokio::task::spawn_blocking(|| {
                     let cfg_dir = config::config_dir();
                     let data_dir = config::data_dir();
@@ -393,7 +391,6 @@ pub fn run() {
                 }
             }
             if let tauri::RunEvent::Exit = event {
-                teamwork::mcp_server::shutdown_mcp_server();
                 external_models::mcp_server::stop_server_sync();
                 rag::mcp_server::stop_server_sync();
                 devtools::stop_all_dev_servers();

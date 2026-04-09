@@ -35,6 +35,8 @@ pub async fn start_session(
     let role_system_prompt = options.role_system_prompt;
     let role_allowed_tools = options.role_allowed_tools;
     let role_name = options.role_name;
+    let team_agent_name = options.team_agent_name;
+    let team_roster_prompt = options.team_roster_prompt;
 
     // Teamwork is always enabled for projects
     let teamwork_project_path = project_path.clone();
@@ -76,6 +78,8 @@ pub async fn start_session(
                 role_system_prompt,
                 role_allowed_tools,
                 role_name,
+                team_agent_name,
+                team_roster_prompt,
             },
         )
         .await

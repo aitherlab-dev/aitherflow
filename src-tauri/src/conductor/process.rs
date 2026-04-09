@@ -71,6 +71,10 @@ pub struct CliSessionConfig {
     pub role_allowed_tools: Option<Vec<String>>,
     /// Role name for teamwork MCP registration
     pub role_name: Option<String>,
+    /// Human-readable team name for @mention routing (e.g. "coder-1")
+    pub team_agent_name: Option<String>,
+    /// Team roster suffix to append to system prompt
+    pub team_roster_prompt: Option<String>,
 }
 
 /// Spawn Claude CLI and run the session until the process exits.
@@ -98,39 +102,13 @@ pub async fn run_cli_session(
         role_system_prompt,
         role_allowed_tools,
         role_name,
+        team_agent_name,
+        team_roster_prompt,
     } = config;
 
     // For project teamwork, use the project slug as the mailbox namespace.
-    let project_teamwork_slug =
+    let _project_teamwork_slug =
         teamwork_project_path.as_deref().map(crate::projects::project_teamwork_slug);
-
-    // Register agent in MCP server so it can use teamwork tools.
-    let mcp_generation = if let (Some(ref pp), Some(ref slug)) =
-        (&teamwork_project_path, &project_teamwork_slug)
-    {
-        let resolved_role = role_name
-            .as_deref()
-            .and_then(|name| {
-                crate::teamwork::roles::default_roles()
-                    .into_iter()
-                    .find(|r| r.name.eq_ignore_ascii_case(name))
-            })
-            .unwrap_or_else(|| crate::teamwork::roles::AgentRole {
-                name: "Agent".to_string(),
-                system_prompt: String::new(),
-                allowed_tools: Vec::new(),
-                can_manage: false,
-                start_message: None,
-            });
-        if let Some(mcp) = crate::teamwork::mcp_server::get_state() {
-            mcp.register_project_agent(&agent_id, pp, slug, resolved_role)
-                .await
-        } else {
-            0
-        }
-    } else {
-        0
-    };
 
     // Build command arguments
     let mut args: Vec<String> = vec![
@@ -175,11 +153,16 @@ pub async fn run_cli_session(
     }
 
     // Standalone role — apply system prompt and allowed tools
-    if let Some(ref sp) = role_system_prompt {
-        if !sp.is_empty() {
-            args.push("--append-system-prompt".into());
-            args.push(sp.clone());
-        }
+    // If team roster prompt exists, append it to the role system prompt
+    let combined_system_prompt = match (&role_system_prompt, &team_roster_prompt) {
+        (Some(sp), Some(roster)) if !sp.is_empty() => Some(format!("{sp}\n\n{roster}")),
+        (Some(sp), None) if !sp.is_empty() => Some(sp.clone()),
+        (None, Some(roster)) => Some(roster.clone()),
+        _ => None,
+    };
+    if let Some(ref sp) = combined_system_prompt {
+        args.push("--append-system-prompt".into());
+        args.push(sp.clone());
     }
     if let Some(ref tools) = role_allowed_tools {
         if !tools.is_empty() {
@@ -199,24 +182,6 @@ pub async fn run_cli_session(
     }
 
     let mut mcp_servers = serde_json::Map::new();
-
-    // Teamwork MCP (only if agent belongs to a project team)
-    if project_teamwork_slug.is_some() {
-        if let (Some(port), Some(token)) = (
-            crate::teamwork::mcp_server::get_mcp_port(),
-            crate::teamwork::mcp_server::get_mcp_token(),
-        ) {
-            mcp_servers.insert("teamwork".into(), serde_json::json!({
-                "type": "http",
-                "url": format!("http://127.0.0.1:{port}/mcp/{safe_agent_id}"),
-                "headers": {
-                    "Authorization": format!("Bearer {token}")
-                }
-            }));
-        } else {
-            eprintln!("[{tag}] Teamwork MCP server not running or token unavailable, skipping");
-        }
-    }
 
     // External models MCP (always, if running)
     if let Some(port) = crate::external_models::mcp_server::get_port() {
@@ -384,6 +349,13 @@ pub async fn run_cli_session(
         )
         .await;
 
+    // Register agent in team router (if this is a team agent)
+    if let (Some(ref name), Some(ref rn)) = (&team_agent_name, &role_name) {
+        if let Some(router) = crate::teamwork::router::get_router() {
+            router.register(&agent_id, name, rn, Arc::clone(&writer)).await;
+        }
+    }
+
     // Write first message (skip if resuming with empty prompt — e.g. permission mode switch)
     if !prompt.trim().is_empty() || !image_attachments.is_empty() {
         let ndjson = build_stdin_message(&prompt, &image_attachments)?;
@@ -392,148 +364,6 @@ pub async fn run_cli_session(
             .await
             .map_err(|e| format!("Failed to write first message: {e}"))?;
     }
-
-    // Spawn mailbox polling task if project teamwork is enabled
-    let (polling_handle, polling_stop_tx) = if let Some(ref team) = project_teamwork_slug {
-        let writer_poll = Arc::clone(&writer);
-        let agent_id_poll = agent_id.clone();
-        let team_poll = team.clone();
-        let (stop_tx, mut stop_rx) = tokio::sync::oneshot::channel::<()>();
-
-        // Subscribe to push notifications for instant message delivery
-        let inbox_notify = crate::teamwork::mailbox::subscribe_inbox(&team_poll, &agent_id_poll);
-        let team_cleanup = team_poll.clone();
-        let agent_cleanup = agent_id_poll.clone();
-
-        let handle = tokio::spawn(async move {
-            // Fallback interval: 30s in case push notification was missed
-            let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
-            // Skip the first immediate tick
-            interval.tick().await;
-
-            // Buffer for messages that couldn't be sent (agent was busy)
-            let mut pending_messages: Vec<crate::teamwork::mailbox::TeamMessage> = Vec::new();
-            let mut pending_ndjson: Option<String> = None;
-
-            loop {
-                // Wait for: stop signal, push notification, or fallback interval
-                tokio::select! {
-                    _ = &mut stop_rx => {
-                        // Graceful shutdown: process any pending messages before exiting
-                        if !pending_messages.is_empty() {
-                            let ids: Vec<String> = pending_messages.iter().map(|m| m.id.clone()).collect();
-                            let team_m = team_poll.clone();
-                            let agent_m = agent_id_poll.clone();
-                            if let Err(e) = tokio::task::spawn_blocking(move || {
-                                crate::teamwork::mailbox::mark_read_sync(&team_m, &agent_m, &ids)
-                            })
-                            .await
-                            .unwrap_or_else(|e| Err(format!("Task panic: {e}")))
-                            {
-                                eprintln!("[teamwork] Failed to mark pending messages as read on shutdown: {e}");
-                            }
-                        }
-                        break;
-                    }
-                    _ = inbox_notify.notified() => {}
-                    _ = interval.tick() => {}
-                }
-
-                // Quick status check (avoids inbox I/O when not idle)
-                match writer_poll.get_status().await {
-                    SessionStatus::Exited => break,
-                    SessionStatus::Thinking => {
-                        // Re-notify so select! wakes immediately on next iteration
-                        // instead of waiting for the 30s fallback interval
-                        inbox_notify.notify_one();
-                        continue;
-                    }
-                    SessionStatus::Idle => {}
-                }
-
-                // Use buffered messages if available, otherwise read from inbox
-                let (messages, ndjson) = if let Some(ndjson) = pending_ndjson.take() {
-                    let msgs = std::mem::take(&mut pending_messages);
-                    (msgs, ndjson)
-                } else {
-                    // Read inbox (blocking I/O via spawn_blocking)
-                    let team_r = team_poll.clone();
-                    let agent_r = agent_id_poll.clone();
-                    let msgs = match tokio::task::spawn_blocking(move || {
-                        crate::teamwork::mailbox::read_inbox_sync(&team_r, &agent_r)
-                    })
-                    .await
-                    {
-                        Ok(Ok(msgs)) => msgs,
-                        Ok(Err(e)) => {
-                            eprintln!("[teamwork] Polling inbox error: {e}");
-                            continue;
-                        }
-                        Err(e) => {
-                            eprintln!("[teamwork] Polling task panic: {e}");
-                            break;
-                        }
-                    };
-
-                    if msgs.is_empty() {
-                        continue;
-                    }
-
-                    // Build combined text: [Сообщение от {from}]: {text}
-                    let text: String = msgs
-                        .iter()
-                        .map(|m| format!("[Сообщение от {}]: {}", m.from, m.text))
-                        .collect::<Vec<_>>()
-                        .join("\n\n");
-
-                    let ndjson = match build_stdin_message(&text, &[]) {
-                        Ok(n) => n,
-                        Err(e) => {
-                            eprintln!("[teamwork] Failed to build stdin message: {e}");
-                            continue;
-                        }
-                    };
-
-                    (msgs, ndjson)
-                };
-
-                // Atomic: check idle → write → set thinking
-                match writer_poll.write_if_idle(&ndjson).await {
-                    Ok(true) => {}     // sent successfully
-                    Ok(false) => {
-                        // Buffer messages for next tick (avoid re-reading file)
-                        pending_messages = messages;
-                        pending_ndjson = Some(ndjson);
-                        continue;
-                    }
-                    Err(e) => {
-                        eprintln!("[teamwork] Failed to write to stdin: {e}");
-                        break;
-                    }
-                }
-
-                // Mark messages as read
-                let ids: Vec<String> = messages.iter().map(|m| m.id.clone()).collect();
-                let team_m = team_poll.clone();
-                let agent_m = agent_id_poll.clone();
-                if let Err(e) = tokio::task::spawn_blocking(move || {
-                    crate::teamwork::mailbox::mark_read_sync(&team_m, &agent_m, &ids)
-                })
-                .await
-                .unwrap_or_else(|e| Err(format!("Task panic: {e}")))
-                {
-                    eprintln!("[teamwork] Failed to mark messages as read: {e}");
-                }
-            }
-
-            // Cleanup: unsubscribe from push notifications
-            crate::teamwork::mailbox::unsubscribe_inbox(&team_cleanup, &agent_cleanup);
-        });
-
-        (Some(handle), Some(stop_tx))
-    } else {
-        (None, None)
-    };
 
     // Spawn stderr reader in background (capped at 64KB)
     let stderr_handle = tokio::spawn(async move {
@@ -574,6 +404,9 @@ pub async fn run_cli_session(
     let mut combined_buf = String::new();
     let agent_id_arc: Arc<str> = Arc::from(agent_id.as_str());
 
+    // Track whether we've sent readiness notification (for non-lead team agents)
+    let mut readiness_sent = false;
+
     while let Ok(Some(line)) = lines.next_line().await {
         if line.trim().is_empty() {
             continue;
@@ -582,9 +415,59 @@ pub async fn run_cli_session(
         match parse_line(&line, &agent_id, &mut completed_text, &mut delta_text, &mut combined_buf) {
             Ok(events) => {
                 for event in &events {
+                    // On TurnComplete: set idle + flush pending team messages + send readiness
                     if matches!(event, CliEvent::TurnComplete { .. }) {
                         writer.set_status(SessionStatus::Idle).await;
+
+                        if let Some(ref name) = team_agent_name {
+                            // Flush pending messages BEFORE emitting TurnComplete to frontend:
+                            // the agent is now idle, so queued messages must be injected first,
+                            // ensuring the frontend sees the up-to-date mailbox state.
+                            if let Some(router) = crate::teamwork::router::get_router() {
+                                if let Err(e) = router.flush_pending(name).await {
+                                    eprintln!("[{tag}] Failed to flush pending for {name}: {e}");
+                                }
+
+                                // Send readiness notification on first TurnComplete (non-lead)
+                                if !readiness_sent && !name.starts_with("team-lead") {
+                                    readiness_sent = true;
+                                    if let Err(e) = router.notify_ready(name).await {
+                                        eprintln!("[{tag}] Failed to notify ready for {name}: {e}");
+                                    }
+                                }
+                            }
+                        }
                     }
+
+                    // On MessageComplete: parse @mentions and route
+                    if let CliEvent::MessageComplete { text, .. } = event {
+                        if let Some(ref name) = team_agent_name {
+                            if let Some(router) = crate::teamwork::router::get_router() {
+                                let known = router.known_names().await;
+                                let known_refs: Vec<&str> = known.iter().map(|s| s.as_str()).collect();
+                                let mentions = crate::teamwork::mention_parser::parse_mentions(text, &known_refs);
+
+                                for m in &mentions {
+                                    if m.target == "all" {
+                                        if let Err(e) = router.broadcast(name, &m.message).await {
+                                            eprintln!("[{tag}] Broadcast error: {e}");
+                                        }
+                                    } else if let Err(e) = router.route(name, &m.target, &m.message).await {
+                                        eprintln!("[{tag}] Route error to {}: {e}", m.target);
+                                    }
+
+                                    // Emit TeamMessage event for frontend
+                                    sink.emit(&CliEvent::TeamMessage {
+                                        agent_id: agent_id_arc.clone(),
+                                        from_name: name.clone(),
+                                        to_name: m.target.clone(),
+                                        text: m.message.clone(),
+                                    });
+                                }
+                            }
+                        }
+                    }
+
                     sink.emit(event);
                 }
             }
@@ -598,22 +481,11 @@ pub async fn run_cli_session(
         }
     }
 
-    // stdout closed — process is finishing; gracefully stop mailbox polling
-    if let Some(stop_tx) = polling_stop_tx {
-        if stop_tx.send(()).is_err() {
-            eprintln!("[{tag}] Polling stop signal already consumed (receiver dropped)");
-        }
-    }
-    if let Some(handle) = polling_handle {
-        // Give the polling task time to flush pending messages
-        let abort_handle = handle.abort_handle();
-        match tokio::time::timeout(std::time::Duration::from_secs(5), handle).await {
-            Ok(Ok(())) => {}
-            Ok(Err(e)) => eprintln!("[{tag}] Polling task panic on shutdown: {e}"),
-            Err(_) => {
-                eprintln!("[{tag}] Polling task did not finish within 5s, aborting");
-                abort_handle.abort();
-            }
+    // stdout closed — process is finishing
+    // Unregister agent from team router
+    if let Some(ref name) = team_agent_name {
+        if let Some(router) = crate::teamwork::router::get_router() {
+            router.unregister(name).await;
         }
     }
 
@@ -641,15 +513,6 @@ pub async fn run_cli_session(
 
     // Clean up session — only if it's still ours (same generation)
     sessions.cleanup(&agent_id, generation).await;
-
-    // Unregister from MCP server (only if generation matches — prevents
-    // removing a fresh registration after restart)
-    if mcp_generation > 0 {
-        if let Some(mcp) = crate::teamwork::mcp_server::get_state() {
-            mcp.unregister_agent_if_current(&agent_id, mcp_generation)
-                .await;
-        }
-    }
 
     // Clean up MCP config temp file (guard handles deletion on drop,
     // but we disarm + delete explicitly here for clarity in the normal path)

@@ -482,7 +482,6 @@ pub struct BuiltinMcpStatus {
 /// Get status of all built-in MCP servers.
 #[tauri::command]
 pub async fn get_builtin_mcp_status() -> Vec<BuiltinMcpStatus> {
-    let teamwork_port = crate::teamwork::mcp_server::get_mcp_port();
     let models_port = crate::external_models::mcp_server::get_port();
     let knowledge_port = crate::rag::mcp_server::get_port();
 
@@ -496,11 +495,6 @@ pub async fn get_builtin_mcp_status() -> Vec<BuiltinMcpStatus> {
     .unwrap_or(false);
 
     vec![
-        BuiltinMcpStatus {
-            name: "Teamwork".into(),
-            running: teamwork_port.is_some(),
-            port: teamwork_port,
-        },
         BuiltinMcpStatus {
             name: "Models".into(),
             running: models_port.is_some(),
