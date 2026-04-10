@@ -19,9 +19,13 @@ aitherflow — десктопная GUI-обёртка для Claude Code CLI. C
 - `src/stores/chatStreamHandler.ts` — обработка CLI-событий, стриминг, inline quotes
 - `src-tauri/src/` — Tauri-команды, ядро в `conductor/`, модули по доменам
 - `src-tauri/src/scheduler/` — cron-планировщик задач
-- `src-tauri/src/teamwork/` — мультиагентная работа (mailbox, MCP)
+- `src-tauri/src/teamwork/` — мультиагентная работа (mailbox, TeamRouter, @mention routing)
 - `src-tauri/src/voice/` — голосовой ввод (Whisper)
 - `src-tauri/src/external_models/` — динамические OpenAI-совместимые провайдеры (пользователь добавляет сам)
+- `src-tauri/src/plugins/` — система плагинов
+- `src/stores/pluginStore.ts`, `src/stores/skillStore.ts` — сторы плагинов и скиллов
+- `src/stores/schedulerListener.ts` — слушатель событий планировщика
+- `src/components/dashboard/` — дашборд
 
 ## Команды
 
@@ -50,7 +54,7 @@ CI: `tsc --noEmit` + `eslint` + `cargo clippy -D warnings`. Release на тег 
 
 **Image Gen:** MCP sidecar `mcp-image-gen` (diffusion-rs). Модели в JSON-конфиге, CUDA через feature flag
 
-**Teamwork:** мультиагенты общаются через mailbox (файловая система). `write_if_idle()` для инъекции сообщений только когда агент свободен. MCP-сервер `teamwork` для координации
+**Teamwork:** мультиагенты общаются через mailbox (файловая система). `write_if_idle()` для инъекции сообщений только когда агент свободен. In-process `TeamRouter` с `@mention` routing для координации
 
 **Scheduler:** cron-задачи через `src-tauri/src/scheduler/`. Визуальный конструктор расписаний, локальный timezone, Telegram-уведомления
 
@@ -58,7 +62,7 @@ CI: `tsc --noEmit` + `eslint` + `cargo clippy -D warnings`. Release на тег 
 
 **Subscription Usage:** OAuth-токен из `~/.claude/.credentials.json`, эндпоинт `GET api.anthropic.com/api/oauth/usage`. Кэш 60с, retry при 429
 
-**External Models:** провайдеры динамические — строковый id, без enum. Конфиг `external_models.json`, ключи в системном keyring (`external-{id}-api-key`). Добавление/удаление через UI. Ollama и OpenAI-совместимые — один и тот же `ProviderConfig`
+**External Models:** провайдеры динамические — строковый id, без enum. Конфиг `external_models.json`, ключи в `secrets.json` (ключ `external-{id}-api-key`). Добавление/удаление через UI. Ollama и OpenAI-совместимые — один и тот же `ProviderConfig`
 
 **Local Model:** режим per-chat, не глобальный. `conductorStore.localModelChatIds: Set<string>`. Pending flag для новых чатов до создания chatId
 
