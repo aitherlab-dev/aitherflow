@@ -380,10 +380,14 @@ export function SchedulerSection() {
       .catch(console.error);
   }, [loadTasks]);
 
-  // Reload tasks when a scheduled task starts (auto or manual)
+  // Reload tasks when a scheduled task starts or completes
   useEffect(() => {
-    const unlisten = listen("scheduler:task-started", () => loadTasks());
-    return () => { unlisten.then((fn) => fn()).catch(console.error); };
+    const unlistenStarted = listen("scheduler:task-started", () => loadTasks());
+    const unlistenCompleted = listen("scheduler:task-completed", () => loadTasks());
+    return () => {
+      unlistenStarted.then((fn) => fn()).catch(console.error);
+      unlistenCompleted.then((fn) => fn()).catch(console.error);
+    };
   }, [loadTasks]);
 
   const handleToggle = useCallback(

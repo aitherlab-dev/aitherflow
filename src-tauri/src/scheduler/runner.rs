@@ -13,6 +13,24 @@ use crate::conductor::session::SessionManager;
 pub async fn start_scheduler(app_handle: tauri::AppHandle) {
     eprintln!("[scheduler] Started");
 
+    // Reset any tasks stuck in "Running" from a previous app crash / restart
+    if let Ok(()) = tokio::task::spawn_blocking(|| {
+        let mut tasks = load_tasks();
+        let mut changed = false;
+        for t in &mut tasks {
+            if matches!(t.last_status, Some(TaskRunStatus::Running)) {
+                eprintln!("[scheduler] Resetting stale 'running' status for task '{}'", t.name);
+                t.last_status = Some(TaskRunStatus::Error);
+                changed = true;
+            }
+        }
+        if changed {
+            save_tasks(&tasks).ok();
+        }
+    })
+    .await
+    {}
+
     loop {
         tokio::time::sleep(Duration::from_secs(30)).await;
 
@@ -216,7 +234,7 @@ pub async fn run_task_now(app_handle: &tauri::AppHandle, task: &ScheduledTask) {
                     &app_clone,
                     "cli-event",
                     &crate::conductor::types::CliEvent::Error {
-                        agent_id: agent_id.into(),
+                        agent_id: agent_id.clone().into(),
                         message: e.clone(),
                     },
                 ) {
@@ -254,6 +272,11 @@ pub async fn run_task_now(app_handle: &tauri::AppHandle, task: &ScheduledTask) {
         .await
         {
             eprintln!("[scheduler] Failed to update final status: {e}");
+        }
+
+        // Notify UI so it can refresh task list (unblock Play button, update status dot)
+        if let Err(e) = tauri::Emitter::emit(&app_clone, "scheduler:task-completed", &agent_id) {
+            eprintln!("[scheduler] Failed to emit task-completed: {e}");
         }
     });
 }

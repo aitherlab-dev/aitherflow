@@ -446,6 +446,12 @@ pub async fn run_cli_session(
                                 let known = router.known_names().await;
                                 let known_refs: Vec<&str> = known.iter().map(|s| s.as_str()).collect();
                                 let mentions = crate::teamwork::mention_parser::parse_mentions(text, &known_refs);
+                                if mentions.is_empty() && text.contains('@') {
+                                    let preview: String = text.chars().take(200).collect();
+                                    eprintln!("[{tag}] MessageComplete has @ but no parsed mentions. known={known_refs:?} text={preview:?}");
+                                } else if !mentions.is_empty() {
+                                    eprintln!("[{tag}] Parsed {} mention(s) from {name}", mentions.len());
+                                }
 
                                 for m in &mentions {
                                     if m.target == "all" {

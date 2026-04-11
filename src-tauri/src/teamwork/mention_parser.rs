@@ -25,10 +25,12 @@ pub fn parse_mentions(text: &str, known_names: &[&str]) -> Vec<ParsedMention> {
     let mut match_positions: Vec<(usize, &str)> = Vec::new();
 
     for (i, _) in text.match_indices('@') {
-        // Must be at start of text or preceded by whitespace/newline
+        // Must be at start of text or NOT preceded by alphanumeric char.
+        // This allows @mentions after punctuation/quotes while still
+        // filtering out emails (user@example.com).
         if i > 0 {
             let prev = text.as_bytes()[i - 1];
-            if prev != b' ' && prev != b'\n' && prev != b'\r' && prev != b'\t' {
+            if prev.is_ascii_alphanumeric() || prev == b'_' {
                 continue;
             }
         }
@@ -135,6 +137,24 @@ mod tests {
         let names = ["coder-1"];
         let result = parse_mentions(text, &names);
         assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_mention_after_quote() {
+        let text = r#"Отправляю "@coder-1 сделай функцию""#;
+        let names = ["coder-1"];
+        let result = parse_mentions(text, &names);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].target, "coder-1");
+    }
+
+    #[test]
+    fn test_mention_after_punctuation() {
+        let text = "Задача:@coder-1 сделай функцию";
+        let names = ["coder-1"];
+        let result = parse_mentions(text, &names);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].target, "coder-1");
     }
 
     #[test]
