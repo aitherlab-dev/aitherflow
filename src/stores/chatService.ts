@@ -59,6 +59,52 @@ export async function injectMessage(text: string) {
   }
 }
 
+// ── resumeCurrentChat ──
+
+/** Start CLI with --resume using current chat's sessionId. Does NOT send any message. */
+export async function resumeCurrentChat(): Promise<void> {
+  const state = useChatStore.getState();
+  if (!state.currentChatId || state.hasSession) return;
+
+  const chatMeta = state.chatList.find((c) => c.id === state.currentChatId);
+  const resumeSessionId = chatMeta?.sessionId ?? undefined;
+  if (!resumeSessionId) return; // Can't resume without sessionId
+
+  let enableChrome = true;
+  let settingsPermMode: "default" | "plan" | "bypassPermissions" | undefined;
+  try {
+    const settings = await getSettings();
+    if (settings.bypassPermissions) settingsPermMode = "bypassPermissions";
+    enableChrome = settings.enableChrome;
+  } catch (e) {
+    console.error("[resumeCurrentChat] Failed to load settings:", e);
+  }
+
+  const { selectedModel, selectedEffort, selectedPermissionMode } = useConductorStore.getState();
+  const permissionMode =
+    settingsPermMode ?? (selectedPermissionMode !== "default" ? selectedPermissionMode : undefined);
+  const agentRole = useConductorStore.getState().getAgentRole(state.agentId);
+
+  try {
+    await invoke("start_session", {
+      options: {
+        agentId: state.agentId,
+        prompt: "",
+        projectPath: state.projectPath,
+        model: selectedModel || undefined,
+        effort: selectedEffort !== "high" ? selectedEffort : undefined,
+        resumeSessionId,
+        permissionMode,
+        chrome: enableChrome,
+        roleSystemPrompt: agentRole?.system_prompt ? agentRole.system_prompt : undefined,
+        roleAllowedTools: agentRole?.allowed_tools.length ? agentRole.allowed_tools : undefined,
+      } satisfies StartSessionOptions,
+    });
+  } catch (e) {
+    console.error("[resumeCurrentChat] Failed:", e);
+  }
+}
+
 // ── sendMessage ──
 
 /** Guard to prevent duplicate chat creation on double-click Send */

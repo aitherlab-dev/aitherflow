@@ -303,6 +303,7 @@ pub async fn telegram_send_menu(
     let keyboard = vec![
         vec!["Workspace".to_string(), "Active".to_string(), "Projects".to_string()],
         vec!["Skills".to_string(), "Stop".to_string(), "Team".to_string()],
+        vec!["Resume".to_string(), "Chats".to_string(), "History".to_string()],
     ];
 
     // Build dashboard text
@@ -423,6 +424,38 @@ pub async fn telegram_send_projects(projects: Vec<serde_json::Value>) -> Result<
     tg_send_inline_keyboard(&client, &token, chat_id, &wide("Start session:"), buttons).await
 }
 
+/// Send projects list with inline keyboard for resuming a session
+#[tauri::command]
+pub async fn telegram_send_resume_projects(projects: Vec<serde_json::Value>) -> Result<(), String> {
+    let (token, chat_id, client) = get_bot_connection()?;
+
+    if projects.is_empty() {
+        tg_send_message(&client, &token, chat_id, "No projects configured").await?;
+        return Ok(());
+    }
+
+    let payloads: Vec<String> = projects.iter()
+        .map(|p| format!("resume:{}", p["path"].as_str().unwrap_or("")))
+        .collect();
+    let cbs = clear_and_register_callbacks(&payloads);
+    let mut buttons: Vec<Vec<serde_json::Value>> = Vec::new();
+    for (project, cb) in projects.iter().zip(cbs) {
+        let name = project["name"].as_str().unwrap_or("Project");
+        buttons.push(vec![serde_json::json!({
+            "text": name,
+            "callback_data": cb,
+            "style": "primary",
+        })]);
+    }
+    buttons.push(vec![serde_json::json!({
+        "text": "\u{2715} Cancel",
+        "callback_data": "cancel",
+        "style": "danger",
+    })]);
+
+    tg_send_inline_keyboard(&client, &token, chat_id, &wide("Resume project:"), buttons).await
+}
+
 /// Send project list for team assembly (user picks project, then picks roles)
 #[tauri::command]
 pub async fn telegram_send_team_projects(projects: Vec<serde_json::Value>) -> Result<(), String> {
@@ -510,6 +543,38 @@ pub async fn telegram_send_skills(skills: Vec<serde_json::Value>) -> Result<(), 
     })]);
 
     tg_send_inline_keyboard(&client, &token, chat_id, &wide("Skills:"), buttons).await
+}
+
+/// Send chat list with inline keyboard for switching
+#[tauri::command]
+pub async fn telegram_send_chats(chats: Vec<serde_json::Value>) -> Result<(), String> {
+    let (token, chat_id, client) = get_bot_connection()?;
+
+    if chats.is_empty() {
+        tg_send_message(&client, &token, chat_id, "No chats").await?;
+        return Ok(());
+    }
+
+    let payloads: Vec<String> = chats.iter()
+        .map(|c| format!("chat:{}", c["id"].as_str().unwrap_or("")))
+        .collect();
+    let cbs = clear_and_register_callbacks(&payloads);
+    let mut buttons: Vec<Vec<serde_json::Value>> = Vec::new();
+    for (chat, cb) in chats.iter().zip(cbs) {
+        let title = chat["title"].as_str().unwrap_or("Chat");
+        buttons.push(vec![serde_json::json!({
+            "text": title,
+            "callback_data": cb,
+            "style": "primary",
+        })]);
+    }
+    buttons.push(vec![serde_json::json!({
+        "text": "\u{2715} Cancel",
+        "callback_data": "cancel",
+        "style": "danger",
+    })]);
+
+    tg_send_inline_keyboard(&client, &token, chat_id, &wide("Chats:"), buttons).await
 }
 
 /// Send stop menu with inline keyboard listing active agents

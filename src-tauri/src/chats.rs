@@ -320,6 +320,50 @@ pub async fn list_chats(project_path: String) -> Result<Vec<ChatMeta>, String> {
     .map_err(|e| format!("Task join error: {e}"))?
 }
 
+/// List chats for a project, sorted by file mtime (most recently active first).
+/// Pinned chats remain at the top. Falls back to `created_at` if mtime unreadable.
+#[tauri::command]
+pub async fn list_chats_by_activity(project_path: String) -> Result<Vec<ChatMeta>, String> {
+    tokio::task::spawn_blocking(move || {
+        let index = get_or_rebuild_index()?;
+
+        let live_ids: std::collections::HashSet<String> =
+            index.iter().map(|e| e.id.clone()).collect();
+        purge_stale_caches(&live_ids);
+
+        let mut chats: Vec<(ChatMeta, u64)> = index
+            .into_iter()
+            .filter(|e| e.project_path == project_path)
+            .map(|e| {
+                let path = chat_path(&e.id);
+                let activity = fs::metadata(&path)
+                    .and_then(|m| m.modified())
+                    .ok()
+                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                    .map(|d| d.as_millis().try_into().unwrap_or(u64::MAX))
+                    .unwrap_or(e.created_at);
+                let meta = ChatMeta {
+                    id: e.id,
+                    title: e.title,
+                    created_at: e.created_at,
+                    session_id: e.session_id,
+                    custom_title: e.custom_title,
+                    pinned: e.pinned.unwrap_or(false),
+                };
+                (meta, activity)
+            })
+            .collect();
+
+        // Pinned first, then by mtime DESC within each group
+        chats.sort_by(|a, b| {
+            b.0.pinned.cmp(&a.0.pinned).then(b.1.cmp(&a.1))
+        });
+        Ok(chats.into_iter().map(|(m, _)| m).collect())
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
 /// Create a new chat with a title (from first message)
 #[tauri::command]
 pub async fn create_chat(

@@ -12,9 +12,10 @@ import { useProjectStore } from "../stores/projectStore";
 
 import { useSkillStore } from "../stores/skillStore";
 import { launchTeam } from "../stores/agentStore";
-import { sendMessage } from "../stores/chatService";
+import { sendMessage, resumeCurrentChat } from "../stores/chatService";
+import { switchChat } from "../stores/chatCrud";
 import { toFileType } from "../types/chat";
-import type { Attachment } from "../types/chat";
+import type { Attachment, ChatMessage } from "../types/chat";
 import type { ProcessFileResult } from "../types/files";
 
 interface TgIncoming {
@@ -196,6 +197,21 @@ async function handleIncoming(msg: TgIncoming): Promise<void> {
     case "launch_team":
       await handleLaunchTeam(msg.text, msg.project_path, msg.project_name);
       break;
+    case "request_resume":
+      await handleRequestResume();
+      break;
+    case "request_chats":
+      await handleRequestChats();
+      break;
+    case "request_history":
+      await handleRequestHistory();
+      break;
+    case "switch_chat":
+      await handleSwitchChat(msg.text);
+      break;
+    case "resume_project":
+      await handleResumeProject(msg.project_path, msg.project_name);
+      break;
   }
 }
 
@@ -349,6 +365,19 @@ async function handleStopAgent(agentId: string): Promise<void> {
   }).catch(console.error);
 }
 
+/** Send last N messages from current chat state to Telegram */
+async function sendLastMessages(msgs: ChatMessage[], count: number): Promise<void> {
+  const last = msgs.filter((m) => m.text).slice(-count);
+  for (const m of last) {
+    const prefix = m.role === "user" ? "\u{1F464} User" : "\u{1F916} Assistant";
+    const text = stripThinking(m.text!);
+    if (text) {
+      const truncated = text.length > 4000 ? "..." + text.slice(-4000) : text;
+      await invoke("send_to_telegram", { text: `${prefix}:\n${truncated}` }).catch(console.error);
+    }
+  }
+}
+
 async function handleSwitchAgent(agentId: string): Promise<void> {
   const { agents } = useAgentStore.getState();
   const target = agents.find((a) => a.id === agentId);
@@ -359,16 +388,7 @@ async function handleSwitchAgent(agentId: string): Promise<void> {
   // Send last 2 messages from this agent to Telegram
   const agentState = agentStates.get(agentId);
   const messages = agentState?.messages ?? [];
-  const last2 = messages.filter((m) => m.text).slice(-2);
-  for (const m of last2) {
-    const prefix = m.role === "user" ? "\u{1F464} User" : "\u{1F916} Assistant";
-    const text = stripThinking(m.text!);
-    if (text) {
-      await invoke("send_to_telegram", {
-        text: `${prefix}:\n${text}`,
-      }).catch(console.error);
-    }
-  }
+  await sendLastMessages(messages, 2);
 }
 
 async function handleRequestWorkspace(): Promise<void> {
@@ -443,4 +463,122 @@ async function handleLaunchTeam(
       text: `Team launch failed: ${e}`,
     }).catch(console.error);
   }
+}
+
+async function handleRequestResume(): Promise<void> {
+  const { projects } = useProjectStore.getState();
+  if (projects.length === 0) {
+    await invoke("send_to_telegram", { text: "No projects configured" }).catch(console.error);
+    return;
+  }
+  await invoke("telegram_send_resume_projects", {
+    projects: projects.map((p) => ({ path: p.path, name: p.name })),
+  }).catch(console.error);
+}
+
+async function handleResumeProject(projectPath?: string, projectName?: string): Promise<void> {
+  if (!projectPath || !projectName) return;
+
+  // 1. Find or create agent in this project
+  const { agents, setActiveAgent, createAgent } = useAgentStore.getState();
+  const existing = agents.find((a) => a.projectPath === projectPath);
+  if (existing) {
+    await setActiveAgent(existing.id);
+  } else {
+    await createAgent(projectPath, projectName);
+  }
+
+  // 2. Load chats for this project sorted by activity (mtime)
+  interface ChatMetaLite {
+    id: string;
+    title: string;
+    sessionId: string | null;
+    customTitle: string | null;
+  }
+  let chats: ChatMetaLite[];
+  try {
+    chats = await invoke<ChatMetaLite[]>("list_chats_by_activity", { projectPath });
+  } catch (e) {
+    console.error("[TG] list_chats_by_activity:", e);
+    await invoke("send_to_telegram", { text: "Failed to load chats" }).catch(console.error);
+    return;
+  }
+
+  if (chats.length === 0) {
+    await invoke("send_to_telegram", { text: `No chats in ${projectName}` }).catch(console.error);
+    return;
+  }
+
+  const latest = chats[0];
+  if (!latest.sessionId) {
+    await invoke("send_to_telegram", { text: "Latest chat has no session to resume" }).catch(console.error);
+    return;
+  }
+
+  // 3. Switch to that chat (loads messages into store)
+  await switchChat(latest.id);
+
+  // 4. Start CLI with --resume
+  await resumeCurrentChat();
+
+  const title = latest.customTitle || latest.title;
+  await invoke("send_to_telegram", { text: `Resumed: ${title}` }).catch(console.error);
+
+  // 5. Send last 4 messages
+  await sendLastMessages(useChatStore.getState().messages, 4);
+}
+
+async function handleRequestChats(): Promise<void> {
+  const { projectPath } = useChatStore.getState();
+  if (!projectPath) {
+    await invoke("send_to_telegram", { text: "No active project" }).catch(console.error);
+    return;
+  }
+
+  interface ChatMetaLite {
+    id: string;
+    title: string;
+    customTitle: string | null;
+  }
+  let chats: ChatMetaLite[];
+  try {
+    chats = await invoke<ChatMetaLite[]>("list_chats_by_activity", { projectPath });
+  } catch (e) {
+    console.error("[TG] list_chats_by_activity:", e);
+    await invoke("send_to_telegram", { text: "Failed to load chats" }).catch(console.error);
+    return;
+  }
+
+  if (chats.length === 0) {
+    await invoke("send_to_telegram", { text: "No chats" }).catch(console.error);
+    return;
+  }
+
+  const payload = chats.slice(0, 10).map((c) => ({
+    id: c.id,
+    title: c.customTitle || c.title,
+  }));
+  await invoke("telegram_send_chats", { chats: payload }).catch(console.error);
+}
+
+async function handleRequestHistory(): Promise<void> {
+  const { projectPath, projectName } = useChatStore.getState();
+  if (!projectPath) {
+    await invoke("send_to_telegram", { text: "No active agent" }).catch(console.error);
+    return;
+  }
+  // Reuse the resume flow on current project
+  await handleResumeProject(projectPath, projectName);
+}
+
+async function handleSwitchChat(chatId: string): Promise<void> {
+  await switchChat(chatId);
+  await resumeCurrentChat();
+
+  const { chatList, messages } = useChatStore.getState();
+  const chat = chatList.find((c) => c.id === chatId);
+  const title = chat?.customTitle || chat?.title || "Chat";
+  await invoke("send_to_telegram", { text: `Switched to: ${title}` }).catch(console.error);
+
+  await sendLastMessages(messages, 4);
 }

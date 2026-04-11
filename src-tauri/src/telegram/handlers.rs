@@ -29,6 +29,9 @@ pub(super) fn keyboard_button_kind(text: &str) -> Option<&'static str> {
         "Skills" => Some("request_skills"),
         "Stop" => Some("request_stop"),
         "Team" => Some("request_team"),
+        "Resume" => Some("request_resume"),
+        "Chats" => Some("request_chats"),
+        "History" => Some("request_history"),
         _ => None,
     }
 }
@@ -129,6 +132,37 @@ pub(super) async fn handle_callback(
         }
         if let Err(e) = tg_send_message(client, token, chat_id, &format!("Starting session in: {name}")).await {
             eprintln!("[TG] confirm new_session: {e}");
+        }
+    } else if let Some(path) = data.strip_prefix("resume:") {
+        if let Err(e) = crate::files::validate_path_safe(std::path::Path::new(path)) {
+            eprintln!("[TG] Invalid resume path from callback: {e}");
+            if let Err(se) = tg_send_message(client, token, chat_id, &format!("Invalid path: {e}")).await {
+                eprintln!("[TG] send path error: {se}");
+            }
+            return;
+        }
+        let name = path.rsplit('/').next().unwrap_or(path);
+        if let Err(e) = incoming_tx.send(TgIncoming {
+            kind: "resume_project".into(),
+            text: String::new(),
+            project_path: Some(path.to_string()),
+            project_name: Some(name.to_string()),
+            attachment_path: None,
+        }) {
+            eprintln!("[TG] send resume_project: {e}");
+        }
+        if let Err(e) = tg_send_message(client, token, chat_id, &format!("Resuming: {name}")).await {
+            eprintln!("[TG] confirm resume: {e}");
+        }
+    } else if let Some(chat_id_str) = data.strip_prefix("chat:") {
+        if let Err(e) = incoming_tx.send(TgIncoming {
+            kind: "switch_chat".into(),
+            text: chat_id_str.to_string(),
+            project_path: None,
+            project_name: None,
+            attachment_path: None,
+        }) {
+            eprintln!("[TG] send switch_chat: {e}");
         }
     } else if let Some(agent_id) = data.strip_prefix("stop:") {
         if let Err(e) = incoming_tx.send(TgIncoming {
