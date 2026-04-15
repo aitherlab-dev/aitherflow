@@ -164,6 +164,37 @@ pub(super) async fn handle_callback(
         }) {
             eprintln!("[TG] send switch_chat: {e}");
         }
+    } else if let Some(rest) = data.strip_prefix("rsc:") {
+        // Format: "{chat_id}\t{project_path}\t{project_name}"
+        let mut parts = rest.splitn(3, '\t');
+        let id = parts.next().unwrap_or("").to_string();
+        let path = parts.next().unwrap_or("").to_string();
+        let name = parts.next().unwrap_or("").to_string();
+        if id.is_empty() || path.is_empty() {
+            eprintln!("[TG] Invalid rsc callback: missing fields");
+            return;
+        }
+        if let Err(e) = crate::files::validate_path_safe(std::path::Path::new(&path)) {
+            eprintln!("[TG] Invalid resume-chat path from callback: {e}");
+            if let Err(se) = tg_send_message(client, token, chat_id, &format!("Invalid path: {e}")).await {
+                eprintln!("[TG] send path error: {se}");
+            }
+            return;
+        }
+        let display = if name.is_empty() {
+            path.rsplit('/').next().unwrap_or(&path).to_string()
+        } else {
+            name
+        };
+        if let Err(e) = incoming_tx.send(TgIncoming {
+            kind: "resume_chat".into(),
+            text: id,
+            project_path: Some(path),
+            project_name: Some(display),
+            attachment_path: None,
+        }) {
+            eprintln!("[TG] send resume_chat: {e}");
+        }
     } else if let Some(agent_id) = data.strip_prefix("stop:") {
         if let Err(e) = incoming_tx.send(TgIncoming {
             kind: "stop_agent".into(),

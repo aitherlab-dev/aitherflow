@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { invoke } from "../lib/transport";
 import type { AgentEntry, AgentsConfig } from "../types/agents";
 import { useChatStore, agentStates } from "./chatStore";
-import { switchAgent, clearAgentState } from "./chatService";
+import { switchAgent, clearAgentState, resetChatStoreToEmpty } from "./chatService";
 import { useProjectStore } from "./projectStore";
 import { resetTelegramState } from "../services/telegramService";
 
@@ -185,11 +185,15 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     await persist(updated, newActiveId);
 
     // If we changed active agent, tell chatStore
-    if (activeAgentId && idsToRemove.has(activeAgentId) && newActiveId) {
-      const newAgent = updated.find((a) => a.id === newActiveId);
-      if (newAgent) {
-        const savedChatId = remainingLocks[newActiveId] ?? null;
-        await switchAgent(newAgent.id, newAgent.projectPath, newAgent.projectName, savedChatId);
+    if (activeAgentId && idsToRemove.has(activeAgentId)) {
+      if (newActiveId) {
+        const newAgent = updated.find((a) => a.id === newActiveId);
+        if (newAgent) {
+          const savedChatId = remainingLocks[newActiveId] ?? null;
+          await switchAgent(newAgent.id, newAgent.projectPath, newAgent.projectName, savedChatId);
+        }
+      } else {
+        await resetChatStoreToEmpty();
       }
     }
   },
@@ -299,11 +303,15 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     set({ agents: updated, activeAgentId: newActiveId });
     await persist(updated, newActiveId);
 
-    if (activeAgentId === agentId && newActiveId) {
-      const newAgent = updated.find((a) => a.id === newActiveId);
-      if (newAgent) {
-        const savedChatId = remainingLocks[newActiveId] ?? null;
-        await switchAgent(newAgent.id, newAgent.projectPath, newAgent.projectName, savedChatId);
+    if (activeAgentId === agentId) {
+      if (newActiveId) {
+        const newAgent = updated.find((a) => a.id === newActiveId);
+        if (newAgent) {
+          const savedChatId = remainingLocks[newActiveId] ?? null;
+          await switchAgent(newAgent.id, newAgent.projectPath, newAgent.projectName, savedChatId);
+        }
+      } else {
+        await resetChatStoreToEmpty();
       }
     }
   },

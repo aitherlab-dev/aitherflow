@@ -320,6 +320,57 @@ pub async fn list_chats(project_path: String) -> Result<Vec<ChatMeta>, String> {
     .map_err(|e| format!("Task join error: {e}"))?
 }
 
+/// Recent chat entry with project info (for cross-project resume UI)
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct RecentChatEntry {
+    pub id: String,
+    pub title: String,
+    pub custom_title: Option<String>,
+    pub project_path: String,
+    pub session_id: Option<String>,
+}
+
+/// List recent chats across ALL projects, sorted by file mtime (newest first).
+/// Used by Telegram Resume button to show a cross-project chat picker.
+#[tauri::command]
+pub async fn list_recent_chats_all(limit: usize) -> Result<Vec<RecentChatEntry>, String> {
+    tokio::task::spawn_blocking(move || {
+        let index = get_or_rebuild_index()?;
+
+        let live_ids: std::collections::HashSet<String> =
+            index.iter().map(|e| e.id.clone()).collect();
+        purge_stale_caches(&live_ids);
+
+        let mut chats: Vec<(RecentChatEntry, u64)> = index
+            .into_iter()
+            .map(|e| {
+                let path = chat_path(&e.id);
+                let activity = fs::metadata(&path)
+                    .and_then(|m| m.modified())
+                    .ok()
+                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                    .map(|d| d.as_millis().try_into().unwrap_or(u64::MAX))
+                    .unwrap_or(e.created_at);
+                let entry = RecentChatEntry {
+                    id: e.id,
+                    title: e.title,
+                    custom_title: e.custom_title,
+                    project_path: e.project_path,
+                    session_id: e.session_id,
+                };
+                (entry, activity)
+            })
+            .collect();
+
+        chats.sort_by(|a, b| b.1.cmp(&a.1));
+        chats.truncate(limit);
+        Ok(chats.into_iter().map(|(e, _)| e).collect())
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
 /// List chats for a project, sorted by file mtime (most recently active first).
 /// Pinned chats remain at the top. Falls back to `created_at` if mtime unreadable.
 #[tauri::command]

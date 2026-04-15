@@ -23,7 +23,7 @@ import { loadChatList, generateTitle } from "./chatCrud";
 
 export { invalidateSettingsCache, stopGeneration, restartSession, switchPermissionMode, switchModel } from "./sessionManager";
 export { persistMessages, loadChatList, switchChat, newChat, deleteChat, renameChat, toggleChatPin } from "./chatCrud";
-export { switchAgent, clearAgentState } from "./agentSwitcher";
+export { switchAgent, clearAgentState, resetChatStoreToEmpty } from "./agentSwitcher";
 
 // ── injectMessage (send during streaming) ──
 

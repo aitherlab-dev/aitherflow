@@ -8,6 +8,7 @@ import { Sidebar } from "./sidebar";
 import { ChatView } from "../chat/ChatView";
 import { FileViewerResizeHandle } from "../fileviewer/FileViewerResizeHandle";
 import { useLayoutStore } from "../../stores/layoutStore";
+import { useAgentStore } from "../../stores/agentStore";
 import { useShallow } from "zustand/react/shallow";
 import { BrandFooter } from "./BrandFooter";
 
@@ -37,7 +38,14 @@ export function AppLayout() {
     teamMailboxWidth: s.teamMailboxWidth,
   })));
 
+  const activeAgentId = useAgentStore((s) => s.activeAgentId);
+
   const showPanel = fileViewerVisible && fileViewerHasContent;
+
+  // Force welcome view when no active agent exists — prevents stale ChatView after removing last agent
+  const showWelcome =
+    activeView === "welcome" ||
+    (!activeAgentId && activeView !== "settings" && activeView !== "knowledge");
 
   const panelStyle =
     fileViewerPosition === "right"
@@ -59,7 +67,7 @@ export function AppLayout() {
               <TeamMailboxPanel />
             </div>
           )}
-          {activeView === "welcome" ? (
+          {showWelcome ? (
             <WelcomeScreen />
           ) : activeView === "settings" ? (
             <SettingsView />

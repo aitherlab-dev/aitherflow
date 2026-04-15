@@ -577,6 +577,54 @@ pub async fn telegram_send_chats(chats: Vec<serde_json::Value>) -> Result<(), St
     tg_send_inline_keyboard(&client, &token, chat_id, &wide("Chats:"), buttons).await
 }
 
+/// Send recent chats (cross-project) with inline keyboard for resume.
+/// Each chat label shows "[ProjectName] Chat Title".
+/// Callback registry stores "rsc:{id}\t{path}\t{name}" per entry.
+#[tauri::command]
+pub async fn telegram_send_recent_chats(
+    chats: Vec<serde_json::Value>,
+) -> Result<(), String> {
+    let (token, chat_id, client) = get_bot_connection()?;
+
+    if chats.is_empty() {
+        tg_send_message(&client, &token, chat_id, "No chats yet").await?;
+        return Ok(());
+    }
+
+    let payloads: Vec<String> = chats
+        .iter()
+        .map(|c| {
+            let id = c["id"].as_str().unwrap_or("");
+            let path = c["projectPath"].as_str().unwrap_or("");
+            let name = c["projectName"].as_str().unwrap_or("");
+            format!("rsc:{id}\t{path}\t{name}")
+        })
+        .collect();
+    let cbs = clear_and_register_callbacks(&payloads);
+    let mut buttons: Vec<Vec<serde_json::Value>> = Vec::new();
+    for (chat, cb) in chats.iter().zip(cbs) {
+        let title = chat["title"].as_str().unwrap_or("Chat");
+        let project_name = chat["projectName"].as_str().unwrap_or("");
+        let label = if project_name.is_empty() {
+            title.to_string()
+        } else {
+            format!("[{project_name}] {title}")
+        };
+        buttons.push(vec![serde_json::json!({
+            "text": label,
+            "callback_data": cb,
+            "style": "primary",
+        })]);
+    }
+    buttons.push(vec![serde_json::json!({
+        "text": "\u{2715} Cancel",
+        "callback_data": "cancel",
+        "style": "danger",
+    })]);
+
+    tg_send_inline_keyboard(&client, &token, chat_id, &wide("Resume chat:"), buttons).await
+}
+
 /// Send stop menu with inline keyboard listing active agents
 #[tauri::command]
 pub async fn telegram_send_stop(agents: Vec<serde_json::Value>) -> Result<(), String> {

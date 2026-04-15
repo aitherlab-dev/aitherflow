@@ -130,6 +130,48 @@ async function switchAgentInner(
   syncThinkingIds();
 }
 
+// ── Reset chat store to empty (no active agent) ──
+
+/** Reset chatStore to a blank "no agent" state. Called when the last agent is removed. */
+export function resetChatStoreToEmpty() {
+  return enqueueSession(async () => {
+    clearToolActivityTimer();
+    cancelStreamRaf();
+
+    try {
+      const { resetTelegramState } = await import("../services/telegramService");
+      resetTelegramState();
+    } catch (e) {
+      console.error("[resetChatStoreToEmpty] Failed to reset telegram state:", e);
+    }
+
+    try {
+      const { useFileViewerStore } = await import("./fileViewerStore");
+      useFileViewerStore.getState().clearAll();
+    } catch (e) {
+      console.error("[resetChatStoreToEmpty] Failed to clear file viewer:", e);
+    }
+
+    useChatStore.setState({
+      agentId: "",
+      projectPath: "",
+      projectName: "",
+      chatList: [],
+      currentChatId: null,
+      messages: [],
+      streamingMessage: null,
+      hasSession: false,
+      isThinking: false,
+      planMode: false,
+      currentToolActivity: null,
+      toolCount: 0,
+      error: null,
+    });
+
+    syncThinkingIds();
+  });
+}
+
 // ── Clear agent state ──
 
 export async function clearAgentState(agentId: string) {
